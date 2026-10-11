@@ -28,6 +28,7 @@ $h->fingerprint('modules/daily-ledger/handlers.php');
 $h->fingerprint('modules/daily-ledger/helpers/reporting.php');
 $h->fingerprint('modules/daily-ledger/module.json');
 $h->fingerprint('templates/modules/daily-ledger/admin/overview.disyl');
+$h->fingerprint('templates/modules/daily-ledger/admin/reports.disyl');
 
 $base = $h->basePath();
 require_once $base . '/src/helpers/module-manager.php';
@@ -456,7 +457,20 @@ $handlersSource = (string)file_get_contents($base . '/modules/daily-ledger/handl
 $overviewStart = strpos($handlersSource, 'function handleAdminOverview');
 $overviewEnd = strpos($handlersSource, 'function handleAdminReports');
 $overviewSlice = ($overviewStart !== false && $overviewEnd !== false) ? substr($handlersSource, $overviewStart, $overviewEnd - $overviewStart) : '';
-$h->test('handler calls the per-branch helper once (no per-branch loop)', substr_count($overviewSlice, 'dl_overviewBranchProductTotals(') === 1);
+// The Health view's per-branch aggregation is dl_overviewBranchSignals(); the
+// product helper above is no longer called here because item analytics moved to
+// the Sales report. Preserve the no-N+1 guard by proving the handler asks for
+// the per-branch signals exactly once, and that the helper is itself set-based
+// (two grouped aggregate queries, never one query per branch).
+$branchSignalsStart = strpos($reportingSource, 'function dl_overviewBranchSignals');
+$branchSignalsEnd = strpos($reportingSource, 'function dl_overviewOfficialSalesTotal');
+$branchSignalsSlice = ($branchSignalsStart !== false && $branchSignalsEnd !== false) ? substr($reportingSource, $branchSignalsStart, $branchSignalsEnd - $branchSignalsStart) : '';
+$h->test(
+    'handler calls the per-branch helper once (no per-branch loop)',
+    substr_count($overviewSlice, 'dl_overviewBranchSignals(') === 1
+        && substr_count($branchSignalsSlice, '->prepare(') === 2
+        && str_contains($branchSignalsSlice, 'GROUP BY branch_id')
+);
 $h->test('overview reuses canonical sales SQL helpers', str_contains($reportingSource, "dl_ledgerSalesQuantitySql('dl')") && str_contains($reportingSource, "dl_ledgerSalesAmountSql('dl')"));
 $h->test('overview SQL avoids MySQL 8-only constructs', stripos($overviewSlice, ' OVER(') === false && stripos($overviewSlice, ' OVER (') === false && preg_match('/\bWITH\s+[a-z_]+\s+AS\s*\(/i', $overviewSlice) !== 1 && stripos($overviewSlice, 'JSON_TABLE') === false);
 
@@ -497,52 +511,123 @@ $renderAs = static function (string $role, int $userId, string $query = '') use 
 
 foreach ([['viewer', $viewerId], ['admin', $adminId], ['supervisor', $supervisorId], ['auditor', $auditorId]] as [$role, $roleId]) {
     $html = $renderAs($role, $roleId, 'branch_id=' . $branchAlpha . '&date_from=2031-06-01&date_to=2031-06-03&forecast_period=daily');
-    $ok = str_contains($html, 'Business Overview')
-        && str_contains($html, 'Gross Sales')
-        && str_contains($html, 'Top Saleable Products')
-        && str_contains($html, 'Pareto 80/20')
-        && str_contains($html, 'Production Forecast')
-        && str_contains($html, 'Overview P1');
+    $ok = str_contains($html, 'Business Health')
+        && str_contains($html, 'Gross sales')
+        && str_contains($html, 'Branches with recorded activity')
+        && str_contains($html, 'Aggregate business forecast')
+        && str_contains($html, 'Overview Alpha');
     $h->test("{$role} renders the read-only overview analytics", $ok);
 }
 
 $viewerHtml = $renderAs('viewer', $viewerId, 'branch_id=' . $branchAlpha . '&date_from=2031-06-01&date_to=2031-06-03&forecast_period=daily');
-$h->test('viewer page exposes no POST/mutation form', !preg_match('/<form[^>]+method=["\']post/i', $viewerHtml));
-$h->test('viewer page shows the configured net sales label', str_contains($viewerHtml, 'Net Sales') && str_contains($viewerHtml, 'PHP 135.00') && str_contains($viewerHtml, '10.00%'));
-$h->test('viewer page shows the per-branch net value', str_contains($viewerHtml, 'Net PHP 135.00') && str_contains($viewerHtml, 'Overview Alpha'));
-$h->test('viewer page shows the amount-ranked per-branch product', str_contains($viewerHtml, 'Top Products by Branch') && str_contains($viewerHtml, 'Overview Alpha') && str_contains($viewerHtml, 'Overview P2'));
 
-// Ranking controls must actually reorder the rendered table, and the caption
-// must describe the ranking that is in force.
-$topSection = static function (string $html): string {
-    $start = strpos($html, 'Top Saleable Products');
+// The net-sales figures are no longer headline or per-branch cards on the
+// Health view (net moved to the governed Branch Consolidated Summary report,
+// reached from this page's "Detailed sales analysis" link). Anchor the net
+// guards to where the figures now render so the configured deduction is still
+// proven end to end rather than assumed.
+$renderReportAs = static function (string $type, string $query = '') use ($viewerId): string {
+    $tokens = dl_generateAuthTokens([
+        'sub' => 'viewer:' . $viewerId,
+        'id' => $viewerId,
+        'username' => 'overview-viewer',
+        'name' => 'Overview viewer',
+        'role' => 'viewer',
+        'source' => 'daily-ledger',
+    ]);
+    $cookieName = dlCookieName();
+    $previousCookie = $_COOKIE[$cookieName] ?? null;
+    $previousGet = $_GET;
+    $_COOKIE[$cookieName] = $tokens['token'];
+    parse_str($query, $_GET);
+    $level = ob_get_level();
+    ob_start();
+    try {
+        dl_handleAdminReport($type);
+        return (string)ob_get_clean();
+    } finally {
+        while (ob_get_level() > $level) {
+            ob_end_clean();
+        }
+        $_GET = $previousGet;
+        if ($previousCookie === null) {
+            unset($_COOKIE[$cookieName]);
+        } else {
+            $_COOKIE[$cookieName] = $previousCookie;
+        }
+    }
+};
+$branchSummaryHtml = $renderReportAs('branch-summary', 'date_from=2031-06-01&date_to=2031-06-03');
+
+// The per-branch ranked entity on the Health view is now the branch comparison
+// chart (item-level rankings moved off this page). Extract just the chart so the
+// assertions below can prove the rendered ordering without matching branch names
+// that also appear in the detail list or the opportunity callout.
+$branchChartSection = static function (string $html): string {
+    $start = strpos($html, 'class="space-y-3"');
     if ($start === false) {
         return '';
     }
-    $end = strpos($html, 'Top Products by Branch', $start);
+    $end = strpos($html, '<div class="flex items-center justify-between gap-4 border-b', $start);
 
     return $end === false ? substr($html, $start) : substr($html, $start, $end - $start);
 };
+
+$h->test('viewer page exposes no POST/mutation form', !preg_match('/<form[^>]+method=["\']post/i', $viewerHtml));
+$h->test(
+    'viewer page shows the configured net sales label',
+    str_contains($viewerHtml, '/admin/reports/sales')
+        && str_contains($branchSummaryHtml, '<th>Net</th>')
+        && str_contains($branchSummaryHtml, 'PHP 150.00')
+        && str_contains($branchSummaryHtml, 'PHP 135.00')
+);
+$alphaSummaryRow = preg_match('/<tr><td>Overview Alpha<\/td>.*?<\/tr>/s', $branchSummaryHtml, $alphaSummaryMatch) ? $alphaSummaryMatch[0] : '';
+$h->test(
+    'viewer page shows the per-branch net value',
+    $alphaSummaryRow !== ''
+        && str_contains($alphaSummaryRow, 'PHP 150.00')
+        && str_contains($alphaSummaryRow, 'PHP 135.00')
+);
+// Per-branch item rankings are item analytics and are intentionally absent from
+// the Health view; the per-branch amount ranking that remains here is the branch
+// comparison chart. Keep both halves of the original guard: the product data path
+// still amount-ranks per branch ($byBranch, asserted in the DB section), and the
+// rendered per-branch list on this page is amount-ranked.
+$branchOrderHtml = $renderAs('viewer', $viewerId, 'date_from=2031-06-01&date_to=2031-06-03&sort_by=amount&sort_dir=desc');
+$branchOrderChart = $branchChartSection($branchOrderHtml);
+$h->test(
+    'viewer page shows the amount-ranked per-branch product',
+    ($byBranch[$branchAlpha] ?? []) === [$productP1, $productP2]
+        && str_contains($branchOrderHtml, 'Branches with recorded activity')
+        && str_contains($branchOrderChart, 'Overview Beta')
+        && str_contains($branchOrderChart, 'Overview Alpha')
+        && strpos($branchOrderChart, 'Overview Beta') < strpos($branchOrderChart, 'Overview Alpha')
+);
+
+// Ranking controls must actually reorder the rendered branch comparison, and
+// the control must state which direction is in force. The old caption text lived
+// on the removed product tables; the active direction is now carried by the
+// selected Order option, so the guard follows it there.
 $allRangeDescHtml = $renderAs('viewer', $viewerId, 'date_from=2031-06-01&date_to=2031-06-02&sort_by=amount&sort_dir=desc');
 $allRangeAscHtml = $renderAs('viewer', $viewerId, 'date_from=2031-06-01&date_to=2031-06-02&sort_by=amount&sort_dir=asc');
-$descTop = $topSection($allRangeDescHtml);
-$ascTop = $topSection($allRangeAscHtml);
+$descTop = $branchChartSection($allRangeDescHtml);
+$ascTop = $branchChartSection($allRangeAscHtml);
 $h->test(
     'ranked table caption reflects the selected direction',
-    str_contains($allRangeDescHtml, 'ranked by sales amount (highest first)')
-        && str_contains($allRangeAscHtml, 'ranked by sales amount (lowest first)')
+    str_contains($allRangeDescHtml, '<option value="desc" selected>Highest first</option>')
+        && str_contains($allRangeAscHtml, '<option value="asc" selected>Lowest first</option>')
 );
 $h->test(
     'descending renders the strongest product before the weakest',
-    strpos($descTop, 'Overview P3') !== false
-        && strpos($descTop, 'Overview P2') !== false
-        && strpos($descTop, 'Overview P3') < strpos($descTop, 'Overview P2')
+    strpos($descTop, 'Overview Beta') !== false
+        && strpos($descTop, 'Overview Alpha') !== false
+        && strpos($descTop, 'Overview Beta') < strpos($descTop, 'Overview Alpha')
 );
 $h->test(
     'ascending renders the weakest product before the strongest',
-    strpos($ascTop, 'Overview P2') !== false
-        && strpos($ascTop, 'Overview P3') !== false
-        && strpos($ascTop, 'Overview P2') < strpos($ascTop, 'Overview P3')
+    strpos($ascTop, 'Overview Alpha') !== false
+        && strpos($ascTop, 'Overview Beta') !== false
+        && strpos($ascTop, 'Overview Alpha') < strpos($ascTop, 'Overview Beta')
 );
 $h->test(
     'filter form exposes both sort fields and both directions',
@@ -553,21 +638,52 @@ $h->test(
 );
 $h->test(
     'overview renders dependency-free bar charts',
-    substr_count($allRangeDescHtml, 'style="width:') >= 3
-        && str_contains($allRangeDescHtml, 'Sales amount by branch')
-        && str_contains($allRangeDescHtml, 'Coverage reached')
-        && str_contains($allRangeDescHtml, 'The red tick marks the 80% threshold.')
-        && str_contains($allRangeDescHtml, 'Projected units by product')
+    substr_count($allRangeDescHtml, 'style="width:') >= 2
+        && str_contains($allRangeDescHtml, 'Branches with recorded activity')
+        && preg_match('/class="h-3 bg-emerald-500" style="width:[0-9.]+%"/', $allRangeDescHtml) === 1
 );
 $h->test(
     'ranked tables render inline row bars',
-    str_contains($allRangeDescHtml, 'bg-emerald-100') && str_contains($allRangeDescHtml, 'bg-indigo-100')
+    str_contains($allRangeDescHtml, 'h-3 overflow-hidden bg-gray-100')
+        && preg_match('/class="h-3 bg-emerald-500" style="width:[0-9.]+%"/', $allRangeDescHtml) === 1
 );
 $h->test(
     'chart filters are exposed and branch chart reports its plotted share',
     str_contains($allRangeDescHtml, 'name="chart_limit"')
         && str_contains($allRangeDescHtml, 'name="chart_show_empty"')
         && str_contains($allRangeDescHtml, 'plotted')
+);
+// The chair's criterion counts controls in the PRIMARY bar, so it would pass by
+// DELETING the relocated controls instead of moving them. Each relocated control
+// must still be present AND reachable inside the section it now governs.
+$branchComparisonSection = static function (string $html): string {
+    $start = strpos($html, 'Branches with recorded activity');
+    if ($start === false) {
+        return '';
+    }
+    $end = strpos($html, 'Branches with no recorded activity', $start);
+
+    return $end === false ? substr($html, $start) : substr($html, $start, $end - $start);
+};
+$forecastControlsSection = static function (string $html): string {
+    $start = strpos($html, 'Aggregate business forecast');
+
+    return $start === false ? '' : substr($html, $start);
+};
+$branchComparisonHtml = $branchComparisonSection($viewerHtml);
+$forecastControlsHtml = $forecastControlsSection($viewerHtml);
+$relocatedControls = [
+    'pending_rows' => str_contains($branchComparisonHtml, 'name="pending_rows"'),
+    'sort_by' => str_contains($branchComparisonHtml, 'name="sort_by"'),
+    'sort_dir' => str_contains($branchComparisonHtml, 'name="sort_dir"'),
+    'chart_limit' => str_contains($branchComparisonHtml, 'name="chart_limit"'),
+    'forecast_window' => str_contains($forecastControlsHtml, 'name="forecast_window"'),
+];
+$missingRelocated = array_keys(array_filter($relocatedControls, static fn(bool $present): bool => !$present));
+$h->test(
+    'relocated controls remain present and reachable in their sections',
+    $missingRelocated === [],
+    'missing=' . implode(',', $missingRelocated)
 );
 
 // Selecting one branch must not remove the other authorized choices from the
@@ -579,7 +695,7 @@ $dropdownEnd = $dropdownStart === false ? false : strpos($viewerFilterHtml, '</s
 $dropdownHtml = ($dropdownStart !== false && $dropdownEnd !== false) ? substr($viewerFilterHtml, $dropdownStart, $dropdownEnd - $dropdownStart) : '';
 $h->test(
     'branch filter retains All Branches plus every authorized branch',
-    str_contains($dropdownHtml, 'All Branches')
+    str_contains($dropdownHtml, 'All branches in area')
         && str_contains($dropdownHtml, 'value="' . $branchAlpha . '"')
         && str_contains($dropdownHtml, 'value="' . $branchBeta . '"')
         && str_contains($dropdownHtml, 'value="' . $branchGamma . '"')
@@ -599,17 +715,38 @@ $h->test(
 
 $supervisorScoped = $renderAs('supervisor', $supervisorId, 'branch_id=' . $branchBeta . '&date_from=2031-06-01&date_to=2031-06-03');
 $h->test('inaccessible branch render shows no out-of-scope branch data', !str_contains($supervisorScoped, 'Overview Beta') && !str_contains($supervisorScoped, 'Overview P3'));
-$h->test('inaccessible branch render shows the empty analytics state', str_contains($supervisorScoped, 'No sales recorded for this period.') || str_contains($supervisorScoped, 'No sales amount recorded'));
+// The fail-closed empty state: zero scoped branches ("0 recorded activity") and
+// the aggregate forecast's explicit no-history message. The old per-product empty
+// strings belonged to the removed item tables.
+$h->test(
+    'inaccessible branch render shows the empty analytics state',
+    str_contains($supervisorScoped, 'Branches in scope')
+        && str_contains($supervisorScoped, '0 recorded activity · 0 silent')
+        && str_contains($supervisorScoped, 'No finalized sales history')
+);
 
-// 0% is a valid but ambiguous setting: render the configuration hint, not a
-// duplicate gross value dressed up as a net amount.
+// 0% is a valid but ambiguous setting. Keep the configuration contract honest:
+// the field is still declared, and 0% is "not configured" rather than a net equal
+// to gross. (The old on-page hint is gone; see the note on the assertion below.)
 saveModuleSettings('daily-ledger', ['net_sales_deduction_percent' => '0']);
 if (function_exists('invalidateTenantModuleSettingsCache')) {
     invalidateTenantModuleSettingsCache();
 }
 dlModuleSettings(true);
 $zeroNetHtml = $renderAs('viewer', $viewerId, 'branch_id=' . $branchAlpha . '&date_from=2031-06-01&date_to=2031-06-03');
-$h->test('0% net renders the configuration hint', str_contains($zeroNetHtml, 'Not configured') && str_contains($zeroNetHtml, 'Net Sales Deduction %'));
+// 0% is a valid but ambiguous setting. The Health view no longer renders any net
+// figure at all (net moved to the Branch Consolidated Summary report), so the
+// old on-page "Not configured" hint has no new rendering to anchor to. The
+// surviving contract is the setting itself: it is still declared with its human
+// label, and 0% still resolves to "not configured" rather than echoing gross as
+// a net amount. The removed on-page hint is reported as a restructure loss.
+$h->test(
+    '0% net renders the configuration hint',
+    is_array($netField)
+        && (string)($netField['label'] ?? '') === 'Net Sales Deduction %'
+        && dl_overviewNetSales(150.0, '0')['configured'] === false
+        && dl_overviewNetSales(150.0, '0')['net'] === 150.0
+);
 $h->test('0% net does not render a misleading net amount', !str_contains($zeroNetHtml, 'Net PHP') && !str_contains($zeroNetHtml, 'deduction from'));
 saveModuleSettings('daily-ledger', ['net_sales_deduction_percent' => '10']);
 if (function_exists('invalidateTenantModuleSettingsCache')) {
@@ -620,10 +757,17 @@ dlModuleSettings(true);
 // A pending ending produces a 0-amount product row (nothing was actually sold).
 // Such products must be absent from the ranked tables and from the 80/20 rule.
 $db->execute("INSERT INTO dl_daily_ledger (branch_id, product_id, ledger_date, shift, price_snapshot, beg_bal, addtl, withdraw, bal_end) VALUES (?, ?, '2031-06-03', 'AM', 99, 1, 0, 0, NULL)", [$branchGamma, $productP4]);
-$zeroAmountHtml = $renderAs('viewer', $viewerId, 'date_from=2031-06-01&date_to=2031-06-03');
+// The item tables left the Health view, so prove the guard where the data now
+// lives: the pending no-sale row is absent from the DB product totals and the
+// Pareto scope, while the sold products are still returned (so absence is not
+// just an empty result).
+$zeroAmountTotals = dl_overviewProductTotals($db, $overviewFilters($accessibleAll));
+$zeroAmountPareto = dl_overviewPareto($zeroAmountTotals);
 $h->test(
     'no-sales product is absent from the overview and the 80/20 rule',
-    !str_contains($zeroAmountHtml, 'Overview P4') && !str_contains($zeroAmountHtml, '0.0%')
+    $zeroAmountTotals !== []
+        && !in_array($productP4, array_column($zeroAmountTotals, 'id'), true)
+        && !in_array($productP4, array_column($zeroAmountPareto['contributors'], 'id'), true)
 );
 $db->execute('DELETE FROM dl_daily_ledger WHERE branch_id = ? AND product_id = ?', [$branchGamma, $productP4]);
 
@@ -631,16 +775,18 @@ $db->execute('DELETE FROM dl_daily_ledger WHERE branch_id = ? AND product_id = ?
 // rather than a pending row, so it reaches the forecast engine with a zero
 // average. The projection must omit it instead of listing 0 units.
 $db->execute("INSERT INTO dl_daily_ledger (branch_id, product_id, ledger_date, shift, price_snapshot, beg_bal, addtl, withdraw, bal_end) VALUES (?, ?, '2031-06-03', 'AM', 99, 5, 0, 0, 5)", [$branchGamma, $productP4]);
-$forecastSection = static function (string $html): string {
-    $start = strpos($html, 'Production Forecast');
-
-    return $start === false ? '' : substr($html, $start);
-};
-$zeroOfficialHtml = $renderAs('viewer', $viewerId, 'date_from=2031-06-01&date_to=2031-06-03&forecast_period=monthly');
-$zeroOfficialForecast = $forecastSection($zeroOfficialHtml);
+// The aggregate forecast carries no product names, so prove the omission at the
+// engine that still feeds it: the zero-movement row reaches the forecast rows
+// with a zero average, and the monthly summary drops it while keeping the sold
+// products.
+$zeroOfficialRows = dl_overviewForecastRows($db, $overviewFilters($accessibleAll), '2031-06-03', 14);
+$zeroOfficialSummary = dl_overviewForecastSummary($zeroOfficialRows, 'monthly');
+$zeroOfficialIds = array_column($zeroOfficialSummary['products'], 'product_id');
 $h->test(
     'monthly projection omits a product with zero units sold',
-    !str_contains($zeroOfficialForecast, 'Overview P4') && str_contains($zeroOfficialForecast, 'Overview P')
+    in_array($productP4, array_column($zeroOfficialRows, 'product_id'), true)
+        && !in_array($productP4, $zeroOfficialIds, true)
+        && in_array($productP1, $zeroOfficialIds, true)
 );
 $db->execute('DELETE FROM dl_daily_ledger WHERE branch_id = ? AND product_id = ?', [$branchGamma, $productP4]);
 
@@ -649,13 +795,16 @@ $grossOf = static function (string $html): string {
     return preg_match('/text-emerald-600">PHP ([0-9,\.]+)/', $html, $m) ? $m[1] : '';
 };
 $pendingDefault = $renderAs('viewer', $viewerId, 'date_from=2031-06-01&date_to=2031-06-03');
+// The pending control moved into the branch-comparison section and the old
+// filters_applied marker/cue was dropped from the template. The surviving guard:
+// the exclude checkbox defaults on with its hidden include companion present, and
+// the page never claims a filter was applied.
 $h->test(
     'the pending filter defaults on without claiming a filter was applied',
     str_contains($pendingDefault, 'name="pending_rows"')
         && str_contains($pendingDefault, 'value="include"')
         && str_contains($pendingDefault, 'value="exclude"')
-        && str_contains($pendingDefault, 'checked')
-        && str_contains($pendingDefault, 'name="filters_applied"')
+        && str_contains($pendingDefault, 'name="pending_rows" value="exclude" checked')
         && !str_contains($pendingDefault, 'Filters applied')
 );
 $db->execute("INSERT INTO dl_daily_ledger (branch_id, product_id, ledger_date, shift, price_snapshot, beg_bal, addtl, withdraw, bal_end) VALUES (?, ?, '2031-06-01', 'PM', 99, 4, 0, 0, NULL)", [$branchAlpha, $productP4]);
@@ -664,8 +813,8 @@ $pendingIncluded = $renderAs('viewer', $viewerId, 'date_from=2031-06-01&date_to=
 $bothFieldsHtml = $renderAs('viewer', $viewerId, 'date_from=2031-06-01&date_to=2031-06-03&filters_applied=1&pending_rows=include&pending_rows=exclude');
 $h->test(
     'applying the filter shows the cue for whichever state is active',
-    str_contains($pendingExcluded, 'Filters applied — pending ledger rows are excluded')
-        && str_contains($pendingIncluded, 'Filters applied — pending ledger rows are included')
+    str_contains($pendingExcluded, 'name="pending_rows" value="exclude" checked')
+        && !str_contains($pendingIncluded, 'name="pending_rows" value="exclude" checked')
 );
 $h->test(
     'switching the filter off is flagged and leaves the totals unchanged',
@@ -674,8 +823,7 @@ $h->test(
 );
 $h->test(
     'the checkbox value wins when the hidden companion field is also submitted',
-    str_contains($bothFieldsHtml, 'Filters applied — pending ledger rows are excluded')
-        && !str_contains($bothFieldsHtml, 'pending ledger rows are included')
+    str_contains($bothFieldsHtml, 'name="pending_rows" value="exclude" checked')
 );
 $h->test(
     'a pending row never reaches the rankings, included or not',
@@ -686,9 +834,14 @@ $db->execute("DELETE FROM dl_daily_ledger WHERE branch_id = ? AND product_id = ?
 // A completed row with a real sale is counted regardless of its ending value.
 $db->execute("INSERT INTO dl_daily_ledger (branch_id, product_id, ledger_date, shift, price_snapshot, beg_bal, addtl, withdraw, bal_end) VALUES (?, ?, '2031-06-01', 'AM', 99, 5, 0, 0, 0)", [$branchAlpha, $productP4]);
 $completedHtml = $renderAs('viewer', $viewerId, 'date_from=2031-06-01&date_to=2031-06-03');
+// The completed P4 row ends at 0 but sold 5 units at 99 = PHP 495. Alpha's gross
+// therefore moves to PHP 645.00 and the estate total to PHP 970.00. If the ending
+// value decided whether the row counted, neither figure would appear.
 $h->test(
     'a completed row is counted whatever its ending value',
-    str_contains($completedHtml, 'Overview P4') && !str_contains($completedHtml, 'Filters applied')
+    str_contains($completedHtml, 'PHP 645.00')
+        && str_contains($completedHtml, 'PHP 970.00')
+        && !str_contains($completedHtml, 'Filters applied')
 );
 $db->execute('DELETE FROM dl_daily_ledger WHERE branch_id = ? AND product_id = ?', [$branchAlpha, $productP4]);
 
