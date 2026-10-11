@@ -50,60 +50,63 @@ function pageCacheVersionFile(string $instance): string
     return rtrim((string)(defined('STORAGE_PATH') ? STORAGE_PATH : (defined('BASE_PATH') ? BASE_PATH . '/storage' : dirname(__DIR__, 3) . '/storage')), '/') . '/cache/' . $instance . '/.cache_version';
 }
 
-function pageCacheReadVersion(string $instance): int
+function pageCacheReadVersion(string $instance): string
 {
-    // File first, APCu second. The version is memoised in APCu for 24h and APCu is per-worker,
-    // so a memo written before a CLI purge would shadow the bumped file forever and the purge
-    // would silently do nothing. One small read per lookup is far cheaper than that failure.
+    // File first, always, and NEVER memoised in APCu. The version IS the purge signal, and APCu is
+    // per-worker, so a memo written before a purge shadows the bumped file for its whole TTL and the
+    // purge silently does nothing. One small read per lookup is far cheaper than that failure.
+    //
+    // The value is a TOKEN, not an integer - see pageCacheBumpVersion().
     $f = pageCacheVersionFile($instance);
     if (is_file($f)) {
-        $v = (int)@file_get_contents($f);
-        if ($v > 0) {
-            return $v;
+        $raw = @file_get_contents($f);
+        if (is_string($raw)) {
+            $raw = trim($raw);
+            // Present but unreadable/empty is "unknown", NOT "no purge ever". Returning a token
+            // that matches nothing forces a miss rather than serving possibly-stale HTML.
+            return $raw === '' ? '!unknown' : $raw;
         }
+        return '!unknown';
     }
-    if (function_exists('apcu_fetch')) {
-        $v = apcu_fetch(pageCacheVersionKey($instance));
-        if (is_int($v) && $v > 0) {
-            return $v;
-        }
-    }
-    return 0;
+    return ''; // no purge has ever been published
 }
 
 function pageCacheBumpVersion(string $instance): void
 {
-    // lean-ctx: known limitation, deliberately NOT changed on 2026-10-11.
-    //
-    // This is an unlocked read-modify-write (+1), so two concurrent purges can read the same value
-    // and write the same new one, and a plain file_put_contents can in principle be observed
-    // mid-write. The consequence would be a purge that fails to advance the version.
-    //
-    // It is NOT fixed here because the version is only ONE of two independent purge signals: every
-    // purge path also calls pageCacheTouchFlush(), and pageCacheGet() rejects an entry whose
-    // _cached_at_ts is not strictly newer than .flush mtime. Two same-second failures are required
-    // for a stale serve, so the exposure is small.
-    //
-    // Converting this to the shared token authority (cacheGenerationToken() + atomic rename) is the
-    // right fix, but NOT a local one: the value is also read by the pre-bootstrap fast path
-    // (src/helpers/fast-path-cache.php:200 as (int)file_get_contents, compared at :219 and :267).
-    // A token read through that (int) cast becomes 0, which makes the `$currentVersion > 0` guard
-    // fail and SKIPS the version check entirely - silently disabling purge honouring on the path
-    // that serves HTML before the kernel boots. That is the exact defect class fixed on the same
-    // day, so it must be changed across all three consumers at once, with the fast path's own
-    // tests as the gate.
-    //
-    // Upgrade trigger: any observed instance of a purge that did not take effect, or the fast path
-    // gaining string-safe version handling for another reason.
-    $v = pageCacheReadVersion($instance) + 1;
-    if (function_exists('apcu_store')) {
-        apcu_store(pageCacheVersionKey($instance), $v, 86400);
-    }
-    $dir = dirname(pageCacheVersionFile($instance));
+    $file = pageCacheVersionFile($instance);
+    $dir = dirname($file);
     if (!is_dir($dir)) {
         @mkdir($dir, 0775, true);
     }
-    @file_put_contents(pageCacheVersionFile($instance), (string)$v);
+
+    // A UNIQUE token, not a counter.
+    //
+    // The previous implementation was `pageCacheReadVersion() + 1`: an unlocked read-modify-write,
+    // so two concurrent purges can both read the same value and both write the same new one, and the
+    // second purge advances nothing - a purge that does not purge. That matters because the purge
+    // signals are compared by EQUALITY, so a lost bump means entries keep matching.
+    //
+    // The layout deliberately stays .cache_version in the instance directory rather than moving to
+    // the shared generations tree: the pre-bootstrap fast path (src/helpers/fast-path-cache.php)
+    // computes this path itself, before any helper can be loaded, and a path mismatch there would
+    // silently skip the version check - the exact defect this file already fixed once.
+    $token = function_exists('cacheGenerationToken')
+        ? cacheGenerationToken()
+        : dechex(time()) . '-' . bin2hex(random_bytes(4));
+
+    // Atomic replace: a reader sees the whole old token or the whole new one, never a torn value.
+    $tmp = $file . '.' . getmypid() . '.tmp';
+    if (@file_put_contents($tmp, $token, LOCK_EX) === false || !@rename($tmp, $file)) {
+        @unlink($tmp);
+        // rename() can fail across devices; fall back to a locked in-place write so the purge is not
+        // silently lost.
+        @file_put_contents($file, $token, LOCK_EX);
+    }
+
+    // Drop the legacy INTEGER memo. A worker holding one would satisfy `$v > 0` and skip the check.
+    if (function_exists('apcu_delete')) {
+        @apcu_delete(pageCacheVersionKey($instance));
+    }
 }
 
 // ── Flush file for mtime-based fast-path invalidation ──
@@ -270,9 +273,18 @@ function pageCacheGet(string $uri): ?array
     // CLI - and the kernel layer simply ignored both signals. That is why `php ikabud cache:clear`
     // appeared to do nothing and a theme edit looked like it had not been saved.
     $currentVersion = pageCacheReadVersion($instance);
-    if ($currentVersion > 0
+
+    // Present but unreadable: freshness cannot be proven, so fail closed rather than serve HTML that
+    // may predate a purge. ('!unknown' is the sentinel from pageCacheReadVersion().)
+    if ($currentVersion === '!unknown') {
+        return null;
+    }
+
+    // Token comparison by EQUALITY. An entry stamped with no version at all (written before versions
+    // existed) predates every purge, so it is kept only while no purge has been published.
+    if ($currentVersion !== ''
         && isset($entry['_cache_version'])
-        && (int)$entry['_cache_version'] !== $currentVersion
+        && (string)$entry['_cache_version'] !== $currentVersion
     ) {
         return null;
     }

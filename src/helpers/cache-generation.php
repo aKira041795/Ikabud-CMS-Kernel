@@ -136,6 +136,41 @@ function cacheGenerationRead(string $namespace, string $key = CACHE_GENERATION_D
 }
 
 /**
+ * Ensure a directory in the generations tree is writable by BOTH the web user and the CLI user.
+ *
+ * This is a DEPLOYMENT correctness requirement, not tidiness. mkdir() honours umask (002 on many
+ * shared hosts yields 0775), and the directory that holds a namespace is what a bump must be able to
+ * write to. If it is 0775 and owned by whichever user happened to run first, the OTHER user cannot
+ * create a namespace directory at all - so a bump from the web fails while a bump from the CLI
+ * succeeds, and invalidation silently stops crossing the worker boundary.
+ *
+ * That failure is invisible by design: a failed bump returns '' and every cache simply keeps serving
+ * what it already had. On a live site the split is the norm (deploy over SSH as one user, serve as
+ * www-data), so the tree is made explicitly world-writable up to - but not above - our own root.
+ * `storage/` sits outside the document root, so this does not widen web exposure.
+ */
+function cacheGenerationEnsureDir(string $dir): void
+{
+    if (!is_dir($dir)) {
+        @mkdir($dir, 0777, true);
+    }
+
+    $root = cacheGenerationRoot();
+    $current = $dir;
+    while ($current !== '' && $current !== '/' && str_starts_with($current, $root)) {
+        @chmod($current, 0777);
+        if ($current === $root) {
+            break;
+        }
+        $parent = dirname($current);
+        if ($parent === $current) {
+            break;
+        }
+        $current = $parent;
+    }
+}
+
+/**
  * Bump the generation for a namespace + key and return the new token.
  *
  * Atomic: the token is written to a sibling temp file and rename()d into place. rename() is atomic
@@ -146,12 +181,7 @@ function cacheGenerationBump(string $namespace, string $key = CACHE_GENERATION_D
 {
     $file = cacheGenerationPath($namespace, $key);
     $dir = dirname($file);
-    if (!is_dir($dir)) {
-        @mkdir($dir, 0777, true);
-        // mkdir honours umask, which on shared hosting often yields 0755. The web user and the CLI
-        // user may differ, so make the tree explicitly writable by the owner.
-        @chmod($dir, 0777);
-    }
+    cacheGenerationEnsureDir($dir);
 
     $token = cacheGenerationToken();
     $tmp = $file . '.' . getmypid() . '.' . bin2hex(random_bytes(3)) . '.tmp';
@@ -215,10 +245,7 @@ function cacheGenerationStatsNoteReject(string $namespace): void
 {
     $file = cacheGenerationRejectFile();
     $dir = dirname($file);
-    if (!is_dir($dir)) {
-        @mkdir($dir, 0777, true);
-        @chmod($dir, 0777);
-    }
+    cacheGenerationEnsureDir($dir);
     $fp = @fopen($file, 'c+');
     if ($fp === false) {
         return;

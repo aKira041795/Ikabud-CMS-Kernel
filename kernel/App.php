@@ -1205,7 +1205,9 @@ final class App
         if ($this->cache === null) {
             $this->cache = new Cache(
                 $this->config('paths.cache', STORAGE_PATH . '/cache'),
-                0,
+                // Budget for the rate-limited maintenance sweep. A default of 256 MB keeps a live
+                // shared-host install bounded; it is not enforced on the write path.
+                (int) $this->config('app.cache.max_size_mb', 256),
                 (bool) $this->config('app.cache.log_invalidations', false)
             );
         }

@@ -76,9 +76,12 @@ pciAssert(
 pageCacheSet($uri, str_repeat('B', 200), 'test', 200);
 $versionBefore = pageCacheReadVersion($instance);
 pageCacheBumpVersion($instance);
+// Tokens are opaque strings compared by EQUALITY, not integers compared by ordering. Asserting `>`
+// would encode the old counter contract and fail the moment the value became a token - and it would
+// also be asserting the wrong property, since a lost bump is exactly what uniqueness fixes.
 pciAssert(
     'the version actually advanced',
-    pageCacheReadVersion($instance) > $versionBefore,
+    pageCacheReadVersion($instance) !== $versionBefore,
     "before={$versionBefore} after=" . pageCacheReadVersion($instance)
 );
 pciAssert('a version bump makes the entry unservable', pageCacheGet($uri) === null);

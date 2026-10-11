@@ -61,6 +61,7 @@ jobs:
           # The global compiled-template dir is not tenant-partitioned, so this one settles whether
           # that is safe by construction rather than by assertion.
           php tests/compiled_template_tenant_isolation_test.php
+          php tests/cache_retention_test.php
           php ikabud cache:stats > /dev/null
           php ikabud cache:prune --dry-run
 

@@ -33,20 +33,28 @@ php ikabud cache:prune --dry-run
 bytes are reclaimable without deleting files. Exit code `0` means the scan
 completed without deletion errors; exit code `1` reports an error.
 
-**Retention is not automatic.** Nothing invokes `cache:prune` on a schedule, so
-the cache grows until something is expired *and read*. Shared hosting (the
-Bluehost Compatibility profile) has no system crontab, so on those hosts the
-only practical scheduler is the host's cron panel:
+**Sizing IS enforced**, by a rate-limited maintenance sweep rather than by an in-request scan.
+`Cache` calls `maintenanceIfDue()` on the write path at most once per hour — on the hot path that is
+one `filemtime()` that returns immediately until the interval elapses, so at most one worker per
+interval does the real work. That sweep prunes expired entries, then evicts oldest-first until the
+tree fits the budget (default **256 MB**; `APP_CACHE_MAX_SIZE_MB`, `0` disables).
+
+Bounding per WRITE would cost a full directory walk plus a `filesize()` per entry on every `set()`,
+which is why the budget is not enforced there. An operator-supplied cron is therefore optional — it
+just reclaims expiry space without waiting for the hourly sweep:
 
 ```
 15 4 * * *  cd /path/to/app && php ikabud cache:prune >/dev/null 2>&1
 ```
 
-Sizing is deliberately NOT enforced by an in-request LRU scan.
-`Cache::enforceCacheLimit()` globs `*.cache` across every subtree under
-`storage/cache/` — including `pagecache/` and other modules' instance
-directories — so enabling `maxCacheSizeMB` would let an ordinary `Cache::set()`
-evict the page cache. Bound the filesystem with scheduled pruning instead.
+Retention metadata (`storage/cache/generations/`, the maintenance marker, the shared reject counter)
+must be writable by **both** the deploy user and the web user. On the usual live split (deploy over
+SSH as one user, serve as `www-data`) a directory created by one of them with 0755 means the other
+cannot create a namespace underneath it — generation bumps from the web would then fail while bumps
+from the CLI succeeded, and invalidation would silently stop crossing the worker boundary. The tree
+is therefore chmod'd 0777 up to (but not above) `storage/cache/generations`.
+
+`storage/` sits outside the document root, so this does not widen web exposure.
 
 ### `cache:stats`
 

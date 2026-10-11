@@ -4857,21 +4857,20 @@ MD;
 
         // Reclaimable now, without waiting for a read to happen to touch each entry.
         //
-        // Scheduling note: nothing runs this automatically. On shared hosting cron is the only
-        // scheduler, so a production install should add:
+        // Retention IS bounded automatically: Cache runs a rate-limited maintenance sweep on the
+        // write path (at most once per hour) that prunes expired entries and then evicts oldest-first
+        // until the tree fits the budget (default 256 MB, APP_CACHE_MAX_SIZE_MB, 0 disables). Bounding
+        // per WRITE is deliberate avoided: it would cost a full directory walk on every set().
+        // An operator-supplied cron is therefore optional, not required:
         //   15 4 * * *  cd /path/to/app && php ikabud cache:prune >/dev/null 2>&1
-        // The filesystem is bounded by scheduled pruning, NOT by an in-request LRU scan: Cache's
-        // enforceCacheLimit() walks *.cache across every subtree, including pagecache/ and other
-        // modules' directories, so enabling maxCacheSizeMB would let an ordinary Cache::set()
-        // evict the page cache.
         try {
             $cache = new \Ikabud\Kernel\Cache($cacheRoot);
             $preview = $cache->previewExpired();
             out('  ' . green('v') . ' ' . (int)($preview['pruned'] ?? 0)
                 . ' expired entries reclaimable (' . $fmtBytes((int)($preview['bytes_freed'] ?? 0)) . ')'
                 . '  ->  php ikabud cache:prune');
-            out('      ' . dim('Retention is NOT automatic — nothing schedules this. On Bluehost'));
-            out('      ' . dim('(no system crontab) add it to the host cron panel:'));
+            out('      ' . dim('Retention is bounded automatically (hourly sweep). A cron entry is'));
+            out('      ' . dim('optional and only reclaims expiry space sooner:'));
             out('      ' . dim('  15 4 * * *  cd <app-root> && php ikabud cache:prune >/dev/null 2>&1'));        } catch (\Throwable $e) {
             out('  ' . yellow('!') . ' expired scan unavailable: ' . $e->getMessage());
         }
@@ -4930,6 +4929,17 @@ MD;
             }
             if (function_exists('pageCacheInstanceNames')) {
                 $pageCacheInstances = pageCacheInstanceNames();
+
+                // Snapshot the versions NOW, before the bulk file clear below. Cache::clearAll()
+                // deletes the instance directories, including each .cache_version, so reading the
+                // "before" value after the clear reports an empty string - the purge looked like it
+                // advanced from nothing. The bump itself was always correct; only the report lied.
+                $pageCacheVersionsBefore = [];
+                foreach ($pageCacheInstances as $pageCacheInstance) {
+                    $pageCacheVersionsBefore[$pageCacheInstance] = function_exists('pageCacheReadVersion')
+                        ? pageCacheReadVersion($pageCacheInstance)
+                        : '';
+                }
             }
         }
 
@@ -5004,7 +5014,11 @@ MD;
             if (function_exists('pageCacheInvalidateInstances') && $pageCacheInstances !== []) {
                 try {
                     foreach (pageCacheInvalidateInstances($pageCacheInstances) as $instance => $info) {
-                        out('  ' . green('✓') . " Page cache {$instance}: version {$info['version_before']} → {$info['version_after']}, flush marker touched");
+                        $versionBefore = $pageCacheVersionsBefore[$instance] ?? $info['version_before'];
+                        // A never-purged instance has no version at all; say so rather than printing
+                        // an empty gap that reads like a bug.
+                        $versionBeforeLabel = $versionBefore === '' ? '(none yet)' : $versionBefore;
+                        out('  ' . green('✓') . " Page cache {$instance}: version {$versionBeforeLabel} → {$info['version_after']}, flush marker touched");
                     }
                 } catch (\Throwable $e) {
                     $errors[] = 'Page cache: ' . $e->getMessage();

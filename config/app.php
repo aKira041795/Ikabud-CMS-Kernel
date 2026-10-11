@@ -89,6 +89,11 @@ return [
 
     'cache' => [
         'log_invalidations' => filter_var($_ENV['APP_CACHE_LOG_INVALIDATIONS'] ?? false, FILTER_VALIDATE_BOOL),
+        // Total budget for the cache tree, in MB. Enforced by a rate-limited maintenance sweep on
+        // the request path (Cache::maintenanceIfDue, at most once per hour), NOT by a per-write LRU
+        // scan — bounding per write costs a full directory walk on every set().
+        // 0 disables the budget. Override with APP_CACHE_MAX_SIZE_MB.
+        'max_size_mb' => (int)($_ENV['APP_CACHE_MAX_SIZE_MB'] ?? 256),
     ],
 
     'disyl' => [

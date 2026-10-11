@@ -188,21 +188,27 @@ declare(strict_types=1);
     $instanceDirName = 'pagecache_t' . $tenantId;
     $versionFile = $storagePath . '/cache/' . $instanceDirName . '/.cache_version';
     $flushFile = $storagePath . '/cache/' . $instanceDirName . '/.flush';
-    $versionApcuKey = 'pagecache:version:' . $instanceDirName;
+    // No APCu version key: the purge signal is read from the file only. Legacy integer memos are
+    // deleted by pageCacheBumpVersion() so a worker holding one cannot skip the check.
 
-    $currentVersion = 0;
-    // Read the FILE first, APCu only as a fallback. The version is memoised in APCu for 24h
-    // and APCu is per-worker, so a CLI purge that bumps the file would never reach a worker
-    // holding an older memo - that memo would keep matching entries written before the purge,
-    // and the purge would silently do nothing. One small file read is cheap next to serving a
-    // stale page after an explicit purge.
+    $currentVersion = '';
+    // File first, and the APCu fallback is GONE on purpose. The version is the purge signal, and
+    // APCu is per-worker: a memo written before a purge shadows the bumped file for its whole TTL,
+    // so the purge silently does nothing on that worker. One small file read is cheap next to
+    // serving stale HTML after an explicit purge.
+    //
+    // The value is a TOKEN (a string), not an integer. It must NOT be cast: an (int) cast turns a
+    // token into 0, which would make the guards below treat the version as unknown and SKIP the
+    // check entirely - silently disabling purge honouring on the one path that runs before the
+    // kernel boots.
     if (is_file($versionFile)) {
-        $currentVersion = (int)@file_get_contents($versionFile);
-    }
-    if ($currentVersion === 0 && function_exists('apcu_fetch')) {
-        $v = apcu_fetch($versionApcuKey);
-        if (is_int($v) && $v > 0) {
-            $currentVersion = $v;
+        $raw = @file_get_contents($versionFile);
+        if (is_string($raw) && trim($raw) !== '') {
+            $currentVersion = trim($raw);
+        } else {
+            // Present but unreadable/empty: '!unknown' matches no entry, so every entry below is
+            // treated as stale and rebuilt rather than served.
+            $currentVersion = '!unknown';
         }
     }
 
@@ -215,8 +221,11 @@ declare(strict_types=1);
         if ($apcuHit && is_array($cached)) {
             // Check expiry
             if (isset($cached['_cache_expires_at']) && time() < (int)$cached['_cache_expires_at']) {
-                // Check version match
-                if (!isset($cached['_cache_version']) || $cached['_cache_version'] === $currentVersion) {
+                // Check version match. This is an ACCEPT condition, so '!unknown' must REJECT:
+                // an unreadable version means freshness cannot be proven, and accepting here would
+                // make an unreadable marker serve stale HTML to every worker.
+                if ($currentVersion !== '!unknown'
+                    && (!isset($cached['_cache_version']) || (string)$cached['_cache_version'] === $currentVersion)) {
                     // Check .flush file mtime.
                     // An entry with no usable write time is treated as STALE. Testing
                     // `!isset($cached['_cached_at_ts'])` as an ACCEPT condition meant every entry
@@ -263,8 +272,11 @@ declare(strict_types=1);
             return;
         }
 
-        // Check version match against current cache version
-        if (isset($entry['_cache_version']) && $currentVersion > 0 && $entry['_cache_version'] !== $currentVersion) {
+        // Check version match against current cache version. '!unknown' means unreadable, which is
+        // not "no purge": freshness cannot be proven, so the entry is discarded.
+        if ($currentVersion === '!unknown'
+            || (isset($entry['_cache_version']) && $currentVersion !== '' && (string)$entry['_cache_version'] !== $currentVersion)
+        ) {
             @unlink($cacheFile);
             return;
         }

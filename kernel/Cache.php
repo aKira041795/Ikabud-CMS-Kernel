@@ -364,10 +364,10 @@ class Cache
         $cacheTtl = $ttl ?? $this->ttl;
         
         try {
-            // Check cache size limit before writing
-            if ($this->maxCacheSizeMB > 0) {
-                $this->enforceCacheLimit();
-            }
+            // Bounded maintenance at most once per interval. Deliberately NOT a per-write LRU scan:
+            // on the hot path this is one filemtime() that returns immediately until the interval
+            // elapses, instead of a full directory walk plus a filesize() per entry on every write.
+            $this->maintenanceIfDue();
 
             // Stamp expiry so all cache tiers honour the caller-specified TTL.
             // Without this, file entries are checked against $this->ttl (default
@@ -435,10 +435,60 @@ class Cache
         return $this->sweepExpiredCacheFiles(true);
     }
 
-    private function sweepExpiredCacheFiles(bool $dryRun): array
+    /**
+     * Run bounded maintenance at most once per interval, from the request path.
+     *
+     * WHY THIS EXISTS
+     * Nothing schedules `cache:prune` on a live install, and shared hosting has no system crontab, so
+     * before this the cache grew until something happened to be expired AND read. Retention was
+     * therefore unbounded in practice even though a prune command existed.
+     *
+     * WHY IT IS NOT AN IN-REQUEST LRU SCAN
+     * Enforcing the size budget per write is the obvious design and the wrong one: it costs a full
+     * glob plus a filesize() per entry on EVERY set(). Here the budget is enforced by this sweep
+     * instead, and the per-write cost is a single filemtime() that returns immediately until the
+     * interval has elapsed. At most one worker per interval does the real work.
+     *
+     * The claim is not perfectly atomic: under a burst two workers can both decide they are due, and
+     * both sweep. That is acceptable because the sweep is idempotent and every deletion it makes is
+     * of a re-derivable cache entry, so a redundant sweep costs a little IO and nothing else.
+     */
+    public function maintenanceIfDue(int $intervalSeconds = 3600): bool
     {
-        $result = ['pruned' => 0, 'kept' => 0, 'bytes_freed' => 0, 'errors' => []];
+        $marker = $this->cacheDir . '/.cache_maintenance';
+        $last = is_file($marker) ? (int)@filemtime($marker) : 0;
+        if ($last > 0 && (time() - $last) < $intervalSeconds) {
+            return false;
+        }
+
+        // Claim the interval before doing the work, so the next request returns at the first check.
+        if (@file_put_contents($marker, (string)time(), LOCK_EX) === false) {
+            // Unwritable marker: skip rather than sweep on every single write.
+            return false;
+        }
+
+        $budget = $this->maxCacheSizeMB > 0 ? $this->maxCacheSizeMB * 1024 * 1024 : null;
+        $this->sweepExpiredCacheFiles(false, $budget);
+        return true;
+    }
+
+    /**
+     * Remove expired payloads, and optionally enforce a total byte budget.
+     *
+     * Scope: every `*.cache` file under the cache tree. All of them are written by this class
+     * (verified 2026-10-11: they carry either the `GZ:` prefix or the `_cache_expires_at` /
+     * `_cache_gen` stamps this class writes), so pruning them cannot destroy state this class does
+     * not own. Version markers, flush markers, tag indexes and keep placeholders do not match
+     * `*.cache` and are never touched.
+     *
+     * @param int|null $maxBytes Enforce a total size budget by evicting oldest-first. Null = no budget.
+     */
+    private function sweepExpiredCacheFiles(bool $dryRun, ?int $maxBytes = null): array
+    {
+        $result = ['pruned' => 0, 'kept' => 0, 'bytes_freed' => 0, 'errors' => [], 'evicted_for_space' => 0];
         $now = time();
+        /** @var array<int,array{file:string,size:int,mtime:int}> $survivors */
+        $survivors = [];
 
         foreach ($this->getAllCachedFiles() as $fileInfo) {
             $file = (string)($fileInfo['file'] ?? '');
@@ -485,6 +535,7 @@ class Cache
 
                 if (!$prunable) {
                     $result['kept']++;
+                    $survivors[] = ['file' => $file, 'size' => (int)$size, 'mtime' => (int)$mtime];
                     continue;
                 }
 
@@ -501,37 +552,53 @@ class Cache
             }
         }
 
+        // ── Size budget ────────────────────────────────────────────────────────
+        // Evict oldest-first until the tree fits the budget, leaving 10% headroom so the next
+        // write does not immediately trip it again. Only entries that already passed the expiry
+        // check are candidates, so this never removes something the read path would still serve.
+        if ($maxBytes !== null && $maxBytes > 0 && $survivors !== []) {
+            $total = 0;
+            foreach ($survivors as $s) {
+                $total += $s['size'];
+            }
+
+            if ($total > $maxBytes) {
+                usort($survivors, static fn(array $a, array $b): int => $a['mtime'] <=> $b['mtime']);
+                $target = (int)($maxBytes * 0.9);
+                foreach ($survivors as $s) {
+                    if ($total <= $target) {
+                        break;
+                    }
+                    if ($dryRun || @unlink($s['file'])) {
+                        $total -= $s['size'];
+                        $result['evicted_for_space']++;
+                        $result['bytes_freed'] += $s['size'];
+                    } else {
+                        $result['errors'][] = 'Failed to evict for space: ' . $s['file'];
+                    }
+                }
+            }
+        }
+
         return $result;
     }
 
     /**
      * Enforce cache size limit using LRU eviction
+     *
+     * Retained as the single-entry point for the budget so there is one implementation. It is NOT
+     * called per write: see maintenanceIfDue() for why.
      */
     private function enforceCacheLimit(): void
     {
-        $maxBytes = $this->maxCacheSizeMB * 1024 * 1024;
-        $files = $this->getAllCachedFiles();
-        
-        // Calculate current size
-        $currentSize = array_sum(array_column($files, 'size'));
-        
-        if ($currentSize <= $maxBytes) {
+        // Single source of truth for the budget. The previous inline implementation evicted the
+        // oldest *.cache file regardless of whether it had expired, using its own age ordering that
+        // did not agree with the read path; the sweep evicts only entries the read path would still
+        // serve, oldest first. Not called per write - see maintenanceIfDue().
+        if ($this->maxCacheSizeMB <= 0) {
             return;
         }
-        
-        // Sort by age (oldest first) for LRU eviction
-        usort($files, fn($a, $b) => $b['age'] - $a['age']);
-        
-        // Delete oldest files until under limit
-        foreach ($files as $fileInfo) {
-            if ($currentSize <= $maxBytes * 0.9) { // Leave 10% headroom
-                break;
-            }
-            
-            if (@unlink($fileInfo['file'])) {
-                $currentSize -= $fileInfo['size'];
-            }
-        }
+        $this->sweepExpiredCacheFiles(false, $this->maxCacheSizeMB * 1024 * 1024);
     }
     
     /**
