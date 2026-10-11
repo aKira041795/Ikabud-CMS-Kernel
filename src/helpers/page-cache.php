@@ -73,6 +73,28 @@ function pageCacheReadVersion(string $instance): int
 
 function pageCacheBumpVersion(string $instance): void
 {
+    // lean-ctx: known limitation, deliberately NOT changed on 2026-10-11.
+    //
+    // This is an unlocked read-modify-write (+1), so two concurrent purges can read the same value
+    // and write the same new one, and a plain file_put_contents can in principle be observed
+    // mid-write. The consequence would be a purge that fails to advance the version.
+    //
+    // It is NOT fixed here because the version is only ONE of two independent purge signals: every
+    // purge path also calls pageCacheTouchFlush(), and pageCacheGet() rejects an entry whose
+    // _cached_at_ts is not strictly newer than .flush mtime. Two same-second failures are required
+    // for a stale serve, so the exposure is small.
+    //
+    // Converting this to the shared token authority (cacheGenerationToken() + atomic rename) is the
+    // right fix, but NOT a local one: the value is also read by the pre-bootstrap fast path
+    // (src/helpers/fast-path-cache.php:200 as (int)file_get_contents, compared at :219 and :267).
+    // A token read through that (int) cast becomes 0, which makes the `$currentVersion > 0` guard
+    // fail and SKIPS the version check entirely - silently disabling purge honouring on the path
+    // that serves HTML before the kernel boots. That is the exact defect class fixed on the same
+    // day, so it must be changed across all three consumers at once, with the fast path's own
+    // tests as the gate.
+    //
+    // Upgrade trigger: any observed instance of a purge that did not take effect, or the fast path
+    // gaining string-safe version handling for another reason.
     $v = pageCacheReadVersion($instance) + 1;
     if (function_exists('apcu_store')) {
         apcu_store(pageCacheVersionKey($instance), $v, 86400);
