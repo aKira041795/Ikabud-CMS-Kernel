@@ -160,6 +160,20 @@ class MigrationRunner
             $executed[] = $file['key'];
         }
 
+        if ($executed !== []) {
+            // The schema just changed, so every worker's cached column snapshots and read contracts
+            // are stale. Deleting APCu keys would reach only THIS worker - which is why a migration
+            // used to be invisible to the rest of the pool until their 3600s TTLs expired. The
+            // generation bump is the signal that crosses the worker boundary.
+            $genHelper = dirname(__DIR__, 2) . '/src/helpers/cache-generation.php';
+            if (!function_exists('cacheConfigGenerationBump') && is_file($genHelper)) {
+                require_once $genHelper;
+            }
+            if (function_exists('cacheConfigGenerationBump')) {
+                cacheConfigGenerationBump();
+            }
+        }
+
         return $executed;
     }
 

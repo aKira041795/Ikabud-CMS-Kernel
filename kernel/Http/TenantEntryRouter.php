@@ -151,12 +151,22 @@ class TenantEntryRouter
             return $landingCache[$cacheKey];
         }
 
-        // Check APCu for cross-process cache before expensive routes.php load
-        $apcuEnabled = function_exists('apcu_fetch') && function_exists('apcu_store') && ini_get('apc.enabled');
+        // Check APCu for cross-process cache before expensive routes.php load.
+        //
+        // Bound to the kernel configuration generation: the landing path is derived from which
+        // modules are enabled and what routes they declare, so a plain 3600s APCu entry made a
+        // module enable/disable or a route change invisible to every worker except the one that
+        // performed it, for up to an hour (measured 2026-10-11).
+        if (!function_exists('cacheMemoRead')) {
+            $genHelper = dirname(__DIR__, 2) . '/src/helpers/cache-generation.php';
+            if (is_file($genHelper)) {
+                require_once $genHelper;
+            }
+        }
         $apcuKey = 'ikabud:entry_landing:v6:' . sha1($cacheKey);
-        if ($apcuEnabled) {
-            $cached = apcu_fetch($apcuKey, $success);
-            if ($success && is_string($cached)) {
+        if (function_exists('cacheMemoRead')) {
+            $cached = cacheMemoRead($apcuKey);
+            if (is_string($cached)) {
                 $landingCache[$cacheKey] = $cached;
                 return $cached;
             }
@@ -223,8 +233,8 @@ class TenantEntryRouter
 
         // Store in both caches for future lookups
         $landingCache[$cacheKey] = $result;
-        if ($apcuEnabled) {
-            apcu_store($apcuKey, $result, 3600); // 1 hour TTL
+        if (function_exists('cacheMemoWrite')) {
+            cacheMemoWrite($apcuKey, $result, 3600);
         }
 
         return $result;

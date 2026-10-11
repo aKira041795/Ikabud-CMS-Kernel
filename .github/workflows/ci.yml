@@ -52,11 +52,15 @@ jobs:
           php tests/fast_path_cache_contract_test.php
           php tests/module_scan_cache_test.php
           php tests/kernel_cache_prune_test.php
-          # -d apc.enable_cli=1 is REQUIRED for this one. php.ini defaults apc.enable_cli=0, and the
-          # test asserts APCu is live and fails loudly rather than passing vacuously, because its
-          # central case (a warm per-worker APCu entry must be rejected after another worker bumps
-          # the shared generation file) is meaningless with APCu switched off.
+          # -d apc.enable_cli=1 is REQUIRED for these two. php.ini defaults apc.enable_cli=0, and
+          # they assert APCu is live and fail loudly rather than passing vacuously, because their
+          # central cases (a warm per-worker APCu entry must be REJECTED after another worker bumps
+          # the shared generation file) are meaningless with APCu switched off.
           php -d apc.enable_cli=1 tests/cache_generation_test.php
+          php -d apc.enable_cli=1 tests/cache_memo_generation_test.php
+          # The global compiled-template dir is not tenant-partitioned, so this one settles whether
+          # that is safe by construction rather than by assertion.
+          php tests/compiled_template_tenant_isolation_test.php
           php ikabud cache:stats > /dev/null
           php ikabud cache:prune --dry-run
 

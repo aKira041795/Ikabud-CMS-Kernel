@@ -16,13 +16,23 @@ function readModuleRegistry(): array
     $cached = null;
     unset($GLOBALS['_kernel_module_registry_dirty']);
 
-    // Cross-request APCu cache. Bluehost-safe: gracefully falls back to the
-    // disk file when APCu is unavailable. Invalidated on write so module
-    // enable/disable changes are picked up immediately.
+    // Cross-request APCu memo bound to the kernel configuration generation. Bluehost-safe: falls
+    // back to the disk file when APCu is unavailable.
+    //
+    // The binding is what makes a module enable/disable visible to EVERY worker. The APCu delete in
+    // writeModuleRegistry() only reaches the worker that performed the write; the other php-fpm
+    // workers kept their own copy for the full 3600s TTL (measured 2026-10-11), so the change
+    // looked like it had silently not been applied.
+    if (!function_exists('cacheMemoRead')) {
+        $genHelper = __DIR__ . '/cache-generation.php';
+        if (is_file($genHelper)) {
+            require_once $genHelper;
+        }
+    }
     $apcuKey = 'ikabud:module_registry_v1';
-    if (function_exists('apcu_fetch') && ini_get('apc.enabled')) {
-        $reg = apcu_fetch($apcuKey, $hit);
-        if ($hit && is_array($reg)) {
+    if (function_exists('cacheMemoRead')) {
+        $reg = cacheMemoRead($apcuKey);
+        if (is_array($reg)) {
             $cached = $reg;
             return $reg;
         }
@@ -35,8 +45,8 @@ function readModuleRegistry(): array
     $data = json_decode((string) file_get_contents($path), true);
     $registry = is_array($data) ? $data : [];
 
-    if (function_exists('apcu_store') && ini_get('apc.enabled')) {
-        apcu_store($apcuKey, $registry, 3600);
+    if (function_exists('cacheMemoWrite')) {
+        cacheMemoWrite($apcuKey, $registry, 3600);
     }
     $cached = $registry;
     return $registry;
@@ -55,9 +65,19 @@ function writeModuleRegistry(array $registry): void
     // freshly written file on the next call in the same request/process.
     $GLOBALS['_kernel_module_registry_dirty'] = true;
 
-    // Invalidate the cached registry so module enable/disable takes effect immediately.
+    // Invalidate the cached registry. The APCu delete reaches THIS worker only, so it is backed by
+    // a configuration-generation bump - the only signal the other php-fpm workers observe.
     if (function_exists('apcu_delete')) {
         apcu_delete('ikabud:module_registry_v1');
+    }
+    if (!function_exists('cacheConfigGenerationBump')) {
+        $genHelper = __DIR__ . '/cache-generation.php';
+        if (is_file($genHelper)) {
+            require_once $genHelper;
+        }
+    }
+    if (function_exists('cacheConfigGenerationBump')) {
+        cacheConfigGenerationBump();
     }
 }
 

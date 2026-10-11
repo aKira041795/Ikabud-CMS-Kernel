@@ -33,6 +33,71 @@ php ikabud cache:prune --dry-run
 bytes are reclaimable without deleting files. Exit code `0` means the scan
 completed without deletion errors; exit code `1` reports an error.
 
+**Retention is not automatic.** Nothing invokes `cache:prune` on a schedule, so
+the cache grows until something is expired *and read*. Shared hosting (the
+Bluehost Compatibility profile) has no system crontab, so on those hosts the
+only practical scheduler is the host's cron panel:
+
+```
+15 4 * * *  cd /path/to/app && php ikabud cache:prune >/dev/null 2>&1
+```
+
+Sizing is deliberately NOT enforced by an in-request LRU scan.
+`Cache::enforceCacheLimit()` globs `*.cache` across every subtree under
+`storage/cache/` — including `pagecache/` and other modules' instance
+directories — so enabling `maxCacheSizeMB` would let an ordinary `Cache::set()`
+evict the page cache. Bound the filesystem with scheduled pruning instead.
+
+### `cache:stats`
+
+Read-only report an operator needs to reason about retention and invalidation:
+
+```
+php ikabud cache:stats
+```
+
+Prints the footprint per subtree, how many bytes are reclaimable now, and the
+**stale-rejection rate** per namespace.
+
+The stale-rejection rate is the one metric that separates "invalidation is
+working" from "invalidation is merely configured": a successful generation bump
+proves nothing on its own, and a raw cache hit rate cannot distinguish valid
+reuse from stale reuse. `n/a` means the denominator is unknown for this process
+(no APCu) rather than a healthy zero.
+
+Reject counts are file-backed and therefore shared across workers; read counts
+are APCu-backed and therefore describe the current worker only. The output says
+which is which.
+
+---
+
+## Cache Invalidation Contract
+
+The kernel publishes **generation** records under `storage/cache/generations/`
+and every cache validates against them. The rules, which any new cache must
+follow:
+
+- The shared file is authoritative; APCu is only an optimisation.
+- A generation is an opaque token compared by **equality**, never by ordering.
+- Bumps write a **unique** token via temp-file plus `rename()`. A `+1` counter is
+  an unlocked read-modify-write: concurrent bumps can read the same value and
+  both write the same one, silently losing an invalidation.
+- Generations are read from the file **first** and are never memoised in APCu.
+  Memoising one tiny file read is what created a whole class of stale-read
+  defects: a writer bumps the shared file, deletes only its *own* worker's APCu
+  key, and every other php-fpm worker keeps serving the old value.
+- Per-worker memos must be stored with `cacheMemoWrite()` and read with
+  `cacheMemoRead()`. These bind the entry to the kernel configuration generation,
+  which is bumped by module enable/disable, by `migrate`, and by
+  `cache:clear`. Without the binding, a per-worker memo simply cannot observe a
+  change made by another worker.
+
+Why the binding matters: APCu is per-worker, so deleting a key reaches only the
+worker that deleted it. `php ikabud cache:clear` runs in a *separate* process
+with its own (usually empty) APCu store, so it can never reach the php-fpm
+workers by deleting keys. The generation bump is the only signal that crosses
+that boundary.
+
 ---
 
 ## Architecture Enforcement

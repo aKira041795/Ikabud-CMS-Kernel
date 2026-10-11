@@ -4869,7 +4869,10 @@ MD;
             $preview = $cache->previewExpired();
             out('  ' . green('v') . ' ' . (int)($preview['pruned'] ?? 0)
                 . ' expired entries reclaimable (' . $fmtBytes((int)($preview['bytes_freed'] ?? 0)) . ')'
-                . '  ->  php ikabud cache:prune');        } catch (\Throwable $e) {
+                . '  ->  php ikabud cache:prune');
+            out('      ' . dim('Retention is NOT automatic — nothing schedules this. On Bluehost'));
+            out('      ' . dim('(no system crontab) add it to the host cron panel:'));
+            out('      ' . dim('  15 4 * * *  cd <app-root> && php ikabud cache:prune >/dev/null 2>&1'));        } catch (\Throwable $e) {
             out('  ' . yellow('!') . ' expired scan unavailable: ' . $e->getMessage());
         }
         out('');
@@ -4940,6 +4943,7 @@ MD;
                 STORAGE_PATH . '/cache/compiled',
             ];
             $disylCleared = 0;
+            $disylFailed = 0;
             foreach ($disylCacheDirs as $disylCacheDir) {
                 if (is_dir($disylCacheDir)) {
                     $files = new \RecursiveIteratorIterator(
@@ -4952,13 +4956,27 @@ MD;
                         if (@unlink($file->getPathname())) {
                             $disylCleared++;
                         } else {
+                            $disylFailed++;
                             $errors[] = 'DiSyL cache: unable to remove ' . $file->getPathname();
                         }
                     }
                 }
             }
             $totalCleared += $disylCleared;
-            out('  ' . green('✓') . " DiSyL compiled template cache: {$disylCleared} file(s) removed");
+            if ($disylFailed > 0) {
+                // NO green tick here. A purge that removed nothing must not read like one that
+                // succeeded, which is exactly how this went unnoticed: it printed
+                // "✓ DiSyL compiled template cache: 0 file(s) removed" while failing 32 times.
+                //
+                // Cause: unlink() needs write permission on the DIRECTORY, not the file. On a
+                // normal install storage/cache/compiled is owned by the web user (www-data) while
+                // the CLI runs as the deploy user, so every removal fails.
+                out('  ' . yellow('△') . " DiSyL compiled template cache: {$disylCleared} removed, {$disylFailed} FAILED");
+                out('      ' . dim('cause: ') . 'no write permission on ' . STORAGE_PATH . '/cache/compiled');
+                out('      ' . dim('fix:   ') . 'run the purge as the web user, e.g. sudo -u www-data php ikabud cache:clear');
+            } else {
+                out('  ' . green('✓') . " DiSyL compiled template cache: {$disylCleared} file(s) removed");
+            }
         }
 
         // ── General file cache ────────────────────────────────────
@@ -5037,12 +5055,60 @@ MD;
             }
         }
 
+        // ── Kernel configuration generation ───────────────────────
+        // apcu_clear_cache() above clears THIS process's APCu store. In CLI that is a different
+        // (and usually empty) store from the php-fpm workers', so a CLI purge could never reach the
+        // per-worker memos — module registry, read contracts, entry landing — which then kept
+        // serving pre-purge state for the rest of their 3600s TTL. Publishing a new configuration
+        // generation is the only purge signal that crosses the worker boundary.
+        if (!$disylOnly) {
+            $genHelper = (defined('BASE_PATH') ? BASE_PATH : dirname(__DIR__)) . '/src/helpers/cache-generation.php';
+            if (!function_exists('cacheConfigGenerationBump') && is_file($genHelper)) {
+                require_once $genHelper;
+            }
+            if (function_exists('cacheConfigGenerationBump')) {
+                $gen = cacheConfigGenerationBump();
+                if ($gen !== '') {
+                    out('  ' . green('✓') . ' Config generation published (' . $gen . ') — every worker will revalidate');
+                } else {
+                    $errors[] = 'Unable to publish a configuration generation';
+                    out('  ' . yellow('△') . ' Unable to publish a configuration generation');
+                }
+            }
+        }
+
         // ── Summary ───────────────────────────────────────────────
         out('');
         if (empty($errors)) {
             out('  ' . green('✓ Done.') . " {$totalCleared} cached file(s) removed.");
         } else {
             out('  ' . yellow('⚠ Done with warnings.') . " {$totalCleared} file(s) removed, " . count($errors) . ' warning(s).');
+            // Print the CAUSES, grouped and bounded. Reporting only a count makes a failed purge
+            // unactionable: the operator cannot tell a permission problem from a missing file, and
+            // 32 identical per-file messages would bury the one line that explains all of them.
+            $grouped = [];
+            foreach ($errors as $err) {
+                $key = (string)preg_replace('#\s+\S*/\S*.*$#', '', $err);
+                if ($key === '') {
+                    $key = $err;
+                }
+                if (isset($grouped[$key])) {
+                    $grouped[$key]['count']++;
+                    continue;
+                }
+                $grouped[$key] = ['sample' => $err, 'count' => 1];
+            }
+            $shown = 0;
+            foreach ($grouped as $g) {
+                out('    ' . dim('· ') . ($g['count'] > 1 ? $g['count'] . '× ' : '') . $g['sample']);
+                if (++$shown >= 5) {
+                    $remaining = count($grouped) - $shown;
+                    if ($remaining > 0) {
+                        out('    ' . dim('· … ' . $remaining . ' more distinct cause(s) suppressed'));
+                    }
+                    break;
+                }
+            }
         }
         out('');
         exit(empty($errors) ? 0 : 1);

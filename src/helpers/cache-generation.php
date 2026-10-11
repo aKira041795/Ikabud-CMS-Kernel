@@ -363,6 +363,89 @@ function cacheGenerationStats(): array
     return $out;
 }
 
+// ── Generation-bound memos ──────────────────────────────────────────────────────
+//
+// The rule at the top of this file ("shared storage is authoritative, APCu is only an
+// optimisation") applies to EVERY per-worker memo, not just the caches that were fixed on
+// 2026-10-11. Three kernel memos still fronted a shared source with a 1-hour TTL and no
+// revalidation - the module registry, the schema read contracts, and the tenant entry landing -
+// so a module enable/disable, a migration, or a routing change could be invisible to every
+// worker except the one that performed it, for an hour.
+//
+// Fixing those three by hand would leave the next memo free to make the same mistake. These two
+// helpers make the correct behaviour the DEFAULT: a memo is stored with the generation it was
+// written under and is discarded the moment that generation moves. Callers cannot forget, because
+// there is no unbound variant to reach for.
+
+/** Namespace holding kernel configuration generations (module set, routes, schema, tenant config). */
+const CACHE_GENERATION_CONFIG_NAMESPACE = 'kernel_config';
+
+/**
+ * Read a per-worker APCu memo bound to a shared generation.
+ *
+ * Returns null when the memo is absent, unstamped, or was written under a generation that has since
+ * moved. Callers recompute from the authoritative source on null. A legacy unstamped entry is
+ * evicted rather than trusted, so it is rewritten stamped on the next store.
+ */
+function cacheMemoRead(string $apcuKey, string $namespace = CACHE_GENERATION_CONFIG_NAMESPACE, string $key = CACHE_GENERATION_DEFAULT_KEY): mixed
+{
+    if (!function_exists('apcu_fetch')) {
+        return null;
+    }
+    $entry = @apcu_fetch($apcuKey, $ok);
+    if (!$ok || !is_array($entry) || !array_key_exists('__gen', $entry)) {
+        if ($ok) {
+            // Present but unstamped: written before this rule existed, so its staleness is unknown.
+            @apcu_delete($apcuKey);
+        }
+        return null;
+    }
+
+    // cacheGenerationValid() also records the read/reject metric, so every memo using this helper
+    // shows up in `php ikabud cache:stats` under its namespace.
+    if (!cacheGenerationValid($namespace, (string)$entry['__gen'], $key)) {
+        @apcu_delete($apcuKey);
+        return null;
+    }
+
+    return $entry['__value'] ?? null;
+}
+
+/** Store a per-worker APCu memo together with the generation it was written under. */
+function cacheMemoWrite(string $apcuKey, mixed $value, int $ttl, string $namespace = CACHE_GENERATION_CONFIG_NAMESPACE, string $key = CACHE_GENERATION_DEFAULT_KEY): void
+{
+    if (!function_exists('apcu_store')) {
+        return;
+    }
+    @apcu_store($apcuKey, [
+        '__gen' => cacheGenerationRead($namespace, $key),
+        '__value' => $value,
+    ], $ttl);
+}
+
+/**
+ * Publish a new configuration generation.
+ *
+ * MUST be called by anything that changes the module set, the route map, the schema, or tenant
+ * configuration. It is the only invalidation signal that reaches every php-fpm worker: those
+ * changes are handled by deleting APCu keys, and APCu is per-worker, so a delete only ever affects
+ * the worker that performed it - including `php ikabud cache:clear` from CLI, whose APCu is a
+ * different (and usually empty) store entirely.
+ *
+ * Idempotent and safe to over-call: bumping does not corrupt anything, it only forces memos to be
+ * recomputed.
+ */
+function cacheConfigGenerationBump(): string
+{
+    return cacheGenerationBump(CACHE_GENERATION_CONFIG_NAMESPACE, CACHE_GENERATION_DEFAULT_KEY);
+}
+
+/** Current configuration generation ('' when nothing has been bumped yet). */
+function cacheConfigGeneration(): string
+{
+    return cacheGenerationRead(CACHE_GENERATION_CONFIG_NAMESPACE, CACHE_GENERATION_DEFAULT_KEY);
+}
+
 /**
  * Resolve the tenant scope for a cache operation — FAIL CLOSED.
  *

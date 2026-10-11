@@ -320,9 +320,20 @@ final class ReadContractRegistry
             }
             $cacheKey = 'ikabud:read_contract_cols_v1:' . $dbName . ':' . strtolower($tableName);
 
-            if (function_exists('apcu_fetch') && ini_get('apc.enabled')) {
-                $cached = apcu_fetch($cacheKey, $hit);
-                if ($hit && is_array($cached) && array_key_exists('cols', $cached)) {
+            // Bound to the kernel configuration generation. "Schemas only change on migration" is
+            // true of the WORKER that ran the migration and of no other: a plain APCu entry with a
+            // 3600s TTL left every other php-fpm worker building SELECT lists from the pre-migration
+            // column set for up to an hour (measured 2026-10-11). The generation bump published by
+            // the migration is what reaches them.
+            if (!function_exists('cacheMemoRead')) {
+                $genHelper = dirname(__DIR__, 2) . '/src/helpers/cache-generation.php';
+                if (is_file($genHelper)) {
+                    require_once $genHelper;
+                }
+            }
+            if (function_exists('cacheMemoRead')) {
+                $cached = cacheMemoRead($cacheKey);
+                if (is_array($cached) && array_key_exists('cols', $cached)) {
                     return $cached['cols'];
                 }
             }
@@ -336,8 +347,8 @@ final class ReadContractRegistry
 
             // Cache successful snapshots only; missing tables are re-probed so
             // a later migration that creates the table is picked up promptly.
-            if ($result !== null && function_exists('apcu_store') && ini_get('apc.enabled')) {
-                apcu_store($cacheKey, ['cols' => $result], 3600);
+            if ($result !== null && function_exists('cacheMemoWrite')) {
+                cacheMemoWrite($cacheKey, ['cols' => $result], 3600);
             }
             return $result;
         } catch (\Throwable $e) {
