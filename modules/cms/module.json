@@ -330,6 +330,35 @@
             "tinymce.html.normalize@1",
             "tinymce.html.sanitize@1"
         ],
+        "routes": {
+            "POST /api/v1/cms/content/{id}/capabilities": {
+                "capability": "cms.content.update@1",
+                "allowed_roles": [
+                    "editor",
+                    "administrator",
+                    "superadmin",
+                    "admin"
+                ]
+            },
+            "POST /api/v1/cms/content/{id}/capabilities/preset": {
+                "capability": "cms.content.update@1",
+                "allowed_roles": [
+                    "editor",
+                    "administrator",
+                    "superadmin",
+                    "admin"
+                ]
+            },
+            "POST /api/v1/cms/content/{id}/capabilities/{cap_id}/detach": {
+                "capability": "cms.content.update@1",
+                "allowed_roles": [
+                    "editor",
+                    "administrator",
+                    "superadmin",
+                    "admin"
+                ]
+            }
+        },
         "policy": {
             "capabilities": {
                 "cms.content.create@1": {
