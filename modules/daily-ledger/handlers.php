@@ -13573,7 +13573,10 @@ function handleAdminForecast(array $params = []): void
 {
     $ctx = module();
     if (!$ctx) { http_response_code(500); echo 'Module context unavailable'; return; }
-    $user = dlRequireAuth(['admin', 'supervisor', 'auditor']);
+    // Read-only surface, same gate as Overview / Products / Production Efficiency: the owner reviews as
+    // `viewer`, so the forecast must render for that role rather than refusing it. dlCurrentUser() is
+    // the stricter guard those pages use (kernel-admin opt-in + the production_in_charge path narrowing).
+    $user = dlCurrentUser(['admin', 'supervisor', 'auditor', 'viewer']);
     $input = $ctx->input();
     $filters = dl_reportFilters($input, $user);
     // The activity filter and the quantity order are FILTERS, so they live in $filters where
