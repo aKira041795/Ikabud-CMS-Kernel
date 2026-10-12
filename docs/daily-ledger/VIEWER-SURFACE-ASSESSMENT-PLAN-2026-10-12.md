@@ -300,6 +300,13 @@ had found background-less controls on forecast (the F3 case, `class="btn btn-sm 
 sort direction — removed by the F1/F2/F3 fixes), and the wave's uniform button treatment replaced
 the rest.
 
+**DoD 5 evidence (full re-run after S8, 2026-10-12):** all 25 `tools/acceptance-*.php` oracles 0 RED
+(the battery surfaced two stale oracles — `acceptance-parity-pie-and-ranking` H1 and
+`daily-ledger-production-controls`' settle probe — both re-anchored, proven RED on their
+pre-change trees, commits `22be0e6a`/`a21d8083`); suites reporting 76/76, authz 84/84, handlers
+229/229, production-controls 70/70, business-health and overview rc=0; DiSyL lint ✓ 703/703;
+`error.log` 0 lines after the whole battery.
+
 ---
 
 ## 10. DELIBERATELY EXCLUDED / NEEDS THE OWNER
