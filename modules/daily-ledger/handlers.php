@@ -13587,6 +13587,8 @@ function handleAdminProductionEfficiency(array $params = []): void
     ]);
 }
 
+const DL_FORECAST_PAGE_SIZE = 50;
+
 function handleAdminForecast(array $params = []): void
 {
     $ctx = module();
@@ -13605,12 +13607,56 @@ function handleAdminForecast(array $params = []): void
     $targetDate = dl_reportValidDate((string)($input['target_date'] ?? ''))
         ?: (new DateTimeImmutable(dl_businessDate()))->modify('+1 day')->format('Y-m-d');
     $window = max(3, min(90, (int)($input['window'] ?? 14)));
-    $rows = dl_forecastRows($ctx->db(), $filters, $targetDate, $window);
+    // Keep dl_forecastRows()'s full-list contract: Overview and acceptance callers aggregate that
+    // population. The forecast page alone slices the already-filtered, already-sorted result.
+    $allRows = dl_forecastRows($ctx->db(), $filters, $targetDate, $window);
+    $totalRows = count($allRows);
+    $totalPages = max(1, (int)ceil($totalRows / DL_FORECAST_PAGE_SIZE));
+    $requestedPage = filter_var($input['page'] ?? null, FILTER_VALIDATE_INT, [
+        'options' => ['min_range' => 1],
+    ]);
+    $page = $requestedPage === false || $requestedPage === null
+        ? 1
+        : min((int)$requestedPage, $totalPages);
+    $pageOffset = ($page - 1) * DL_FORECAST_PAGE_SIZE;
+    $rows = array_slice($allRows, $pageOffset, DL_FORECAST_PAGE_SIZE);
+    $showingFrom = $totalRows === 0 ? 0 : $pageOffset + 1;
+    $showingTo = $pageOffset + count($rows);
+
+    // Every paging anchor comes from this one serializer. Deliberately include empty/zero facets:
+    // dropping one can silently widen a later page to a different result population.
+    $pagerState = [
+        'scope' => (string)($filters['view_scope'] ?? 'ALL'),
+        'branch_id' => (string)(int)($filters['branch_id'] ?? 0),
+        'product_id' => (string)(int)($filters['product_id'] ?? 0),
+        'empty_rows' => (string)$filters['empty_rows_mode'],
+        'target_date' => $targetDate,
+        'window' => (string)$window,
+        'date_from' => (string)$filters['date_from'],
+        'date_to' => (string)$filters['date_to'],
+        'sort_dir' => (string)$filters['sort_dir'],
+    ];
+    $pageUrl = static function (int $pageNumber) use ($pagerState): string {
+        $query = http_build_query($pagerState + ['page' => $pageNumber], '', '&', PHP_QUERY_RFC3986);
+
+        return dlGetBaseUrl() . '/admin/forecast?' . $query;
+    };
+    $pagerLinks = [];
+    if ($totalPages > 1) {
+        for ($pageNumber = 1; $pageNumber <= $totalPages; $pageNumber++) {
+            $pagerLinks[] = [
+                'label' => (string)$pageNumber,
+                'url' => $pageUrl($pageNumber),
+                'current' => $pageNumber === $page,
+            ];
+        }
+    }
+
     // Coverage is stated per PRODUCT, not per shift row: the gap an owner needs
     // to know about is the product whose spoilage rate could not be measured.
     $spoilageProductsWithRate = [];
     $spoilageProductsWithoutRate = [];
-    foreach ($rows as $row) {
+    foreach ($allRows as $row) {
         $rowPid = (int)($row['product_id'] ?? 0);
         if ($rowPid <= 0) {
             continue;
@@ -13633,14 +13679,21 @@ function handleAdminForecast(array $params = []): void
         'target_date' => $targetDate,
         'window' => $window,
         'rows' => $rows,
+        'forecast_total' => $totalRows,
+        'forecast_page_count' => count($rows),
+        'showing_from' => $showingFrom,
+        'showing_to' => $showingTo,
+        'page' => $page,
+        'total_pages' => $totalPages,
+        'pager_links' => $pagerLinks,
         // State for the two new controls, so the template renders what is in force rather than
         // guessing it from the request (a plain page load carries neither parameter).
         'exclude_empty' => $filters['empty_rows_mode'] === 'exclude',
         'sort_dir' => $filters['sort_dir'],
         'branch_id' => (int)($filters['branch_id'] ?? 0),
-        'product_count' => count(array_unique(array_column($rows, 'product_id'))),
-        'branch_count' => count(array_unique(array_column($rows, 'branch_id'))),
-        'movement_only_count' => count(array_filter($rows, static fn(array $row): bool => (int)($row['sample_days'] ?? 0) === 0)),
+        'product_count' => count(array_unique(array_column($allRows, 'product_id'))),
+        'branch_count' => count(array_unique(array_column($allRows, 'branch_id'))),
+        'movement_only_count' => count(array_filter($allRows, static fn(array $row): bool => (int)($row['sample_days'] ?? 0) === 0)),
         'spoilage_products_with_rate' => count($spoilageProductsWithRate),
         'spoilage_products_without_rate' => count($spoilageProductsWithoutRate),
         'filters' => $filters,

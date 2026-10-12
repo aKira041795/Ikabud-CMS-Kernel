@@ -393,6 +393,19 @@ distinguish **missing reporting from a measured zero**.
 **W13 — Result count + paging on the forecast** (D7). Count first, then page; sort/filter before paging.
 Criterion: the page states "showing X of Y"; page size is bounded; changing page preserves filters+sort.
 
+**✅ DONE 2026-10-12 (W13)** — Sol lane `viewer-forecast-paging` (landed, acceptance=PASS, run
+`20261012T101635-56153`). Criterion `tools/acceptance-forecast-paging.php` (5 RED → 0 RED): page size
+50 (`DL_FORECAST_PAGE_SIZE`), one `http_build_query` pager generator carrying the full state
+(scope/branch/product/empty_rows/target/window/dates/sort/page), `page` allowlisted with clamp, and
+"Showing X–Y of Z results" + total in the card header. `dl_forecastRows()` kept its full-list
+contract (Overview aggregation untouched). Two oracles had pinned the unpaginated rendering and were
+re-anchored after the lane, each proven RED on the pre-paging tree:
+`acceptance-forecast-sort-control.php` (A3 now targets the removed sort-toggle links only - pager
+links legitimately carry sort state - and A6 now checks every rendered row is the selected product
+plus the stated total vs the helper count) and `acceptance-forecast-activity-filter.php` (F7 now
+compares the page's STATED totals: 453 default vs 788 with the activity filter off). A pager-href
+HTML-entity workaround that had only existed to satisfy A3's letter was removed with it.
+
 **W14 — Sort/filter state contract** (D1/D2). Allowlisted `sort_by`/`sort_dir` with deterministic
 defaults, echoed form state, stable secondary tie-break, and no control that submits while another has
 an unapplied change. Criterion: submit the form from every state and assert the resulting URL/state.

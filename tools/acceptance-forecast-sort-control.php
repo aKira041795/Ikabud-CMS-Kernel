@@ -129,11 +129,19 @@ $check('A2', 'render with sort_dir=asc -> the control shows asc and only asc',
         $ascSelected ? 'yes' : 'NO', $descNotSelected ? 'yes' : 'NO',
         $sortSelectAsc === '' ? 'ABSENT' : 'present'));
 
-// ── A3: ONE mechanism - the hand-written links are gone (they were the bug) ──────────────────────
-// The "background-less" count targets the F3 artifact only: an <a class="btn btn-sm ..."> with NO
-// filled variant (btn-primary/btn-accent). The layout's write-failure banner anchors are btn-sm but
-// filled (btn-primary/btn-accent) and are legitimate chrome, so they must NOT be demanded away here.
-$linkSortHref = (bool)preg_match('/href="[^"]*sort_dir=/i', $pageDefault);
+// ── A3: ONE mechanism - the sort TOGGLES as links are gone (they were the bug) ──────────────────
+// RE-ANCHORED 2026-10-12 (viewer W13/D7): the forecast table is paged now, and pager links
+// legitimately carry sort_dir as STATE. What must not return is a SORT-ACTION link: the removed
+// toggles rendered as <a class="btn btn-sm ...">Highest first</a>/<Lowest first>, with NO
+// background when inactive (F3). Those are what this checks for; a state-carrying href is fine.
+$toggleAnchor = 0;
+if (preg_match_all('/<a\b[^>]*>(.*?)<\/a>/is', $pageDefault, $am)) {
+    foreach ($am[1] as $label) {
+        if (preg_match('/^\s*(Highest|Lowest) first/i', trim(strip_tags($label)))) {
+            $toggleAnchor++;
+        }
+    }
+}
 $unfilledBtnSm = 0;
 if (preg_match_all('/<a\b[^>]*class="[^"]*btn-sm[^"]*"[^>]*>/i', $pageDefault, $sm)) {
     foreach ($sm[0] as $anchor) {
@@ -142,11 +150,10 @@ if (preg_match_all('/<a\b[^>]*class="[^"]*btn-sm[^"]*"[^>]*>/i', $pageDefault, $
         }
     }
 }
-$check('A3', 'no sort LINKS remain (no href carrying sort_dir, no background-less btn-sm anchor)',
-    !$linkSortHref && $unfilledBtnSm === 0,
-    sprintf('anchor href containing sort_dir=: %s; <a> with btn-sm but NO filled background (the "looks disabled" control): %d',
-        $linkSortHref ? 'STILL PRESENT - two mechanisms still compete' : 'none',
-        $unfilledBtnSm));
+$check('A3', 'no sort-TOGGLE links remain (the sort is the select; no background-less btn-sm anchor)',
+    $toggleAnchor === 0 && $unfilledBtnSm === 0,
+    sprintf('anchors labelled "Highest/Lowest first" (the removed toggle controls): %d; <a> with btn-sm but NO filled background (the "looks disabled" control): %d',
+        $toggleAnchor, $unfilledBtnSm));
 
 // ── A4: the form carries the whole state, and nothing inside it submits on its own ───────────────
 $carried = [];
@@ -171,7 +178,11 @@ $check('A5', 'the apply button is labelled "Apply filters" (not "Recalculate")',
 
 // ── A6: the round-trip a real operator makes - pick a product, change direction, apply ───────────
 // Take a product that MEASURABLY renders today, find its id through the page's own dropdown, then
-// assert that applying {product, asc} keeps BOTH: the same rows survive and the order control says asc.
+// assert that applying {product, asc} keeps BOTH: the direction control and the product filter.
+// RE-ANCHORED 2026-10-12 (viewer W13/D7): the table is paged, so "the filtered page renders as many
+// rows as the unfiltered page holds for it" is no longer an observable. The stable observables are:
+// every rendered row IS that product, and the page's STATED total equals the filtered population
+// size computed through the same helper the page reads.
 $defaultRows = $rowFragments($pageDefault);
 $productSelectDefault = $selectBlockOf($formDefault, 'product_id');
 $options = [];
@@ -182,12 +193,18 @@ if (preg_match_all('/<option value="(\d+)"[^>]*>(.*?)<\/option>/s', $productSele
 }
 $targetProduct = $defaultRows !== [] ? $defaultRows[0]['product'] : '';
 $targetId = $options[html_entity_decode($targetProduct, ENT_QUOTES | ENT_HTML5)] ?? 0;
-$expectedCount = 0;
-foreach ($defaultRows as $r) {
-    if ($r['product'] === $targetProduct) {
-        $expectedCount++;
-    }
-}
+$user = dlCurrentUser(['admin', 'supervisor', 'auditor', 'viewer']);
+$filtersFor = static function (array $extra) use ($user): array {
+    $input = array_merge(['date_from' => '2026-09-28', 'date_to' => '2026-10-11', 'window' => '14', 'target_date' => '2026-10-12'], $extra);
+    $f = dl_reportFilters($input, $user);
+    $f['empty_rows_mode'] = dl_forecastEmptyRowsMode($input['empty_rows'] ?? null);
+    $f['sort_dir'] = dl_overviewNormalizeSortDir($input['sort_dir'] ?? null);
+
+    return $f;
+};
+$expectedCount = ($targetId > 0)
+    ? count(dl_forecastRows(module()->db(), $filtersFor(['product_id' => (string)$targetId]), '2026-10-12', 14))
+    : 0;
 $roundTripOk = false;
 $roundTripDetail = 'could not derive a product with rows - criterion inconclusive';
 if ($targetProduct !== '' && $targetId > 0 && $expectedCount > 0) {
@@ -196,12 +213,19 @@ if ($targetProduct !== '' && $targetId > 0 && $expectedCount > 0) {
     $productSelected = (bool)preg_match('/value="' . $targetId . '"[^>]*\bselected\b/i', $selectBlockOf($formProductAsc, 'product_id'));
     $ascStill = (bool)preg_match('/value="asc"[^>]*\bselected\b/i', $selectBlockOf($formProductAsc, 'sort_dir'));
     $filteredRows = $rowFragments($pageProductAsc);
-    $roundTripOk = $productSelected && $ascStill
-        && count($filteredRows) === $expectedCount
-        && count($filteredRows) > 0;
-    $roundTripDetail = sprintf('product "%s" (id %d): option stays selected=%s; asc still shown=%s; rows %d, expected %d (same population as the unfiltered render)',
+    $allAreProduct = $filteredRows !== [];
+    foreach ($filteredRows as $r) {
+        if ($r['product'] !== $targetProduct) {
+            $allAreProduct = false;
+            break;
+        }
+    }
+    $statedTotal = preg_match('/of\s+(\d+)\s+results?/i', $pageProductAsc, $tm) ? (int)$tm[1] : -1;
+    $roundTripOk = $productSelected && $ascStill && $allAreProduct
+        && $filteredRows !== [] && $statedTotal === $expectedCount;
+    $roundTripDetail = sprintf('product "%s" (id %d): option stays selected=%s; asc still shown=%s; every rendered row is that product=%s; stated total=%d, expected=%d',
         $targetProduct, $targetId, $productSelected ? 'yes' : 'NO', $ascStill ? 'yes' : 'NO',
-        count($filteredRows), $expectedCount);
+        $allAreProduct ? 'yes' : 'NO', $statedTotal, $expectedCount);
 }
 $check('A6', 'apply {product, asc} keeps BOTH the selected product and the direction', $roundTripOk, $roundTripDetail);
 

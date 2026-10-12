@@ -187,6 +187,10 @@ $check('F6', 'an untouched page load hides the empty rows by default',
 // ── F7: the page RENDERS the controls and the filtered rows ─────────────────────────────────────
 // A grep over the template proves the markup exists, not that the page renders it: an unclosed tag or
 // a broken conditional would still pass F5. This renders the real handler and reads the outcome.
+// RE-ANCHORED 2026-10-12 (viewer W13/D7): the table is a bounded page now, so "include renders more
+// rows" can no longer discriminate - both views render one page. The observable the checkbox
+// actually changes is the POPULATION size, which the page now states ("... of Z results"); compare
+// the stated totals. A page that stops stating its total fails here by design.
 $tokens = dl_generateAuthTokens(['sub' => 'admin:1', 'id' => 1, 'username' => 'r', 'name' => 'R', 'role' => 'admin', 'source' => 'daily-ledger']);
 $_COOKIE[dlCookieName()] = $tokens['token'];
 $render = static function (array $extra = []): string {
@@ -207,19 +211,24 @@ $pageAsc = $render(['sort_dir' => 'asc']);
 $rowCountOf = static function (string $html): int {
     return substr_count($html, '<tr>');
 };
+$totalOf = static function (string $html): int {
+    return preg_match('/of\s+(\d+)\s+results?/i', $html, $m) ? (int)$m[1] : -1;
+};
+$totDefault = $totalOf($pageDefault);
+$totInclude = $totalOf($pageInclude);
 $check('F7', 'the rendered page honours the checkbox and the sort',
     !str_contains($pageDefault, 'THREW:')
     && (bool)preg_match('/name="empty_rows"[^>]*value="exclude"[^>]*checked/i', $pageDefault)
     && (bool)preg_match('/<select[^>]*name="sort_dir"/i', $pageDefault)
     && (bool)preg_match('/<option value="asc"/i', $pageDefault)
     && (bool)preg_match('/<option value="desc"/i', $pageDefault)
-    && $rowCountOf($pageInclude) > $rowCountOf($pageDefault)
+    && $totInclude > $totDefault && $totDefault > 0
     && $rowCountOf($pageDefault) > 0,
-    sprintf('renders without a fatal: %s; checkbox checked by default: %s; asc+desc sort control rendered: %s; rows default=%d, with the checkbox off=%d (must be MORE)',
+    sprintf('renders without a fatal: %s; checkbox checked by default: %s; asc+desc sort control rendered: %s; stated totals: default=%d, include=%d (include must be MORE); rows on page one: default=%d, include=%d',
         str_contains($pageDefault, 'THREW:') ? 'NO - ' . substr($pageDefault, 0, 160) : 'yes',
         preg_match('/name="empty_rows"[^>]*value="exclude"[^>]*checked/i', $pageDefault) ? 'yes' : 'NO',
         (preg_match('/<option value="asc"/i', $pageDefault) && preg_match('/<option value="desc"/i', $pageDefault)) ? 'yes' : 'NO',
-        $rowCountOf($pageDefault), $rowCountOf($pageInclude)));
+        $totDefault, $totInclude, $rowCountOf($pageDefault), $rowCountOf($pageInclude)));
 
 printf("\n  => %d RED. %s\n", $reds, $reds > 0
     ? 'The criterion discriminates: this is the work.'
