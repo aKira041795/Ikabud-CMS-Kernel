@@ -57,6 +57,62 @@ function manifestDefaults(string $moduleId): array
     return $defaults;
 }
 
+function settingsFixtureFindings(array $fields): array
+{
+    $findings = [];
+    $seenKeys = [];
+
+    foreach ($fields as $index => $field) {
+        if (!is_array($field)) {
+            continue;
+        }
+
+        $key = trim((string)($field['key'] ?? ''));
+        if ($key === '') {
+            $findings[] = "empty_key:{$index}";
+        } elseif (isset($seenKeys[$key])) {
+            $findings[] = "duplicate_key:{$key}";
+        } else {
+            $seenKeys[$key] = true;
+        }
+
+        $type = trim((string)($field['type'] ?? ''));
+        if ($type !== 'select' || !array_key_exists('default', $field) || !array_key_exists('options', $field) || !is_array($field['options'])) {
+            continue;
+        }
+
+        $allowedValues = [];
+        foreach ($field['options'] as $option) {
+            if (is_string($option)) {
+                $allowedValues[$option] = true;
+            } elseif (is_array($option) && array_key_exists('value', $option)) {
+                $allowedValues[(string)$option['value']] = true;
+            }
+        }
+
+        if (!isset($allowedValues[(string)$field['default']])) {
+            $findings[] = "select_default_not_in_options:{$key}";
+        }
+    }
+
+    return $findings;
+}
+
+function removeSettingsContractProbes(string $moduleId, array $keys): array
+{
+    $errors = [];
+    foreach ($keys as $key) {
+        try {
+            // Reserved characterization keys never retain an original: exercise the DELETE branch.
+            restoreTenantModuleSetting($moduleId, $key, false, null);
+        } catch (Throwable $e) {
+            $errors[] = "{$key}: {$e->getMessage()}";
+        }
+    }
+
+    return $errors;
+}
+
 function restoreTenantModuleSetting(string $moduleId, string $key, bool $hadOriginal, mixed $originalValue): void
 {
     $tenantId = moduleTenantSettingsTenantId();
@@ -119,6 +175,121 @@ foreach ($contracts as $moduleId => $meta) {
     t("{$moduleId} default keys match manifest", array_keys($actual) === array_keys($expected));
     t("{$moduleId} default values match manifest", $actual == $expected);
 }
+
+echo "\n=== SETTINGS CONTRACT CHARACTERIZATION ===\n";
+
+$supportedSettingsTypes = ['text', 'textarea', 'email', 'time', 'number', 'select', 'checkbox', 'bool', 'password'];
+$emptyKeyFindings = [];
+$duplicateKeyFindings = [];
+$typeFindings = [];
+$missingDefaultCount = 0;
+$selectMissingOptionsCount = 0;
+
+foreach (discoverModules() as $moduleId => $manifest) {
+    $fields = is_array($manifest['settings_fields'] ?? null) ? $manifest['settings_fields'] : [];
+    if ($fields === []) {
+        continue;
+    }
+
+    $seenKeys = [];
+    foreach ($fields as $index => $field) {
+        if (!is_array($field)) {
+            $typeFindings[] = "{$moduleId}[{$index}]: non-array field";
+            continue;
+        }
+
+        $key = trim((string)($field['key'] ?? ''));
+        if ($key === '') {
+            $emptyKeyFindings[] = "{$moduleId}[{$index}]";
+        } elseif (isset($seenKeys[$key])) {
+            $duplicateKeyFindings[] = "{$moduleId}:{$key}";
+        } else {
+            $seenKeys[$key] = true;
+        }
+
+        $type = trim((string)($field['type'] ?? ''));
+        if (!in_array($type, $supportedSettingsTypes, true)) {
+            $typeFindings[] = "{$moduleId}:{$key}=" . ($type === '' ? '(missing)' : $type);
+        }
+        if (!array_key_exists('default', $field)) {
+            $missingDefaultCount++;
+        }
+        if ($type === 'select' && !array_key_exists('options', $field)) {
+            $selectMissingOptionsCount++;
+        }
+    }
+}
+
+t('settings-bearing manifest keys are non-empty', $emptyKeyFindings === [], implode(', ', $emptyKeyFindings));
+t('settings-bearing manifest keys are unique within each module', $duplicateKeyFindings === [], implode(', ', $duplicateKeyFindings));
+t('all settings fields declare a supported type', $typeFindings === [], implode(', ', $typeFindings));
+echo "  INFO: settings fields lacking a default: {$missingDefaultCount} (current fleet baseline: 21)\n";
+echo "  INFO: select fields lacking options: {$selectMissingOptionsCount} (current fleet baseline: 14)\n";
+
+$cleanFixture = [
+    ['key' => 'title', 'type' => 'text', 'default' => 'Hello'],
+    ['key' => 'mode', 'type' => 'select', 'default' => 'safe', 'options' => [
+        ['value' => 'safe', 'label' => 'Safe'],
+        'fast',
+    ]],
+];
+$duplicateFixture = [
+    ['key' => 'same', 'type' => 'text'],
+    ['key' => 'same', 'type' => 'number'],
+];
+$emptyKeyFixture = [['key' => '   ', 'type' => 'text']];
+$badSelectDefaultFixture = [[
+    'key' => 'mode',
+    'type' => 'select',
+    'default' => 'missing',
+    'options' => [['value' => 'safe', 'label' => 'Safe']],
+]];
+
+t('checker MUST-ALLOW clean fixture', settingsFixtureFindings($cleanFixture) === []);
+t('checker MUST-REFUSE duplicate-key fixture', in_array('duplicate_key:same', settingsFixtureFindings($duplicateFixture), true));
+t('checker MUST-REFUSE empty-key fixture', in_array('empty_key:0', settingsFixtureFindings($emptyKeyFixture), true));
+t('checker MUST-REFUSE select-bad-default fixture', in_array('select_default_not_in_options:mode', settingsFixtureFindings($badSelectDefaultFixture), true));
+
+$probeModuleId = '__g0_settings_contract';
+$probeValues = [
+    '__g0_false' => false,
+    '__g0_zero' => 0,
+    '__g0_empty_string' => '',
+    '__g0_numeric_string' => '42',
+    '__g0_null' => null,
+];
+$probeKeys = array_keys($probeValues);
+$preCleanupErrors = removeSettingsContractProbes($probeModuleId, $probeKeys);
+t('stored-value probes start from an absent state', $preCleanupErrors === [], implode('; ', $preCleanupErrors));
+
+$cleanupErrors = [];
+try {
+    t('stored-value probes save successfully', saveTenantModuleSettings($probeModuleId, $probeValues));
+    $storedProbeValues = readTenantModuleSettings($probeModuleId);
+    t('stored JSON false remains boolean false and differs strictly from empty string and zero',
+        array_key_exists('__g0_false', $storedProbeValues)
+        && $storedProbeValues['__g0_false'] === false
+        && $storedProbeValues['__g0_false'] !== ''
+        && $storedProbeValues['__g0_false'] !== 0);
+    t('stored JSON zero remains integer zero', array_key_exists('__g0_zero', $storedProbeValues) && $storedProbeValues['__g0_zero'] === 0);
+    t('stored empty string remains an empty string', array_key_exists('__g0_empty_string', $storedProbeValues) && $storedProbeValues['__g0_empty_string'] === '');
+    t('stored numeric string remains the string 42', array_key_exists('__g0_numeric_string', $storedProbeValues) && $storedProbeValues['__g0_numeric_string'] === '42');
+    t('stored JSON null remains present with a null value', array_key_exists('__g0_null', $storedProbeValues) && $storedProbeValues['__g0_null'] === null);
+} finally {
+    $cleanupErrors = removeSettingsContractProbes($probeModuleId, $probeKeys);
+}
+
+t('stored-value probe cleanup completed', $cleanupErrors === [], implode('; ', $cleanupErrors));
+$afterProbeCleanup = readTenantModuleSettings($probeModuleId);
+$probeKeysAreAbsent = true;
+foreach ($probeKeys as $probeKey) {
+    if (array_key_exists($probeKey, $afterProbeCleanup)) {
+        $probeKeysAreAbsent = false;
+        break;
+    }
+}
+t('stored-value probe keys are absent after removal', $probeKeysAreAbsent);
+echo "  INFO: absent (no row) and false (row containing JSON false) are different stored states.\n";
 
 echo "\n=== MERGED OVERRIDES ===\n";
 
