@@ -278,6 +278,26 @@
       }
     ],
     "depends": [],
+    "routes": {
+      "GET /admin/gui-settings": {
+        "capability": "gui_settings.apply@1",
+        "allowed_roles": [
+          "admin"
+        ]
+      },
+      "POST /api/v1/admin/gui-settings": {
+        "capability": "gui_settings.apply@1",
+        "allowed_roles": [
+          "admin"
+        ]
+      },
+      "POST /api/v1/admin/gui-settings/reset": {
+        "capability": "gui_settings.apply@1",
+        "allowed_roles": [
+          "admin"
+        ]
+      }
+    },
     "policy": {
       "capabilities": {
         "gui_settings.apply@1": {

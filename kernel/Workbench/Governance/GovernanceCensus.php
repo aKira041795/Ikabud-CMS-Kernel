@@ -109,7 +109,7 @@ final class GovernanceCensus
         // so the instrument stays domain-neutral: it reads a declaration, it does
         // not know what the capability means.
         $declarations = [];
-        foreach (($manifest['capabilities']['routes'] ?? []) as $routeKey => $capabilityId) {
+        foreach (($manifest['capabilities']['routes'] ?? []) as $routeKey => $declaration) {
             $routeKey = trim((string) $routeKey);
             if ($routeKey === '' || !str_contains($routeKey, ' ')) {
                 continue;
@@ -117,7 +117,22 @@ final class GovernanceCensus
             [$method, $route] = explode(' ', $routeKey, 2);
             $method = strtoupper(trim($method));
             $route = trim($route);
-            if ($method === '' || $route === '' || !is_string($capabilityId)) {
+            if ($method === '' || $route === '') {
+                continue;
+            }
+            // Two declaration shapes, mirroring AuthorityDispatchGuard::decide():
+            // the canonical object form carries `capability` (or `id`) — see
+            // docs/kernel/authority-and-governance.md — and the string form is
+            // the legacy shorthand. A malformed object (no capability id) is
+            // configuration absence, not enforcement, and is not counted.
+            if (is_array($declaration)) {
+                $capabilityId = trim((string) ($declaration['capability'] ?? $declaration['id'] ?? ''));
+                if ($capabilityId === '') {
+                    continue;
+                }
+            } elseif (is_string($declaration)) {
+                $capabilityId = $declaration;
+            } else {
                 continue;
             }
             $declarations[$method . ' ' . $route] = $capabilityId;
