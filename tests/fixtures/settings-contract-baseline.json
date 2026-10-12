@@ -1,0 +1,3314 @@
+{
+    "schema_version": 1,
+    "contracts": {
+        "modules/academic-similarity-semantic-service/module.json": [
+            {
+                "key": "semantic_default_threshold",
+                "type": "number",
+                "has_default": true,
+                "default": "0.70",
+                "has_options": false
+            },
+            {
+                "key": "semantic_embedding_backend",
+                "type": "select",
+                "has_default": true,
+                "default": "token_overlap",
+                "has_options": true,
+                "options": [
+                    {
+                        "label": "Token overlap",
+                        "value": "token_overlap"
+                    },
+                    {
+                        "label": "TF-IDF cosine",
+                        "value": "tfidf"
+                    },
+                    {
+                        "label": "Sentence transformers",
+                        "value": "sentence_transformers"
+                    },
+                    {
+                        "label": "Groq LLM judge",
+                        "value": "groq"
+                    }
+                ]
+            },
+            {
+                "key": "semantic_external_api_key_env",
+                "type": "text",
+                "has_default": true,
+                "default": "SEMANTIC_API_KEY",
+                "has_options": false
+            },
+            {
+                "key": "semantic_model_name",
+                "type": "text",
+                "has_default": true,
+                "default": "token_overlap",
+                "has_options": false
+            },
+            {
+                "key": "semantic_request_timeout_ms",
+                "type": "number",
+                "has_default": true,
+                "default": "30000",
+                "has_options": false
+            },
+            {
+                "key": "semantic_service_token_env",
+                "type": "text",
+                "has_default": true,
+                "default": "SEMANTIC_SERVICE_TOKEN",
+                "has_options": false
+            },
+            {
+                "key": "service_endpoint",
+                "type": "text",
+                "has_default": true,
+                "default": "http://127.0.0.1:9003",
+                "has_options": false
+            }
+        ],
+        "modules/academic_similarity/module.json": [
+            {
+                "key": "allowed_extensions",
+                "type": "text",
+                "has_default": true,
+                "default": "docx,pdf,txt",
+                "has_options": false
+            },
+            {
+                "key": "cms_builder_block_enabled",
+                "type": "checkbox",
+                "has_default": true,
+                "default": "1",
+                "has_options": false
+            },
+            {
+                "key": "cms_default_submission_title",
+                "type": "text",
+                "has_default": true,
+                "default": "Submit Document for Similarity Check",
+                "has_options": false
+            },
+            {
+                "key": "cms_public_submission_enabled",
+                "type": "checkbox",
+                "has_default": true,
+                "default": "1",
+                "has_options": false
+            },
+            {
+                "key": "cms_submission_shortcode",
+                "type": "text",
+                "has_default": true,
+                "default": "academic_similarity_submission",
+                "has_options": false
+            },
+            {
+                "key": "enabled",
+                "type": "checkbox",
+                "has_default": true,
+                "default": "1",
+                "has_options": false
+            },
+            {
+                "key": "exact_match_enabled",
+                "type": "checkbox",
+                "has_default": true,
+                "default": "1",
+                "has_options": false
+            },
+            {
+                "key": "fingerprint_shingle_size",
+                "type": "number",
+                "has_default": true,
+                "default": "5",
+                "has_options": false
+            },
+            {
+                "key": "internet_check_allow_full_document_query",
+                "type": "checkbox",
+                "has_default": true,
+                "default": "0",
+                "has_options": false
+            },
+            {
+                "key": "internet_check_api_key",
+                "type": "password",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "internet_check_api_key_env",
+                "type": "text",
+                "has_default": true,
+                "default": "AISS_INTERNET_API_KEY",
+                "has_options": false
+            },
+            {
+                "key": "internet_check_auto_run_when_no_sources",
+                "type": "checkbox",
+                "has_default": true,
+                "default": "0",
+                "has_options": false
+            },
+            {
+                "key": "internet_check_enabled",
+                "type": "checkbox",
+                "has_default": true,
+                "default": "1",
+                "has_options": false
+            },
+            {
+                "key": "internet_check_max_chars_per_source",
+                "type": "number",
+                "has_default": true,
+                "default": "12000",
+                "has_options": false
+            },
+            {
+                "key": "internet_check_max_queries",
+                "type": "number",
+                "has_default": true,
+                "default": "3",
+                "has_options": false
+            },
+            {
+                "key": "internet_check_max_sources",
+                "type": "number",
+                "has_default": true,
+                "default": "5",
+                "has_options": false
+            },
+            {
+                "key": "internet_check_payload_policy",
+                "type": "select",
+                "has_default": true,
+                "default": "snippets_only",
+                "has_options": true,
+                "options": [
+                    {
+                        "label": "Snippets only",
+                        "value": "snippets_only"
+                    },
+                    {
+                        "label": "Distinctive phrases only",
+                        "value": "phrases_only"
+                    }
+                ]
+            },
+            {
+                "key": "internet_check_provider",
+                "type": "select",
+                "has_default": true,
+                "default": "ai",
+                "has_options": true,
+                "options": [
+                    {
+                        "label": "Provider capability (via academic_similarity.internet.discover)",
+                        "value": "capability"
+                    },
+                    {
+                        "label": "AI search (via ai.search.discover — SerpAPI)",
+                        "value": "ai"
+                    },
+                    {
+                        "label": "Configured seed URLs only",
+                        "value": "seed_urls"
+                    }
+                ]
+            },
+            {
+                "key": "internet_check_seed_urls",
+                "type": "text",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "internet_check_store_retrieved_text",
+                "type": "checkbox",
+                "has_default": true,
+                "default": "1",
+                "has_options": false
+            },
+            {
+                "key": "internet_check_timeout",
+                "type": "number",
+                "has_default": true,
+                "default": "15",
+                "has_options": false
+            },
+            {
+                "key": "internet_query_generation_mode",
+                "type": "select",
+                "has_default": true,
+                "default": "local",
+                "has_options": true,
+                "options": [
+                    {
+                        "label": "Local contextual extraction",
+                        "value": "local"
+                    },
+                    {
+                        "label": "External AI abstract extraction",
+                        "value": "ai"
+                    }
+                ]
+            },
+            {
+                "key": "internet_search_backend",
+                "type": "select",
+                "has_default": true,
+                "default": "serpapi",
+                "has_options": true,
+                "options": [
+                    {
+                        "label": "SerpAPI (serpapi.com)",
+                        "value": "serpapi"
+                    }
+                ]
+            },
+            {
+                "key": "internet_search_engine",
+                "type": "select",
+                "has_default": true,
+                "default": "google_scholar",
+                "has_options": true,
+                "options": [
+                    {
+                        "label": "Google Scholar",
+                        "value": "google_scholar"
+                    },
+                    {
+                        "label": "Google Web Search",
+                        "value": "google"
+                    }
+                ]
+            },
+            {
+                "key": "max_file_size_mb",
+                "type": "number",
+                "has_default": true,
+                "default": "20",
+                "has_options": false
+            },
+            {
+                "key": "max_word_count",
+                "type": "number",
+                "has_default": true,
+                "default": "50000",
+                "has_options": false
+            },
+            {
+                "key": "min_word_count",
+                "type": "number",
+                "has_default": true,
+                "default": "20",
+                "has_options": false
+            },
+            {
+                "key": "near_match_enabled",
+                "type": "checkbox",
+                "has_default": true,
+                "default": "1",
+                "has_options": false
+            },
+            {
+                "key": "near_match_threshold",
+                "type": "number",
+                "has_default": true,
+                "default": "0.8",
+                "has_options": false
+            },
+            {
+                "key": "public_report_default_mode",
+                "type": "select",
+                "has_default": true,
+                "default": "workspace",
+                "has_options": true,
+                "options": [
+                    {
+                        "label": "Workspace",
+                        "value": "workspace"
+                    },
+                    {
+                        "label": "Form only",
+                        "value": "form_only"
+                    }
+                ]
+            },
+            {
+                "key": "public_report_download_enabled",
+                "type": "checkbox",
+                "has_default": true,
+                "default": "1",
+                "has_options": false
+            },
+            {
+                "key": "public_report_show_full_document",
+                "type": "checkbox",
+                "has_default": true,
+                "default": "1",
+                "has_options": false
+            },
+            {
+                "key": "public_report_show_raw_score",
+                "type": "checkbox",
+                "has_default": true,
+                "default": "1",
+                "has_options": false
+            },
+            {
+                "key": "public_report_show_source_names",
+                "type": "checkbox",
+                "has_default": true,
+                "default": "1",
+                "has_options": false
+            },
+            {
+                "key": "public_report_workspace_enabled",
+                "type": "checkbox",
+                "has_default": true,
+                "default": "1",
+                "has_options": false
+            },
+            {
+                "key": "public_results_allow_anonymous",
+                "type": "checkbox",
+                "has_default": true,
+                "default": "1",
+                "has_options": false
+            },
+            {
+                "key": "public_results_enabled",
+                "type": "checkbox",
+                "has_default": true,
+                "default": "1",
+                "has_options": false
+            },
+            {
+                "key": "public_results_recent_limit",
+                "type": "number",
+                "has_default": true,
+                "default": "10",
+                "has_options": false
+            },
+            {
+                "key": "public_results_show_match_count",
+                "type": "checkbox",
+                "has_default": true,
+                "default": "1",
+                "has_options": false
+            },
+            {
+                "key": "public_results_show_report_links",
+                "type": "checkbox",
+                "has_default": true,
+                "default": "1",
+                "has_options": false
+            },
+            {
+                "key": "public_results_show_scores",
+                "type": "checkbox",
+                "has_default": true,
+                "default": "1",
+                "has_options": false
+            },
+            {
+                "key": "retention_days",
+                "type": "number",
+                "has_default": true,
+                "default": "365",
+                "has_options": false
+            },
+            {
+                "key": "semantic_external_api_key",
+                "type": "password",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "semantic_external_api_key_env",
+                "type": "text",
+                "has_default": true,
+                "default": "SEMANTIC_API_KEY",
+                "has_options": false
+            },
+            {
+                "key": "semantic_health_visible",
+                "type": "checkbox",
+                "has_default": true,
+                "default": "1",
+                "has_options": false
+            },
+            {
+                "key": "semantic_match_enabled",
+                "type": "checkbox",
+                "has_default": true,
+                "default": "0",
+                "has_options": false
+            },
+            {
+                "key": "semantic_max_segments",
+                "type": "number",
+                "has_default": true,
+                "default": "500",
+                "has_options": false
+            },
+            {
+                "key": "semantic_model_name",
+                "type": "text",
+                "has_default": true,
+                "default": "token_overlap",
+                "has_options": false
+            },
+            {
+                "key": "semantic_payload_policy",
+                "type": "select",
+                "has_default": true,
+                "default": "segments_only",
+                "has_options": true,
+                "options": [
+                    {
+                        "label": "Segments only",
+                        "value": "segments_only"
+                    },
+                    {
+                        "label": "Redacted segments",
+                        "value": "redacted_segments"
+                    }
+                ]
+            },
+            {
+                "key": "semantic_provider",
+                "type": "select",
+                "has_default": true,
+                "default": "token_overlap",
+                "has_options": true,
+                "options": [
+                    {
+                        "label": "Token overlap",
+                        "value": "token_overlap"
+                    },
+                    {
+                        "label": "TF-IDF cosine",
+                        "value": "tfidf"
+                    },
+                    {
+                        "label": "Sentence transformers",
+                        "value": "sentence_transformers"
+                    },
+                    {
+                        "label": "Groq LLM judge",
+                        "value": "groq"
+                    }
+                ]
+            },
+            {
+                "key": "semantic_service_endpoint",
+                "type": "text",
+                "has_default": true,
+                "default": "http://127.0.0.1:9003",
+                "has_options": false
+            },
+            {
+                "key": "semantic_service_token_env",
+                "type": "text",
+                "has_default": true,
+                "default": "SEMANTIC_SERVICE_TOKEN",
+                "has_options": false
+            },
+            {
+                "key": "semantic_similarity_threshold",
+                "type": "number",
+                "has_default": true,
+                "default": "0.15",
+                "has_options": false
+            }
+        ],
+        "modules/ai/module.json": [
+            {
+                "key": "cerebras_api_key",
+                "type": "text",
+                "has_default": false,
+                "has_options": false
+            },
+            {
+                "key": "cerebras_model",
+                "type": "text",
+                "has_default": false,
+                "has_options": false
+            },
+            {
+                "key": "cerebras_model_free",
+                "type": "text",
+                "has_default": true,
+                "default": "llama-4-scout-17b-16e-instruct",
+                "has_options": false
+            },
+            {
+                "key": "cerebras_model_paid",
+                "type": "text",
+                "has_default": true,
+                "default": "llama3.1-70b",
+                "has_options": false
+            },
+            {
+                "key": "gemini_api_key",
+                "type": "text",
+                "has_default": false,
+                "has_options": false
+            },
+            {
+                "key": "gemini_model",
+                "type": "text",
+                "has_default": false,
+                "has_options": false
+            },
+            {
+                "key": "gemini_model_free",
+                "type": "text",
+                "has_default": true,
+                "default": "gemini-2.5-flash",
+                "has_options": false
+            },
+            {
+                "key": "gemini_model_paid",
+                "type": "text",
+                "has_default": true,
+                "default": "gemini-2.5-pro",
+                "has_options": false
+            },
+            {
+                "key": "groq_api_key",
+                "type": "text",
+                "has_default": false,
+                "has_options": false
+            },
+            {
+                "key": "groq_model",
+                "type": "text",
+                "has_default": false,
+                "has_options": false
+            },
+            {
+                "key": "groq_model_free",
+                "type": "text",
+                "has_default": true,
+                "default": "llama-3.1-8b-instant",
+                "has_options": false
+            },
+            {
+                "key": "groq_model_paid",
+                "type": "text",
+                "has_default": true,
+                "default": "llama-3.3-70b-versatile",
+                "has_options": false
+            },
+            {
+                "key": "mistral_api_key",
+                "type": "text",
+                "has_default": false,
+                "has_options": false
+            },
+            {
+                "key": "mistral_model",
+                "type": "text",
+                "has_default": false,
+                "has_options": false
+            },
+            {
+                "key": "mistral_model_free",
+                "type": "text",
+                "has_default": true,
+                "default": "mistral-small-latest",
+                "has_options": false
+            },
+            {
+                "key": "mistral_model_paid",
+                "type": "text",
+                "has_default": true,
+                "default": "mistral-large-latest",
+                "has_options": false
+            },
+            {
+                "key": "ollama_base_url",
+                "type": "text",
+                "has_default": true,
+                "default": "http://localhost:11434",
+                "has_options": false
+            },
+            {
+                "key": "ollama_model",
+                "type": "text",
+                "has_default": false,
+                "has_options": false
+            },
+            {
+                "key": "ollama_model_free",
+                "type": "text",
+                "has_default": true,
+                "default": "llama3.2:3b",
+                "has_options": false
+            },
+            {
+                "key": "ollama_model_paid",
+                "type": "text",
+                "has_default": true,
+                "default": "llama3.1:8b",
+                "has_options": false
+            },
+            {
+                "key": "openai_api_key",
+                "type": "text",
+                "has_default": false,
+                "has_options": false
+            },
+            {
+                "key": "openai_model",
+                "type": "text",
+                "has_default": false,
+                "has_options": false
+            },
+            {
+                "key": "openai_model_free",
+                "type": "text",
+                "has_default": true,
+                "default": "gpt-4o-mini",
+                "has_options": false
+            },
+            {
+                "key": "openai_model_paid",
+                "type": "text",
+                "has_default": true,
+                "default": "gpt-4o",
+                "has_options": false
+            },
+            {
+                "key": "openrouter_api_key",
+                "type": "text",
+                "has_default": false,
+                "has_options": false
+            },
+            {
+                "key": "openrouter_model",
+                "type": "text",
+                "has_default": false,
+                "has_options": false
+            },
+            {
+                "key": "openrouter_model_free",
+                "type": "text",
+                "has_default": true,
+                "default": "meta-llama/llama-4-scout:free",
+                "has_options": false
+            },
+            {
+                "key": "openrouter_model_paid",
+                "type": "text",
+                "has_default": true,
+                "default": "anthropic/claude-sonnet-4",
+                "has_options": false
+            },
+            {
+                "key": "provider",
+                "type": "select",
+                "has_default": true,
+                "default": "openai",
+                "has_options": true,
+                "options": [
+                    {
+                        "label": "OpenAI",
+                        "value": "openai"
+                    },
+                    {
+                        "label": "Groq (OpenAI-compatible)",
+                        "value": "groq"
+                    },
+                    {
+                        "label": "Google Gemini",
+                        "value": "gemini"
+                    },
+                    {
+                        "label": "Cerebras",
+                        "value": "cerebras"
+                    },
+                    {
+                        "label": "OpenRouter (multi-model)",
+                        "value": "openrouter"
+                    },
+                    {
+                        "label": "Mistral AI",
+                        "value": "mistral"
+                    },
+                    {
+                        "label": "Ollama (local)",
+                        "value": "ollama"
+                    }
+                ]
+            },
+            {
+                "key": "tier",
+                "type": "select",
+                "has_default": true,
+                "default": "free",
+                "has_options": true,
+                "options": [
+                    {
+                        "label": "Free tier",
+                        "value": "free"
+                    },
+                    {
+                        "label": "Paid tier",
+                        "value": "paid"
+                    },
+                    {
+                        "label": "Custom model",
+                        "value": "custom"
+                    }
+                ]
+            }
+        ],
+        "modules/anti-spam/module.json": [
+            {
+                "key": "auto_protect_web_apis",
+                "type": "checkbox",
+                "has_default": true,
+                "default": "1",
+                "has_options": false
+            },
+            {
+                "key": "blocked_keywords",
+                "type": "text",
+                "has_default": true,
+                "default": "viagra,casino,lottery,nigerian prince,click here now,buy now cheap",
+                "has_options": false
+            },
+            {
+                "key": "enabled",
+                "type": "checkbox",
+                "has_default": true,
+                "default": "1",
+                "has_options": false
+            },
+            {
+                "key": "honeypot_enabled",
+                "type": "checkbox",
+                "has_default": true,
+                "default": "1",
+                "has_options": false
+            },
+            {
+                "key": "keyword_block_enabled",
+                "type": "checkbox",
+                "has_default": true,
+                "default": "1",
+                "has_options": false
+            },
+            {
+                "key": "log_retention_days",
+                "type": "number",
+                "has_default": true,
+                "default": "30",
+                "has_options": false
+            },
+            {
+                "key": "rate_limit_enabled",
+                "type": "checkbox",
+                "has_default": true,
+                "default": "1",
+                "has_options": false
+            },
+            {
+                "key": "rate_limit_max",
+                "type": "number",
+                "has_default": true,
+                "default": "10",
+                "has_options": false
+            },
+            {
+                "key": "rate_limit_window",
+                "type": "number",
+                "has_default": true,
+                "default": "60",
+                "has_options": false
+            },
+            {
+                "key": "skip_authenticated_api_users",
+                "type": "checkbox",
+                "has_default": true,
+                "default": "1",
+                "has_options": false
+            }
+        ],
+        "modules/attendance-wage/module.json": [
+            {
+                "key": "default_rest_day",
+                "type": "select",
+                "has_default": true,
+                "default": "sunday",
+                "has_options": true,
+                "options": [
+                    {
+                        "label": "Sunday",
+                        "value": "sunday"
+                    },
+                    {
+                        "label": "Monday",
+                        "value": "monday"
+                    },
+                    {
+                        "label": "Tuesday",
+                        "value": "tuesday"
+                    },
+                    {
+                        "label": "Wednesday",
+                        "value": "wednesday"
+                    },
+                    {
+                        "label": "Thursday",
+                        "value": "thursday"
+                    },
+                    {
+                        "label": "Friday",
+                        "value": "friday"
+                    },
+                    {
+                        "label": "Saturday",
+                        "value": "saturday"
+                    }
+                ]
+            },
+            {
+                "key": "google_maps_api_key",
+                "type": "text",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "max_active_advances",
+                "type": "number",
+                "has_default": true,
+                "default": "2",
+                "has_options": false
+            },
+            {
+                "key": "max_cash_advance_pct",
+                "type": "number",
+                "has_default": true,
+                "default": "50",
+                "has_options": false
+            },
+            {
+                "key": "overtime_calculation",
+                "type": "select",
+                "has_default": true,
+                "default": "both",
+                "has_options": true,
+                "options": [
+                    {
+                        "label": "Daily Only",
+                        "value": "daily"
+                    },
+                    {
+                        "label": "Weekly Only",
+                        "value": "weekly"
+                    },
+                    {
+                        "label": "Both Daily + Weekly",
+                        "value": "both"
+                    }
+                ]
+            },
+            {
+                "key": "pay_frequency",
+                "type": "select",
+                "has_default": true,
+                "default": "semi_monthly",
+                "has_options": true,
+                "options": [
+                    {
+                        "label": "Semi-Monthly",
+                        "value": "semi_monthly"
+                    },
+                    {
+                        "label": "Monthly",
+                        "value": "monthly"
+                    },
+                    {
+                        "label": "Weekly",
+                        "value": "weekly"
+                    },
+                    {
+                        "label": "Bi-Weekly",
+                        "value": "bi_weekly"
+                    }
+                ]
+            },
+            {
+                "key": "round_hours_to",
+                "type": "select",
+                "has_default": true,
+                "default": "0.25",
+                "has_options": true,
+                "options": [
+                    {
+                        "label": "No Rounding",
+                        "value": "none"
+                    },
+                    {
+                        "label": "15 Minutes (0.25)",
+                        "value": "0.25"
+                    },
+                    {
+                        "label": "30 Minutes (0.5)",
+                        "value": "0.5"
+                    },
+                    {
+                        "label": "1 Hour",
+                        "value": "1.0"
+                    }
+                ]
+            },
+            {
+                "key": "working_days_per_month",
+                "type": "number",
+                "has_default": true,
+                "default": "22",
+                "has_options": false
+            },
+            {
+                "key": "working_hours_per_day",
+                "type": "number",
+                "has_default": true,
+                "default": "8",
+                "has_options": false
+            }
+        ],
+        "modules/bakeshop/module.json": [
+            {
+                "key": "default_dr_coverage_days",
+                "type": "number",
+                "has_default": true,
+                "default": "3",
+                "has_options": false
+            },
+            {
+                "key": "print_template",
+                "type": "select",
+                "has_default": true,
+                "default": "standard",
+                "has_options": true,
+                "options": [
+                    {
+                        "label": "Standard",
+                        "value": "standard"
+                    }
+                ]
+            },
+            {
+                "key": "product_recipe_status",
+                "type": "select",
+                "has_default": true,
+                "default": "active",
+                "has_options": true,
+                "options": [
+                    {
+                        "label": "Activate Recipes",
+                        "value": "active"
+                    },
+                    {
+                        "label": "Deactivate Recipes",
+                        "value": "inactive"
+                    }
+                ]
+            },
+            {
+                "key": "production_recipe_mode",
+                "type": "select",
+                "has_default": true,
+                "default": "optional",
+                "has_options": true,
+                "options": [
+                    {
+                        "label": "Recipe Optional",
+                        "value": "optional"
+                    },
+                    {
+                        "label": "Recipe Required",
+                        "value": "required"
+                    }
+                ]
+            },
+            {
+                "key": "role_permissions",
+                "type": "textarea",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "store_description",
+                "type": "text",
+                "has_default": true,
+                "default": "Production, deliveries, recipes, staff access, and daily reporting inside the bakeshop module.",
+                "has_options": false
+            },
+            {
+                "key": "store_logo_url",
+                "type": "text",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "store_name",
+                "type": "text",
+                "has_default": true,
+                "default": "Julie's Bakeshop",
+                "has_options": false
+            },
+            {
+                "key": "suggested_reorder_days",
+                "type": "number",
+                "has_default": true,
+                "default": "7",
+                "has_options": false
+            },
+            {
+                "key": "usage_decimal_places",
+                "type": "number",
+                "has_default": true,
+                "default": "2",
+                "has_options": false
+            }
+        ],
+        "modules/cms/module.json": [
+            {
+                "key": "active_ecommerce_theme",
+                "type": "text",
+                "has_default": true,
+                "default": "default",
+                "has_options": false
+            },
+            {
+                "key": "active_theme",
+                "type": "text",
+                "has_default": true,
+                "default": "default",
+                "has_options": false
+            },
+            {
+                "key": "builder_enabled_types",
+                "type": "text",
+                "has_default": true,
+                "default": "page",
+                "has_options": false
+            },
+            {
+                "key": "builder_enforce_lock",
+                "type": "select",
+                "has_default": true,
+                "default": "1",
+                "has_options": false
+            },
+            {
+                "key": "cache_enabled",
+                "type": "select",
+                "has_default": true,
+                "default": "1",
+                "has_options": false
+            },
+            {
+                "key": "cache_ttl",
+                "type": "number",
+                "has_default": true,
+                "default": "600",
+                "has_options": false
+            },
+            {
+                "key": "comments_enabled",
+                "type": "select",
+                "has_default": true,
+                "default": "1",
+                "has_options": false
+            },
+            {
+                "key": "date_format",
+                "type": "text",
+                "has_default": true,
+                "default": "M j, Y",
+                "has_options": false
+            },
+            {
+                "key": "default_comment_status",
+                "type": "text",
+                "has_default": true,
+                "default": "open",
+                "has_options": false
+            },
+            {
+                "key": "default_post_status",
+                "type": "select",
+                "has_default": true,
+                "default": "draft",
+                "has_options": false
+            },
+            {
+                "key": "enabled_post_formats",
+                "type": "text",
+                "has_default": true,
+                "default": "standard,aside,gallery,link,image,quote,video,audio",
+                "has_options": false
+            },
+            {
+                "key": "excerpt_length",
+                "type": "number",
+                "has_default": true,
+                "default": "160",
+                "has_options": false
+            },
+            {
+                "key": "homepage_page_id",
+                "type": "text",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "homepage_type",
+                "type": "select",
+                "has_default": true,
+                "default": "posts",
+                "has_options": false
+            },
+            {
+                "key": "max_upload_mb",
+                "type": "number",
+                "has_default": true,
+                "default": "2",
+                "has_options": false
+            },
+            {
+                "key": "media_alt_required",
+                "type": "select",
+                "has_default": true,
+                "default": "0",
+                "has_options": false
+            },
+            {
+                "key": "media_extra_allowed_exts",
+                "type": "text",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "media_usage_tracking",
+                "type": "select",
+                "has_default": true,
+                "default": "1",
+                "has_options": false
+            },
+            {
+                "key": "page_builder_show_sidebar",
+                "type": "select",
+                "has_default": true,
+                "default": "0",
+                "has_options": false
+            },
+            {
+                "key": "posts_per_page",
+                "type": "number",
+                "has_default": true,
+                "default": "10",
+                "has_options": false
+            },
+            {
+                "key": "reading_time_enabled",
+                "type": "select",
+                "has_default": true,
+                "default": "1",
+                "has_options": false
+            },
+            {
+                "key": "reading_time_wpm",
+                "type": "number",
+                "has_default": true,
+                "default": "200",
+                "has_options": false
+            },
+            {
+                "key": "role_permissions",
+                "type": "textarea",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "seo_meta_description",
+                "type": "textarea",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "seo_og_image",
+                "type": "text",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "seo_robots",
+                "type": "text",
+                "has_default": true,
+                "default": "index, follow",
+                "has_options": false
+            },
+            {
+                "key": "seo_title_separator",
+                "type": "text",
+                "has_default": true,
+                "default": "|",
+                "has_options": false
+            },
+            {
+                "key": "site_tagline",
+                "type": "text",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "site_title",
+                "type": "text",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "social_facebook",
+                "type": "text",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "social_instagram",
+                "type": "text",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "social_linkedin",
+                "type": "text",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "social_twitter",
+                "type": "text",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "social_youtube",
+                "type": "text",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "time_format",
+                "type": "text",
+                "has_default": true,
+                "default": "g:i A",
+                "has_options": false
+            }
+        ],
+        "modules/contact-form/module.json": [
+            {
+                "key": "email_subject",
+                "type": "text",
+                "has_default": true,
+                "default": "New Contact Form Submission",
+                "has_options": false
+            },
+            {
+                "key": "recipient_email",
+                "type": "email",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "spam_protection",
+                "type": "select",
+                "has_default": true,
+                "default": "honeypot",
+                "has_options": true,
+                "options": [
+                    {
+                        "label": "Honeypot (recommended)",
+                        "value": "honeypot"
+                    },
+                    {
+                        "label": "None",
+                        "value": "none"
+                    }
+                ]
+            },
+            {
+                "key": "store_submissions",
+                "type": "select",
+                "has_default": true,
+                "default": "1",
+                "has_options": true,
+                "options": [
+                    {
+                        "label": "Yes — save to database",
+                        "value": "1"
+                    },
+                    {
+                        "label": "No",
+                        "value": "0"
+                    }
+                ]
+            },
+            {
+                "key": "success_message",
+                "type": "text",
+                "has_default": true,
+                "default": "Thank you for your message. We will get back to you soon.",
+                "has_options": false
+            }
+        ],
+        "modules/content-ingestion/module.json": [
+            {
+                "key": "bridge_enabled",
+                "type": "checkbox",
+                "has_default": false,
+                "has_options": false
+            },
+            {
+                "key": "source_adapter",
+                "type": "select",
+                "has_default": false,
+                "has_options": true,
+                "options": [
+                    {
+                        "label": "WordPress",
+                        "value": "wordpress"
+                    },
+                    {
+                        "available": false,
+                        "label": "Joomla",
+                        "value": "joomla"
+                    },
+                    {
+                        "available": false,
+                        "label": "REST API",
+                        "value": "rest-api"
+                    }
+                ]
+            },
+            {
+                "key": "source_name",
+                "type": "text",
+                "has_default": false,
+                "has_options": false
+            },
+            {
+                "key": "source_site_url",
+                "type": "text",
+                "has_default": false,
+                "has_options": false
+            }
+        ],
+        "modules/daily-ledger/module.json": [
+            {
+                "key": "am_shift_cutoff",
+                "type": "time",
+                "has_default": true,
+                "default": "14:00",
+                "has_options": false
+            },
+            {
+                "key": "app_name",
+                "type": "text",
+                "has_default": true,
+                "default": "Daily Ledger",
+                "has_options": false
+            },
+            {
+                "key": "backup_before_reset_enabled",
+                "type": "checkbox",
+                "has_default": true,
+                "default": "1",
+                "has_options": false
+            },
+            {
+                "key": "backup_include_users",
+                "type": "checkbox",
+                "has_default": true,
+                "default": "1",
+                "has_options": false
+            },
+            {
+                "key": "backup_retention_days",
+                "type": "number",
+                "has_default": true,
+                "default": "14",
+                "has_options": false
+            },
+            {
+                "key": "branch_product_self_management",
+                "type": "checkbox",
+                "has_default": true,
+                "default": "0",
+                "has_options": false
+            },
+            {
+                "key": "cash_paper_check_enabled",
+                "type": "checkbox",
+                "has_default": true,
+                "default": "0",
+                "has_options": false
+            },
+            {
+                "key": "consignee_enabled",
+                "type": "checkbox",
+                "has_default": true,
+                "default": true,
+                "has_options": false
+            },
+            {
+                "key": "consignee_sales_mode",
+                "type": "select",
+                "has_default": true,
+                "default": "consignment",
+                "has_options": false
+            },
+            {
+                "key": "favicon_url",
+                "type": "text",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "formal_delivery_workflow_enabled",
+                "type": "checkbox",
+                "has_default": true,
+                "default": "0",
+                "has_options": false
+            },
+            {
+                "key": "logo_url",
+                "type": "text",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "max_offline_days",
+                "type": "number",
+                "has_default": true,
+                "default": "14",
+                "has_options": false
+            },
+            {
+                "key": "net_sales_deduction_percent",
+                "type": "text",
+                "has_default": true,
+                "default": "0",
+                "has_options": false
+            },
+            {
+                "key": "pos_allowed_tenders",
+                "type": "text",
+                "has_default": true,
+                "default": "cash",
+                "has_options": false
+            },
+            {
+                "key": "pos_enabled",
+                "type": "checkbox",
+                "has_default": true,
+                "default": "0",
+                "has_options": false
+            },
+            {
+                "key": "pos_sort_by_sales",
+                "type": "checkbox",
+                "has_default": true,
+                "default": "1",
+                "has_options": false
+            },
+            {
+                "key": "price_groups_enabled",
+                "type": "checkbox",
+                "has_default": true,
+                "default": "1",
+                "has_options": false
+            },
+            {
+                "key": "production_output_enabled",
+                "type": "checkbox",
+                "has_default": true,
+                "default": "0",
+                "has_options": false
+            },
+            {
+                "key": "reset_second_phrase_enabled",
+                "type": "checkbox",
+                "has_default": true,
+                "default": "1",
+                "has_options": false
+            },
+            {
+                "key": "selling_accounts_enabled",
+                "type": "checkbox",
+                "has_default": true,
+                "default": "0",
+                "has_options": false
+            }
+        ],
+        "modules/dc-cafe/module.json": [
+            {
+                "key": "commissary_enabled",
+                "type": "checkbox",
+                "has_default": true,
+                "default": "0",
+                "has_options": false
+            },
+            {
+                "key": "low_stock_alerts_enabled",
+                "type": "checkbox",
+                "has_default": true,
+                "default": "1",
+                "has_options": false
+            },
+            {
+                "key": "low_stock_email_enabled",
+                "type": "checkbox",
+                "has_default": true,
+                "default": "0",
+                "has_options": false
+            },
+            {
+                "key": "low_stock_email_to",
+                "type": "email",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "low_stock_include_products",
+                "type": "checkbox",
+                "has_default": true,
+                "default": "1",
+                "has_options": false
+            },
+            {
+                "key": "low_stock_verify_required",
+                "type": "checkbox",
+                "has_default": true,
+                "default": "0",
+                "has_options": false
+            },
+            {
+                "key": "pos_allow_discount",
+                "type": "checkbox",
+                "has_default": true,
+                "default": "1",
+                "has_options": false
+            },
+            {
+                "key": "pos_auto_print_receipt",
+                "type": "checkbox",
+                "has_default": true,
+                "default": "0",
+                "has_options": false
+            },
+            {
+                "key": "pos_default_view",
+                "type": "select",
+                "has_default": true,
+                "default": "list",
+                "has_options": true,
+                "options": [
+                    {
+                        "label": "List (rows)",
+                        "value": "list"
+                    },
+                    {
+                        "label": "Cards",
+                        "value": "grid"
+                    }
+                ]
+            },
+            {
+                "key": "pos_discard_supervisor_only",
+                "type": "checkbox",
+                "has_default": true,
+                "default": "0",
+                "has_options": false
+            },
+            {
+                "key": "pos_hide_out_of_stock",
+                "type": "checkbox",
+                "has_default": true,
+                "default": "0",
+                "has_options": false
+            },
+            {
+                "key": "pos_max_discount_pct",
+                "type": "number",
+                "has_default": true,
+                "default": "20",
+                "has_options": false
+            },
+            {
+                "key": "pos_order_queue_enabled",
+                "type": "checkbox",
+                "has_default": true,
+                "default": "0",
+                "has_options": false
+            },
+            {
+                "key": "pos_quick_stock_entry",
+                "type": "checkbox",
+                "has_default": true,
+                "default": "1",
+                "has_options": false
+            },
+            {
+                "key": "pos_require_gcash_reference",
+                "type": "checkbox",
+                "has_default": true,
+                "default": "0",
+                "has_options": false
+            },
+            {
+                "key": "pos_stock_policy",
+                "type": "select",
+                "has_default": true,
+                "default": "warn",
+                "has_options": true,
+                "options": [
+                    {
+                        "label": "Warn — sell it and flag the shortfall",
+                        "value": "warn"
+                    },
+                    {
+                        "label": "Strict — block the sale",
+                        "value": "strict"
+                    },
+                    {
+                        "label": "Allow negative stock silently",
+                        "value": "allow_negative"
+                    }
+                ]
+            },
+            {
+                "key": "pos_viewer_dashboard_enabled",
+                "type": "checkbox",
+                "has_default": true,
+                "default": "0",
+                "has_options": false
+            },
+            {
+                "key": "pos_void_enabled",
+                "type": "checkbox",
+                "has_default": true,
+                "default": "1",
+                "has_options": false
+            },
+            {
+                "key": "production_view_enabled",
+                "type": "checkbox",
+                "has_default": true,
+                "default": "0",
+                "has_options": false
+            },
+            {
+                "key": "receipt_footer_text",
+                "type": "text",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            }
+        ],
+        "modules/ecommerce/module.json": [
+            {
+                "key": "abandoned_cart_enabled",
+                "type": "checkbox",
+                "has_default": true,
+                "default": false,
+                "has_options": false
+            },
+            {
+                "key": "abandoned_cart_first_delay_hours",
+                "type": "number",
+                "has_default": true,
+                "default": "1",
+                "has_options": false
+            },
+            {
+                "key": "abandoned_cart_second_delay_hours",
+                "type": "number",
+                "has_default": true,
+                "default": "24",
+                "has_options": false
+            },
+            {
+                "key": "abandoned_cart_third_delay_hours",
+                "type": "number",
+                "has_default": true,
+                "default": "72",
+                "has_options": false
+            },
+            {
+                "key": "admin_email",
+                "type": "email",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "admin_notification_email",
+                "type": "email",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "cache_enabled",
+                "type": "select",
+                "has_default": true,
+                "default": "1",
+                "has_options": true,
+                "options": [
+                    "1",
+                    "0"
+                ]
+            },
+            {
+                "key": "cache_ttl",
+                "type": "number",
+                "has_default": true,
+                "default": "300",
+                "has_options": false
+            },
+            {
+                "key": "currency",
+                "type": "select",
+                "has_default": true,
+                "default": "USD",
+                "has_options": true,
+                "options": [
+                    "USD",
+                    "PHP",
+                    "EUR",
+                    "GBP",
+                    "AUD",
+                    "CAD",
+                    "SGD"
+                ]
+            },
+            {
+                "key": "currency_exchange_rates",
+                "type": "textarea",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "currency_symbol",
+                "type": "text",
+                "has_default": true,
+                "default": "$",
+                "has_options": false
+            },
+            {
+                "key": "default_wms_warehouse_id",
+                "type": "number",
+                "has_default": true,
+                "default": "0",
+                "has_options": false
+            },
+            {
+                "key": "enabled_currencies",
+                "type": "text",
+                "has_default": true,
+                "default": "USD",
+                "has_options": false
+            },
+            {
+                "key": "feature_bookings_enabled",
+                "type": "checkbox",
+                "has_default": true,
+                "default": true,
+                "has_options": false
+            },
+            {
+                "key": "feature_loyalty_enabled",
+                "type": "checkbox",
+                "has_default": true,
+                "default": true,
+                "has_options": false
+            },
+            {
+                "key": "feature_memberships_enabled",
+                "type": "checkbox",
+                "has_default": true,
+                "default": true,
+                "has_options": false
+            },
+            {
+                "key": "feature_multistore_enabled",
+                "type": "checkbox",
+                "has_default": true,
+                "default": true,
+                "has_options": false
+            },
+            {
+                "key": "feature_pos_enabled",
+                "type": "checkbox",
+                "has_default": true,
+                "default": true,
+                "has_options": false
+            },
+            {
+                "key": "feature_reviews_enabled",
+                "type": "checkbox",
+                "has_default": true,
+                "default": true,
+                "has_options": false
+            },
+            {
+                "key": "feature_subscriptions_enabled",
+                "type": "checkbox",
+                "has_default": true,
+                "default": true,
+                "has_options": false
+            },
+            {
+                "key": "guest_checkout",
+                "type": "checkbox",
+                "has_default": true,
+                "default": true,
+                "has_options": false
+            },
+            {
+                "key": "license_private_key_pem",
+                "type": "textarea",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "license_public_key_pem",
+                "type": "textarea",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "low_stock_threshold",
+                "type": "number",
+                "has_default": true,
+                "default": "5",
+                "has_options": false
+            },
+            {
+                "key": "loyalty_earn_rate",
+                "type": "number",
+                "has_default": true,
+                "default": "1",
+                "has_options": false
+            },
+            {
+                "key": "loyalty_minimum_redeem",
+                "type": "number",
+                "has_default": true,
+                "default": "100",
+                "has_options": false
+            },
+            {
+                "key": "loyalty_points_per_currency",
+                "type": "number",
+                "has_default": true,
+                "default": "100",
+                "has_options": false
+            },
+            {
+                "key": "manual_payment_mode",
+                "type": "select",
+                "has_default": true,
+                "default": "pay_on_delivery",
+                "has_options": true,
+                "options": [
+                    "pay_on_delivery",
+                    "bank_transfer",
+                    "offline_manual"
+                ]
+            },
+            {
+                "key": "order_number_prefix",
+                "type": "text",
+                "has_default": true,
+                "default": "EC",
+                "has_options": false
+            },
+            {
+                "key": "payment_gateway",
+                "type": "select",
+                "has_default": true,
+                "default": "manual",
+                "has_options": true,
+                "options": [
+                    "manual",
+                    "paymongo",
+                    "stripe",
+                    "paypal"
+                ]
+            },
+            {
+                "key": "payment_gateway_mode",
+                "type": "select",
+                "has_default": true,
+                "default": "sandbox",
+                "has_options": true,
+                "options": [
+                    "sandbox",
+                    "live"
+                ]
+            },
+            {
+                "key": "payment_instructions",
+                "type": "textarea",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "payment_method_label",
+                "type": "text",
+                "has_default": true,
+                "default": "Pay on Delivery",
+                "has_options": false
+            },
+            {
+                "key": "paymongo_allowed_methods",
+                "type": "text",
+                "has_default": true,
+                "default": "card,gcash,maya",
+                "has_options": false
+            },
+            {
+                "key": "paymongo_public_key",
+                "type": "text",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "paymongo_secret_key",
+                "type": "text",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "paymongo_webhook_secret",
+                "type": "text",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "paypal_client_id",
+                "type": "text",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "paypal_secret",
+                "type": "text",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "paypal_webhook_id",
+                "type": "text",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "products_per_page",
+                "type": "number",
+                "has_default": true,
+                "default": "12",
+                "has_options": false
+            },
+            {
+                "key": "require_account_for_digital",
+                "type": "checkbox",
+                "has_default": true,
+                "default": true,
+                "has_options": false
+            },
+            {
+                "key": "shipping_default_country",
+                "type": "text",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "shipping_table_rate_rules",
+                "type": "textarea",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "shop_page_title",
+                "type": "text",
+                "has_default": true,
+                "default": "Shop",
+                "has_options": false
+            },
+            {
+                "key": "social_facebook",
+                "type": "text",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "social_instagram",
+                "type": "text",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "social_tiktok",
+                "type": "text",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "social_twitter",
+                "type": "text",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "social_youtube",
+                "type": "text",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "store_banner_cta_text",
+                "type": "text",
+                "has_default": true,
+                "default": "Shop Now",
+                "has_options": false
+            },
+            {
+                "key": "store_banner_cta_url",
+                "type": "text",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "store_banner_enabled",
+                "type": "checkbox",
+                "has_default": true,
+                "default": false,
+                "has_options": false
+            },
+            {
+                "key": "store_banner_headline",
+                "type": "text",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "store_banner_image_url",
+                "type": "text",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "store_banner_subtext",
+                "type": "text",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "store_hours",
+                "type": "textarea",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "storefront_theme",
+                "type": "select",
+                "has_default": true,
+                "default": "orange",
+                "has_options": true,
+                "options": [
+                    "orange",
+                    "indigo",
+                    "emerald",
+                    "rose"
+                ]
+            },
+            {
+                "key": "stripe_allowed_payment_methods",
+                "type": "text",
+                "has_default": true,
+                "default": "card",
+                "has_options": false
+            },
+            {
+                "key": "stripe_publishable_key",
+                "type": "text",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "stripe_secret_key",
+                "type": "text",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "stripe_webhook_secret",
+                "type": "text",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "tax_default_country",
+                "type": "text",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "tax_inclusive",
+                "type": "checkbox",
+                "has_default": true,
+                "default": false,
+                "has_options": false
+            },
+            {
+                "key": "tax_rate",
+                "type": "number",
+                "has_default": true,
+                "default": "0",
+                "has_options": false
+            },
+            {
+                "key": "tax_reduced_rules",
+                "type": "textarea",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "tax_standard_rules",
+                "type": "textarea",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "tax_zero_rules",
+                "type": "textarea",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "wms_fulfillment_bridge_enabled",
+                "type": "checkbox",
+                "has_default": true,
+                "default": false,
+                "has_options": false
+            }
+        ],
+        "modules/gui-settings/module.json": [
+            {
+                "key": "app_name",
+                "type": "text",
+                "has_default": true,
+                "default": "Ikabud",
+                "has_options": false
+            },
+            {
+                "key": "app_name_accent",
+                "type": "text",
+                "has_default": true,
+                "default": "Ikabud",
+                "has_options": false
+            },
+            {
+                "key": "app_name_rest",
+                "type": "text",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "border_radius",
+                "type": "text",
+                "has_default": true,
+                "default": "8px",
+                "has_options": false
+            },
+            {
+                "key": "color_bg",
+                "type": "text",
+                "has_default": true,
+                "default": "#f4f5f7",
+                "has_options": false
+            },
+            {
+                "key": "color_border",
+                "type": "text",
+                "has_default": true,
+                "default": "#dfe3e8",
+                "has_options": false
+            },
+            {
+                "key": "color_danger",
+                "type": "text",
+                "has_default": true,
+                "default": "#d42828",
+                "has_options": false
+            },
+            {
+                "key": "color_danger_light",
+                "type": "text",
+                "has_default": true,
+                "default": "#fee2e2",
+                "has_options": false
+            },
+            {
+                "key": "color_header_accent",
+                "type": "text",
+                "has_default": true,
+                "default": "#60a5fa",
+                "has_options": false
+            },
+            {
+                "key": "color_header_bg",
+                "type": "text",
+                "has_default": true,
+                "default": "#1e293b",
+                "has_options": false
+            },
+            {
+                "key": "color_header_text",
+                "type": "text",
+                "has_default": true,
+                "default": "#ffffff",
+                "has_options": false
+            },
+            {
+                "key": "color_primary",
+                "type": "text",
+                "has_default": true,
+                "default": "#2563eb",
+                "has_options": false
+            },
+            {
+                "key": "color_primary_hover",
+                "type": "text",
+                "has_default": true,
+                "default": "#1d4ed8",
+                "has_options": false
+            },
+            {
+                "key": "color_primary_light",
+                "type": "text",
+                "has_default": true,
+                "default": "#dbeafe",
+                "has_options": false
+            },
+            {
+                "key": "color_success",
+                "type": "text",
+                "has_default": true,
+                "default": "#0d9f4f",
+                "has_options": false
+            },
+            {
+                "key": "color_success_light",
+                "type": "text",
+                "has_default": true,
+                "default": "#d4f5e0",
+                "has_options": false
+            },
+            {
+                "key": "color_surface",
+                "type": "text",
+                "has_default": true,
+                "default": "#ffffff",
+                "has_options": false
+            },
+            {
+                "key": "color_text",
+                "type": "text",
+                "has_default": true,
+                "default": "#2d3748",
+                "has_options": false
+            },
+            {
+                "key": "color_text_light",
+                "type": "text",
+                "has_default": true,
+                "default": "#8895a7",
+                "has_options": false
+            },
+            {
+                "key": "color_text_muted",
+                "type": "text",
+                "has_default": true,
+                "default": "#5a6577",
+                "has_options": false
+            },
+            {
+                "key": "color_warning",
+                "type": "text",
+                "has_default": true,
+                "default": "#c87e08",
+                "has_options": false
+            },
+            {
+                "key": "color_warning_light",
+                "type": "text",
+                "has_default": true,
+                "default": "#fef3c7",
+                "has_options": false
+            },
+            {
+                "key": "font_family",
+                "type": "text",
+                "has_default": true,
+                "default": "Inter, system-ui, sans-serif",
+                "has_options": false
+            },
+            {
+                "key": "font_size_base",
+                "type": "text",
+                "has_default": true,
+                "default": "14px",
+                "has_options": false
+            },
+            {
+                "key": "font_size_h1",
+                "type": "text",
+                "has_default": true,
+                "default": "24px",
+                "has_options": false
+            },
+            {
+                "key": "font_size_h2",
+                "type": "text",
+                "has_default": true,
+                "default": "18px",
+                "has_options": false
+            },
+            {
+                "key": "font_size_nav",
+                "type": "text",
+                "has_default": true,
+                "default": "13px",
+                "has_options": false
+            },
+            {
+                "key": "font_size_small",
+                "type": "text",
+                "has_default": true,
+                "default": "12px",
+                "has_options": false
+            },
+            {
+                "key": "font_url",
+                "type": "text",
+                "has_default": true,
+                "default": "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap",
+                "has_options": false
+            },
+            {
+                "key": "header_height",
+                "type": "text",
+                "has_default": true,
+                "default": "56px",
+                "has_options": false
+            },
+            {
+                "key": "max_width",
+                "type": "text",
+                "has_default": true,
+                "default": "1200px",
+                "has_options": false
+            },
+            {
+                "key": "mobile_menu",
+                "type": "select",
+                "has_default": true,
+                "default": "canvas",
+                "has_options": true,
+                "options": [
+                    {
+                        "label": "Canvas",
+                        "value": "canvas"
+                    },
+                    {
+                        "label": "Dropdown",
+                        "value": "dropdown"
+                    }
+                ]
+            },
+            {
+                "key": "nav_height",
+                "type": "text",
+                "has_default": true,
+                "default": "44px",
+                "has_options": false
+            },
+            {
+                "key": "nav_layout",
+                "type": "select",
+                "has_default": true,
+                "default": "top",
+                "has_options": true,
+                "options": [
+                    {
+                        "label": "Top",
+                        "value": "top"
+                    },
+                    {
+                        "label": "Sidebar",
+                        "value": "sidebar"
+                    }
+                ]
+            },
+            {
+                "key": "sidebar_position",
+                "type": "select",
+                "has_default": true,
+                "default": "left",
+                "has_options": true,
+                "options": [
+                    {
+                        "label": "Left",
+                        "value": "left"
+                    },
+                    {
+                        "label": "Right",
+                        "value": "right"
+                    }
+                ]
+            }
+        ],
+        "modules/guidance-sms/module.json": [
+            {
+                "key": "sms_gateway",
+                "type": "select",
+                "has_default": true,
+                "default": "semaphore",
+                "has_options": false
+            }
+        ],
+        "modules/guidance/module.json": [
+            {
+                "key": "app_country",
+                "type": "text",
+                "has_default": true,
+                "default": "PH",
+                "has_options": false
+            },
+            {
+                "key": "app_name",
+                "type": "text",
+                "has_default": true,
+                "default": "Guidance Monitoring System",
+                "has_options": false
+            },
+            {
+                "key": "app_region",
+                "type": "text",
+                "has_default": true,
+                "default": "Manila",
+                "has_options": false
+            },
+            {
+                "key": "app_timezone",
+                "type": "text",
+                "has_default": true,
+                "default": "Asia/Manila",
+                "has_options": false
+            },
+            {
+                "key": "email_notifications",
+                "type": "select",
+                "has_default": true,
+                "default": "1",
+                "has_options": false
+            },
+            {
+                "key": "license_public_key_pem",
+                "type": "textarea",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "license_store_url",
+                "type": "text",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "reminder_hours_before",
+                "type": "number",
+                "has_default": true,
+                "default": "24",
+                "has_options": false
+            },
+            {
+                "key": "retention_active_years",
+                "type": "number",
+                "has_default": true,
+                "default": "7",
+                "has_options": false
+            },
+            {
+                "key": "retention_closed_years",
+                "type": "number",
+                "has_default": true,
+                "default": "5",
+                "has_options": false
+            },
+            {
+                "key": "two_fa_booking",
+                "type": "select",
+                "has_default": true,
+                "default": "0",
+                "has_options": false
+            },
+            {
+                "key": "two_fa_login",
+                "type": "select",
+                "has_default": true,
+                "default": "0",
+                "has_options": false
+            }
+        ],
+        "modules/harpp/module.json": [
+            {
+                "key": "conversation_archiving",
+                "type": "select",
+                "has_default": true,
+                "default": "1",
+                "has_options": true,
+                "options": [
+                    {
+                        "label": "Enabled",
+                        "value": "1"
+                    },
+                    {
+                        "label": "Disabled",
+                        "value": "0"
+                    }
+                ]
+            },
+            {
+                "key": "country",
+                "type": "text",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "notification_channels",
+                "type": "text",
+                "has_default": true,
+                "default": "push",
+                "has_options": false
+            },
+            {
+                "key": "notify_decisions",
+                "type": "select",
+                "has_default": true,
+                "default": "1",
+                "has_options": true,
+                "options": [
+                    {
+                        "label": "Enabled",
+                        "value": "1"
+                    },
+                    {
+                        "label": "Disabled",
+                        "value": "0"
+                    }
+                ]
+            },
+            {
+                "key": "notify_messages",
+                "type": "select",
+                "has_default": true,
+                "default": "1",
+                "has_options": true,
+                "options": [
+                    {
+                        "label": "Enabled",
+                        "value": "1"
+                    },
+                    {
+                        "label": "Disabled",
+                        "value": "0"
+                    }
+                ]
+            },
+            {
+                "key": "push_enabled",
+                "type": "select",
+                "has_default": true,
+                "default": "1",
+                "has_options": true,
+                "options": [
+                    {
+                        "label": "Enabled",
+                        "value": "1"
+                    },
+                    {
+                        "label": "Disabled",
+                        "value": "0"
+                    }
+                ]
+            },
+            {
+                "key": "push_important_only",
+                "type": "select",
+                "has_default": true,
+                "default": "0",
+                "has_options": true,
+                "options": [
+                    {
+                        "label": "Off (push all messages)",
+                        "value": "0"
+                    },
+                    {
+                        "label": "On (decisions + warnings/blocks/failures only)",
+                        "value": "1"
+                    }
+                ]
+            },
+            {
+                "key": "region",
+                "type": "text",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "vapid_subject",
+                "type": "text",
+                "has_default": true,
+                "default": "mailto:harpp@localhost",
+                "has_options": false
+            }
+        ],
+        "modules/healthcare/ehr-core/module.json": [
+            {
+                "key": "app_name",
+                "type": "text",
+                "has_default": false,
+                "has_options": false
+            },
+            {
+                "key": "favicon_url",
+                "type": "text",
+                "has_default": false,
+                "has_options": false
+            },
+            {
+                "key": "login_subtitle",
+                "type": "textarea",
+                "has_default": false,
+                "has_options": false
+            },
+            {
+                "key": "logo_url",
+                "type": "text",
+                "has_default": false,
+                "has_options": false
+            }
+        ],
+        "modules/healthcare/ehr/module.json": [
+            {
+                "key": "app_name",
+                "type": "text",
+                "has_default": true,
+                "default": "EHR Suite",
+                "has_options": false
+            },
+            {
+                "key": "favicon_url",
+                "type": "text",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "login_subtitle",
+                "type": "textarea",
+                "has_default": true,
+                "default": "Clinical operations, records access, and compliance workflows in one secure workspace.",
+                "has_options": false
+            },
+            {
+                "key": "logo_url",
+                "type": "text",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            }
+        ],
+        "modules/inventory-scanner/module.json": [
+            {
+                "key": "auto_generate_sku",
+                "type": "bool",
+                "has_default": true,
+                "default": true,
+                "has_options": false
+            },
+            {
+                "key": "default_warehouse",
+                "type": "text",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "require_location_scan",
+                "type": "bool",
+                "has_default": true,
+                "default": false,
+                "has_options": false
+            }
+        ],
+        "modules/moodle-integration/module.json": [
+            {
+                "key": "api_token",
+                "type": "text",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "burst_limit",
+                "type": "text",
+                "has_default": true,
+                "default": "20",
+                "has_options": false
+            },
+            {
+                "key": "enrollment_mode",
+                "type": "select",
+                "has_default": true,
+                "default": "manual_review",
+                "has_options": true,
+                "options": [
+                    {
+                        "label": "Manual review before enrollment",
+                        "value": "manual_review"
+                    },
+                    {
+                        "label": "Auto-enroll qualified learners",
+                        "value": "auto_enroll"
+                    },
+                    {
+                        "label": "Paid first, then auto-enroll",
+                        "value": "paid_then_auto"
+                    }
+                ]
+            },
+            {
+                "key": "max_requests_per_minute",
+                "type": "text",
+                "has_default": true,
+                "default": "60",
+                "has_options": false
+            },
+            {
+                "key": "moodle_url",
+                "type": "text",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "shared_category_map_json",
+                "type": "text",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "sso_secret",
+                "type": "text",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "staleness_threshold_minutes",
+                "type": "text",
+                "has_default": true,
+                "default": "60",
+                "has_options": false
+            },
+            {
+                "key": "sync_interval",
+                "type": "select",
+                "has_default": true,
+                "default": "hourly",
+                "has_options": true,
+                "options": [
+                    {
+                        "label": "Every 15 minutes",
+                        "value": "every_15_minutes"
+                    },
+                    {
+                        "label": "Hourly",
+                        "value": "hourly"
+                    },
+                    {
+                        "label": "Daily",
+                        "value": "daily"
+                    }
+                ]
+            },
+            {
+                "key": "tenant_mode",
+                "type": "select",
+                "has_default": true,
+                "default": "per_instance",
+                "has_options": true,
+                "options": [
+                    {
+                        "label": "Per-tenant Moodle instance",
+                        "value": "per_instance"
+                    },
+                    {
+                        "label": "Shared Moodle instance",
+                        "value": "shared"
+                    }
+                ]
+            }
+        ],
+        "modules/moto-inventory/module.json": [
+            {
+                "key": "allow_negative_stock",
+                "type": "bool",
+                "has_default": true,
+                "default": false,
+                "has_options": false
+            },
+            {
+                "key": "low_stock_threshold",
+                "type": "number",
+                "has_default": true,
+                "default": "5",
+                "has_options": false
+            },
+            {
+                "key": "role_permissions",
+                "type": "textarea",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "undo_window_minutes",
+                "type": "number",
+                "has_default": true,
+                "default": "5",
+                "has_options": false
+            }
+        ],
+        "modules/project-audit-ledger/module.json": [
+            {
+                "key": "allow_self_approval",
+                "type": "select",
+                "has_default": true,
+                "default": "0",
+                "has_options": true,
+                "options": [
+                    {
+                        "label": "Disabled",
+                        "value": "0"
+                    },
+                    {
+                        "label": "Enabled",
+                        "value": "1"
+                    }
+                ]
+            },
+            {
+                "key": "budget_warning_pct",
+                "type": "number",
+                "has_default": true,
+                "default": "80",
+                "has_options": false
+            },
+            {
+                "key": "company_address",
+                "type": "text",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "company_contact",
+                "type": "text",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "company_name",
+                "type": "text",
+                "has_default": true,
+                "default": "My Company",
+                "has_options": false
+            },
+            {
+                "key": "currency_symbol",
+                "type": "text",
+                "has_default": true,
+                "default": "₱",
+                "has_options": false
+            },
+            {
+                "key": "default_fabrication_basis",
+                "type": "select",
+                "has_default": true,
+                "default": "expenses",
+                "has_options": true,
+                "options": [
+                    {
+                        "label": "Total Project Expenses",
+                        "value": "expenses"
+                    },
+                    {
+                        "label": "Labor + Materials",
+                        "value": "labor_materials"
+                    },
+                    {
+                        "label": "Contract Amount",
+                        "value": "contract"
+                    },
+                    {
+                        "label": "Fixed Amount",
+                        "value": "fixed"
+                    }
+                ]
+            },
+            {
+                "key": "default_fabrication_pct",
+                "type": "number",
+                "has_default": true,
+                "default": "25",
+                "has_options": false
+            }
+        ],
+        "modules/security/module.json": [
+            {
+                "key": "admin_ip_allowlist_enabled",
+                "type": "checkbox",
+                "has_default": true,
+                "default": "0",
+                "has_options": false
+            },
+            {
+                "key": "audit_log_enabled",
+                "type": "checkbox",
+                "has_default": true,
+                "default": "1",
+                "has_options": false
+            },
+            {
+                "key": "audit_log_retention_days",
+                "type": "number",
+                "has_default": true,
+                "default": "90",
+                "has_options": false
+            },
+            {
+                "key": "auto_escalation_enabled",
+                "type": "checkbox",
+                "has_default": true,
+                "default": "1",
+                "has_options": false
+            },
+            {
+                "key": "auto_escalation_threshold",
+                "type": "number",
+                "has_default": true,
+                "default": "10",
+                "has_options": false
+            },
+            {
+                "key": "auto_escalation_window_minutes",
+                "type": "number",
+                "has_default": true,
+                "default": "60",
+                "has_options": false
+            },
+            {
+                "key": "enabled",
+                "type": "checkbox",
+                "has_default": true,
+                "default": "1",
+                "has_options": false
+            },
+            {
+                "key": "file_integrity_enabled",
+                "type": "checkbox",
+                "has_default": true,
+                "default": "1",
+                "has_options": false
+            },
+            {
+                "key": "file_integrity_paths",
+                "type": "text",
+                "has_default": true,
+                "default": "[\"kernel\",\"src\",\"modules\",\"public/index.php\",\"bootstrap.php\",\"config\"]",
+                "has_options": false
+            }
+        ],
+        "modules/sms/module.json": [
+            {
+                "key": "sms_api_key",
+                "type": "password",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "sms_api_secret",
+                "type": "password",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "sms_country_code",
+                "type": "text",
+                "has_default": true,
+                "default": "+63",
+                "has_options": false
+            },
+            {
+                "key": "sms_provider",
+                "type": "select",
+                "has_default": true,
+                "default": "semaphore",
+                "has_options": true,
+                "options": {
+                    "mocean": "MoceanAPI",
+                    "semaphore": "Semaphore (Philippines)",
+                    "twilio": "Twilio",
+                    "vonage": "Vonage (Nexmo)"
+                }
+            },
+            {
+                "key": "sms_sender_name",
+                "type": "text",
+                "has_default": true,
+                "default": "BARON",
+                "has_options": false
+            },
+            {
+                "key": "sms_test_mode",
+                "type": "checkbox",
+                "has_default": true,
+                "default": "1",
+                "has_options": false
+            }
+        ],
+        "modules/theme-studio/module.json": [
+            {
+                "key": "active_preset",
+                "type": "text",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "studio_enabled",
+                "type": "select",
+                "has_default": true,
+                "default": "1",
+                "has_options": true,
+                "options": [
+                    {
+                        "label": "Enabled",
+                        "value": "1"
+                    },
+                    {
+                        "label": "Disabled",
+                        "value": "0"
+                    }
+                ]
+            }
+        ],
+        "modules/ticketing/module.json": [
+            {
+                "key": "admin_email",
+                "type": "email",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "admin_phone",
+                "type": "text",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "notify_email",
+                "type": "checkbox",
+                "has_default": true,
+                "default": "0",
+                "has_options": false
+            },
+            {
+                "key": "notify_sms",
+                "type": "checkbox",
+                "has_default": true,
+                "default": "0",
+                "has_options": false
+            },
+            {
+                "key": "public_form_enabled",
+                "type": "checkbox",
+                "has_default": true,
+                "default": "1",
+                "has_options": false
+            }
+        ],
+        "modules/wms/module.json": [
+            {
+                "key": "allow_negative_stock",
+                "type": "select",
+                "has_default": true,
+                "default": "0",
+                "has_options": true,
+                "options": [
+                    {
+                        "label": "No — block under-picking",
+                        "value": "0"
+                    },
+                    {
+                        "label": "Yes — allow negative balances",
+                        "value": "1"
+                    }
+                ]
+            },
+            {
+                "key": "auto_replenish_enabled",
+                "type": "select",
+                "has_default": true,
+                "default": "1",
+                "has_options": true,
+                "options": [
+                    {
+                        "label": "Enabled",
+                        "value": "1"
+                    },
+                    {
+                        "label": "Disabled",
+                        "value": "0"
+                    }
+                ]
+            },
+            {
+                "key": "bridge.default_location_id",
+                "type": "number",
+                "has_default": true,
+                "default": "",
+                "has_options": false
+            },
+            {
+                "key": "picking_strategy",
+                "type": "select",
+                "has_default": true,
+                "default": "fifo",
+                "has_options": true,
+                "options": [
+                    {
+                        "label": "FIFO (First In, First Out)",
+                        "value": "fifo"
+                    },
+                    {
+                        "label": "FEFO (First Expired, First Out)",
+                        "value": "fefo"
+                    },
+                    {
+                        "label": "LIFO (Last In, First Out)",
+                        "value": "lifo"
+                    }
+                ]
+            },
+            {
+                "key": "warehouse_name",
+                "type": "text",
+                "has_default": true,
+                "default": "Main Warehouse",
+                "has_options": false
+            }
+        ]
+    }
+}
