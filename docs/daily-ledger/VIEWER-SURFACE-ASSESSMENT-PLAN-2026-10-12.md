@@ -204,6 +204,14 @@ the session identity. **Do not break the shared-cashier name-capture workflow.**
 **W10 — Branch link affordance + silent-branch weight** (F13, F14) — make drill-downs visibly
 clickable; collapse the silent-branch list behind a count.
 
+**✅ DONE 2026-10-12 (W10)** — Sol lane `viewer-branch-affordance` (landed, acceptance=PASS, run
+verified). All branch drill-downs (chart bars, working cards, silent cards) now carry
+`underline decoration-dotted underline-offset-2 hover:text-indigo-900`; the silent list renders
+inside a closed native `<details>` whose summary states "N branches with no recorded activity",
+every silent branch link stays inside the collapse, and the zero case keeps the existing message.
+Battery: affordance oracle 0 RED; business_health_view_test 15/15; overview suite 106/106;
+overview-honesty oracle 0 RED; DiSyL lint 703/703.
+
 **W11 — Report archive** (F15) — verify first; then either add a governed open/download control or
 label it explicitly as an audit register.
 
