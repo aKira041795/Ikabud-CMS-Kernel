@@ -7767,9 +7767,20 @@ function dailyLedgerAuthLogin(): void
     // payload so the top nav can show the full name beside the username.
     // API/mobile clients may omit it — the field is only saved when provided.
     $enteredFullName = trim((string)($input['full_name'] ?? ''));
+    $sharedAccount = in_array($role, dl_sharedBranchAccountRoles(), true);
     if ($enteredFullName !== '') {
-        $payload['name'] = $enteredFullName;
-        $payload['full_name'] = $enteredFullName;
+        if ($sharedAccount) {
+            // A shared account's current holder is the identity for this session,
+            // even when the profile write cannot be completed.
+            $payload['name'] = $enteredFullName;
+            $payload['full_name'] = $enteredFullName;
+        } else {
+            // A personal account starts from its authenticated profile identity.
+            // Replace this only if the empty-profile capture below succeeds.
+            $personalSessionName = (string)($u['full_name'] ?? $payload['name']);
+            $payload['name'] = $personalSessionName;
+            $payload['full_name'] = $personalSessionName;
+        }
         if ($payloadId > 0) {
             // Two rules, selected by the explicit role list in
             // dl_sharedBranchAccountRoles() (helpers.php):
@@ -7783,7 +7794,6 @@ function dailyLedgerAuthLogin(): void
             //     viewer, auditor, supervisor): never overwrite an established name. The typed name may
             //     only CAPTURE an empty profile; a refused overwrite is logged with
             //     both values. This is the original defect and must not be reopened.
-            $sharedAccount = in_array($role, dl_sharedBranchAccountRoles(), true);
             try {
                 if ($sharedAccount) {
                     $storedStmt = dlCtx()->db()->prepare(
@@ -7841,6 +7851,8 @@ function dailyLedgerAuthLogin(): void
                         ':id' => $payloadId,
                     ]);
                     if ($persist->rowCount() > 0) {
+                        $payload['name'] = $enteredFullName;
+                        $payload['full_name'] = $enteredFullName;
                         write_log('daily-ledger auth full_name persisted', 'info', [
                             'user_id' => $payloadId,
                             'username' => $username,
@@ -7860,7 +7872,13 @@ function dailyLedgerAuthLogin(): void
                                 'username' => $username,
                                 'entered_full_name' => $enteredFullName,
                             ]);
-                        } elseif (trim((string)$storedName) !== $enteredFullName) {
+                        } else {
+                            // The write did not capture an empty profile, so the
+                            // stored personal identity must win in this session.
+                            $payload['name'] = (string)$storedName;
+                            $payload['full_name'] = (string)$storedName;
+                        }
+                        if ($storedName !== false && trim((string)$storedName) !== $enteredFullName) {
                             write_log('daily-ledger auth full_name overwrite refused', 'warning', [
                                 'user_id' => $payloadId,
                                 'username' => $username,
