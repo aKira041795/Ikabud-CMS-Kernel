@@ -81,8 +81,15 @@ function settingsFixtureFindings(array $fields): array
             continue;
         }
 
+        // Option shapes observed in the fleet (2026-10-12): list-of-strings,
+        // list-of-{value,label}, and map {value: label}. Accept map KEYS and string
+        // values so a map-shaped declaration (sms_provider) whose default equals its key
+        // is not a false positive; the shape vocabulary itself is a Gate 2 item.
         $allowedValues = [];
-        foreach ($field['options'] as $option) {
+        foreach ($field['options'] as $optionKey => $option) {
+            if (is_string($optionKey) && $optionKey !== '') {
+                $allowedValues[$optionKey] = true;
+            }
             if (is_string($option)) {
                 $allowedValues[$option] = true;
             } elseif (is_array($option) && array_key_exists('value', $option)) {
@@ -181,6 +188,7 @@ echo "\n=== SETTINGS CONTRACT CHARACTERIZATION ===\n";
 $supportedSettingsTypes = ['text', 'textarea', 'email', 'time', 'number', 'select', 'checkbox', 'bool', 'password'];
 $emptyKeyFindings = [];
 $duplicateKeyFindings = [];
+$selectDefaultFindings = [];
 $typeFindings = [];
 $missingDefaultCount = 0;
 $selectMissingOptionsCount = 0;
@@ -191,7 +199,18 @@ foreach (discoverModules() as $moduleId => $manifest) {
         continue;
     }
 
-    $seenKeys = [];
+    // The SAME detector the fixture self-tests exercise: fleet checks and crafted
+    // fixtures must never diverge (Sol review 2026-10-12).
+    foreach (settingsFixtureFindings($fields) as $finding) {
+        if (str_starts_with($finding, 'empty_key:')) {
+            $emptyKeyFindings[] = "{$moduleId}:{$finding}";
+        } elseif (str_starts_with($finding, 'duplicate_key:')) {
+            $duplicateKeyFindings[] = "{$moduleId}:{$finding}";
+        } elseif (str_starts_with($finding, 'select_default_not_in_options:')) {
+            $selectDefaultFindings[] = "{$moduleId}:{$finding}";
+        }
+    }
+
     foreach ($fields as $index => $field) {
         if (!is_array($field)) {
             $typeFindings[] = "{$moduleId}[{$index}]: non-array field";
@@ -199,14 +218,6 @@ foreach (discoverModules() as $moduleId => $manifest) {
         }
 
         $key = trim((string)($field['key'] ?? ''));
-        if ($key === '') {
-            $emptyKeyFindings[] = "{$moduleId}[{$index}]";
-        } elseif (isset($seenKeys[$key])) {
-            $duplicateKeyFindings[] = "{$moduleId}:{$key}";
-        } else {
-            $seenKeys[$key] = true;
-        }
-
         $type = trim((string)($field['type'] ?? ''));
         if (!in_array($type, $supportedSettingsTypes, true)) {
             $typeFindings[] = "{$moduleId}:{$key}=" . ($type === '' ? '(missing)' : $type);
@@ -222,6 +233,7 @@ foreach (discoverModules() as $moduleId => $manifest) {
 
 t('settings-bearing manifest keys are non-empty', $emptyKeyFindings === [], implode(', ', $emptyKeyFindings));
 t('settings-bearing manifest keys are unique within each module', $duplicateKeyFindings === [], implode(', ', $duplicateKeyFindings));
+t('select defaults fall inside their declared options where both exist', $selectDefaultFindings === [], implode(', ', $selectDefaultFindings));
 t('all settings fields declare a supported type', $typeFindings === [], implode(', ', $typeFindings));
 echo "  INFO: settings fields lacking a default: {$missingDefaultCount} (current fleet baseline: 21)\n";
 echo "  INFO: select fields lacking options: {$selectMissingOptionsCount} (current fleet baseline: 14)\n";
@@ -259,8 +271,18 @@ $probeValues = [
     '__g0_null' => null,
 ];
 $probeKeys = array_keys($probeValues);
+// State preservation (Sol review 2026-10-12): record any pre-existing reserved keys BEFORE
+// touching them; they are restored exactly in the finally block instead of being erased.
+$existingProbeState = readTenantModuleSettings($probeModuleId);
+$priorProbeState = [];
+foreach ($probeKeys as $probeKey) {
+    if (array_key_exists($probeKey, $existingProbeState)) {
+        $priorProbeState[$probeKey] = $existingProbeState[$probeKey];
+    }
+}
+t('reserved probe keys are absent before seeding', $priorProbeState === [], 'pre-existing reserved keys found: ' . implode(', ', array_keys($priorProbeState)));
 $preCleanupErrors = removeSettingsContractProbes($probeModuleId, $probeKeys);
-t('stored-value probes start from an absent state', $preCleanupErrors === [], implode('; ', $preCleanupErrors));
+t('reserved probe cleanup is executable', $preCleanupErrors === [], implode('; ', $preCleanupErrors));
 
 $cleanupErrors = [];
 try {
@@ -277,6 +299,10 @@ try {
     t('stored JSON null remains present with a null value', array_key_exists('__g0_null', $storedProbeValues) && $storedProbeValues['__g0_null'] === null);
 } finally {
     $cleanupErrors = removeSettingsContractProbes($probeModuleId, $probeKeys);
+    // State preservation: restore any pre-existing reserved keys exactly (normally none).
+    foreach ($priorProbeState as $probeKey => $originalProbeValue) {
+        restoreTenantModuleSetting($probeModuleId, $probeKey, true, $originalProbeValue);
+    }
 }
 
 t('stored-value probe cleanup completed', $cleanupErrors === [], implode('; ', $cleanupErrors));
@@ -290,6 +316,38 @@ foreach ($probeKeys as $probeKey) {
 }
 t('stored-value probe keys are absent after removal', $probeKeysAreAbsent);
 echo "  INFO: absent (no row) and false (row containing JSON false) are different stored states.\n";
+
+// The skip-empty merge rule (inherit semantics) must not let a blank override mask the
+// effective value. Helper-level guard; falsified by removing the skip-empty rule.
+$aiDefaults = aiSettingsDefaults();
+$aiProbeKey = null;
+foreach ($aiDefaults as $aiKey => $aiValue) {
+    if (is_string($aiValue) && trim($aiValue) !== '' && !str_contains((string) $aiKey, 'key')) {
+        $aiProbeKey = (string) $aiKey;
+        break;
+    }
+}
+if ($aiProbeKey !== null) {
+    $aiOriginalSettings = readTenantModuleSettings('ai');
+    $aiHadOriginal = array_key_exists($aiProbeKey, $aiOriginalSettings);
+    $aiOriginalValue = $aiOriginalSettings[$aiProbeKey] ?? null;
+    // Clean slate for the probe key so the assertion measures the skip-empty rule itself,
+    // not the expected effect of clearing a real override. Measured 2026-10-12: the tenant
+    // fixture holds ai.provider='groq'; writing '' over it falls back to the manifest
+    // default — inherit semantics doing its job, recorded in the gate report.
+    restoreTenantModuleSetting('ai', $aiProbeKey, false, null);
+    $aiBaseline = aiResolvedSettings()[$aiProbeKey] ?? null;
+    saveTenantModuleSettings('ai', [$aiProbeKey => '']);
+    $aiAfterBlank = aiResolvedSettings()[$aiProbeKey] ?? null;
+    t(
+        "AI skip-empty: a blank override resolves to the fallback, not the blank ({$aiProbeKey})",
+        $aiAfterBlank !== '' && $aiAfterBlank === $aiBaseline && $aiBaseline !== null,
+        'baseline=' . json_encode($aiBaseline) . ' after=' . json_encode($aiAfterBlank)
+    );
+    restoreTenantModuleSetting('ai', $aiProbeKey, $aiHadOriginal, $aiOriginalValue);
+} else {
+    t('AI skip-empty guard: a non-empty non-secret default exists to probe', false, 'no candidate found');
+}
 
 echo "\n=== MERGED OVERRIDES ===\n";
 

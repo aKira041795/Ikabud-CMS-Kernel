@@ -57,6 +57,11 @@ foreach (['integer-routes' => 5, 'list-routes' => ['a']] as $id => $routes) {
     mkdir($malformedModule, 0777, true);
     file_put_contents($malformedModule . '/module.json', json_encode(['id' => $id, 'routes' => $routes]));
 }
+// An empty JSON OBJECT is not the documented "no routes" shape (that is []); associative
+// decoding collapses both to [], so this fixture must be written as literal JSON (Sol review).
+$objectRoutesModule = $root . '/modules/object-routes';
+mkdir($objectRoutesModule, 0777, true);
+file_put_contents($objectRoutesModule . '/module.json', '{"id":"object-routes","routes":{}}');
 
 /**
  * @param array<string, mixed> $result
@@ -86,7 +91,7 @@ try {
         throw new RuntimeException('empty routes module did not receive its non-HTTP scan');
     }
 
-    foreach (['integer-routes', 'list-routes'] as $malformedId) {
+    foreach (['integer-routes', 'list-routes', 'object-routes'] as $malformedId) {
         try {
             $census->scan($malformedId);
             throw new RuntimeException($malformedId . ' malformed routes declaration was accepted');

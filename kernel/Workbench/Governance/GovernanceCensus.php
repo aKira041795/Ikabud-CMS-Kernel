@@ -68,15 +68,24 @@ final class GovernanceCensus
     /** @return array<string, mixed> */
     private function scanManifest(string $manifestFile): array
     {
-        $manifest = json_decode((string) file_get_contents($manifestFile), true, 512, JSON_THROW_ON_ERROR);
+        $rawManifest = (string) file_get_contents($manifestFile);
+        $manifest = json_decode($rawManifest, true, 512, JSON_THROW_ON_ERROR);
         $id = (string) ($manifest['id'] ?? '');
         $dir = dirname($manifestFile);
         $routeRef = $manifest['routes'] ?? 'routes.php';
         if ($routeRef === true) {
             $routeRef = 'routes.php';
         }
-        if ($routeRef === false || $routeRef === []) {
+        if ($routeRef === false) {
             $routeRef = '';
+        }
+        if ($routeRef === []) {
+            // An empty JSON ARRAY is the documented "no routes" shape. An empty JSON OBJECT
+            // is NOT: associative decoding collapses both to [], so the raw JSON is
+            // re-decoded WITHOUT associative mode to tell them apart (Sol review 2026-10-12).
+            $typedManifest = json_decode($rawManifest, false, 512, JSON_THROW_ON_ERROR);
+            $typedRoutes = is_object($typedManifest) ? ($typedManifest->routes ?? null) : null;
+            $routeRef = $typedRoutes instanceof \stdClass ? $typedRoutes : '';
         }
         if (!is_string($routeRef)) {
             throw new RuntimeException("{$id}: routes must reference a static PHP route file");

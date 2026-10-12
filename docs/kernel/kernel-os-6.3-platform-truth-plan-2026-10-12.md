@@ -1,6 +1,6 @@
 # Kernel OS 6.3 — Platform Truth & Contract Evolution (proposed)
 
-**Status: PROPOSED — consolidated from three chair consultations (2026-10-11 / 2026-10-12). Owner approval and Gate 0 are pending; nothing here is approved for implementation yet.**
+**Status: PROPOSED — consolidated from three chair consultations (2026-10-11 / 2026-10-12). Gate 0 executed 2026-10-12/13 — evidence and headline finding in [`6.3-gate0-gate1-report-2026-10-12.md`](6.3-gate0-gate1-report-2026-10-12.md); §9 stop condition has TRIGGERED (enforcement coverage 0.0%) — owner decision pending.**
 **Date:** 2026-10-12
 
 **Mission:** make tenant settings and capability execution contracts *inspectable, enforceably consistent, and regression-protected* — without altering valid production behavior.
