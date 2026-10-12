@@ -37,6 +37,50 @@ $render = static function (array $query): string {
     return (string)ob_get_clean();
 };
 
+// Discover a stable pending period through the same actor scope, filter contract, and
+// completeness helper as handleAdminOverview(). The date query only supplies candidates;
+// dl_overviewLedgerCompleteness() decides whether each candidate has the required state.
+$overviewUser = dlCurrentUser(['admin', 'supervisor', 'auditor', 'viewer']);
+$pendingPeriod = null;
+$pendingCompleteness = ['rows_total' => 0, 'pending' => 0, 'completed' => 0];
+$latestPeriodWithAnyPending = null;
+$latestAnyPendingCompleteness = $pendingCompleteness;
+$dateCandidates = module()->db()->query('SELECT DISTINCT ledger_date FROM dl_daily_ledger ORDER BY ledger_date DESC')->fetchAll(PDO::FETCH_COLUMN) ?: [];
+foreach ($dateCandidates as $candidate) {
+    $candidate = (string)$candidate;
+    $candidateFilters = dl_reportFilters([
+        'scope' => 'ALL',
+        'date_from' => $candidate,
+        'date_to' => $candidate,
+    ], $overviewUser);
+    $candidateFilters['pending_rows_mode'] = dl_overviewPendingRowsMode(null);
+    $candidateCompleteness = dl_overviewLedgerCompleteness(module()->db(), $candidateFilters);
+    if ($candidateCompleteness['pending'] <= 0) {
+        continue;
+    }
+    if ($latestPeriodWithAnyPending === null) {
+        $latestPeriodWithAnyPending = $candidate;
+        $latestAnyPendingCompleteness = $candidateCompleteness;
+    }
+    if ($candidateCompleteness['completed'] === 0) {
+        $pendingPeriod = $candidate;
+        $pendingCompleteness = $candidateCompleteness;
+        break;
+    }
+}
+// Retain the latest genuinely pending period as a diagnostic fallback. The explicit
+// completed===0 premise below still fails rather than pretending it can render the
+// all-pending headline when no all-pending period remains in the fixture.
+if ($pendingPeriod === null && $latestPeriodWithAnyPending !== null) {
+    $pendingPeriod = $latestPeriodWithAnyPending;
+    $pendingCompleteness = $latestAnyPendingCompleteness;
+}
+$pendingDetail = $pendingPeriod === null
+    ? 'period=(none) pending=0 completed=0; no period with pending ledger rows exists; fixture must be re-anchored'
+    : "period={$pendingPeriod} rows_total={$pendingCompleteness['rows_total']} pending={$pendingCompleteness['pending']} completed={$pendingCompleteness['completed']}";
+$h->detail('Pending-state anchor: ' . $pendingDetail);
+$pendingHtml = $pendingPeriod === null ? '' : $render(['scope' => 'ALL', 'period' => $pendingPeriod]);
+
 $h->section('Owner contract');
 $html = $render(['scope' => 'ALL']);
 $formEnd = strpos($html, '</form>');
@@ -69,8 +113,22 @@ $h->test(
         && preg_match('/name="date_to" value="2026-10-03"/', $stalePeriodHtml) === 1
 );
 $h->test('health verdict states its no-plan basis and operational gates', str_contains($html, 'there is no target, budget, quota, or plan') && str_contains($html, 'no unresolved variance flag remains') && str_contains($html, 'every branch is closed'));
-$h->test('unfinished reporting is not rendered as zero headline sales', str_contains($html, 'Awaiting finalization') && !str_contains($html, 'Gross sales</div><div class="mt-1 text-3xl font-semibold text-emerald-600">PHP 0.00'));
-$h->test('opportunity is named, measured, and linked to branch detail', str_contains($html, 'Where can operations be maximized?') && str_contains($html, 'ledger rows are pending') && preg_match('/href="[^"]+branch_id=\d+"/', $html) === 1);
+$h->test(
+    'unfinished reporting is not rendered as zero headline sales',
+    $pendingCompleteness['pending'] > 0
+        && $pendingCompleteness['completed'] === 0
+        && str_contains($pendingHtml, 'Awaiting finalization')
+        && !str_contains($pendingHtml, 'Gross sales</div><div class="mt-1 text-3xl font-semibold text-emerald-600">PHP 0.00'),
+    $pendingDetail
+);
+$h->test(
+    'opportunity is named, measured, and linked to branch detail',
+    $pendingCompleteness['pending'] > 0
+        && str_contains($pendingHtml, 'Where can operations be maximized?')
+        && str_contains($pendingHtml, 'ledger rows are pending')
+        && preg_match('/href="[^"]+branch_id=\d+"/', $pendingHtml) === 1,
+    $pendingDetail
+);
 $h->test('silent branches are separated from ranked working branches', str_contains($html, 'Branches with no recorded activity') && str_contains($html, 'not ranked') && str_contains($html, 'No ledger rows; no performance conclusion is made.'));
 $h->test('item analytics are absent and remain linked through reports', !str_contains($html, 'Top Saleable Products') && !str_contains($html, 'Pareto 80/20') && str_contains($html, '/admin/reports/sales') && str_contains($html, '/admin/reports/category-sales'));
 $h->test('forecast controls are local and only the aggregate is shown', str_contains($html, 'Aggregate business forecast') && str_contains($html, 'name="forecast_window"') && !str_contains($html, 'Projected units by product'));
@@ -87,21 +145,23 @@ $h->test('14-day view distinguishes working from silent branches', str_contains(
 $h->test('14-day ranking states its active-only comparison denominator', str_contains($fourteen, 'sales ranking includes only the ' . $working . ' branch(es) that recorded ledger activity'));
 
 $h->section('Comparison visual');
-$liveText = (string)preg_replace('/\s+/', ' ', html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+$pendingText = (string)preg_replace('/\s+/', ' ', html_entity_decode(strip_tags($pendingHtml), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
 // The repaired rule blocks a trend when EITHER period has any pending row, so the
 // original 14-day fixture (2026-09-28..2026-10-11) is correctly non-comparable.
 // The pair below is fully finalized in both 14-day windows and is the genuine
 // comparable case the assertion names.
 $comparable = $render(['scope' => 'ALL', 'period' => '2026-09-15 to 2026-09-28']);
 $comparableText = (string)preg_replace('/\s+/', ' ', html_entity_decode(strip_tags($comparable), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
-// The live default period has zero completed rows, so no honest sales comparison
-// exists. It must say so with a neutral pending indicator - never a zero or green up.
+// A discovered period with genuinely pending rows has no honest sales comparison.
+// It must say so with a neutral pending indicator - never a zero or green up.
 $h->test(
     'no honest comparison shows a neutral pending state, not zero or a green arrow',
-    str_contains($html, 'delta-indicator delta-pending')
-        && str_contains($html, 'Not yet comparable')
-        && !str_contains($html, 'delta-up')
-        && !preg_match('/(\+|-)\s*0\.0%/', $liveText)
+    $pendingCompleteness['pending'] > 0
+        && str_contains($pendingHtml, 'delta-indicator delta-pending')
+        && str_contains($pendingHtml, 'Not yet comparable')
+        && !str_contains($pendingHtml, 'delta-up')
+        && !preg_match('/(\+|-)\s*0\.0%/', $pendingText),
+    $pendingDetail
 );
 // A period with finalized sales shows a signed delta and a directional indicator.
 $h->test(
