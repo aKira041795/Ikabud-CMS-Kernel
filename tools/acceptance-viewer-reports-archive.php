@@ -20,8 +20,8 @@ declare(strict_types=1);
  * appeared WITH a download control on the reports page, downloads the archived bytes, and asserts
  * an anonymous request is refused.
  *
- * RED-now: P2 (no per-row control), P3 (no download endpoint), P4 (anonymous fetch expectation).
- * P1/P5/P6 are pins.
+ * RED-now: P1 (a viewer export still creates a shared archive row), P8 (the explicit
+ * reports.archive.create action does not exist yet). P1b/P2-P6 are pins.
  *
  * Usage: php tools/acceptance-viewer-reports-archive.php
  */
@@ -53,6 +53,8 @@ $check = static function (string $id, string $what, bool $ok, string $detail) us
 $db = module()->db();
 $probeId = 997921;
 $probeUsername = 'probe-viewer-archive-' . $probeId;
+$adminId = 997922;
+$adminUsername = 'probe-admin-archive-' . $adminId;
 $password = 'Probe!Archive2031';
 $archiveDir = STORAGE_PATH . '/report-archive';
 $createdIds = [];
@@ -72,13 +74,13 @@ $removeArchive = static function (string $id) use ($archiveDir, $db, &$createdId
     $db->prepare('DELETE FROM audit_logs WHERE entity_id = ?')->execute([$id]);
     unset($createdIds[$id]);
 };
-$cleanup = static function () use ($db, $probeId, $probeUsername, $removeArchive, &$createdIds): void {
+$cleanup = static function () use ($db, $probeId, $probeUsername, $adminId, $adminUsername, $removeArchive, &$createdIds): void {
     foreach (array_keys($createdIds) as $id) {
         $removeArchive($id);
     }
-    $db->prepare('DELETE FROM dl_user_branches WHERE user_id = ?')->execute([$probeId]);
-    $db->prepare('DELETE FROM dl_users WHERE id = ? OR username = ?')->execute([$probeId, $probeUsername]);
-    $db->prepare('DELETE FROM audit_logs WHERE actor_module_user_id = ?')->execute([$probeId]);
+    $db->prepare('DELETE FROM dl_user_branches WHERE user_id IN (?, ?)')->execute([$probeId, $adminId]);
+    $db->prepare('DELETE FROM dl_users WHERE id IN (?, ?) OR username IN (?, ?)')->execute([$probeId, $adminId, $probeUsername, $adminUsername]);
+    $db->prepare('DELETE FROM audit_logs WHERE actor_module_user_id IN (?, ?)')->execute([$probeId, $adminId]);
 };
 $cleanup();
 
@@ -117,31 +119,57 @@ try {
     $db->prepare('INSERT INTO dl_users (id, username, password_hash, full_name, role, is_active) VALUES (?, ?, ?, ?, "viewer", 1)')
         ->execute([$probeId, $probeUsername, password_hash($password, PASSWORD_BCRYPT), 'Probe Viewer']);
     $db->prepare('INSERT INTO dl_user_branches (user_id, branch_id) VALUES (?, ?)')->execute([$probeId, 8]);
+    $db->prepare('INSERT INTO dl_users (id, username, password_hash, full_name, role, is_active) VALUES (?, ?, ?, ?, "admin", 1)')
+        ->execute([$adminId, $adminUsername, password_hash($password, PASSWORD_BCRYPT), 'Probe Archive Admin']);
 
-    // Login the probe viewer over HTTP; the session token is the JWT from the response.
-    $login = $http('POST', $httpBase . '/daily-ledger/auth/login', ['Content-Type: application/json', 'Accept: application/json'],
-        json_encode(['username' => $probeUsername, 'password' => $password], JSON_UNESCAPED_SLASHES));
-    $loginBody = json_decode($login['body'], true) ?: [];
-    $token = (string)($loginBody['token'] ?? '');
-    $cookieHeader = 'Cookie: ' . dlCookieName() . '=' . $token;
+    // Login both probes over HTTP; the session token is the JWT from the response.
+    $loginAs = static function (string $username) use ($http, $httpBase, $password): string {
+        $login = $http('POST', $httpBase . '/daily-ledger/auth/login', ['Content-Type: application/json', 'Accept: application/json'],
+            json_encode(['username' => $username, 'password' => $password], JSON_UNESCAPED_SLASHES));
+        $body = json_decode($login['body'], true) ?: [];
 
-    // ── P1 (pin, and W17's end-to-end authorization proof): the VIEWER's export works and archives ─
+        return (string)($body['token'] ?? '');
+    };
+    $cookieViewer = 'Cookie: ' . dlCookieName() . '=' . $loginAs($probeUsername);
+    $cookieAdmin = 'Cookie: ' . dlCookieName() . '=' . $loginAs($adminUsername);
+    $auditCount = static function () use ($db): int {
+        return (int)$db->query("SELECT COUNT(*) FROM audit_logs WHERE module = 'daily-ledger' AND action = 'report_export'")->fetchColumn();
+    };
+
+    // ── P1 (D3 split): a VIEWER export downloads and audits, but does NOT persist a shared archive ─
+    $auditBefore = $auditCount();
     $before = $listArchived();
     $exportUrl = $httpBase . '/daily-ledger/admin/reports/sales/export?format=csv'
         . '&date_from=2026-10-05&date_to=2026-10-11&branch_id=8';
-    $export = $http('GET', $exportUrl, [$cookieHeader]);
-    usleep(200000);
-    $after = $listArchived();
-    $newIds = array_values(array_diff(array_keys($after), array_keys($before)));
+    $exportViewer = $http('GET', $exportUrl, [$cookieViewer]);
+    usleep(250000);
+    $afterViewer = $listArchived();
+    $newFromViewer = array_values(array_diff(array_keys($afterViewer), array_keys($before)));
+    foreach ($newFromViewer as $id) {
+        $createdIds[$id] = true;
+    }
+    $auditAfter = $auditCount();
+    $viewerCsv = $exportViewer['status'] === 200 && str_contains(strtolower($exportViewer['headers']), 'text/csv') && $exportViewer['body'] !== '';
+    $p1 = $viewerCsv && $newFromViewer === [] && $auditAfter > $auditBefore;
+    $check('P1', 'viewer export downloads + audits WITHOUT creating a shared archive entry', $p1,
+        sprintf('HTTP %d; csv body %d bytes; new archive(s) from the viewer: %d (must be 0%s); report_export audit rows: %d -> %d (must increase)',
+            $exportViewer['status'], strlen($exportViewer['body']), count($newFromViewer),
+            $newFromViewer !== [] ? ' - viewer still writes shared state' : '', $auditBefore, $auditAfter));
+
+    // ── P1b (pin): an explicitly-authorized role's export still archives (the workflow keeps working) ─
+    $beforeAdmin = $listArchived();
+    $exportAdmin = $http('GET', $exportUrl, [$cookieAdmin]);
+    usleep(250000);
+    $afterAdmin = $listArchived();
+    $newIds = array_values(array_diff(array_keys($afterAdmin), array_keys($beforeAdmin)));
     foreach ($newIds as $id) {
         $createdIds[$id] = true;
     }
     $newId = $newIds[0] ?? '';
-    $isCsv = $export['status'] === 200 && str_contains(strtolower($export['headers']), 'text/csv') && $export['body'] !== '';
-    $p1 = $isCsv && count($newIds) === 1;
-    $check('P1', 'viewer export (HTTP) succeeds AND its archive row appears', $p1,
-        sprintf('HTTP %d; csv body %d bytes; new archive(s) after export: %d%s',
-            $export['status'], strlen($export['body']), count($newIds),
+    $adminCsv = $exportAdmin['status'] === 200 && str_contains(strtolower($exportAdmin['headers']), 'text/csv') && $exportAdmin['body'] !== '';
+    $p1b = $adminCsv && count($newIds) === 1;
+    $check('P1b', 'an authorized role\'s export still creates its archive row', $p1b,
+        sprintf('HTTP %d; new archive(s): %d%s', $exportAdmin['status'], count($newIds),
             $newId !== '' ? ' (id ' . $newId . ')' : ''));
 
     // ── P2 (F15): the reports page offers a download control for that archive ────────────────────
@@ -164,11 +192,11 @@ try {
 
     // ── P3 (W11): downloading serves the ARCHIVED bytes - identical to the original export ───────
     $downloadUrl = $httpBase . '/daily-ledger/admin/reports/archive-download?id=' . rawurlencode($newId);
-    $download = $http('GET', $downloadUrl, [$cookieHeader]);
-    $sameBytes = $download['status'] === 200 && $download['body'] === $export['body'];
-    $check('P3', 'the download endpoint serves the stored copy (same bytes as the export)', $sameBytes,
+    $download = $http('GET', $downloadUrl, [$cookieViewer]);
+    $sameBytes = $download['status'] === 200 && $download['body'] === $exportAdmin['body'];
+    $check('P3', 'a viewer can download the authorized archive (identical bytes to the export)', $sameBytes,
         sprintf('HTTP %d; %d bytes vs export %d; identical: %s',
-            $download['status'], strlen($download['body']), strlen($export['body']), $sameBytes ? 'yes' : 'NO'));
+            $download['status'], strlen($download['body']), strlen($exportAdmin['body']), $sameBytes ? 'yes' : 'NO'));
 
     // ── P4 (D3): the endpoint is authorized, not open - an anonymous request is refused ──────────
     $anon = $http('GET', $downloadUrl, []);
@@ -178,13 +206,22 @@ try {
             $anon['status']));
 
     // ── P5 (pin): an unknown/garbage archive id is a clean refusal, never a fatal ────────────────
-    $bogus = $http('GET', $httpBase . '/daily-ledger/admin/reports/archive-download?id=rpt_does_not_exist_0000', [$cookieHeader]);
+    $bogus = $http('GET', $httpBase . '/daily-ledger/admin/reports/archive-download?id=rpt_does_not_exist_0000', [$cookieViewer]);
     $check('P5', 'unknown archive id -> clean refusal (not 200, no fatal)', $bogus['status'] !== 200 && !str_contains($bogus['body'], 'Fatal'),
         sprintf('HTTP %d; body: %s', $bogus['status'], substr(strip_tags($bogus['body']), 0, 80)));
 
-    // ── P6 (pin): the landing page still states that exports are archived and audited ────────────
-    $check('P6', 'the reports page states exports are archived and audited', str_contains($page, 'archived and audited'),
-        str_contains($page, 'archived and audited') ? 'statement present' : 'statement missing');
+    // ── P6 (pin): the reports page still states the exports are audited ──────────────────────────
+    $check('P6', 'the reports page states exports are audited', (bool)preg_match('/audited/i', $page),
+        preg_match('/audited/i', $page) ? 'statement present' : 'statement missing');
+
+    // ── P8 (D3 split): reports.archive.create exists as an explicit, separately-grantable action ──
+    $actions = dl_allPermissionActions();
+    $viewerDefaults = dl_defaultRolePermissions()['viewer'] ?? [];
+    $hasAction = in_array('reports.archive.create', $actions, true);
+    $viewerGranted = in_array('reports.archive.create', $viewerDefaults, true);
+    $check('P8', 'reports.archive.create is grantable but NOT a viewer default', $hasAction && !$viewerGranted,
+        sprintf('action in the settings whitelist: %s; viewer default grant: %s (must be no - the grant is the explicit authorization)',
+            $hasAction ? 'yes' : 'NO', $viewerGranted ? 'YES (must not be)' : 'no'));
 } finally {
     $cleanup();
 }
