@@ -12738,45 +12738,62 @@ function handleAdminOverview(array $params = []): void
     $unresolvedVarianceCount = array_sum(array_column($cards, 'unresolved_variances'));
     $absoluteVariance = array_sum(array_column($cards, 'absolute_variance'));
 
-    $healthVerdict = 'Healthy';
-    $healthReason = 'reporting is finalized, no unresolved variance flags remain, and every branch is closed for the end date';
+    // Ledger-control state mapping (not a financial-health score): pending endings and
+    // open/missing closure make the ledger Incomplete; unresolved variance evidence needs
+    // Attention required; a scope with no branches, or otherwise-passing gates with silent
+    // branches, is Unknown because coverage is not established; only all-passing gates with
+    // every scoped branch recording activity are Complete.
+    $healthVerdict = $cards === [] ? 'Unknown' : 'Complete';
+    $healthReason = $cards === []
+        ? 'no branches are available in the selected scope'
+        : 'reporting is finalized, no unresolved variance flags remain, and every branch is closed for the end date';
     $healthLead = $cards[0] ?? ['branch_id' => 0, 'name' => 'Scope'];
+    $healthPath = '/admin/reports/branch-summary';
     if ($completeness['pending'] > 0) {
-        $healthVerdict = 'Needs attention';
+        $healthVerdict = 'Incomplete';
         $healthLead = $pendingCards[0] ?? $healthLead;
+        $healthPath = '/admin/reports/data-integrity';
         $healthReason = $completeness['pending'] . ' ledger ending(s) are pending; ' . $healthLead['name'] . ' has ' . ($healthLead['pending'] ?? 0);
     } elseif ($unresolvedVarianceCount > 0) {
-        $healthVerdict = 'Needs attention';
+        $healthVerdict = 'Attention required';
         $healthLead = $varianceCards[0] ?? $healthLead;
+        $healthPath = '/admin/reports/variances';
         $healthReason = $unresolvedVarianceCount . ' unresolved variance flag(s); ' . $healthLead['name'] . ' has absolute variance ' . ($healthLead['absolute_variance'] ?? 0);
     } elseif (count($openCards) > 0 || $closedCount < count($cards)) {
-        $healthVerdict = 'Needs attention';
+        $healthVerdict = 'Incomplete';
         $healthLead = $openCards[0] ?? $healthLead;
         $healthReason = $healthLead['name'] . ' is open or has no close status for ' . $dateTo;
+    } elseif ($silentCards !== []) {
+        $healthVerdict = 'Unknown';
+    }
+    $recordingCoverage = count($workingCards) . ' of ' . count($cards) . ' branches';
+    $healthReason .= '; recording coverage: ' . $recordingCoverage;
+    if ($silentCards !== []) {
+        $healthReason .= '; completeness not established';
     }
 
     $opportunity = $healthLead;
-    $opportunityTitle = 'Review branch status';
+    $opportunityTitle = 'Branch ledger status';
     $opportunityMetric = 'No comparable activity metric is available.';
     $opportunityPath = '/admin/reports/branch-summary';
     if ($pendingCards !== []) {
         $opportunity = $pendingCards[0];
-        $opportunityTitle = 'Complete pending endings at ' . $opportunity['name'];
+        $opportunityTitle = $opportunity['name'] . ' - branch endings awaiting completion';
         $opportunityMetric = $opportunity['pending'] . ' of ' . $opportunity['rows_total'] . ' ledger rows are pending.';
         $opportunityPath = '/admin/reports/data-integrity';
     } elseif ($varianceCards !== []) {
         $opportunity = $varianceCards[0];
-        $opportunityTitle = 'Resolve variance attention at ' . $opportunity['name'];
+        $opportunityTitle = $opportunity['name'] . ' - unresolved variance attention';
         $opportunityMetric = $opportunity['unresolved_variances'] . ' unresolved flags; absolute variance ' . $opportunity['absolute_variance'] . '.';
         $opportunityPath = '/admin/reports/variances';
     } elseif ($workingCards !== []) {
         usort($workingCards, static fn(array $a, array $b): int => $a['amount'] <=> $b['amount']);
         $opportunity = $workingCards[0];
-        $opportunityTitle = 'Review headroom at ' . $opportunity['name'];
+        $opportunityTitle = $opportunity['name'] . ' - lowest recorded official sales';
         $opportunityMetric = 'PHP ' . number_format((float)$opportunity['amount'], 2) . ' official sales, ranked only against ' . count($workingCards) . ' branch(es) that recorded activity.';
     } elseif ($silentCards !== []) {
         $opportunity = $silentCards[0];
-        $opportunityTitle = 'Check recording coverage at ' . $opportunity['name'];
+        $opportunityTitle = $opportunity['name'] . ' - no recorded ledger activity';
         $opportunityMetric = 'No ledger activity was recorded; this is silence, not underperformance.';
         $opportunityPath = '/admin/reports/data-integrity';
     }
@@ -12928,6 +12945,7 @@ function handleAdminOverview(array $params = []): void
         'health_verdict' => $healthVerdict,
         'health_reason' => $healthReason,
         'health_lead' => $healthLead,
+        'health_path' => $healthPath,
         'unresolved_variance_count' => $unresolvedVarianceCount,
         'absolute_variance' => $absoluteVariance,
         'closed_branch_count' => $closedCount,

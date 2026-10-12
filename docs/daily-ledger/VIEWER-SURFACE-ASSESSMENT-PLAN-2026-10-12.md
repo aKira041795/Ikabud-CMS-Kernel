@@ -174,6 +174,18 @@ and removed from `handleAdminForecast`.
 - `Detailed forecast` must pass scope/branch and derive `target_date` from the selected period end.
 - Criterion: following the link produces a forecast scoped to the branch under review.
 
+**✅ DONE 2026-10-12 (W3 · W4 · W5 · W6 · W15 core)** — Sol lane `viewer-overview-honesty` (landed,
+acceptance=PASS, run `20261012T100435-44837`). Criterion `tools/acceptance-viewer-overview-honesty.php`
+(8 RED → 0 RED, 8 checks incl. every check listed under W3-W6). Landed: section 2 renamed **Ledger
+Control Status**; verdict vocabulary → Complete / Attention required / Incomplete / Unknown with a
+coverage citation in the card; verdict action now cause-routed (closure → branch-summary, pending →
+data-integrity, variance → variances) labelled `View branch details`; section 5 reads
+`Issues affecting ledger completion` with descriptive body and the blanket `Variance report` button
+dropped; `View sales report` moved to section 5 carrying the page period; `View production forecast`
+carries scope/branch/target_date; `N of M branches recorded activity` + completeness qualifier on the
+Branches-in-scope card; opportunity titles descriptive. Regression evidence: all-periods acceptance
+0 RED, overview suite 106/106, DiSyL lint 703/703.
+
 **W7 — Products Overview empty-state copy** (F8) — remove "or include pending rows".
 
 **W8 — Production Efficiency: single apply** (F9) — remove `onchange="this.form.submit()"`.
