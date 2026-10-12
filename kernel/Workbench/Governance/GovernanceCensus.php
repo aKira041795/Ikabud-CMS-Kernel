@@ -75,7 +75,7 @@ final class GovernanceCensus
         if ($routeRef === true) {
             $routeRef = 'routes.php';
         }
-        if ($routeRef === false) {
+        if ($routeRef === false || $routeRef === []) {
             $routeRef = '';
         }
         if (!is_string($routeRef)) {

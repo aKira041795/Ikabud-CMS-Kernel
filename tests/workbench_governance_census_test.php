@@ -40,6 +40,24 @@ function unresolved_service(string $capability, array $options): void {
 }
 PHP);
 
+$emptyRoutesModule = $root . '/modules/empty-routes';
+mkdir($emptyRoutesModule, 0777, true);
+file_put_contents($emptyRoutesModule . '/module.json', json_encode(['id' => 'empty-routes', 'routes' => []]));
+file_put_contents($emptyRoutesModule . '/event-handler.php', <<<'PHP'
+<?php
+function empty_routes_event(): void {
+    AuthorityScopeResolver::withScope(1, AuthorityScopeResolver::EVENT, static function (): void {
+        app()->cap()->call('empty-routes.event@1', []);
+    });
+}
+PHP);
+
+foreach (['integer-routes' => 5, 'list-routes' => ['a']] as $id => $routes) {
+    $malformedModule = $root . '/modules/' . $id;
+    mkdir($malformedModule, 0777, true);
+    file_put_contents($malformedModule . '/module.json', json_encode(['id' => $id, 'routes' => $routes]));
+}
+
 /**
  * @param array<string, mixed> $result
  * @return array<string, array{dispatch: string, reach: string}>
@@ -54,7 +72,32 @@ function censusIndex(array $result): array
 }
 
 try {
-    $result = (new GovernanceCensus($root))->scan('probe');
+    $census = new GovernanceCensus($root);
+    $emptyRoutes = $census->scan('empty-routes');
+    $emptyReport = $emptyRoutes['modules'][0] ?? null;
+    if (!is_array($emptyReport) || ($emptyReport['module'] ?? null) !== 'empty-routes') {
+        throw new RuntimeException('empty routes module report was not emitted');
+    }
+    if (($emptyReport['operations'] ?? null) !== []) {
+        throw new RuntimeException('empty routes module reported routed operations');
+    }
+    if (count($emptyReport['non_http'] ?? []) !== 1
+        || (($emptyReport['non_http'][0]['scope'] ?? null) !== 'declared')) {
+        throw new RuntimeException('empty routes module did not receive its non-HTTP scan');
+    }
+
+    foreach (['integer-routes', 'list-routes'] as $malformedId) {
+        try {
+            $census->scan($malformedId);
+            throw new RuntimeException($malformedId . ' malformed routes declaration was accepted');
+        } catch (RuntimeException $e) {
+            if (!str_contains($e->getMessage(), 'routes must reference a static PHP route file')) {
+                throw $e;
+            }
+        }
+    }
+
+    $result = $census->scan('probe');
     $index = censusIndex($result);
 
     $nonHttp = $result['modules'][0]['non_http'] ?? [];
@@ -168,7 +211,7 @@ try {
         }
     }
 
-    echo "PASS: routed dispatch/reach remain separate; read and write authority carry independent denominators; six non-HTTP transports found; dynamic capability/provider calls unresolved\n";
+    echo "PASS: empty routes allowed with non-HTTP scan; malformed routes refused; routed dispatch/reach remain separate; read and write authority carry independent denominators; six non-HTTP transports found; dynamic capability/provider calls unresolved\n";
 } finally {
     $it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS), RecursiveIteratorIterator::CHILD_FIRST);
     foreach ($it as $f) {
