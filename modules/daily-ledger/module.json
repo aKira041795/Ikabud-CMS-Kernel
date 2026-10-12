@@ -263,6 +263,38 @@
       }
     ],
     "depends": [],
+    "routes": {
+      "POST /daily-ledger/api/v1/admin/dl-users": {
+        "capability": "kernel.auth.authenticate@1",
+        "allowed_roles": [
+          "admin"
+        ]
+      },
+      "POST /daily-ledger/api/v1/admin/dl-users/update": {
+        "capability": "kernel.auth.authenticate@1",
+        "allowed_roles": [
+          "admin"
+        ]
+      },
+      "POST /daily-ledger/api/v1/admin/dl-users/delete": {
+        "capability": "kernel.auth.authenticate@1",
+        "allowed_roles": [
+          "admin"
+        ]
+      },
+      "POST /daily-ledger/api/v1/admin/dl-users/restore": {
+        "capability": "kernel.auth.authenticate@1",
+        "allowed_roles": [
+          "admin"
+        ]
+      },
+      "POST /daily-ledger/api/v1/admin/settings/permissions": {
+        "capability": "kernel.auth.authenticate@1",
+        "allowed_roles": [
+          "admin"
+        ]
+      }
+    },
     "policy": {
       "capabilities": {
         "kernel.auth.authenticate@1": {
