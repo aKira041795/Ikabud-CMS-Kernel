@@ -27,7 +27,9 @@ ob_start();
 require_once __DIR__ . '/../harness/TestHarness.php';
 $h = new TestHarness('daily-ledger-production-controls', TestHarness::MODE_INTEGRATION, 'baronledger.test');
 ob_end_clean();
-$h->allowLogLines('disyl.compile.phases');
+// disyl.render.breakdown is by-design instrumentation (page-weight logging, 2026-10-10) written
+// whenever a template renders; the suite renders the commissary panel, so it is expected output.
+$h->allowLogLines('disyl.compile.phases', 'disyl.render.breakdown');
 
 $base = $h->basePath();
 require_once $base . '/src/helpers/module-manager.php';
@@ -1082,22 +1084,44 @@ try {
         json_encode($verifiedCounts)
     );
 
-    // ─── the lifecycle is scoped to the actor's OWN branches ─────────────────────────────
-    // Measured: the production user is assigned to branch 18 ONLY (accessible=1), while the admin
-    // reaches 11 branches including 8. Every other write path in this module checks
-    // dl_accessibleBranchIds before writing; a settle that did not would let a supervisor or
-    // production user craft a POST and write derived endings into a branch they are not assigned
-    // to. The branch arrives from the client, so this must be checked server-side.
+    // ─── the lifecycle is scoped to the actor's accessible set ───────────────────────────
+    // The branch arrives from the client, so it is checked server-side against
+    // dl_accessibleBranchIds before any write - a production user must not write derived
+    // endings into a branch outside their set.
+    //
+    // RE-ANCHORED 2026-10-12 (battery finding; proven pre-existing on the wave base): this used
+    // to hardcode branch 8 as "foreign". Branch 8 is no longer outside the set, by deliberate
+    // policy - the production lane dispatches TO its commissary's network, so those destinations
+    // must be authorized or the lane's own dispatch throws "Destination branch is not allowed"
+    // (handlers.php dl_accessibleBranchIds -> dl_assignedBranchNetwork). The probe is resolved
+    // dynamically instead: find an active branch OUTSIDE the actor's set and require the refusal
+    // there - which is the property this check exists to protect.
+    $producerActor = ['id' => $producerUserId, 'role' => 'production_in_charge'];
+    $producerAccessible = dl_accessibleBranchIds($producerActor);
+    $foreignBranch = null;
+    $activeBranchRows = $db->query('SELECT id FROM dl_branches WHERE is_active = 1 ORDER BY id')->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    foreach ($activeBranchRows as $row) {
+        if (!in_array((int)$row['id'], $producerAccessible, true)) {
+            $foreignBranch = (int)$row['id'];
+            break;
+        }
+    }
     $foreignRefused = false;
-    try {
-        dl_settlePendingEndingsForShift($db, 8, $date, 'PM', ['id' => $producerUserId, 'role' => 'production_in_charge'], true);
-    } catch (\Throwable $e) {
-        $foreignRefused = true;
+    if ($foreignBranch !== null) {
+        try {
+            dl_settlePendingEndingsForShift($db, $foreignBranch, $date, 'PM', $producerActor, true);
+        } catch (\Throwable $e) {
+            $foreignRefused = true;
+        }
     }
     $h->test(
         'settle is refused for a branch the actor cannot access (the branch comes from the client)',
-        $foreignRefused,
-        'refused=' . var_export($foreignRefused, true) . ' - branch 8 is outside the producer\'s accessible set'
+        $foreignBranch !== null && $foreignRefused,
+        $foreignBranch === null
+            ? 'no active branch exists outside the producer set [' . implode(',', $producerAccessible) . '] - cannot probe'
+            : 'foreign branch ' . $foreignBranch . ' refused=' . var_export($foreignRefused, true)
+                . '; accessible set=[' . implode(',', $producerAccessible) . ']'
+                . ' (branch 8 is inside it now: the production lane must reach its network destinations)'
     );
 } finally {
     $cleanup();
