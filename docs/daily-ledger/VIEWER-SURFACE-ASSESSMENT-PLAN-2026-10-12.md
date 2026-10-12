@@ -215,7 +215,21 @@ overview-honesty oracle 0 RED; DiSyL lint 703/703.
 **W11 — Report archive** (F15) — verify first; then either add a governed open/download control or
 label it explicitly as an audit register.
 
-**W12 — Forecast scale** (F17) — only if D7 says it is needed.
+**✅ DONE 2026-10-12 (W11 + W17)** — Sol lane `viewer-reports-archive` (landed, acceptance=PASS).
+Verified truth: the archived bytes ARE retained (`ReportManager::archiveReport()` copies to
+`storage/report-archive/<id>.<format>`; the module's `@unlink` is only the audit-rollback path), so
+the missing action was a missing governed control, not missing data. Landed: a new GET route
+`/daily-ledger/admin/reports/archive-download` + handler with endpoint authorization (viewer-level
+`dlRequireAuth`; anonymous -> 401; disallowed role -> 403), `rpt_` id allowlist, the existing tenant
+predicate `dl_reportArchiveVisibleToTenant`, `ReportManager::canExport` gate, realpath containment
+inside `storage/report-archive`, a sanitized Content-Disposition filename, and a
+`report_archive_download` audit row written before streaming; plus a per-row **Download** control in
+the archive table. Criterion `tools/acceptance-viewer-reports-archive.php` (3 RED -> 0 RED) proves
+end to end: viewer HTTP export succeeds AND archives (P1), the control appears (P2), the download
+serves IDENTICAL bytes (P3), anonymous is refused 401/403 (P4).
+
+**W12 — Forecast scale** (F17) — only if D7 says it is needed. **Superseded by W13 ✅ (2026-10-12):**
+D7 said it was needed and W13 delivered it (bounded pages + total statement).
 
 ---
 
@@ -424,6 +438,24 @@ many branches recorded, and no verdict renders "healthy" while coverage is unest
 **W16 — Context-preservation contract for navigation** (both reviewers). Criterion: for each drill-down
 link, the destination receives the dimensions it can honour, and the ones it cannot are named in the UI.
 
+**✅ Contract delivered 2026-10-12 (implemented where it binds, stated here where it is policy):**
+The viewing context is `period + branch/area scope + product scope + sort/filter state`. Where a
+destination can honour a dimension it MUST receive it: `View production forecast` carries
+scope/branch/target_date (W6); the forecast pager carries the entire state and re-rendering a
+followed pager link is asserted to land on the right slice (W13); every branch drill-down keeps its
+date range (W10/B3). Where it cannot, the UI names it rather than implying support (the aggregate
+forecast section states its own window; item-level detail is stated to live on Forecast/Reports).
+
 **W17 — Export authorization + archive policy** (D3). Verify the export endpoint authorizes the viewer
 (not just hides the button); then either split archive-creation from export or document that export is a
 permitted viewer operation with its persistence stated.
+
+**✅ DONE 2026-10-12 (with W11).** Verified at the endpoint, not by button-hiding: the export route
+admits the viewer (`dlRequireAuth` includes viewer) and `ReportManager::canExport` gates generation;
+the criterion proves it end to end (P1: HTTP 200 + archived row). Persistence is stated where the
+viewer exports (a note beside the Download controls: each download is archived - listed in Recent
+Archived Reports - and audited). **The capability SPLIT (reports.export / reports.archive.create)
+remains OWNER-FACING** per §10 and §11 D3: a viewer's export writes into SHARED state (the archive
+others see), so a separate authorization for persistent archive creation is a contract decision, not
+a code preference. Until that decision the behaviour is: viewer export permitted, always audited,
+always disclosed.

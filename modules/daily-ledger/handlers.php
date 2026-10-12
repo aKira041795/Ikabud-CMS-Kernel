@@ -13330,6 +13330,76 @@ function handleAdminReports(array $params = []): void
     ]);
 }
 
+function handleAdminReportArchiveDownload(array $params = []): void
+{
+    // Downloads return an HTTP refusal rather than redirecting anonymous or
+    // ineligible callers to the interactive login page.
+    $requestUser = dlUserFromRequest();
+    if (!is_array($requestUser)) {
+        http_response_code(401);
+        echo 'Authentication required';
+        return;
+    }
+    if (!in_array((string)($requestUser['role'] ?? ''), ['admin', 'supervisor', 'auditor', 'viewer'], true)) {
+        http_response_code(403);
+        echo 'Download permission denied';
+        return;
+    }
+    $user = dlRequireAuth(
+        ['admin', 'supervisor', 'auditor', 'viewer']
+    );
+
+    $id = trim((string)(module()?->input()['id'] ?? ''));
+    if (preg_match('/^rpt_[A-Za-z0-9.]+$/', $id) !== 1) {
+        http_response_code(404);
+        echo 'Archived report not found';
+        return;
+    }
+
+    $archive = \Ikabud\Kernel\Services\ReportManager::getArchivedReport($id);
+    if (!is_array($archive)
+        || !dl_reportArchiveVisibleToTenant($archive, dl_reportTenantScope())) {
+        http_response_code(404);
+        echo 'Archived report not found';
+        return;
+    }
+
+    $entityType = (string)($archive['entity_type'] ?? '');
+    $format = strtolower((string)($archive['format'] ?? ''));
+    if (!\Ikabud\Kernel\Services\ReportManager::canExport($entityType, $format, $user)) {
+        http_response_code(403);
+        echo 'Download permission denied';
+        return;
+    }
+    if (!in_array($format, ['pdf', 'csv'], true)) {
+        http_response_code(404);
+        echo 'Archived report not found';
+        return;
+    }
+
+    $root = realpath(STORAGE_PATH . '/report-archive');
+    $real = realpath((string)($archive['file'] ?? ''));
+    if ($real === false
+        || $root === false
+        || !str_starts_with($real, $root . DIRECTORY_SEPARATOR)
+        || !is_file($real)) {
+        http_response_code(404);
+        echo 'Archived report not found';
+        return;
+    }
+
+    $filename = basename((string)($archive['filename'] ?? $real));
+    $headerFilename = str_replace(['"', "\r", "\n"], '_', $filename);
+    dl_auditLog('report_archive_download', null, $entityType, $id, null, [
+        'format' => $format,
+        'filename' => $filename,
+    ]);
+    header('Content-Type: ' . ($format === 'pdf' ? 'application/pdf' : 'text/csv'));
+    header('Content-Disposition: attachment; filename="' . $headerFilename . '"');
+    header('Content-Length: ' . (string)filesize($real));
+    readfile($real);
+}
+
 function dl_handleAdminReport(string $type): void
 {
     $ctx = module();

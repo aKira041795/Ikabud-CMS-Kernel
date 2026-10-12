@@ -24,6 +24,7 @@ return [
         '/daily-ledger/admin/variances'            => 'daily-ledger:handleAdminVariances',
         '/daily-ledger/admin/reconciliation'       => 'daily-ledger:handleAdminReconciliation',
         '/daily-ledger/admin/reports'              => 'daily-ledger:handleAdminReports',
+        '/daily-ledger/admin/reports/archive-download' => 'daily-ledger:handleAdminReportArchiveDownload',
         '/daily-ledger/admin/reports/sales'        => 'daily-ledger:handleAdminReportSales',
         '/daily-ledger/admin/reports/sales/export' => 'daily-ledger:handleAdminReportSalesExport',
         '/daily-ledger/admin/reports/variances'    => 'daily-ledger:handleAdminReportVariances',
