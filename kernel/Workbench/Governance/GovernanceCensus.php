@@ -56,7 +56,7 @@ final class GovernanceCensus
         return [
             'rule' => 'Three separate coverage measures, never merged. WRITE authority coverage = declared-and-enforced / routed business operations (POST/PUT/PATCH/DELETE). READ authority coverage = declared-and-enforced / routed read operations (GET/HEAD/OPTIONS). NON-HTTP authority coverage = declared / non-HTTP capability call sites. auth/session infrastructure is excluded from both routed denominators. The measures have different scales and semantics, so no merged percentage is published: a single figure would read as total authority coverage when it is only the write figure.',
             'detection' => 'PHP token analysis follows calls between named functions. A bus call requires executable app()->cap()->call(...) tokens; comments, strings and docblocks are ignored.',
-            'metric' => 'dispatch_enforced counts operations whose authority is declared in capabilities.routes and established before the handler body. bus_reachable counts handlers that themselves reach the bus and is reported separately: a bus call inside a handler is not request authority, so it does not make the route governed.',
+            'metric' => 'dispatch_enforced counts operations whose authority is declared in capabilities.routes and established before the handler body. bus_reachable counts handlers that themselves reach the bus and is reported separately: a bus call inside a handler is not request authority, so it does not make the route governed. Routes declared with mode module-decides report delegated_bound/delegated_unbound separately: the module predicate stays the authority and the declaration carries zero dispatch credit (chair ruling 2026-10-13).',
             'non_http_rule' => 'Non-HTTP authority is a separate measure and is never added to the routed denominator. Declared means a statically traceable non-HTTP entry path establishes AuthorityScopeResolver::withScope before reaching the capability call.',
             'non_http_detection' => 'Static PHP tokens identify executable capability calls, authority-scope establishment and named-function call paths. Dynamic capability ids, dynamic provider routing and paths whose transport or call edge cannot be proved are unresolved, never governed.',
             'modules' => $modules,
@@ -108,7 +108,17 @@ final class GovernanceCensus
         // Declared route authority (P2). The declaration lives in the manifest,
         // so the instrument stays domain-neutral: it reads a declaration, it does
         // not know what the capability means.
+        //
+        // Two declaration modes, mutually exclusive per route:
+        //   role mode (default)   -> `$declarations` (dispatch can enforce it)
+        //   `mode: module-decides` -> `$delegations` (the module predicate stays
+        //     the authority; the kernel claims NO dispatch decision — see the
+        //     chair ruling in docs/kernel/authority-and-governance.md). Delegated
+        //     routes are never counted as dispatch-enforced; they are reported
+        //     separately and require static binding evidence to count at all.
         $declarations = [];
+        $delegations = [];
+        $delegatedInvalid = 0;
         foreach (($manifest['capabilities']['routes'] ?? []) as $routeKey => $declaration) {
             $routeKey = trim((string) $routeKey);
             if ($routeKey === '' || !str_contains($routeKey, ' ')) {
@@ -120,7 +130,20 @@ final class GovernanceCensus
             if ($method === '' || $route === '') {
                 continue;
             }
-            // Two declaration shapes, mirroring AuthorityDispatchGuard::decide():
+            if (is_array($declaration) && array_key_exists('mode', $declaration)) {
+                // Delegated mode. Rules (chair ruling 2026-10-13): explicit mode,
+                // exact capability identifier, NO allowed_roles. Missing or
+                // malformed delegated declarations are not coverage.
+                $mode = trim((string) $declaration['mode']);
+                $capability = trim((string) ($declaration['capability'] ?? ''));
+                if ($mode !== 'module-decides' || $capability === '' || array_key_exists('allowed_roles', $declaration)) {
+                    $delegatedInvalid++;
+                    continue;
+                }
+                $delegations[$method . ' ' . $route] = $capability;
+                continue;
+            }
+            // Two role-mode shapes, mirroring AuthorityDispatchGuard::decide():
             // the canonical object form carries `capability` (or `id`) — see
             // docs/kernel/authority-and-governance.md — and the string form is
             // the legacy shorthand. A malformed object (no capability id) is
@@ -149,7 +172,21 @@ final class GovernanceCensus
             //   reach    — does the handler body itself reach the capability bus?
             // Reporting only `reach` as "governed" measures the metric: a bus call
             // inside a handler proves nothing about the request's authority.
-            if (isset($declarations[$key])) {
+            if (isset($delegations[$key])) {
+                // Delegated (module-decides): the module predicate is the authority.
+                // Static binding evidence = the capability identifier appears as a
+                // string literal reachable from THIS handler by following statically
+                // resolvable named calls (same traversal shape as reachesBus). Module-
+                // wide presence is deliberately not credited (chair ruling 2026-10-13).
+                $binding = $source ? $this->bindsCapability($handler, $delegations[$key], $functions) : null;
+                if ($binding !== null) {
+                    $dispatch = 'delegated-bound';
+                    $how = 'declared module-decides: ' . $delegations[$key] . ' (static binding at ' . $this->relative($binding['file']) . ':' . $binding['line'] . ' via ' . $binding['via'] . '; the module predicate remains the authority — zero dispatch enforcement credit)';
+                } else {
+                    $dispatch = 'delegated-unbound';
+                    $how = 'declared module-decides: ' . $delegations[$key] . ' (no static binding found reachable from the handler — declaration only, zero enforcement credit)';
+                }
+            } elseif (isset($declarations[$key])) {
                 $dispatch = 'enforced';
                 $how = 'declared in module.json: ' . $declarations[$key] . ' (checked before the handler body)';
             } elseif (isset($exemptions[$key])) {
@@ -189,6 +226,12 @@ final class GovernanceCensus
         $readTotal = count($reads);
         $readEnforced = $readDispatchCounts['enforced'] ?? 0;
 
+        // Delegated (module-decides) coverage. Write-scoped like the retained
+        // dispatch figures, reported SEPARATELY and never added to dispatch_enforced -
+        // delegation is not a dispatch decision (chair ruling 2026-10-13).
+        $delegatedBound = $dispatchCounts['delegated-bound'] ?? 0;
+        $delegatedUnbound = $dispatchCounts['delegated-unbound'] ?? 0;
+
         $routeHandlers = array_map(static fn (array $route): string => str_contains($route['handler'], ':') ? explode(':', $route['handler'], 2)[1] : $route['handler'], $routes);
         $nonHttp = $this->scanNonHttpFiles($this->phpFiles($dir), $routeHandlers);
         return ['module' => $id, 'operations' => $operations, 'non_http' => $nonHttp, 'summary' => [
@@ -211,6 +254,10 @@ final class GovernanceCensus
             'read_undeclared' => $readDispatchCounts['undeclared'] ?? 0,
             'read_total' => $readTotal,
             'read_ratio' => $readTotal ? round(100 * $readEnforced / $readTotal, 1) : 0.0,
+            // Delegated coverage — separate from dispatch, never inflating it.
+            'delegated_bound' => $delegatedBound,
+            'delegated_unbound' => $delegatedUnbound,
+            'delegated_invalid' => $delegatedInvalid,
         ], 'non_http_summary' => $this->nonHttpSummary($id, $nonHttp)];
     }
 
@@ -238,6 +285,7 @@ final class GovernanceCensus
                 'exempt' => 0, 'undeclared' => 0, 'total' => 0, 'ratio' => 0.0, 'bus_ratio' => 0.0,
                 'write_dispatch_enforced' => 0, 'write_total' => 0, 'write_ratio' => 0.0,
                 'read_dispatch_enforced' => 0, 'read_exempt' => 0, 'read_undeclared' => 0,
+                'delegated_bound' => 0, 'delegated_unbound' => 0, 'delegated_invalid' => 0,
                 'read_total' => 0, 'read_ratio' => 0.0,
             ],
             'non_http_summary' => $this->nonHttpSummary('kernel', $nonHttp),
@@ -732,5 +780,47 @@ final class GovernanceCensus
     private function relative(string $p): string
     {
         return str_replace($this->root . '/', '', $p);
+    }
+
+    /**
+     * Static binding evidence for a module-decides declaration: the capability
+     * identifier appears as a string literal reachable from the route's handler by
+     * following statically resolvable named calls (the same traversal shape as
+     * reachesBus). Rooted at the handler on purpose: module-wide presence is NOT
+     * evidence (chair ruling 2026-10-13). Returns the literal's file/line and the
+     * call chain, or null when nothing binds.
+     *
+     * @param array<string, array{file: string, line: int, tokens: list<mixed>}> $functions
+     * @param array<string, bool> $seen
+     * @return array{file: string, line: int, via: string}|null
+     */
+    private function bindsCapability(string $name, string $capability, array $functions, array $seen = []): ?array
+    {
+        if (isset($seen[$name]) || !isset($functions[$name])) {
+            return null;
+        }
+        $seen[$name] = true;
+        $tokens = $functions[$name]['tokens'];
+        foreach ($tokens as $t) {
+            if (is_array($t) && $t[0] === T_CONSTANT_ENCAPSED_STRING && stripcslashes(substr($t[1], 1, -1)) === $capability) {
+                return ['file' => $functions[$name]['file'], 'line' => (int) ($t[2] ?? 0), 'via' => $name];
+            }
+        }
+        $sig = [];
+        foreach ($tokens as $t) {
+            if (!is_array($t) || !in_array($t[0], [T_WHITESPACE, T_COMMENT, T_DOC_COMMENT, T_CONSTANT_ENCAPSED_STRING], true)) {
+                $sig[] = is_array($t) ? $t[1] : $t;
+            }
+        }
+        for ($i = 0, $n = count($sig); $i < $n - 1; $i++) {
+            if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $sig[$i]) && $sig[$i + 1] === '(' && isset($functions[$sig[$i]])) {
+                $found = $this->bindsCapability($sig[$i], $capability, $functions, $seen);
+                if ($found !== null) {
+                    $found['via'] = $name . ' -> ' . $found['via'];
+                    return $found;
+                }
+            }
+        }
+        return null;
     }
 }

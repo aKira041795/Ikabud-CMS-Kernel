@@ -196,6 +196,63 @@ try {
         throw new RuntimeException('the legacy dispatch_enforced must remain write-scoped');
     }
 
+    // Delegated mode (module-decides): the module predicate is the authority. A
+    // declaration in this mode must NEVER count as dispatch-enforced; it reports
+    // separately, and it only counts at all with static binding evidence — the
+    // capability literal reachable from THIS handler (chair ruling 2026-10-13).
+    $manifest['capabilities'] = ['routes' => [
+        'POST /governed' => ['mode' => 'module-decides', 'capability' => 'probe.write@1'],
+        'GET /read-plain' => 'probe.read@1',
+    ]];
+    file_put_contents($module.'/module.json', json_encode($manifest));
+    $delegatedResult = (new GovernanceCensus($root))->scan('probe');
+    $delegated = censusIndex($delegatedResult);
+    if (($delegated['/governed']['dispatch'] ?? null) !== 'delegated-bound') {
+        throw new RuntimeException('a module-decides route with a bound capability was not classified delegated-bound: ' . json_encode($delegated['/governed'] ?? null));
+    }
+    $delegatedSummary = $delegatedResult['summary'][0];
+    if ((int) ($delegatedSummary['dispatch_enforced'] ?? -1) !== 0
+        || (int) ($delegatedSummary['write_dispatch_enforced'] ?? -1) !== 0) {
+        throw new RuntimeException('delegated coverage leaked into dispatch enforcement: ' . json_encode($delegatedSummary));
+    }
+    if ((int) ($delegatedSummary['delegated_bound'] ?? -1) !== 1 || (int) ($delegatedSummary['delegated_unbound'] ?? -1) !== 0) {
+        throw new RuntimeException('delegated_bound was not reported separately: ' . json_encode($delegatedSummary));
+    }
+    if ((int) ($delegatedSummary['read_dispatch_enforced'] ?? -1) !== 1) {
+        throw new RuntimeException('a coexisting role-mode read declaration was lost when delegated mode was added');
+    }
+
+    // Unbound: the declared capability never appears in the handler's reachable graph.
+    $manifest['capabilities'] = ['routes' => [
+        'POST /plain' => ['mode' => 'module-decides', 'capability' => 'probe.never.used@1'],
+    ]];
+    file_put_contents($module.'/module.json', json_encode($manifest));
+    $unboundResult = (new GovernanceCensus($root))->scan('probe');
+    if ((censusIndex($unboundResult)['/plain']['dispatch'] ?? null) !== 'delegated-unbound') {
+        throw new RuntimeException('an unbound module-decides route was not classified delegated-unbound');
+    }
+    if ((int) ($unboundResult['summary'][0]['delegated_unbound'] ?? -1) !== 1
+        || (int) ($unboundResult['summary'][0]['delegated_bound'] ?? -1) !== 0) {
+        throw new RuntimeException('delegated_unbound was not reported separately');
+    }
+
+    // Malformed delegated declarations: unsupported mode, missing capability, or
+    // allowed_roles present (not permitted in delegated mode) — all zero credit.
+    $manifest['capabilities'] = ['routes' => [
+        'POST /governed' => ['mode' => 'trust-me', 'capability' => 'probe.write@1'],
+        'POST /plain' => ['mode' => 'module-decides'],
+        'POST /exempt' => ['mode' => 'module-decides', 'capability' => 'probe.write@1', 'allowed_roles' => ['admin']],
+    ]];
+    file_put_contents($module.'/module.json', json_encode($manifest));
+    $invalidSummary = (new GovernanceCensus($root))->scan('probe')['summary'][0];
+    if ((int) ($invalidSummary['delegated_invalid'] ?? -1) !== 3) {
+        throw new RuntimeException('malformed delegated declarations were not counted invalid: ' . json_encode($invalidSummary));
+    }
+    if ((int) ($invalidSummary['delegated_bound'] ?? -1) !== 0 || (int) ($invalidSummary['delegated_unbound'] ?? -1) !== 0
+        || (int) ($invalidSummary['dispatch_enforced'] ?? -1) !== 0) {
+        throw new RuntimeException('invalid delegated declarations received credit: ' . json_encode($invalidSummary));
+    }
+
     // dispatch: an exemption is its own state, never merged with enforcement.
     $manifest['governance']['exemptions'] = [['method' => 'POST', 'route' => '/exempt', 'reason' => 'session establishment']];
     file_put_contents($module.'/module.json', json_encode($manifest));
