@@ -504,9 +504,24 @@ function dlCurrentUser(array $roles = ['cashier', 'supervisor', 'admin', 'produc
     return $u;
 }
 
+/**
+ * Roles whose report downloads remain read-only unless archive creation is
+ * explicitly granted. Under D3, audit logging is compatible with read access,
+ * but adding a report to the shared archive mutates a resource other users see.
+ * Operational roles keep archiving, and background/scheduled exports always
+ * archive, so only roles deliberately listed here cross that capability gate.
+ *
+ * @return string[]
+ */
+function dl_reportArchiveReadOnlyRoles(): array
+{
+    return ['viewer'];
+}
+
 function dl_allPermissionActions(): array
 {
     return [
+        'reports.archive.create',
         'ledger.override',
         'production.override',
         'pos.sell',

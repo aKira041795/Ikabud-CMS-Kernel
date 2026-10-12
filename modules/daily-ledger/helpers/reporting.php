@@ -849,32 +849,43 @@ function dl_generateGovernedReport(string $type, string $format, array $data, ar
 
         return null;
     }
-    $archiveId = ReportManager::archiveReport($definition['entity_type'], $format, $export['path'], $definition['title'], [
-        'filename' => $filename,
-        'filters' => $filters,
-        'generated_by' => $options['generated_by'],
-        'generated_by_id' => dl_getActorUserId($user),
-        'totals' => $data['totals'],
-        'request_id' => function_exists('request_id') ? request_id() : '',
-        'tenant_scope' => dl_reportTenantScope(),
-        'background' => $background,
-        'schedule_key' => (string)($filters['schedule_key'] ?? ''),
-        'data_quality' => $quality,
-    ]);
-    if ($archiveId === null) {
-        // ArchiveReport returns null without detail when the copy fails — most
-        // often because storage/report-archive is not writable by the web user.
-        // Log the stage so the generic "Unable to generate report" message is
-        // not the only clue left in the logs.
-        write_log('daily-ledger report export: archiving failed — check that storage/report-archive is writable by the web server user', 'error', [
-            'type' => $type,
-            'format' => $format,
-            'path' => (string)($export['path'] ?? ''),
+    $role = (string)($user['role'] ?? '');
+    $canArchive = $background
+        || !in_array($role, dl_reportArchiveReadOnlyRoles(), true)
+        || dl_roleHasPermission($role, 'reports.archive.create');
+    $archiveId = null;
+    if ($canArchive) {
+        $archiveId = ReportManager::archiveReport($definition['entity_type'], $format, $export['path'], $definition['title'], [
+            'filename' => $filename,
+            'filters' => $filters,
+            'generated_by' => $options['generated_by'],
+            'generated_by_id' => dl_getActorUserId($user),
+            'totals' => $data['totals'],
+            'request_id' => function_exists('request_id') ? request_id() : '',
+            'tenant_scope' => dl_reportTenantScope(),
+            'background' => $background,
+            'schedule_key' => (string)($filters['schedule_key'] ?? ''),
+            'data_quality' => $quality,
         ]);
+        if ($archiveId === null) {
+            // ArchiveReport returns null without detail when the copy fails — most
+            // often because storage/report-archive is not writable by the web user.
+            // Log the stage so the generic "Unable to generate report" message is
+            // not the only clue left in the logs.
+            write_log('daily-ledger report export: archiving failed — check that storage/report-archive is writable by the web server user', 'error', [
+                'type' => $type,
+                'format' => $format,
+                'path' => (string)($export['path'] ?? ''),
+            ]);
 
-        return null;
+            return null;
+        }
     }
-    dl_auditLog('report_export', null, $definition['entity_type'], $archiveId, null, [
+
+    // Non-archived exports still need a durable audit reference, but must never
+    // use the kernel archive namespace (rpt_*) or imply that shared state exists.
+    $auditReference = $archiveId ?? ('dlrep_' . uniqid('', true));
+    dl_auditLog('report_export', null, $definition['entity_type'], $auditReference, null, [
         'format' => $format,
         'filename' => $filename,
         'filters' => $filters,
@@ -887,20 +898,22 @@ function dl_generateGovernedReport(string $type, string $format, array $data, ar
             $auditStmt = $ctx->db()->prepare(
                 'SELECT id FROM audit_logs WHERE module = ? AND action = ? AND entity_type = ? AND entity_id = ? ORDER BY id DESC LIMIT 1'
             );
-            $auditStmt->execute(['daily-ledger', 'report_export', $definition['entity_type'], $archiveId]);
+            $auditStmt->execute(['daily-ledger', 'report_export', $definition['entity_type'], $auditReference]);
             $auditPersisted = $auditStmt->fetchColumn() !== false;
         } catch (Throwable $e) {
             $auditPersisted = false;
         }
     }
     if (!$auditPersisted) {
-        $archived = ReportManager::getArchivedReport($archiveId);
-        if (is_array($archived) && is_file((string)($archived['file'] ?? ''))) {
-            @unlink((string)$archived['file']);
-        }
-        $archiveMeta = STORAGE_PATH . '/report-archive/' . $archiveId . '.json';
-        if (is_file($archiveMeta)) {
-            @unlink($archiveMeta);
+        if ($archiveId !== null) {
+            $archived = ReportManager::getArchivedReport($archiveId);
+            if (is_array($archived) && is_file((string)($archived['file'] ?? ''))) {
+                @unlink((string)$archived['file']);
+            }
+            $archiveMeta = STORAGE_PATH . '/report-archive/' . $archiveId . '.json';
+            if (is_file($archiveMeta)) {
+                @unlink($archiveMeta);
+            }
         }
         if (is_file((string)($export['path'] ?? ''))) {
             @unlink((string)$export['path']);
@@ -911,7 +924,9 @@ function dl_generateGovernedReport(string $type, string $format, array $data, ar
     // KernelExport returns its temporary path basename as `filename`; the HTTP
     // contract must expose the governed, human-readable report filename.
     $export['filename'] = $filename;
-    $export['archive_id'] = $archiveId;
+    if ($archiveId !== null) {
+        $export['archive_id'] = $archiveId;
+    }
     return $export;
 }
 

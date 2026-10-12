@@ -282,6 +282,24 @@ what renders.
 5. All criteria green, DiSyL lint unchanged, `error.log` empty after a full re-run, browser inventory
    re-measured and pasted into this file.
 
+### 9.5 RE-INVENTORY EVIDENCE — re-measured 2026-10-12, post-wave (DoD items 1 and 5)
+
+Re-ran the §3 snippet live on `baronledger.test` as `admin_view` (role `viewer`), after the S1–S7 wave
+(commits `bc955eec` … `6143f1ad`):
+
+| Route | Text-bearing controls | Transparent-background controls |
+|---|---|---|
+| `/daily-ledger/admin/overview` | 12 | 1 — **Logout** (banner, by design) |
+| `/daily-ledger/admin/products/performance` | 7 | 1 — **Logout** |
+| `/daily-ledger/admin/production-efficiency` | 6 | 1 — **Logout** |
+| `/daily-ledger/admin/forecast` | 13 | 1 — **Logout** |
+| `/daily-ledger/admin/reports` | 29 | 1 — **Logout** |
+
+DoD 1 satisfied: the only transparent control on any viewer route is Logout. The pre-wave inventory
+had found background-less controls on forecast (the F3 case, `class="btn btn-sm "` on the inactive
+sort direction — removed by the F1/F2/F3 fixes), and the wave's uniform button treatment replaced
+the rest.
+
 ---
 
 ## 10. DELIBERATELY EXCLUDED / NEEDS THE OWNER
@@ -289,7 +307,9 @@ what renders.
 - **An owner-level financial surface** (targets vs actual, margin, cost, cash position) — the module
   holds no cost or budget data (0 of 3,209 delivery items and 0 of 2,433 receiving items carry a
   `unit_cost_snapshot`), so this is a data gap, not a UI gap.
-- **Export policy** (D3) — a contract decision, not a code preference.
+- **Export policy** (D3) — **RESOLVED 2026-10-12.** The chair's boundary is now the shipped
+  behaviour: a viewer export downloads and is audited, but does not write the shared archive;
+  `reports.archive.create` is tenant-grantable per role. No owner decision outstanding.
 - **Renaming "Business Health"** (D4) — owner-facing vocabulary.
 
 ---
@@ -450,12 +470,27 @@ forecast section states its own window; item-level detail is stated to live on F
 (not just hides the button); then either split archive-creation from export or document that export is a
 permitted viewer operation with its persistence stated.
 
-**✅ DONE 2026-10-12 (with W11).** Verified at the endpoint, not by button-hiding: the export route
-admits the viewer (`dlRequireAuth` includes viewer) and `ReportManager::canExport` gates generation;
-the criterion proves it end to end (P1: HTTP 200 + archived row). Persistence is stated where the
-viewer exports (a note beside the Download controls: each download is archived - listed in Recent
-Archived Reports - and audited). **The capability SPLIT (reports.export / reports.archive.create)
-remains OWNER-FACING** per §10 and §11 D3: a viewer's export writes into SHARED state (the archive
-others see), so a separate authorization for persistent archive creation is a contract decision, not
-a code preference. Until that decision the behaviour is: viewer export permitted, always audited,
-always disclosed.
+**✅ DONE 2026-10-12 (with W11); CAPABILITY SPLIT IMPLEMENTED (S8).** Verified at the endpoint, not
+by button-hiding: the export route admits the viewer (`dlRequireAuth` includes viewer) and
+`ReportManager::canExport` gates generation. The chair's D3 boundary is now code:
+
+- a `viewer` export downloads and is audited (`report_export` audit row, reference `dlrep_*`) but
+  does **not** write the shared archive;
+- `reports.archive.create` is a tenant-grantable action (`dl_allPermissionActions()`); granting it
+  restores archiving for that role - the grant **is** the "explicit separate authorization" the
+  ruling required;
+- operational roles and `$background` (scheduled) exports **always** archive - a configured schedule
+  is a pre-authorized act and its archive is the point of the record;
+- reading is unaffected: the viewer still downloads existing archives byte-identically (P3),
+  anonymous is refused (P4), unknown ids refuse cleanly (P5), and the page's copy now states the
+  actual behaviour ("Exports are audited; with archive permission they are also stored in Recent
+  Archived Reports.").
+
+Design calls: read-only roles live in ONE explicit commented list (`dl_reportArchiveReadOnlyRoles()`,
+house pattern); the audit-persistence rule is unchanged in **both** paths (an export whose audit row
+cannot be written is still cancelled and its temp file deleted - a download must never be unaudited);
+the rollback now only touches archive files when one was actually created. Criterion
+`tools/acceptance-viewer-reports-archive.php`: 2 RED on the pre-split tree (dispatch gate), 0 RED
+after (P1 viewer: 0 new archives, audit rows still increase; P1b admin still archives; P2-P6 pins;
+P8 grantable-not-default). Suites: reporting 76/76, authz 84/84 (viewer defaults still `[]`),
+handlers 229/229; DiSyL lint 703/703.

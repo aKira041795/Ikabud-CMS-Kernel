@@ -4,7 +4,7 @@
 <div class="flex items-center justify-between mb-6">
     <div>
         <h2 class="text-lg font-semibold text-gray-900">{report_title}</h2>
-        <p class="text-sm text-gray-500">Governed PDF and CSV deliverables. Exports are archived and audited.</p>
+        <p class="text-sm text-gray-500">Governed PDF and CSV deliverables. Exports are audited; with archive permission they are also stored in Recent Archived Reports.</p>
     </div>
     {if !landing}<a class="btn btn-accent" href="{base_url}/admin/reports">All Reports</a>{/if}
 </div>
@@ -59,7 +59,7 @@
 </form>
 
 <div class="flex flex-wrap items-center gap-2 justify-end mb-4">
-    <span class="text-sm text-gray-500">Each download is archived, listed in Recent Archived Reports, and audited.</span>
+    <span class="text-sm text-gray-500">Each download is audited; with archive permission it is also stored in Recent Archived Reports.</span>
     <a class="btn btn-accent" href="{base_url}/admin/reports/{report_type}/export?format=csv&date_from={filters.date_from}&date_to={filters.date_to}&branch_id={filters.branch_id}&product_id={filters.product_id}&shift={filters.shift}">Download CSV</a>
     <a class="btn btn-primary" href="{base_url}/admin/reports/{report_type}/export?format=pdf&date_from={filters.date_from}&date_to={filters.date_to}&branch_id={filters.branch_id}&product_id={filters.product_id}&shift={filters.shift}">Download PDF</a>
 </div>
