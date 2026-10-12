@@ -156,6 +156,14 @@ and removed from `handleAdminForecast`.
 - Keep `Rank by` + `Order` only; explain the cumulative column in text beneath it.
 - Criterion: exactly two sorting controls render; `sort_by=cumulative` is never emitted.
 
+**✅ DONE 2026-10-12 (W2 · W7 · W8)** — Sol lane `viewer-products-pe-controls` (landed, acceptance=PASS,
+run `20261012T101021-50382`). Criterion `tools/acceptance-viewer-products-pe-controls.php` (3 RED → 0
+RED; regression pins kept: the cumulative explainer stays, Movement still round-trips through Apply).
+Landed: both `sort_by=cumulative` emissions gone (prose link deleted, header de-linked with a reworded
+non-interactive tooltip); `include pending rows` no longer named in the empty state; PE's Movement
+select no longer auto-submits. Regressions: products-overview acceptance 0 RED, production-efficiency
+acceptance 0 RED, efficiency-standards 0 RED, lint 703/703.
+
 **W3 — Business Health: stop the dead-end and the wrong-cause link** (F5, F6)
 - Remove or relocate `Detailed sales analysis` (label it `View sales for selected period` if kept).
 - Point the "inspect" action at the cause the verdict actually names (pending → data-integrity,

@@ -59,7 +59,7 @@
 <div class="card mb-6">
     <div class="card-header"><span>Ranked products</span><span class="text-sm text-muted">{sort_label} · {top_products | count} of {ranked_count}</span></div>
     {if top_products | count == 0}
-    <div class="card-body text-sm text-gray-500">No finalized product sales in {period_label}. Widen the date range or include pending rows.</div>
+    <div class="card-body text-sm text-gray-500">No finalized product sales in {period_label}. Widen the date range.</div>
     {/if}
     {if top_products | count > 0}
     <div class="table-wrap"><table>
@@ -142,8 +142,7 @@
         so the last row always reaches 100.00%. {if ranking_from == 'biggest'}That running total is what makes the 80/20 line readable: the row where it first crosses 80% marks the products that drive 80% of sales.{/if}{if ranking_from == 'least'}Read in this ascending order, the row where the running total first crosses 80% lies deep in the long tail: it marks how much of the catalogue it takes to accumulate 80% of sales, not the products that drive it.{/if}
         
 {if ranking_from == 'biggest'}Because it is built in ranking order, this ordering accumulates <strong>down from the biggest product</strong>.{/if}{if ranking_from == 'least'}Because it is built in ascending ranking order, the running total accumulates <strong>up from the least product</strong>: the first rows are the long tail and the last rows are the biggest sellers.{/if}
-        <a class="font-medium text-indigo-600 underline" href="{base_url}/admin/products/performance?scope={view_scope}&amp;branch_id={branch_id}&amp;date_from={date_from}&amp;date_to={date_to}&amp;sort_by=cumulative&amp;sort_dir={cumulative_toggle_dir}&amp;product_q={product_q}&amp;min_share={min_share}">Build it from the {if ranking_from == 'biggest'}least{/if}{if ranking_from == 'least'}biggest{/if} instead</a>
-        - the small products then add up to the same 100%, which answers how little the long tail contributes.
+        The small products still add up to the same 100%, showing how much the long tail contributes.
     </div>
     <form class="card-body border-b border-gray-200 grid grid-cols-1 gap-3 sm:grid-cols-4 sm:items-end" method="GET" action="{base_url}/admin/products/performance" onsubmit="return window.dlLoadForm(this)">
         <input type="hidden" name="scope" value="{view_scope}">
@@ -168,7 +167,7 @@
     {/if}
     {if ranked_shown > 0}
     <div class="table-wrap"><table>
-        <thead><tr><th>#</th><th></th><th>Product</th><th>SKU</th><th class="text-right">Units</th><th class="text-right">Amount</th><th class="text-right">Share of sales</th><th class="text-right"><a class="underline decoration-dotted" title="Cumulative share is the running total of shares down the ranking, so it cannot be its own sort key. Clicking reverses which end it accumulates from." href="{base_url}/admin/products/performance?scope={view_scope}&amp;branch_id={branch_id}&amp;date_from={date_from}&amp;date_to={date_to}&amp;sort_by=cumulative&amp;sort_dir={cumulative_toggle_dir}&amp;product_q={product_q}&amp;min_share={min_share}">Cumulative share {if ranking_from == 'biggest'}&#9660;{/if}{if ranking_from == 'least'}&#9650;{/if}</a></th></tr></thead>
+        <thead><tr><th>#</th><th></th><th>Product</th><th>SKU</th><th class="text-right">Units</th><th class="text-right">Amount</th><th class="text-right">Share of sales</th><th class="text-right" title="Cumulative share is the running total of shares down the ranking.">Cumulative share</th></tr></thead>
         <tbody>
         {foreach ranked_products as p}
         <tr data-product-row data-slice-row="{p.slice_index}">

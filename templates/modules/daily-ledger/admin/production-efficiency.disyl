@@ -34,7 +34,7 @@
         </div>
         <div class="form-group">
             <label class="form-label">Movement</label>
-            <select class="form-input" name="movement_view" onchange="this.form.submit()">
+            <select class="form-input" name="movement_view">
                 <option value="production" {if movement_view == 'production'}selected{/if}>Production vs sales</option>
                 <option value="pullout" {if movement_view == 'pullout'}selected{/if}>Pullouts &amp; unsellable</option>
                 <option value="all" {if movement_view == 'all'}selected{/if}>Both</option>
