@@ -228,22 +228,30 @@ $check(
     )
 );
 
-// --- H1..H4: the cumulative column sorts, and the derivation is explained -----------------------
+// --- H1..H4: the cumulative column reaches both ends, and the derivation is explained -----------
 // Cumulative share is monotonic in ranking order, so it cannot be its own sort key; the honest
-// control reverses which END it accumulates from. These checks hold that to account.
-$headerHasSort = (bool)preg_match('#<th[^>]*>.*?href="[^"]*sort_by=[^"]*sort_dir=[^"]*".*?Cumulative share#is', $html);
+// control reverses which END it accumulates from - that is the page's Order select ("Highest first
+// (what sells)" / "Lowest first (what does not)"). The clickable 'Cumulative share' header this
+// criterion originally pinned was REMOVED BY DESIGN by the 2026-10-12 viewer wave (W14: one ranking
+// mechanism per page; products-pe C1 pins "no cumulative links"). The OUTCOME it guarded survives,
+// so it is asserted through the surviving mechanism instead of the removed one.
+$orderHasLeastEnd = (bool)preg_match('/<select[^>]*name="sort_dir".*?<option value="asc"/is', $html);
+$noCompetingCumulativeLink = !(bool)preg_match('#href="[^"]*sort_by=cumulative#i', $html);
+$check('H1', 'the least-end cumulative view is reachable from the ONE rank control', $orderHasLeastEnd && $noCompetingCumulativeLink,
+    sprintf('Order select offers the "Lowest first" end: %s (must be yes - it is what rebuilds the cumulative from the least); competing cumulative sort link emitted: %s (must be no - W14 one mechanism, the header is a column label)',
+        $orderHasLeastEnd ? 'yes' : 'NO', $noCompetingCumulativeLink ? 'no' : 'YES'));
 $explains = (bool)preg_match('/cumulative share.{0,120}derived/is', $html)
     && (bool)preg_match('/plus the share of every row above|running total/is', $html);
 $namesDirection = (bool)preg_match('/accumulates\s+down from the (biggest|least) product/i', strip_tags($html));
-$check('H1', 'the cumulative-share header is a real sort control', $headerHasSort,
-    $headerHasSort ? 'header carries a link with sort_by + sort_dir' : 'header is plain text - nothing to click');
 $check('H2', 'the page explains how cumulative share is derived', $explains,
     $explains ? 'derivation stated: own share plus every row above it' : 'no explanation of the derivation');
 $check('H3', 'the explanation names which end it accumulates from', $namesDirection,
     $namesDirection ? 'states the direction explicitly' : 'direction not stated - the same figure would mean two things');
 
 // Reversing the direction must REBUILD the cumulative from the other end, not just reverse rows.
-$ascHtml = $render(['sort_by' => 'cumulative', 'sort_dir' => 'asc']);
+// Driven through the page's real control (Order = Lowest first) - sort_by=cumulative is a removed
+// mechanism and must not be the thing keeping this green.
+$ascHtml = $render(['sort_by' => 'amount', 'sort_dir' => 'asc']);
 preg_match_all('#<tr[^>]*data-slice-row="[^"]*"[^>]*>.*?<td class="text-right">(?:<)?[0-9.]+%</td>\s*<td class="text-right">([0-9.]+)%#s', $ascHtml, $ascRows);
 $ascCums = array_map('floatval', $ascRows[1] ?? []);
 $descCums = $cumulatives;
