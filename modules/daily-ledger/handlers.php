@@ -13619,12 +13619,6 @@ function handleAdminForecast(array $params = []): void
         // guessing it from the request (a plain page load carries neither parameter).
         'exclude_empty' => $filters['empty_rows_mode'] === 'exclude',
         'sort_dir' => $filters['sort_dir'],
-        // Carried by the sort links so clicking a direction keeps the filters in force instead of
-        // silently resetting the scope, the period and the checkbox to their defaults.
-        'empty_rows_param' => (string)$filters['empty_rows_mode'],
-        'view_scope' => (string)($filters['view_scope'] ?? 'ALL'),
-        'date_from' => (string)($filters['date_from'] ?? ''),
-        'date_to' => (string)($filters['date_to'] ?? ''),
         'branch_id' => (int)($filters['branch_id'] ?? 0),
         'product_count' => count(array_unique(array_column($rows, 'product_id'))),
         'branch_count' => count(array_unique(array_column($rows, 'branch_id'))),

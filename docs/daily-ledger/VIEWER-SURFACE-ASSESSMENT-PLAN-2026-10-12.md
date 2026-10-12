@@ -143,6 +143,14 @@ Each item needs: criterion written and proven RED first, then implementation, th
 - Criterion: changing the sort preserves a selected product; pressing the form's submit does not reset
   the sort; no rendered control is background-less except Logout.
 
+**✅ DONE 2026-10-12** — Sol lane `viewer-forecast-sort-control` (landed, acceptance=PASS, run
+`20261012T095113-34759`). Criterion `tools/acceptance-forecast-sort-control.php` (7 RED → 0 RED, 7
+checks on the rendered page as a viewer). Note: the older `tools/acceptance-forecast-activity-filter.php`
+F5/F7 asserted the two REMOVED links (it had encoded the replaced mechanism) and went 2 RED; it was
+re-anchored to pin the select basis and verified RED on the base tree (2 RED) / GREEN on the fix. The
+link-only context keys (`empty_rows_param`, `view_scope`, `date_from`, `date_to`) were proven unread
+and removed from `handleAdminForecast`.
+
 **W2 — Remove the duplicate sorting mechanisms on Products Overview** (F4)
 - Delete the prose "Build it from the least instead" link and the clickable "Cumulative share" heading.
 - Keep `Rank by` + `Order` only; explain the cumulative column in text beneath it.

@@ -162,13 +162,20 @@ $check('F4', 'rows sort by quantity in both directions',
         $up === [] ? 'n/a' : number_format($qtyOf($up[0]), 2)));
 
 // ── F5: the page actually offers the controls, and carries their state ─────────────────────────
+// RE-ANCHORED 2026-10-12 (viewer surface W1/W14, chair ruling D1/D2): the direction control is now
+// a <select name="sort_dir"> INSIDE the filter form; the two hand-written links were REMOVED
+// because they dropped product_id, and the form had no sort control of its own. This pins the NEW
+// basis - links returning would re-create the two-mechanism defect, and the select is the only
+// control that lets the shipped primary oracle keep a selected product AND a direction at once.
 $template = (string)file_get_contents($base . '/templates/modules/daily-ledger/admin/forecast.disyl');
 $hasCheckbox = (bool)preg_match('/type="checkbox"[^>]*empty_rows/i', $template);
-$hasSortLinks = (bool)preg_match('/sort_dir\s*=\s*asc/i', $template) && (bool)preg_match('/sort_dir\s*=\s*desc/i', $template);
+$hasSortControl = (bool)preg_match('/<select[^>]*name="sort_dir"/i', $template)
+    && (bool)preg_match('/<option value="asc"/i', $template)
+    && (bool)preg_match('/<option value="desc"/i', $template);
 $check('F5', 'the page offers the checkbox and both sort directions',
-    $hasCheckbox && $hasSortLinks,
-    sprintf('checkbox for empty_rows=%s; asc and desc sort links=%s',
-        $hasCheckbox ? 'present' : 'ABSENT', $hasSortLinks ? 'present' : 'ABSENT'));
+    $hasCheckbox && $hasSortControl,
+    sprintf('checkbox for empty_rows=%s; asc+desc sort control (select[name=sort_dir])=%s',
+        $hasCheckbox ? 'present' : 'ABSENT', $hasSortControl ? 'present' : 'ABSENT'));
 
 // ── F6: the default is the useful one, and it is stated ───────────────────────────────────────
 $defaultMode = dl_forecastEmptyRowsMode(null);
@@ -203,14 +210,15 @@ $rowCountOf = static function (string $html): int {
 $check('F7', 'the rendered page honours the checkbox and the sort',
     !str_contains($pageDefault, 'THREW:')
     && (bool)preg_match('/name="empty_rows"[^>]*value="exclude"[^>]*checked/i', $pageDefault)
-    && (bool)preg_match('/empty_rows=exclude&amp;sort_dir=asc|sort_dir=asc/i', $pageDefault)
-    && (bool)preg_match('/sort_dir=desc/i', $pageDefault)
+    && (bool)preg_match('/<select[^>]*name="sort_dir"/i', $pageDefault)
+    && (bool)preg_match('/<option value="asc"/i', $pageDefault)
+    && (bool)preg_match('/<option value="desc"/i', $pageDefault)
     && $rowCountOf($pageInclude) > $rowCountOf($pageDefault)
     && $rowCountOf($pageDefault) > 0,
-    sprintf('renders without a fatal: %s; checkbox checked by default: %s; both sort links: %s; rows default=%d, with the checkbox off=%d (must be MORE)',
+    sprintf('renders without a fatal: %s; checkbox checked by default: %s; asc+desc sort control rendered: %s; rows default=%d, with the checkbox off=%d (must be MORE)',
         str_contains($pageDefault, 'THREW:') ? 'NO - ' . substr($pageDefault, 0, 160) : 'yes',
         preg_match('/name="empty_rows"[^>]*value="exclude"[^>]*checked/i', $pageDefault) ? 'yes' : 'NO',
-        (preg_match('/sort_dir=asc/i', $pageDefault) && preg_match('/sort_dir=desc/i', $pageDefault)) ? 'yes' : 'NO',
+        (preg_match('/<option value="asc"/i', $pageDefault) && preg_match('/<option value="desc"/i', $pageDefault)) ? 'yes' : 'NO',
         $rowCountOf($pageDefault), $rowCountOf($pageInclude)));
 
 printf("\n  => %d RED. %s\n", $reds, $reds > 0
