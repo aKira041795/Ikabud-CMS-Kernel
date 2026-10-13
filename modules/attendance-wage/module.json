@@ -263,6 +263,80 @@
                 "description": "Inline edit attendance hours"
             }
         ],
+        "routes": {
+            "POST /api/v1/attendance/admin-records": {
+                "capability": "attendance_wage.admin@1",
+                "allowed_roles": [
+                    "admin"
+                ]
+            },
+            "POST /api/v1/wage/employees": {
+                "capability": "attendance_wage.admin@1",
+                "allowed_roles": [
+                    "admin"
+                ]
+            },
+            "POST /api/v1/wage/employees/{id}": {
+                "capability": "attendance_wage.admin@1",
+                "allowed_roles": [
+                    "admin"
+                ]
+            },
+            "POST /admin/wage/employees/{id}/delete": {
+                "capability": "attendance_wage.admin@1",
+                "allowed_roles": [
+                    "admin"
+                ]
+            },
+            "POST /admin/wage/employees/{id}/activate": {
+                "capability": "attendance_wage.admin@1",
+                "allowed_roles": [
+                    "admin"
+                ]
+            },
+            "POST /api/v1/wage/periods": {
+                "capability": "attendance_wage.admin@1",
+                "allowed_roles": [
+                    "admin"
+                ]
+            },
+            "POST /api/v1/wage/periods/{id}": {
+                "capability": "attendance_wage.admin@1",
+                "allowed_roles": [
+                    "admin"
+                ]
+            },
+            "POST /api/v1/wage/periods/{id}/delete": {
+                "capability": "attendance_wage.admin@1",
+                "allowed_roles": [
+                    "admin"
+                ]
+            },
+            "POST /api/v1/wage/compute": {
+                "capability": "attendance_wage.admin@1",
+                "allowed_roles": [
+                    "admin"
+                ]
+            },
+            "POST /api/v1/wage/compute/bulk": {
+                "capability": "attendance_wage.admin@1",
+                "allowed_roles": [
+                    "admin"
+                ]
+            },
+            "POST /api/v1/wage/schedules": {
+                "capability": "attendance_wage.admin@1",
+                "allowed_roles": [
+                    "admin"
+                ]
+            },
+            "POST /api/v1/wage/migration/bulk": {
+                "capability": "attendance_wage.admin@1",
+                "allowed_roles": [
+                    "admin"
+                ]
+            }
+        },
         "depends": []
     },
     "auth_cookie": "attendance_wage_token",
