@@ -361,6 +361,42 @@
             "POST /api/v1/cms/settings": {
                 "mode": "module-decides",
                 "capability": "settings.manage"
+            },
+            "POST /api/v1/cms/settings/reset": {
+                "mode": "module-decides",
+                "capability": "settings.manage"
+            },
+            "POST /api/v1/cms/permissions": {
+                "mode": "module-decides",
+                "capability": "settings.manage"
+            },
+            "POST /api/v1/cms/permissions/reset": {
+                "mode": "module-decides",
+                "capability": "settings.manage"
+            },
+            "POST /api/v1/cms/themes/upload": {
+                "mode": "module-decides",
+                "capability": "settings.manage"
+            },
+            "POST /api/v1/cms/themes/activate": {
+                "mode": "module-decides",
+                "capability": "settings.manage"
+            },
+            "POST /api/v1/cms/themes/{slug}/delete": {
+                "mode": "module-decides",
+                "capability": "settings.manage"
+            },
+            "POST /api/v1/cms/customizer/presets/apply": {
+                "mode": "module-decides",
+                "capability": "customizer.manage"
+            },
+            "POST /api/v1/cms/customizer/{scope}/{section}": {
+                "mode": "module-decides",
+                "capability": "customizer.manage"
+            },
+            "POST /api/v1/cms/customizer/{section}": {
+                "mode": "module-decides",
+                "capability": "customizer.manage"
             }
         },
         "policy": {

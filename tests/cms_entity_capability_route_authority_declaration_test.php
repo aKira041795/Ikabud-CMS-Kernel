@@ -140,17 +140,19 @@ foreach ($expectedRoutes as $routeKey) {
     }
 }
 
+// Parity-route rule (decision 158, applied to decision 160): moved from /settings/reset to a
+// still-undeclared route after slice 12 declared the former in delegated mode.
 $undeclared = AuthorityDispatchGuard::decide(
     'cms',
     'POST',
-    '/api/v1/cms/settings/reset',
-    '/api/v1/cms/settings/reset',
+    '/api/v1/cms/redirects',
+    '/api/v1/cms/redirects',
     $manifest,
     ['id' => 301, 'role' => 'author', 'source' => 'cms', 'tenant_id' => 42],
     $resolver,
 );
 $check(
-    'PARITY: undeclared POST /api/v1/cms/settings/reset remains permitted for a CMS author',
+    'PARITY: undeclared POST /api/v1/cms/redirects remains permitted for a CMS author',
     $undeclared['allowed'] && !$undeclared['configured'] && $undeclared['reason'] === 'no_authority_declared',
     json_encode($undeclared)
 );

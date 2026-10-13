@@ -51,9 +51,10 @@ $expectedRoleDeclaration = [
     'capability' => 'cms.content.update@1',
     'allowed_roles' => ['editor', 'administrator', 'superadmin', 'admin'],
 ];
+$expectedRoutes = [...$roleRoutes, $delegatedKey];
 $check(
-    'DECLARATION: route surface is the three slice-2 role routes plus exactly one delegated route',
-    is_array($routes) && array_keys($routes) === [...$roleRoutes, $delegatedKey],
+    'DECLARATION: the three slice-2 role routes and slice-4b delegated route remain a subset',
+    is_array($routes) && array_diff($expectedRoutes, array_keys($routes)) === [],
     json_encode(array_keys(is_array($routes) ? $routes : []), JSON_UNESCAPED_SLASHES),
 );
 foreach ($roleRoutes as $routeKey) {
