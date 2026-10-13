@@ -572,6 +572,110 @@
           "production_in_charge",
           "admin"
         ]
+      },
+      "POST /daily-ledger/api/v1/admin/branch-supply-rules": {
+        "capability": "kernel.auth.authenticate@1",
+        "allowed_roles": [
+          "admin",
+          "supervisor"
+        ]
+      },
+      "POST /daily-ledger/api/v1/deliveries/create": {
+        "capability": "kernel.auth.authenticate@1",
+        "allowed_roles": [
+          "admin",
+          "supervisor"
+        ]
+      },
+      "POST /daily-ledger/api/v1/deliveries/post": {
+        "capability": "kernel.auth.authenticate@1",
+        "allowed_roles": [
+          "admin",
+          "supervisor"
+        ]
+      },
+      "POST /daily-ledger/api/v1/deliveries/correct-consignee-discrepancy": {
+        "capability": "kernel.auth.authenticate@1",
+        "allowed_roles": [
+          "admin",
+          "supervisor"
+        ]
+      },
+      "POST /daily-ledger/api/v1/deliveries/consignee-return": {
+        "capability": "kernel.auth.authenticate@1",
+        "allowed_roles": [
+          "admin",
+          "supervisor"
+        ]
+      },
+      "POST /daily-ledger/api/v1/deliveries/void": {
+        "capability": "kernel.auth.authenticate@1",
+        "allowed_roles": [
+          "admin",
+          "supervisor"
+        ]
+      },
+      "POST /daily-ledger/api/v1/admin/deliveries/change-destination": {
+        "capability": "kernel.auth.authenticate@1",
+        "allowed_roles": [
+          "admin",
+          "supervisor"
+        ]
+      },
+      "POST /daily-ledger/api/v1/receivings/void": {
+        "capability": "kernel.auth.authenticate@1",
+        "allowed_roles": [
+          "admin",
+          "supervisor"
+        ]
+      },
+      "POST /daily-ledger/api/v1/deliveries/review-provenance": {
+        "capability": "kernel.auth.authenticate@1",
+        "allowed_roles": [
+          "admin",
+          "supervisor",
+          "production_in_charge"
+        ]
+      },
+      "POST /daily-ledger/api/v1/receivings/create": {
+        "capability": "kernel.auth.authenticate@1",
+        "allowed_roles": [
+          "admin",
+          "supervisor",
+          "production_in_charge"
+        ]
+      },
+      "POST /daily-ledger/api/v1/receivings/post": {
+        "capability": "kernel.auth.authenticate@1",
+        "allowed_roles": [
+          "admin",
+          "supervisor",
+          "production_in_charge"
+        ]
+      },
+      "POST /daily-ledger/api/v1/admin/price-groups": {
+        "capability": "kernel.auth.authenticate@1",
+        "allowed_roles": [
+          "admin"
+        ]
+      },
+      "POST /daily-ledger/api/v1/admin/price-groups/update": {
+        "capability": "kernel.auth.authenticate@1",
+        "allowed_roles": [
+          "admin"
+        ]
+      },
+      "POST /daily-ledger/api/v1/admin/price-groups/assign-branch": {
+        "capability": "kernel.auth.authenticate@1",
+        "allowed_roles": [
+          "admin"
+        ]
+      },
+      "POST /daily-ledger/api/v1/admin/product-prices": {
+        "capability": "kernel.auth.authenticate@1",
+        "allowed_roles": [
+          "admin"
+        ]
       }
     },
     "policy": {

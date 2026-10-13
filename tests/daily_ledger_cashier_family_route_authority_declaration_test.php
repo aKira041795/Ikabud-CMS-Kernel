@@ -83,9 +83,10 @@ $routeGroups = [
 ];
 $declaredRoutes = $manifest['capabilities']['routes'] ?? null;
 $expectedRoutes = array_merge($priorRoutes, array_keys($routeGroups));
+// The admin-documents suite owns the exact 59-key totality pin; this slice pins its 44-key subset.
 $check(
-    'REAL-MANIFEST pins exactly the 44 Daily Ledger authority route keys',
-    is_array($declaredRoutes) && array_keys($declaredRoutes) === $expectedRoutes,
+    'REAL-MANIFEST contains the 44 Daily Ledger cashier-family authority route keys',
+    is_array($declaredRoutes) && array_diff($expectedRoutes, array_keys($declaredRoutes)) === [],
     json_encode(array_keys(is_array($declaredRoutes) ? $declaredRoutes : []))
 );
 foreach ($routeGroups as $routeKey => $allowedRoles) {
