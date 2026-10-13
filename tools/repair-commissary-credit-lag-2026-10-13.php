@@ -42,6 +42,8 @@ declare(strict_types=1);
  *   php tools/repair-commissary-credit-lag-2026-10-13.php               # dry run
  *   php tools/repair-commissary-credit-lag-2026-10-13.php --apply       # execute
  *   php tools/repair-commissary-credit-lag-2026-10-13.php --since=2026-10-08
+ *   php tools/repair-commissary-credit-lag-2026-10-13.php --tenant=203
+ *     (--tenant accepts an id, tenant_key, or domain; bare default 207 = LOCAL dev)
  *
  * Idempotent: re-running after --apply finds nothing left to credit.
  */
@@ -50,10 +52,10 @@ $base = dirname(__DIR__);
 require_once $base . '/src/helpers/cli-bootstrap.php';
 
 $apply = in_array('--apply', $argv, true);
-$tenantId = 207;
+$tenantSelector = '207'; // LOCAL dev default — pass --tenant=<id|key|domain> elsewhere
 $since = '2026-10-08';
 foreach ($argv as $arg) {
-    if (preg_match('/^--tenant=(\d+)$/', $arg, $m)) $tenantId = (int)$m[1];
+    if (preg_match('/^--tenant=(.+)$/', $arg, $m)) $tenantSelector = trim($m[1]);
     if (preg_match('/^--since=(\d{4}-\d{2}-\d{2})$/', $arg, $m)) $since = $m[1];
 }
 
@@ -61,12 +63,64 @@ $_SERVER['HTTP_HOST'] = 'baronledger.test';
 $_SERVER['SERVER_NAME'] = 'baronledger.test';
 
 $app = kernelCliBootstrap($base);
+
+// Resolve and VERIFY the tenant target before touching any module table.
+// Bare default = the LOCAL dev tenant id; running that id against a live
+// control plane silently targets whatever tenant holds it THERE (measured
+// 2026-10-13: live baronledger is tenant 203, while live id 207 was a
+// different tenant whose database has no dl_* tables — the raw 42S02 a wrong
+// id produces). --tenant accepts an id, a tenant_key, or a domain.
+$resolveTenant = static function ($app, string $selector): ?int {
+    if (ctype_digit($selector)) {
+        return ((int)$selector) > 0 ? (int)$selector : null;
+    }
+    try {
+        $ctrl = $app->controlDb();
+        $stmt = $ctrl->prepare('SELECT id FROM kernel_tenants WHERE tenant_key = :sel LIMIT 1');
+        $stmt->execute([':sel' => $selector]);
+        $id = (int)($stmt->fetchColumn() ?: 0);
+        if ($id > 0) return $id;
+        $stmt = $ctrl->prepare('SELECT tenant_id FROM kernel_tenant_domains WHERE domain = :sel LIMIT 1');
+        $stmt->execute([':sel' => $selector]);
+        $id = (int)($stmt->fetchColumn() ?: 0);
+        return $id > 0 ? $id : null;
+    } catch (\Throwable $e) {
+        return null;
+    }
+};
+$tenantId = $resolveTenant($app, $tenantSelector);
+if ($tenantId === null) {
+    fwrite(STDERR, "Tenant '{$tenantSelector}' could not be resolved (id, tenant_key or domain).\n"
+        . "  List tenants with: php ikabud tenant:list\n");
+    exit(1);
+}
 $app->tenant()->setTenantId($tenantId);
+
+// Identity BEFORE the first dl_ query — the failing run printed no banner at
+// all because that query died first.
+$boundDb = '(unknown)';
+try {
+    $boundDb = (string)($app->db()->query('SELECT DATABASE()')->fetchColumn() ?: '(unnamed)');
+} catch (\Throwable $e) {
+    $boundDb = '(connection failed: ' . $e->getMessage() . ')';
+}
+printf("target: tenant=%d database=%s mode=%s\n", $tenantId, $boundDb, $apply ? 'APPLY' : 'DRY-RUN');
+
 require_once $base . '/src/helpers/module-manager.php';
 require_once $base . '/modules/daily-ledger/helpers.php';
 require_once $base . '/modules/daily-ledger/handlers.php';
 modulePushContext('daily-ledger');
 $db = module()->db();
+
+// Preflight: refuse a database without the module's tables instead of dying in
+// a PDOException stack eight frames deep. Near-certain cause: wrong --tenant.
+if ($db->query("SHOW TABLES LIKE 'dl_branches'")->fetchColumn() === false) {
+    fwrite(STDERR, "Refusing to run: database '{$boundDb}' has no daily-ledger tables.\n"
+        . "Pass the tenant this site actually uses (id | tenant_key | domain):\n"
+        . "  php ikabud tenant:list\n"
+        . "  php ikabud tenant:verify <id>\n");
+    exit(1);
+}
 
 $commIds = array_map('intval', $db->query('SELECT id FROM dl_branches WHERE is_commissary = 1 AND is_active = 1')->fetchAll(PDO::FETCH_COLUMN));
 if ($commIds === []) { fwrite(STDERR, "No active commissaries for tenant {$tenantId}.\n"); exit(1); }
