@@ -72,9 +72,11 @@ $routeGroups = [
 ];
 $declaredRoutes = $manifest['capabilities']['routes'] ?? null;
 $expectedRoutes = array_merge($existingRoutes, array_keys($routeGroups));
+// Deliberately a subset pin: the exact 44-key full-set pin is owned by
+// daily_ledger_cashier_family_route_authority_declaration_test.php.
 $check(
-    'REAL-MANIFEST pins exactly the 33 Daily Ledger authority route keys',
-    is_array($declaredRoutes) && array_keys($declaredRoutes) === $expectedRoutes,
+    'REAL-MANIFEST retains the original 33 Daily Ledger authority route keys',
+    is_array($declaredRoutes) && array_diff($expectedRoutes, array_keys($declaredRoutes)) === [],
     json_encode(array_keys(is_array($declaredRoutes) ? $declaredRoutes : []))
 );
 foreach ($routeGroups as $routeKey => $allowedRoles) {

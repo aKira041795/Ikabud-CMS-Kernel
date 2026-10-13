@@ -482,6 +482,96 @@
           "admin",
           "production_in_charge"
         ]
+      },
+      "POST /daily-ledger/api/v1/cashier/ledger/save": {
+        "capability": "kernel.auth.authenticate@1",
+        "allowed_roles": [
+          "cashier",
+          "supervisor",
+          "admin"
+        ]
+      },
+      "POST /daily-ledger/api/v1/cashier/ledger/save-batch": {
+        "capability": "kernel.auth.authenticate@1",
+        "allowed_roles": [
+          "cashier",
+          "supervisor",
+          "admin"
+        ]
+      },
+      "POST /daily-ledger/api/v1/cashier/ledger/carry-beginnings": {
+        "capability": "kernel.auth.authenticate@1",
+        "allowed_roles": [
+          "cashier",
+          "supervisor",
+          "admin"
+        ]
+      },
+      "POST /daily-ledger/api/v1/cashier/ledger/finalize-pm": {
+        "capability": "kernel.auth.authenticate@1",
+        "allowed_roles": [
+          "cashier",
+          "supervisor",
+          "admin"
+        ]
+      },
+      "POST /daily-ledger/api/v1/cashier/ledger/withdrawals/edit": {
+        "capability": "kernel.auth.authenticate@1",
+        "allowed_roles": [
+          "cashier",
+          "supervisor",
+          "admin"
+        ]
+      },
+      "POST /daily-ledger/api/v1/cashier/ledger/delivery-edit": {
+        "capability": "kernel.auth.authenticate@1",
+        "allowed_roles": [
+          "cashier",
+          "supervisor",
+          "admin"
+        ]
+      },
+      "POST /daily-ledger/api/v1/offline/enroll": {
+        "capability": "kernel.auth.authenticate@1",
+        "allowed_roles": [
+          "cashier",
+          "supervisor",
+          "admin"
+        ]
+      },
+      "POST /daily-ledger/api/v1/offline/revoke": {
+        "capability": "kernel.auth.authenticate@1",
+        "allowed_roles": [
+          "cashier",
+          "supervisor",
+          "admin"
+        ]
+      },
+      "POST /daily-ledger/api/v1/offline/reconcile": {
+        "capability": "kernel.auth.authenticate@1",
+        "allowed_roles": [
+          "cashier",
+          "supervisor",
+          "admin"
+        ]
+      },
+      "POST /daily-ledger/api/v1/cashier/ledger/close-day": {
+        "capability": "kernel.auth.authenticate@1",
+        "allowed_roles": [
+          "cashier",
+          "supervisor",
+          "admin",
+          "production_in_charge"
+        ]
+      },
+      "POST /daily-ledger/api/v1/products/toggle": {
+        "capability": "kernel.auth.authenticate@1",
+        "allowed_roles": [
+          "cashier",
+          "supervisor",
+          "production_in_charge",
+          "admin"
+        ]
       }
     },
     "policy": {
