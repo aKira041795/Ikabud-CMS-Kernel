@@ -8837,6 +8837,9 @@ function apiTodayCashierWithdrawals(array $params = []): void
         $r['liable_user_id'] = $r['liable_user_id'] !== null ? (int)$r['liable_user_id'] : null;
         $r['encoded_by'] = $r['encoded_by'] !== null ? (int)$r['encoded_by'] : null;
         $r['shift'] = $r['shift'] !== null ? (string)$r['shift'] : null;
+        $r['reason_code_label'] = trim((string)($r['reason_code'] ?? '')) !== ''
+            ? (dl_dailySheetAdjustmentReasons()[(string)$r['reason_code']] ?? dlHumanizeToken((string)$r['reason_code']))
+            : '';
         $r['editable'] = !in_array((string)$r['withdrawal_type'], ['charge', 'pullout', 'adjustment_add', 'used', 'correction'], true)
             ? false
             : ($editableDate && empty($r['received_at']) && ($r['target_branch_id'] ?? null) === null);
@@ -21911,6 +21914,19 @@ function handleAdminCommissary(): void
         ? dl_fetchProductionLedgerLog($db, $sheetSourceBranchId, $rawDate)
         : [];
 
+    // Operator-facing labels: stored markers stay in the raw columns (audit
+    // tooling and tests match on them); only what the screen reads is humanised.
+    foreach ($deliveryRows as &$drRow) {
+        $drRow['dr_number_label'] = dl_deliveryHumanLabel((string)($drRow['dr_number'] ?? ''));
+        $drRow['remarks_label'] = dl_deliveryHumanLabel((string)($drRow['remarks'] ?? ''));
+    }
+    unset($drRow);
+    foreach ($pulloutRows as &$prRow) {
+        $prRow['dr_number_label'] = dl_deliveryHumanLabel((string)($prRow['dr_number'] ?? ''));
+        $prRow['remarks_label'] = dl_deliveryHumanLabel((string)($prRow['remarks'] ?? ''));
+    }
+    unset($prRow);
+
     // Aggregate totals
     $totals = [
         'total_produced' => 0,
@@ -21950,7 +21966,7 @@ function handleAdminCommissary(): void
             ];
         }
         $branchDispatchSummary[$bid]['total_qty'] += (int)($row['quantity'] ?? 0);
-        $dr = trim((string)($row['dr_number'] ?? ''));
+        $dr = trim((string)($row['dr_number_label'] ?? $row['dr_number'] ?? ''));
         if ($dr !== '' && !in_array($dr, $branchDispatchSummary[$bid]['dr_numbers'], true)) {
             $branchDispatchSummary[$bid]['dr_numbers'][] = $dr;
         }

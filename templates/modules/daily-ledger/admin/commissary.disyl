@@ -1476,7 +1476,7 @@
                     {/if}
                     {foreach delivery_rows as row}
                     <tr>
-                        <td class="font-mono text-sm font-semibold">{row.dr_number | default:'—'}</td>
+                        <td class="font-mono text-sm font-semibold">{row.dr_number_label | default:'—'}</td>
                         <td>{row.delivery_date}</td>
                         <td class="font-medium">{row.branch_name}</td>
                         <td>{row.product_name} <span class="text-muted">({row.sku})</span></td>
@@ -1489,7 +1489,7 @@
                                 {row.status}
                             </span>
                         </td>
-                        <td class="text-sm text-muted max-w-[16ch] truncate">{row.remarks | default:'—'}</td>
+                        <td class="text-sm text-muted max-w-[16ch] truncate">{row.remarks_label | default:'—'}</td>
                         <td class="text-sm text-muted">{row.created_by_name} · {row.created_at}</td>
                     </tr>
                     {/foreach}
@@ -1526,7 +1526,7 @@
                     {/if}
                     {foreach pullout_rows as row}
                     <tr>
-                        <td class="font-mono text-sm font-semibold">{row.dr_number | default:'—'}</td>
+                        <td class="font-mono text-sm font-semibold">{row.dr_number_label | default:'—'}</td>
                         <td>{row.delivery_date}</td>
                         <td class="font-medium">{row.from_branch_name}</td>
                         <td class="text-sm text-muted">{row.commissary_branch_name}</td>
@@ -1539,7 +1539,7 @@
                                 {row.status}
                             </span>
                         </td>
-                        <td class="text-sm text-muted max-w-[16ch] truncate">{row.remarks | default:'—'}</td>
+                        <td class="text-sm text-muted max-w-[16ch] truncate">{row.remarks_label | default:'—'}</td>
                     </tr>
                     {/foreach}
                 </tbody>

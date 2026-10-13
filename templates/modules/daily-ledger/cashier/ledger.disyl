@@ -470,7 +470,7 @@
                 var qty = r.unit === 'box'
                     ? String(r.pack_qty || 0) + ' box (' + (r.quantity || 0) + ' pcs)'
                     : String(r.quantity || 0) + ' pcs';
-                var reason = r.reason_code || '';
+                var reason = r.reason_code_label || r.reason_code || '';
                 if (r.custom_reason) reason += ' — ' + r.custom_reason;
                 var time = String(r.created_at || '').slice(11, 16);
                 var btn = (r.editable && window.DAY_STATUS === 'open' && window.SHIFT_STATUS !== 'finalized')

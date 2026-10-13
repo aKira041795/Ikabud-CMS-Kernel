@@ -536,6 +536,74 @@ function dlHumanizeToken(string $value): string
     return ucwords(str_replace(['_', '-'], ' ', $text));
 }
 
+/**
+ * Human-readable form of a machine value shown to operators.
+ *
+ * Delivery headers carry machine markers in `remarks` (and one in `dr_number`)
+ * because audit tooling, repair scripts, and tests match on them — stored data
+ * keeps its markers. This function translates them for DISPLAY only: free text
+ * passes through verbatim, known markers become operator phrasing, and any
+ * other bracketed marker is humanised rather than leaking `[brackets]` to the
+ * screen.
+ */
+function dl_deliveryHumanLabel(?string $value): string
+{
+    $text = trim((string)$value);
+    if ($text === '') {
+        return '';
+    }
+
+    $static = [
+        '[self-managed-no-delivery]' => 'Self-managed — no delivery',
+        '[cashier-dispatch]' => 'Cashier dispatch',
+        '[captured-from-paper-dr]' => 'Captured from paper DR',
+        '[auto-dr-production]' => 'Auto DR (production receive)',
+        '[commissary-dispatch]' => 'Commissary dispatch',
+        '[auto-commissary-run]' => 'Automatic commissary run',
+        '[cashier-pullout-return]' => 'Pullout return',
+        '[cashier-pullout-return:wastage]' => 'Pullout return — wastage',
+    ];
+    if (isset($static[$text])) {
+        return $static[$text];
+    }
+
+    // [daily-sheet-entry] new | ... correction [<type>:]<reason>
+    // [daily-sheet-consignee-entry] new | ... correction
+    if (preg_match('/^\[daily-sheet-(entry|consignee-entry)\]\s*(.*)$/is', $text, $m)) {
+        $whose = $m[1] === 'consignee-entry' ? ' (consignee)' : '';
+        $rest = trim($m[2]);
+        if ($rest === '' || stripos($rest, 'new') === 0) {
+            return 'Daily sheet entry' . $whose;
+        }
+        if (preg_match('/^correction\s*(.*)$/is', $rest, $n)) {
+            $tail = trim($n[1]);
+            $code = '';
+            if ($tail !== '') {
+                $parts = explode(':', $tail);
+                $code = strtolower(trim((string)end($parts)));
+            }
+            if ($code === '' || $code === 'correction') {
+                return 'Daily sheet correction' . $whose;
+            }
+            $reasons = function_exists('dl_dailySheetAdjustmentReasons') ? dl_dailySheetAdjustmentReasons() : [];
+            return 'Daily sheet correction' . $whose . ' — ' . ($reasons[$code] ?? dlHumanizeToken($code));
+        }
+        return 'Daily sheet entry' . $whose . ' — ' . $rest;
+    }
+
+    // Item-level pullout marker: pullout_return:<source branch id>
+    if (preg_match('/^pullout_return(?::(\d+))?$/i', $text, $m)) {
+        return isset($m[1]) ? 'Pullout return (source branch #' . $m[1] . ')' : 'Pullout return';
+    }
+
+    // Never leak an unknown bracketed marker; humanise it instead.
+    if (preg_match('/^\[[a-z0-9_\- :\[\]]+\]/i', $text)) {
+        return dlHumanizeToken((string)preg_replace('/[\[\]:]+/', ' ', $text));
+    }
+
+    return $text;
+}
+
 function dlDeliveryDestinationTypeOptions(): array
 {
     return [
