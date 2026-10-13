@@ -378,6 +378,9 @@
     window.FORMAL_DELIVERY_ENABLED = FORMAL_DELIVERY_ENABLED;
     window.COMMISSARY_BRANCH_ID = COMMISSARY_BRANCH_ID;
     window.COMMISSARY_BRANCH_NAME = COMMISSARY_BRANCH_NAME;
+    // Assigned supply line per branch (branch_id => source_branch_id), used by
+    // the receive modal to preselect a resolvable origin. Empty = no default.
+    window.DL_DEFAULT_SOURCE_MAP = {if default_source_map_json}{default_source_map_json|raw}{else}[]{/if};
     window.IS_CASHIER = IS_CASHIER;
 
     // Modal openers — defined here so they always work even if included templates fail

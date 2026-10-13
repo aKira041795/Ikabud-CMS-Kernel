@@ -207,7 +207,7 @@
                             <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
                                 <div>
                                     <label class="block text-xs font-medium text-indigo-900 mb-1">Where stock came from</label>
-                                    <select x-model="paperForm.origin_type" @change="paperForm.auto_dr = false; paperForm.origin_id = ''" class="form-input mt-0 w-full">
+                                    <select x-model="paperForm.origin_type" @change="onOriginTypeChange()" class="form-input mt-0 w-full">
                                         <option value="commissary">Commissary</option>
                                         <option value="branch">Branch</option>
                                     </select>
@@ -392,7 +392,10 @@ function receiveModal() {
         resetPaperForm() {
             this.paperForm = {
                 origin_type: 'commissary',
-                origin_id: '',
+                // Preselect the branch's supply line (when it has one) so the
+                // routine receive carries a resolvable origin; the operator can
+                // still switch origin/branch or clear it for external goods.
+                origin_id: this.defaultOriginId(),
                 delivery_date: LEDGER_DATE,
                 receive_date: LEDGER_DATE,
                 dr_number: '',
@@ -408,6 +411,27 @@ function receiveModal() {
             var sel = document.getElementById('branch-select');
             if (sel && sel.value) return sel.value;
             return window.BRANCH_ID || '';
+        },
+
+        // Default origin for this branch's routine receives: its assigned supply
+        // line when that is an active commissary (server-built map, keyed by
+        // branch id). Blank stays a valid choice — genuinely external goods must
+        // remain expressible, and the server never invents an origin.
+        defaultOriginId() {
+            var map = window.DL_DEFAULT_SOURCE_MAP || {};
+            var bid = String(this.currentBranchId() || '');
+            var id = map[bid];
+            return (id && String(id) !== '0') ? String(id) : '';
+        },
+
+        onOriginTypeChange() {
+            this.paperForm.auto_dr = false;
+            // Branch transfers need an explicit sender (a specific truck came
+            // from a specific branch); commissary receives restore the
+            // supply-line default so they resolve and credit automatically.
+            this.paperForm.origin_id = this.paperForm.origin_type === 'commissary'
+                ? this.defaultOriginId()
+                : '';
         },
 
         loadProducts() {

@@ -8436,6 +8436,11 @@ function handleCashierLedger(array $params = []): void
     // to the actor's accessible set — a cashier is locked to a single branch and
     // would otherwise see an empty destination list and be unable to send stock.
     $allBranches = $ctx->db()->query("SELECT id, code, name, is_commissary FROM dl_branches WHERE is_active = 1 ORDER BY " . dl_entityOrderBySql())->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    // Receiving-form default origin (see dl_defaultSourceCommissaryMap): each
+    // branch's assigned supply line when it is an active commissary, keyed by
+    // branch id so the receive modal can follow the branch selector. Routine
+    // receives then carry a resolvable origin instead of parking as originless.
+    $defaultSourceMap = dl_defaultSourceCommissaryMap($ctx->db(), array_column($allBranches, 'id'));
     $consignees = [];
     if ($branchId > 0) {
         $consigneeStmt = $ctx->db()->prepare(
@@ -8558,6 +8563,7 @@ function handleCashierLedger(array $params = []): void
         'server_now_offset' => $clockLabel['server_now_offset'],
         'server_epoch_ms' => $clockLabel['server_epoch_ms'],
         'all_branches' => $allBranches,
+        'default_source_map_json' => json_encode($defaultSourceMap, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP),
         'consignees' => $consignees,
         'consignee_enabled' => dl_isConsigneeEnabled(),
         'incoming_count' => $incomingCount,

@@ -471,6 +471,66 @@ function dl_branchIsProductionSite(\Ikabud\Kernel\Contracts\ModuleDB $db, int $b
 }
 
 /**
+ * Receiving-form default origin: each branch's assigned supply line, when that
+ * assignment is an ACTIVE commissary. Returns [branch_id => source_branch_id]
+ * for the ids that have one.
+ *
+ * Why this exists: originless receives (origin_id NULL) cannot be credited
+ * automatically — dl_applyPostedDeliveryCommissaryLedger refuses to guess the
+ * origin and parks the movement until a human resolves provenance. Routine
+ * receives therefore preselect the branch's known supply line so they carry a
+ * resolvable origin; blank stays expressible for genuinely external goods, and
+ * the server still never invents an origin.
+ *
+ * Self-assignments are excluded: receiving from yourself is not a supply line.
+ */
+function dl_defaultSourceCommissaryMap(\Ikabud\Kernel\Contracts\ModuleDB $db, array $branchIds): array
+{
+    $ids = [];
+    foreach ($branchIds as $id) {
+        $id = (int)$id;
+        if ($id > 0) {
+            $ids[$id] = $id;
+        }
+    }
+    if ($ids === []) {
+        return [];
+    }
+
+    // Integer ids only — inlined list cannot carry SQL (IDs are cast above).
+    $in = implode(',', array_values($ids));
+    $stmt = $db->query(
+        'SELECT b.id AS branch_id, b.assigned_commissary_id AS source_id'
+        . ' FROM dl_branches b'
+        . ' INNER JOIN dl_branches c ON c.id = b.assigned_commissary_id'
+        . '  AND c.is_commissary = 1 AND c.is_active = 1 AND c.id <> b.id'
+        . ' WHERE b.id IN (' . $in . ')'
+    );
+    $map = [];
+    foreach ($stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [] as $row) {
+        $bid = (int)($row['branch_id'] ?? 0);
+        $sid = (int)($row['source_id'] ?? 0);
+        if ($bid > 0 && $sid > 0) {
+            $map[$bid] = $sid;
+        }
+    }
+    return $map;
+}
+
+/**
+ * Single-branch convenience wrapper around dl_defaultSourceCommissaryMap().
+ * Returns 0 when the branch has no active assigned commissary.
+ */
+function dl_defaultSourceCommissaryId(\Ikabud\Kernel\Contracts\ModuleDB $db, int $branchId): int
+{
+    if ($branchId <= 0) {
+        return 0;
+    }
+    $map = dl_defaultSourceCommissaryMap($db, [$branchId]);
+    return (int)($map[$branchId] ?? 0);
+}
+
+/**
  * Returns the base URL for the Daily Ledger module.
  */
 function dlGetBaseUrl(): string
