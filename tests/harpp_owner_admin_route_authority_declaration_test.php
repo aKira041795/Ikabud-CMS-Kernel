@@ -139,7 +139,9 @@ foreach ($expectedRoutes as $routeKey => $capabilityId) {
     }
 }
 
-$undeclaredPath = '/api/v1/harpp/decisions';
+// Parity-route rule (decision 158): the parity probe references a route expected to
+// remain undeclared — it moved from /decisions when batch 2 legitimately declared it.
+$undeclaredPath = '/api/v1/harpp/conversations';
 $undeclared = AuthorityDispatchGuard::decide(
     'harpp',
     'POST',
@@ -150,7 +152,7 @@ $undeclared = AuthorityDispatchGuard::decide(
     $resolver,
 );
 $check(
-    'PARITY: undeclared POST /api/v1/harpp/decisions remains permitted for a member',
+    'PARITY: undeclared POST /api/v1/harpp/conversations remains permitted for a member',
     $undeclared['allowed'] && !$undeclared['configured'] && $undeclared['reason'] === 'no_authority_declared',
     json_encode($undeclared)
 );

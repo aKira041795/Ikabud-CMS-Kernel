@@ -424,6 +424,110 @@
                     "admin",
                     "superadmin"
                 ]
+            },
+            "POST /api/v1/harpp/decisions": {
+                "capability": "harpp.manage@1",
+                "allowed_roles": [
+                    "owner",
+                    "admin",
+                    "superadmin"
+                ]
+            },
+            "POST /api/v1/harpp/decisions/{id}/apply-and-close": {
+                "capability": "harpp.manage@1",
+                "allowed_roles": [
+                    "owner",
+                    "admin",
+                    "superadmin"
+                ]
+            },
+            "DELETE /api/v1/harpp/decisions/{id}": {
+                "capability": "harpp.manage@1",
+                "allowed_roles": [
+                    "owner",
+                    "admin",
+                    "superadmin"
+                ]
+            },
+            "DELETE /api/v1/harpp/decisions/closed": {
+                "capability": "harpp.manage@1",
+                "allowed_roles": [
+                    "owner",
+                    "admin",
+                    "superadmin"
+                ]
+            },
+            "POST /api/v1/harpp/workspaces": {
+                "capability": "harpp.manage@1",
+                "allowed_roles": [
+                    "owner",
+                    "admin",
+                    "superadmin"
+                ]
+            },
+            "POST /api/v1/harpp/workspaces/{id}/update": {
+                "capability": "harpp.manage@1",
+                "allowed_roles": [
+                    "owner",
+                    "admin",
+                    "superadmin"
+                ]
+            },
+            "POST /api/v1/harpp/workspaces/{id}/archive": {
+                "capability": "harpp.manage@1",
+                "allowed_roles": [
+                    "owner",
+                    "admin",
+                    "superadmin"
+                ]
+            },
+            "POST /api/v1/harpp/workspaces/{id}/enroll": {
+                "capability": "harpp.manage@1",
+                "allowed_roles": [
+                    "owner",
+                    "admin",
+                    "superadmin"
+                ]
+            },
+            "POST /api/v1/harpp/workspaces/{id}/projects": {
+                "capability": "harpp.manage@1",
+                "allowed_roles": [
+                    "owner",
+                    "admin",
+                    "superadmin"
+                ]
+            },
+            "POST /api/v1/harpp/projects/{id}/update": {
+                "capability": "harpp.manage@1",
+                "allowed_roles": [
+                    "owner",
+                    "admin",
+                    "superadmin"
+                ]
+            },
+            "POST /api/v1/harpp/projects/{id}/archive": {
+                "capability": "harpp.manage@1",
+                "allowed_roles": [
+                    "owner",
+                    "admin",
+                    "superadmin"
+                ]
+            },
+            "POST /api/v1/harpp/projects/{id}/enroll": {
+                "capability": "harpp.manage@1",
+                "allowed_roles": [
+                    "owner",
+                    "admin",
+                    "superadmin"
+                ]
+            },
+            "POST /api/v1/harpp/runners/{key}/nudge": {
+                "capability": "harpp.manage@1",
+                "allowed_roles": [
+                    "owner",
+                    "admin",
+                    "superadmin"
+                ]
             }
         },
         "policy": {
