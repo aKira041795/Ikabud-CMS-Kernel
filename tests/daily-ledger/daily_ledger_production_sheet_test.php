@@ -238,9 +238,21 @@ try {
         substr_count($dailySheetBlock, 'production-batch-input') === 0
         && !str_contains($dailySheetBlock, 'no profile')
         && !str_contains($dailySheetBlock, 'saveProductionLedgerRow'));
-    $h->test('S13 Daily Sheet no longer hard-codes a tenant commissary; default is All',
-        !str_contains($handlers, 'RIZAL-COMMIS')
-        && preg_match('/\$selectedCommissaryId = in_array\(\$requestedCommissaryId, \$availableCommissaryIds, true\)\s*\?\s*\$requestedCommissaryId\s*:\s*0;/', $handlers) === 1);
+    // Code, not comments: 'RIZAL-COMMIS' legitimately appears in commentary
+    // that explains history; a hard-coded branch NAME in executable code is
+    // the defect this guards.
+    $handlersCode = (string)preg_replace('~/\*[\s\S]*?\*/|//[^\n]*~', '', $handlers);
+    $h->test('S13 Daily Sheet never hard-codes a tenant commissary in code',
+        !str_contains($handlersCode, 'RIZAL-COMMIS'));
+    // Landing contract (owner, 2026-10-13): an explicit choice wins; an explicit
+    // but unavailable id keeps the All fallback; an explicit branch keeps the
+    // network landing; a URL with no choice at all lands on the first available
+    // commissary so the operator sees a sheet immediately.
+    $h->test('S13 landing: explicit choice wins, invalid keeps All, no choice lands on the first commissary',
+        str_contains($handlers, "\$hasCommissaryChoice = array_key_exists('commissary_id', \$input);")
+        && preg_match('/if \(\$hasCommissaryChoice\) \{\s*\$selectedCommissaryId = in_array\(\$requestedCommissaryId, \$availableCommissaryIds, true\)\s*\?\s*\$requestedCommissaryId\s*:\s*0;/', $handlers) === 1
+        && preg_match('/elseif \(\$requestedBranchId > 0\) \{/', $handlers) === 1
+        && preg_match('/\$selectedCommissaryId = \$availableCommissaryIds\[0\] \?\? 0;/', $handlers) === 1);
     $h->test('daily sheet has own production columns', str_contains($template, '>BEG<') && str_contains($template, '>ADDTL<') && str_contains($template, '>ACTUAL BAL<') && str_contains($template, '>VARIANCE<'));
     $h->test('all four unresolved labels are marked without guessed map', dl_unresolvedProductionSheetLabels() === ['BDAY CAKE ORD', 'BDAY CAKE ORD HALF', 'UBE CAKE HALF', 'CUSTARD BIG']);
 

@@ -4237,14 +4237,19 @@ function dl_upsertProductionRunYield($db, string $ledgerDate, int $productId, in
 }
 
 /**
- * S7b: one addition recorded through the simple modal.
+ * S7b: one addition recorded through the simple modal, and its signed correction.
  *
- * Additive by design ("records an addition"): each submission adds quantity to
- * the day's produced_qty. Identity is the submission, mirroring
- * dl_withdrawalSubmissionId() — a replay of the same submission is refused by
- * the movement's client_op_id guard, and two submissions with different ids
- * create two additions. An absent id is minted here and never falls back to a
- * content hash.
+ * A POSITIVE quantity is additive by design ("records an addition"): each
+ * submission adds quantity to the day's produced_qty. A NEGATIVE quantity takes
+ * back an amount recorded too high — a correction mirroring the branch cell on
+ * the same sheet: it is appended as its own signed movement (the trail reads
+ * original entry → correction), it must name a reason, and it is REFUSED —
+ * never clamped — when it would drive the recorded ADDTL below zero.
+ *
+ * Identity is the submission either way, mirroring dl_withdrawalSubmissionId():
+ * a replay of the same submission is refused by the movement's client_op_id
+ * guard, and two submissions with different ids create two entries. An absent id
+ * is minted here and never falls back to a content hash.
  */
 function dl_recordProductionAddition(array $user, array $input): array
 {
@@ -4256,7 +4261,7 @@ function dl_recordProductionAddition(array $user, array $input): array
     $date = (string)($input['date'] ?? '');
     $commissaryBranchId = (int)($input['commissary_branch_id'] ?? 0);
     $productId = (int)($input['product_id'] ?? 0);
-    $quantity = (int)($input['quantity'] ?? -1);
+    $quantity = (int)($input['quantity'] ?? 0);
     $role = (string)($user['role'] ?? '');
     $shift = $role === 'production_in_charge'
         ? dl_resolveLedgerShift($user, $input)['shift']
@@ -4268,9 +4273,16 @@ function dl_recordProductionAddition(array $user, array $input): array
     if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)
         || $commissaryBranchId <= 0
         || $productId <= 0
-        || $quantity <= 0
+        || $quantity === 0
+        || $quantity < -999999999
         || $quantity > 999999999) {
         throw new \RuntimeException('Invalid production addition data.');
+    }
+    // A reduction takes back an amount recorded too high. That is a correction,
+    // so it must say why — the same rule the branch cell applies to any change
+    // against a recorded entry. An addition keeps the reason optional.
+    if ($quantity < 0 && $reason === '') {
+        throw new \RuntimeException('A reason is required to reduce a recorded addition.', 422);
     }
     if (!in_array($commissaryBranchId, dl_accessibleBranchIds($user), true)) {
         throw new \RuntimeException('Commissary is not allowed for this user.');
@@ -4304,6 +4316,104 @@ function dl_recordProductionAddition(array $user, array $input): array
         );
         $beforeStmt->execute([':cb' => $commissaryBranchId, ':pid' => $productId, ':d' => $date, ':shift' => $shift]);
         $beforeProduced = (int)$beforeStmt->fetchColumn();
+
+        if ($quantity < 0) {
+            // Signed correction (the branch-cell rule): appended as its own
+            // movement, never an overwrite, and the floor is REFUSED rather than
+            // clamped — a stored column that disagrees with the figure the
+            // operator was shown is exactly the defect this guards. Identity is
+            // the submission, so a replay returns the original correction.
+            $clientOpId = 'sheet-addtl-' . hash('sha256', $submissionId);
+            $dupStmt = $db->prepare('SELECT id FROM dl_production_movements WHERE client_op_id = :coid LIMIT 1');
+            $dupStmt->execute([':coid' => $clientOpId]);
+            $duplicateId = (int)$dupStmt->fetchColumn();
+            if ($duplicateId > 0) {
+                $db->commit();
+                return [
+                    'row' => dl_readCommissaryProductLedgerRow($db, $commissaryBranchId, $productId, $date, $shift),
+                    'duplicate' => true,
+                    'submission_id' => $submissionId,
+                    'movement_id' => $duplicateId,
+                ];
+            }
+            if ($beforeProduced + $quantity < 0) {
+                throw new \RuntimeException(
+                    'Cannot reduce Additional below zero: this product has ' . $beforeProduced
+                    . ' recorded for this date.',
+                    422
+                );
+            }
+
+            $commissaryLedgerState = dl_applyCommissaryProductLedgerDelta(
+                $db,
+                $commissaryBranchId,
+                $productId,
+                $date,
+                $quantity, // produced_qty -= reduction
+                0,
+                $actorId,
+                0,
+                true,
+                $shift
+            );
+
+            $movementUuid = dl_generateMovementUuid();
+            $db->prepare(
+                'INSERT INTO dl_production_movements (
+                    movement_uuid, client_op_id, movement_type, flow_mode,
+                    destination_branch_id, product_id, ledger_date, shift, quantity, dr_number,
+                    override_reason, reference_movement_id, source_payload,
+                    created_by_id, created_by_role
+                 ) VALUES (
+                    :uuid, :coid, "output", "production",
+                    :bid, :pid, :ldate, :shift, :qty, NULL,
+                    :reason, NULL, :payload,
+                    :uid, :role
+                 )'
+            )->execute([
+                ':uuid' => $movementUuid,
+                ':coid' => $clientOpId,
+                ':bid' => $commissaryBranchId,
+                ':pid' => $productId,
+                ':ldate' => $date,
+                ':shift' => $shift,
+                ':qty' => $quantity,
+                ':reason' => $reason,
+                ':payload' => json_encode(['before_produced' => $beforeProduced, 'after_produced' => $beforeProduced + $quantity] + $input, JSON_UNESCAPED_SLASHES),
+                ':uid' => $actorId > 0 ? $actorId : null,
+                ':role' => $role !== '' ? $role : 'unknown',
+            ]);
+            $movementId = (int)$db->lastInsertId();
+
+            dl_auditLog(
+                'commissary_production',
+                $commissaryBranchId,
+                'dl_commissary_product_ledger',
+                "{$commissaryBranchId}-{$productId}-{$date}",
+                null,
+                [
+                    'commissary_branch_id' => $commissaryBranchId,
+                    'product_id' => $productId,
+                    'ledger_date' => $date,
+                    'produced_qty' => $commissaryLedgerState['produced_qty'],
+                    'dispatched_qty' => $commissaryLedgerState['dispatched_qty'],
+                    'remaining_qty' => $commissaryLedgerState['remaining_qty'],
+                    'reduction' => -$quantity,
+                    'reason' => $reason,
+                    'movement_id' => $movementId,
+                ]
+            );
+
+            dl_upsertProductionRunYield($db, $date, $productId, $commissaryBranchId, $beforeProduced + $quantity, $actorId, $shift);
+            $row = dl_readCommissaryProductLedgerRow($db, $commissaryBranchId, $productId, $date, $shift);
+            $db->commit();
+            return [
+                'row' => $row,
+                'duplicate' => false,
+                'submission_id' => $submissionId,
+                'movement_id' => $movementId,
+            ];
+        }
 
         $movement = dl_processProductionMovement($user, 'output', [
             'destination_branch_id' => $commissaryBranchId,

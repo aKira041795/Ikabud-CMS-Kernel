@@ -11,9 +11,12 @@ declare(strict_types=1);
  *   FIX 1 (blocking) — the Daily Sheet defaulted to a tenant-specific commissary
  *           filter and then matched `origin_id`, which is NULL on every
  *           historical delivery, so every branch cell read 0. Proved by
- *           RENDERING the page with no commissary_id and asserting the known
- *           sent quantity (2026-09-28, product 17, branch 8 → 1). Explicit
- *           filtering is proved separately and still works.
+ *           RENDERING the page on the explicit "All Commissaries" view and
+ *           asserting the known sent quantity (2026-09-28, product 17,
+ *           branch 8 → 1), plus a bare open that, since the owner's 2026-10-13
+ *           landing change, must render the FIRST available commissary's own
+ *           matrix rather than the network view. Explicit filtering is proved
+ *           separately and still works.
  *   FIX 2 — draft deliveries inflated the branch cell/TOTAL and receipt state.
  *           The dispatch, receiving and entry-flag reads now require posted.
  *   FIX 3 — an over-negative correction was stored clamped. A correction that
@@ -77,10 +80,14 @@ $runHarness = static function (array $args) use ($harnessPath): array {
     }
     return ['_raw' => $raw, '_exit' => $exitCode];
 };
-$runSheet = static function (string $date, int $commissaryId = 0) use ($runHarness): array {
+$runSheet = static function (string $date, int|string $commissaryId = 0) use ($runHarness): array {
     $args = ['sheet', $date];
-    if ($commissaryId > 0) {
-        $args[] = $commissaryId;
+    if ($commissaryId === 'all') {
+        // Explicit "All Commissaries" (param present and empty), as opposed to a
+        // bare open, which lands on the first available commissary.
+        $args[] = 'all';
+    } elseif ((int)$commissaryId > 0) {
+        $args[] = (int)$commissaryId;
     }
     return $runHarness($args);
 };
@@ -142,9 +149,9 @@ $cleanupFixture = static function (array $branchIds, array $productIds) use ($db
     $db->execute("DELETE FROM dl_branches WHERE id IN ({$b})");
 };
 
-$seedBranch = static function (int $id, string $code, string $name, bool $isCommissary) use ($db): void {
-    $db->prepare('INSERT INTO dl_branches (id, code, name, default_supply_mode, is_commissary, is_active) VALUES (?, ?, ?, ?, ?, 1)')
-        ->execute([$id, $code, $name, $isCommissary ? 'self_managed' : 'commissary_supplied', $isCommissary ? 1 : 0]);
+$seedBranch = static function (int $id, string $code, string $name, bool $isCommissary, ?int $assignedCommissaryId = null) use ($db): void {
+    $db->prepare('INSERT INTO dl_branches (id, code, name, default_supply_mode, is_commissary, assigned_commissary_id, is_active) VALUES (?, ?, ?, ?, ?, ?, 1)')
+        ->execute([$id, $code, $name, $isCommissary ? 'self_managed' : 'commissary_supplied', $isCommissary ? 1 : 0, $assignedCommissaryId]);
 };
 $seedProduct = static function (int $id, string $sku, string $name) use ($db): void {
     $db->prepare('INSERT INTO dl_products (id, sku, name, current_price, sort_order, is_active) VALUES (?, ?, ?, 10, 0, 1)')
@@ -191,9 +198,13 @@ foreach ($knownMatrix as $pid => $byBranch) {
         }
     }
 }
-$knownSheet = $runSheet($knownDate);
+// Owner landing change (2026-10-13): a bare open lands on a NAMED commissary, so
+// the network-wide matrix is rendered through the EXPLICIT "All Commissaries"
+// choice (the selector's empty value). A bare open must still render real
+// quantities, which the subset check below covers.
+$knownSheet = $runSheet($knownDate, 'all');
 $h->test(
-    'FIX1 no commissary_id renders a real sent quantity from the unfiltered matrix',
+    'FIX1 the All Commissaries view renders a real sent quantity from the unfiltered matrix',
     $knownCellKey !== null && ($knownSheet['cells'][$knownCellKey] ?? null) === $knownCellValue,
     'key=' . (string)$knownCellKey . ' expected=' . $knownCellValue . ' got=' . json_encode($knownSheet['cells'][$knownCellKey] ?? null)
 );
@@ -213,7 +224,30 @@ foreach ($knownSheet['cells'] as $key => $value) {
     }
 }
 $h->test('FIX1 every rendered default cell equals the unfiltered dispatch matrix', $renderMatchesMatrix);
-$h->test('FIX1 the default render is not all zeros', $nonZeroRendered > 0, 'non-zero cells=' . $nonZeroRendered);
+$h->test('FIX1 the All Commissaries render is not all zeros', $nonZeroRendered > 0, 'non-zero cells=' . $nonZeroRendered);
+
+// The landing default must render the sheet of the FIRST available commissary
+// (canonical order) — never the network view, and never an all-zero sheet for a
+// commissary that HAS activity. Pinned against that commissary's own matrix, so
+// the assertion holds for any date, including one its commissary sat out.
+$firstCommissaryId = (int)$db->query(
+    'SELECT id FROM dl_branches WHERE is_commissary = 1 AND is_active = 1 ORDER BY ' . dl_entityOrderBySql() . ' LIMIT 1'
+)->fetchColumn();
+$bareMatrix = dl_fetchProductionSheetDispatchMatrix($db, $knownDate, $firstCommissaryId);
+$bareSheet = $runSheet($knownDate);
+$bareMatches = $bareSheet['cells'] !== [];
+foreach ($bareSheet['cells'] as $key => $value) {
+    [$pid, $bid] = array_map('intval', explode(':', $key));
+    if ($value !== (int)($bareMatrix[$pid][$bid] ?? 0)) {
+        $bareMatches = false;
+        break;
+    }
+}
+$h->test(
+    'FIX1 a bare open lands on the first available commissary, not the network view',
+    $firstCommissaryId > 0 && $bareMatches,
+    'first_commissary=' . $firstCommissaryId . ' cells=' . count($bareSheet['cells'])
+);
 
 // Explicit filtering still works: two commissaries, same branch/product/date.
 $seedBranch($fix1CommA, 'S13-F1A', 'S13 F1 Commissary A', true);
@@ -241,7 +275,10 @@ $cleanupFixture([$fix1CommA, $fix1CommB, $fix1Branch], [$fix1Product]);
 // ═══════════════════════════════════════════════════════════════════════
 $h->section('FIX 2 — draft deliveries never count as sent');
 $seedBranch($fix2Comm, 'S13-F2C', 'S13 F2 Commissary', true);
-$seedBranch($fix2Branch, 'S13-F2B', 'S13 F2 Branch', false);
+// The sheet's branch COLUMN set for a selected commissary is the branches that
+// commissary supplies (assigned_commissary_id) — the fixture must model that
+// assignment, or the branch never gets a column and the assertion reads null.
+$seedBranch($fix2Branch, 'S13-F2B', 'S13 F2 Branch', false, $fix2Comm);
 $seedProduct($fix2Product, 'S13-F2P', 'S13 F2 Product');
 $seedProduct($fix2DraftOnlyProduct, 'S13-F2D', 'S13 F2 Draft Only');
 $db->prepare('INSERT INTO dl_branch_products (branch_id, product_id, is_active) VALUES (?, ?, 1)')->execute([$fix2Comm, $fix2Product]);

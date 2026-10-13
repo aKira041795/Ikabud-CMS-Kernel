@@ -175,7 +175,8 @@
     "database/migrations/088_consignee_return_effects.sql",
     "database/migrations/089_assign_pagadian_branch_commissary.sql",
     "database/migrations/090_correct_hybrid_supply_modes.sql",
-    "database/migrations/091_canonical_areas.sql"
+    "database/migrations/091_canonical_areas.sql",
+    "database/migrations/092_production_movement_signed_quantity.sql"
   ],
   "capabilities": {
     "exposes": [

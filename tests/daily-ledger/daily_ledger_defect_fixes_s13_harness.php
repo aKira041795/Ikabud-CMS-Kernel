@@ -8,7 +8,7 @@ declare(strict_types=1);
  *
  * Two modes, both driving the REAL application code (not a source grep):
  *
- *   sheet [YYYY-MM-DD] [commissary_id]
+ *   sheet [YYYY-MM-DD] [commissary_id|all]
  *       Boots the kernel, resolves tenant 207, mints a daily-ledger admin JWT,
  *       invokes the real handleAdminCommissary() and prints, as JSON:
  *         - cells   : map "productId:branchId" => rendered branch-cell value
@@ -16,6 +16,9 @@ declare(strict_types=1);
  *         - summary : map productName => {beg,produced,dispatched,wastage,returned,net}
  *       This is how FIX 1 proves the rendered page (not the handler) and how
  *       FIX 4/FIX 5 read the figures the operator actually sees.
+ *       `all` selects the explicit "All Commissaries" view (the param present
+ *       and empty); omitting the argument is a BARE open, which since the
+ *       2026-10-13 landing change resolves to the first available commissary.
  *
  *   withdraw <payload-file>
  *       Stubs php://input with the payload file (the process exits inside the
@@ -44,9 +47,14 @@ if ($mode === 'sheet') {
     if ($date !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
         $_GET['date'] = $date;
     }
-    $commissaryId = (int)($argv[3] ?? 0);
-    if ($commissaryId > 0) {
-        $_GET['commissary_id'] = (string)$commissaryId;
+    $commissaryArg = (string)($argv[3] ?? '');
+    if ($commissaryArg === 'all') {
+        // The explicit All Commissaries selection: the parameter is PRESENT and
+        // empty, which the handler reads as a choice (array_key_exists), unlike
+        // an absent parameter, which is the landing default.
+        $_GET['commissary_id'] = '';
+    } elseif ((int)$commissaryArg > 0) {
+        $_GET['commissary_id'] = (string)(int)$commissaryArg;
     }
 } else {
     $payloadFile = (string)($argv[2] ?? '');
@@ -146,7 +154,9 @@ if ($mode === 'sheet') {
             if (preg_match('/id="production-addtl-' . $pid . '"[^>]*>(-?\d+)<\/span>/', $block, $m)) {
                 $rowDetail['addtl'] = (int)$m[1];
             }
-            if (preg_match('/production-total">(-?\d+)</', $block, $m)) {
+            // The class may carry a suffix (consignee-sheet-total), so anchor on
+            // the prefix and not on '">' immediately after the class name.
+            if (preg_match('/production-total[^"]*">(-?\d+)</', $block, $m)) {
                 $rowDetail['total'] = (int)$m[1];
             }
             if (preg_match('/id="production-actual-' . $pid . '"[^>]*value="(-?\d+)"/', $block, $m)) {

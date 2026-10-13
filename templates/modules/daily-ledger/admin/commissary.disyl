@@ -2106,10 +2106,13 @@
     </div>
 
     {/if}
-    <!-- S7b: one simple modal — product, quantity, optional reason. The batch/yield
-         machinery is deliberately not carried in; output_pieces_per_batch is NULL for
-         every product on this tenant, so the mechanism is inert. It can return if yield
-         profiles are ever configured. -->
+    <!-- S7b: one simple modal — product, signed quantity, reason. A positive
+         quantity adds to the day's ADDTL; a negative one takes back an amount
+         recorded too high (a correction: reason required, appended as its own
+         movement, floor refused — the same rule the branch cell applies). The
+         batch/yield machinery is deliberately not carried in;
+         output_pieces_per_batch is NULL for every product on this tenant, so the
+         mechanism is inert. It can return if yield profiles are ever configured. -->
     <div id="production-addition-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 p-4 print-hidden" role="dialog" aria-modal="true" aria-labelledby="production-addition-title">
         <div class="w-full max-w-md rounded-lg bg-white shadow-xl">
             <div class="card-header"><span id="production-addition-title">Record Addition (ADDTL)</span></div>
@@ -2125,11 +2128,17 @@
                 </div>
                 <div class="form-group mb-0">
                     <label class="form-label">Quantity</label>
-                    <input type="number" min="1" step="1" id="production-addition-qty" class="form-input text-right" value="">
+                    <input type="number" step="1" id="production-addition-qty" class="form-input text-right" value="">
                 </div>
                 <div class="form-group mb-0">
-                    <label class="form-label">Reason <span class="text-gray-400">(optional)</span></label>
+                    <label class="form-label">Reason <span class="text-gray-400">(optional — required to reduce)</span></label>
                     <input type="text" id="production-addition-reason" class="form-input" maxlength="255" placeholder="e.g. morning bake">
+                </div>
+                <div class="rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-xs leading-5 text-orange-800">
+                    A positive quantity <span class="font-semibold">adds</span> to today's ADDTL. To
+                    <span class="font-semibold">reduce</span> an amount recorded too high, put a minus sign first
+                    (e.g. <span class="font-mono font-semibold">-3</span>) and give a reason. Each change is logged
+                    as its own row, so the trail reads: original entry → correction.
                 </div>
                 <div id="production-addition-status" class="text-sm text-rose-600" aria-live="polite"></div>
                 <div class="flex justify-end gap-2">
@@ -2573,8 +2582,12 @@
         if (!productEl || !qtyEl || !btn) return;
         var pid = parseInt(productEl.value || '0', 10) || 0;
         var qty = parseInt(qtyEl.value || '0', 10);
+        var reason = reasonEl ? reasonEl.value.trim() : '';
         if (!pid) { if (status) status.textContent = 'Select a product.'; return; }
-        if (isNaN(qty) || qty <= 0) { if (status) status.textContent = 'Quantity must be one or more.'; return; }
+        if (isNaN(qty) || qty === 0) { if (status) status.textContent = 'Quantity must be a non-zero whole number.'; return; }
+        // A reduction takes back an amount recorded too high, so it must say why —
+        // the same rule the branch cell applies to a change against a recorded entry.
+        if (qty < 0 && reason === '') { if (status) status.textContent = 'A reason is required to reduce a recorded addition.'; return; }
         btn.disabled = true;
         if (status) status.textContent = '';
         productionJson('{base_url}/api/v1/commissary/run', {
@@ -2584,11 +2597,13 @@
             commissary_branch_id: {sheet_source_branch_id},
             product_id: pid,
             quantity: qty,
-            reason: reasonEl ? reasonEl.value.trim() : '',
+            reason: reason,
             submission_id: dlNewSubmissionId()
         }).then(function(res) {
             closeProductionAdditionModal();
-            showToast(res.duplicate ? 'Addition was already recorded' : 'Addition recorded', 'success');
+            showToast(res.duplicate
+                ? 'Addition was already recorded'
+                : (qty < 0 ? 'Addition reduced — correction logged' : 'Addition recorded'), 'success');
             setTimeout(function() { window.refreshMainContent(); }, 500);
         }).catch(function(error) {
             if (status) status.textContent = error.message || 'Save failed';

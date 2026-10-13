@@ -17,7 +17,11 @@ ob_start();
 require_once __DIR__ . '/../harness/TestHarness.php';
 $h = new TestHarness('daily-ledger-production-shift-access', TestHarness::MODE_INTEGRATION, 'baronledger.test');
 ob_end_clean();
-$h->allowLogLines('disyl.compile.phases');
+// Rendering compiles the DiSyL template and emits its one-line breakdown on the
+// first (cold-cache) render after a template edit; neither is a defect, and
+// allowing them keeps the suite stable warm or cold (the flake this replaces
+// was run-to-run oscillation, not behaviour).
+$h->allowLogLines('disyl.compile.phases', 'disyl.render.breakdown');
 
 $base = $h->basePath();
 require_once $base . '/src/helpers/module-manager.php';
