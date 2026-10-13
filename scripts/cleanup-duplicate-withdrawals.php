@@ -74,7 +74,8 @@ if ($apply && $affected !== []) {
             JOIN (
               SELECT branch_id, product_id, ledger_date, COALESCE(SUM(quantity),0) AS qty
                 FROM dl_cashier_withdrawals
-               WHERE withdrawal_type <> 'adjustment_add'
+               -- own production feeds the Addt'l cell too, so it is excluded like adjustment_add
+               WHERE withdrawal_type NOT IN ('adjustment_add', 'own_production')
                GROUP BY branch_id, product_id, ledger_date
             ) s ON s.branch_id = dl.branch_id AND s.product_id = dl.product_id AND s.ledger_date = dl.ledger_date
             SET dl.withdraw = COALESCE(s.qty, dl.withdraw)

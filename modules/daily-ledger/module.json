@@ -176,7 +176,8 @@
     "database/migrations/089_assign_pagadian_branch_commissary.sql",
     "database/migrations/090_correct_hybrid_supply_modes.sql",
     "database/migrations/091_canonical_areas.sql",
-    "database/migrations/092_production_movement_signed_quantity.sql"
+    "database/migrations/092_production_movement_signed_quantity.sql",
+    "database/migrations/093_self_production_reason.sql"
   ],
   "capabilities": {
     "exposes": [

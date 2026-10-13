@@ -602,15 +602,17 @@ function dl_offlineApplyWithdrawal(array $user, array $op, bool $inTx = false): 
         throw new RuntimeException('Unable to resolve branch. Verify your branch assignment.', 422);
     }
     $date = (string)($input['date'] ?? date('Y-m-d'));
-    $shiftResolved = dl_resolveLedgerShift($user, $input);
-    $shift = $shiftResolved['shift'];
     $header = is_array($input['header'] ?? null) ? $input['header'] : [];
     $lines = is_array($input['lines'] ?? null) ? $input['lines'] : [];
 
     $type = (string)($header['withdrawal_type'] ?? 'charge');
-    if (!in_array($type, ['charge', 'pullout', 'adjustment_add', 'used', 'correction'], true)) {
+    if (!in_array($type, ['charge', 'pullout', 'adjustment_add', 'own_production', 'used', 'correction'], true)) {
         throw new RuntimeException('Invalid withdrawal type', 422);
     }
+    // Mirrors apiSaveCashierWithdrawals: own production lands on the CHOSEN
+    // AM/PM shift (production happens in a shift); every other type keeps the
+    // shift lock. Reordered after the type read for the same reason.
+    $shift = dl_resolveWithdrawalShift($user, $input, $type);
     $drNumber = !empty($header['dr_number']) ? (string)$header['dr_number'] : null;
     $targetBranchId = !empty($header['target_branch_id']) ? (int)$header['target_branch_id'] : null;
     $reasonCode = !empty($header['reason_code']) ? (string)$header['reason_code'] : null;
@@ -619,6 +621,10 @@ function dl_offlineApplyWithdrawal(array $user, array $op, bool $inTx = false): 
     $allowedReasons = dl_allowedWithdrawalReasons();
     if ($reasonCode !== null && !in_array($reasonCode, $allowedReasons, true)) {
         throw new RuntimeException('Invalid reason_code', 422);
+    }
+    if ($type === 'own_production' && $reasonCode === null) {
+        // The type states the reason: own production IS self production.
+        $reasonCode = 'self_production';
     }
     if (in_array($type, ['charge', 'pullout', 'adjustment_add', 'used', 'correction'], true) && $reasonCode === null) {
         $reasonCode = 'manual_adjustment';
@@ -702,7 +708,8 @@ function dl_offlineApplyWithdrawal(array $user, array $op, bool $inTx = false): 
         $stmtCheck = $ctx->db()->prepare(
             'SELECT id, addtl, withdraw FROM dl_daily_ledger WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d AND shift = :shift FOR UPDATE'
         );
-        $isAddtl = ($type === 'adjustment_add');
+        // Mirrors apiSaveCashierWithdrawals: own_production feeds the Addt'l cell.
+        $isAddtl = in_array($type, ['adjustment_add', 'own_production'], true);
         if ($isAddtl) {
             $stmtUpd = $ctx->db()->prepare(
                 'UPDATE dl_daily_ledger SET addtl = addtl + :qty, updated_by = :uid

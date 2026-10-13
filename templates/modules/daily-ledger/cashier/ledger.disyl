@@ -437,7 +437,7 @@
     // ── Today's Adjustments (cashier edit-own withdrawal) ───────────────
     var __dlTodayAdjCache = [];
     function dlAdjTypeLabel(t) {
-        return ({ charge: 'Charge', pullout: 'Pullout', used: 'Used', correction: 'Correction', adjustment_add: 'Add Stock' }[t] || t);
+        return ({ charge: 'Charge', pullout: 'Pullout', used: 'Used', correction: 'Correction', adjustment_add: 'Add Stock', own_production: 'Own production' }[t] || t);
     }
     function dlEscHtml(s) {
         return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) {

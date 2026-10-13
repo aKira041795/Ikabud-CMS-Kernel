@@ -18,7 +18,7 @@
 
                 <div>
                     <h3 class="text-lg font-semibold leading-6 text-gray-900" id="modal-title">Stock Adjustment</h3>
-                    <p class="text-sm text-gray-500 mb-4">Record branch-side stock corrections: <span class="font-semibold">charge</span> (cashier accountability), <span class="font-semibold">pullout</span> (unsold goods returning to commissary), <span class="font-semibold">used</span> (packaging/items consumed to make or fill a product), <span class="font-semibold">correction</span> (fixing a wrongly-recorded entry), or <span class="font-semibold">add stock</span> (stock that was missed or undercounted). <span class="font-semibold">Pullout items are automatically sent back to the commissary</span> — they will appear as incoming stock on the commissary ledger.</p>
+                    <p class="text-sm text-gray-500 mb-4">Record branch-side stock corrections: <span class="font-semibold">charge</span> (cashier accountability), <span class="font-semibold">pullout</span> (unsold goods returning to commissary), <span class="font-semibold">used</span> (packaging/items consumed to make or fill a product), <span class="font-semibold">correction</span> (fixing a wrongly-recorded entry), or <span class="font-semibold">add stock</span> (stock that was missed or undercounted — or produced by the branch itself, via Add Stock (own production)). <span class="font-semibold">Pullout items are automatically sent back to the commissary</span> — they will appear as incoming stock on the commissary ledger.</p>
                     <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">
                         Quick rule: if another branch is involved, stop and use <span class="font-semibold">Send to Branch</span> or <span class="font-semibold">Receive Stock</span>. This modal is only for branch-side stock corrections. <span class="font-semibold">Pullout</span> returns goods to your assigned commissary automatically.
                     </div>
@@ -32,6 +32,7 @@
                                 <option value="used">Used (for a product/order)</option>
                                 <option value="correction">Correction — W/Draw (wrong entry)</option>
                                 <option value="adjustment_add">Add Stock (missed entry / variance)</option>
+                                <option value="own_production">Add Stock (own production)</option>
                                 <option value="correction_addtl">Correction — Additional (wrong entry)</option>
                             </select>
                         </div>
@@ -40,6 +41,7 @@
                         <select x-model="header.reason_code" class="form-input mt-0 w-full">
                             <option value="manual_adjustment">Manual adjustment</option>
                             <option value="encoder_omission">Encoder omission (nothing lost)</option>
+                            <option value="self_production">Self production</option>
                             <option value="spoilage">Spoilage</option>
                             <option value="staff_meal">Staff meal</option>
                             <option value="sampling">Sampling</option>
@@ -51,6 +53,18 @@
                         </select>
                         <p class="mt-1 text-xs text-gray-500">Required for branch-side adjustments. Branch-to-branch transfers now go through Send to Branch.</p>
                         </div>
+                    </div>
+
+                    <div class="mb-4" x-show="header.withdrawal_type === 'own_production'">
+                        <div class="rounded-lg border border-teal-200 bg-teal-50 px-3 py-2 text-xs leading-5 text-teal-900 mb-3">
+                            <span class="font-semibold">Own production</span>: stock the branch produced itself — no DR and no commissary dispatch. It is recorded as Add Stock with the <span class="font-semibold">Self production</span> reason, on the shift it was made in.
+                        </div>
+                        <label class="block text-xs font-medium text-gray-700 mb-1">Production Shift <span class="text-rose-500">*</span></label>
+                        <select x-model="header.shift" class="form-input mt-0 w-full">
+                            <option value="AM">AM</option>
+                            <option value="PM">PM</option>
+                        </select>
+                        <p class="mt-1 text-xs text-gray-500">The chosen shift's Addt'l cell moves — default is the shift you are viewing. A finalized shift refuses the entry.</p>
                     </div>
 
                     <div class="mb-4" x-show="allowsNegative()">
@@ -189,9 +203,17 @@ function withdrawalModal() {
         saving: false,
         errorMsg: '',
         editId: null,
-        header: { withdrawal_type: 'charge', reason_code: 'manual_adjustment', liable_user_id: '', custom_reason: '' },
+        header: { withdrawal_type: 'charge', reason_code: 'manual_adjustment', liable_user_id: '', custom_reason: '', shift: '' },
         lines: [],
         products: [],
+
+        // Preset hook that does not depend on event ordering: a $watch fires AFTER
+        // the reactive update settles. Measured 2026-10-13: with a plain @change
+        // hook, selectOption() landed BEFORE x-model synced, so the handler read
+        // the OLD type and preset nothing (reason stayed manual_adjustment).
+        init() {
+            this.$watch('header.withdrawal_type', () => this.onTypeChange());
+        },
 
         openModal(detail) {
             detail = detail || {};
@@ -209,7 +231,8 @@ function withdrawalModal() {
                     withdrawal_type: e.withdrawal_type || 'charge',
                     reason_code: e.reason_code || 'manual_adjustment',
                     liable_user_id: e.liable_user_id ? String(e.liable_user_id) : '',
-                    custom_reason: e.custom_reason || ''
+                    custom_reason: e.custom_reason || '',
+                    shift: (e.shift === 'AM' || e.shift === 'PM') ? e.shift : (window.SHIFT || 'AM')
                 };
                 this.lines = [{ product_id: String(e.product_id), quantity: displayQty, unit: unit }];
             } else {
@@ -219,7 +242,8 @@ function withdrawalModal() {
                     withdrawal_type: detail.withdrawal_type || 'charge',
                     reason_code: detail.reason_code || 'manual_adjustment',
                     liable_user_id: '',
-                    custom_reason: ''
+                    custom_reason: '',
+                    shift: (detail.shift === 'AM' || detail.shift === 'PM') ? detail.shift : (window.SHIFT || 'AM')
                 };
                 this.lines = [{ product_id: detail.product_id ? String(detail.product_id) : '', quantity: '', unit: 'pcs' }];
             }
@@ -246,6 +270,30 @@ function withdrawalModal() {
         // checking `withdrawal_type` directly would silently miss the new option.
         serverType() {
             return this.header.withdrawal_type === 'correction_addtl' ? 'adjustment_add' : this.header.withdrawal_type;
+        },
+
+        // Choosing "Add Stock (own production)" states the intent: reason = Self
+        // production, and the production shift is asked for explicitly (default:
+        // the shift being viewed). Changing away leaves both as the operator set
+        // them — every other type's defaults are unchanged.
+        onTypeChange() {
+            if (this.header.withdrawal_type === 'own_production') {
+                this.header.reason_code = 'self_production';
+                if (this.header.shift !== 'AM' && this.header.shift !== 'PM') {
+                    this.header.shift = window.SHIFT || 'AM';
+                }
+            }
+        },
+
+        // The shift a capture lands on. Own production sends the explicitly chosen
+        // AM/PM (production happens in a shift, not necessarily the one being
+        // viewed); every other type sends the shift being viewed, exactly as
+        // before. Must mirror dl_resolveWithdrawalShift() on the server.
+        shiftForSave() {
+            if (this.header.withdrawal_type === 'own_production' && (this.header.shift === 'AM' || this.header.shift === 'PM')) {
+                return this.header.shift;
+            }
+            return window.SHIFT || '';
         },
 
         // A charge removes stock and can be billed to the person responsible, so
@@ -342,6 +390,10 @@ function withdrawalModal() {
                 this.errorMsg = 'Reason code is required.';
                 return false;
             }
+            if (this.header.withdrawal_type === 'own_production' && this.header.shift !== 'AM' && this.header.shift !== 'PM') {
+                this.errorMsg = 'Choose the production shift (AM or PM).';
+                return false;
+            }
             if (this.header.reason_code === 'other' && (!this.header.custom_reason || String(this.header.custom_reason).trim() === '')) {
                 this.errorMsg = 'A custom reason is required when Reason is Other.';
                 return false;
@@ -390,11 +442,12 @@ function withdrawalModal() {
             var reduceAddtl = this.header.withdrawal_type === 'correction_addtl';
             var payload = {
                 date: LEDGER_DATE,
-                // The shift being viewed. Without this the server guesses from the
-                // request clock (or the user's assigned shift), so an adjustment made
-                // while looking at another shift/date lands on the wrong ledger row
-                // and the Addt'l cell the operator is fixing stays at zero.
-                shift: (window.SHIFT || ''),
+                // The shift the entry belongs to. Own production sends its explicitly
+                // chosen AM/PM (the production shift); every other type sends the shift
+                // being viewed — without it the server guesses from the request clock,
+                // so an adjustment made while looking at another shift/date lands on
+                // the wrong ledger row and the cell the operator is fixing stays at zero.
+                shift: this.shiftForSave(),
                 header: {
                     // The type the server records. Correction-Additional reuses the Add
                     // Stock path and only flips the sign, so its amount is sent negated.
@@ -505,6 +558,8 @@ function withdrawalModal() {
                                 ? 'Stock added — charged to liable person'
                                 : 'Stock added — entry correction, nothing was lost';
                         }
+                    } else if (!isEdit && this.header.withdrawal_type === 'own_production') {
+                        msg = 'Own production recorded — added to ' + (this.shiftForSave() || 'the') + ' shift';
                     } else if (!isEdit && data.delivery_id) {
                         msg = 'Pullout recorded and returned to commissary';
                     }

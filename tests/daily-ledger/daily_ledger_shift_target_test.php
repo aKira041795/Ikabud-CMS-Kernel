@@ -141,7 +141,7 @@ $read = static function (string $rel) use ($base): string {
 };
 
 $dir = 'templates/modules/daily-ledger/cashier/';
-$h->test('withdrawal modal (Add Stock / adjustments) sends the viewed shift', str_contains($read($dir . 'modal_patch.disyl'), "shift: (window.SHIFT || '')"));
+$h->test('withdrawal modal (Add Stock / adjustments) sends the viewed shift', str_contains($read($dir . 'modal_patch.disyl'), 'shiftForSave()') && str_contains($read($dir . 'modal_patch.disyl'), "return window.SHIFT || '';"));
 $h->test('receive modal sends the viewed shift', str_contains($read($dir . 'receive_modal.disyl'), "shift: (window.SHIFT || '')"));
 $h->test('dispatch modal sends the viewed shift', str_contains($read($dir . 'dispatch_modal.disyl'), "shift: (window.SHIFT || '')"));
 $h->test('delivery-correction modal sends the viewed shift', str_contains($read($dir . 'edit_delivery_modal.disyl'), "shift: (window.SHIFT || '')"));

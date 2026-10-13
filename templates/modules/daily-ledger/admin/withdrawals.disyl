@@ -59,7 +59,7 @@
     <div class="card"><div class="card-body"><div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Rows</div><div class="mt-1 text-3xl font-semibold text-gray-900">{total_rows}</div></div></div>
     <div class="card"><div class="card-body"><div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Total Qty</div><div class="mt-1 text-3xl font-semibold text-gray-900">{total_quantity}</div></div></div>
     <div class="card"><div class="card-body"><div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Charges / Pullouts</div><div class="mt-1 text-2xl font-semibold text-gray-900">{type_charge_count} / {type_pullout_count}</div></div></div>
-    <div class="card"><div class="card-body"><div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Add Stock</div><div class="mt-1 text-3xl font-semibold text-emerald-700">{type_adjustment_add_count}</div></div></div>
+    <div class="card"><div class="card-body"><div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Add Stock</div><div class="mt-1 text-3xl font-semibold text-emerald-700">{type_adjustment_add_count}</div><div class="mt-1 text-xs font-medium text-teal-700">{type_own_production_count} own production</div></div></div>
 </div>
 
 <div class="card">

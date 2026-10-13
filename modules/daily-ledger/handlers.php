@@ -4677,6 +4677,7 @@ function dl_dailySheetAdjustmentReasons(): array
     return [
         'manual_adjustment' => 'Manual adjustment',
         'encoder_omission' => 'Encoder omission (nothing lost)',
+        'self_production' => 'Self production',
         'spoilage' => 'Spoilage',
         'staff_meal' => 'Staff meal',
         'sampling' => 'Sampling',
@@ -9062,7 +9063,7 @@ function apiTodayCashierWithdrawals(array $params = []): void
         $r['reason_code_label'] = trim((string)($r['reason_code'] ?? '')) !== ''
             ? (dl_dailySheetAdjustmentReasons()[(string)$r['reason_code']] ?? dlHumanizeToken((string)$r['reason_code']))
             : '';
-        $r['editable'] = !in_array((string)$r['withdrawal_type'], ['charge', 'pullout', 'adjustment_add', 'used', 'correction'], true)
+        $r['editable'] = !in_array((string)$r['withdrawal_type'], ['charge', 'pullout', 'adjustment_add', 'own_production', 'used', 'correction'], true)
             ? false
             : ($editableDate && empty($r['received_at']) && ($r['target_branch_id'] ?? null) === null);
     }
@@ -9235,8 +9236,6 @@ function apiSaveCashierWithdrawals(array $params = []): void
         return;
     }
     $date = $input['date'] ?? date('Y-m-d');
-    $shiftResolved = dl_resolveLedgerShift($user, $input);
-    $shift = $shiftResolved['shift'];
     $header = (array)($input['header'] ?? []);
     $lines = (array)($input['lines'] ?? []);
 
@@ -9246,10 +9245,14 @@ function apiSaveCashierWithdrawals(array $params = []): void
     }
 
     $type = (string)($header['withdrawal_type'] ?? 'charge');
-    if (!in_array($type, ['charge', 'pullout', 'adjustment_add', 'used', 'correction'], true)) {
+    if (!in_array($type, ['charge', 'pullout', 'adjustment_add', 'own_production', 'used', 'correction'], true)) {
         $ctx->json(['ok' => false, 'error' => 'Invalid withdrawal type'], 422);
         return;
     }
+    // Resolved AFTER the type: own production carries its own AM/PM choice (the
+    // shift the stock was produced in, not necessarily the viewer's); every
+    // other type keeps the shift lock. See dl_resolveWithdrawalShift().
+    $shift = dl_resolveWithdrawalShift($user, $input, $type);
     $drNumber = isset($header['dr_number']) && $header['dr_number'] !== '' ? (string)$header['dr_number'] : null;
     $targetBranchId = !empty($header['target_branch_id']) ? (int)$header['target_branch_id'] : null;
     $reasonCode = isset($header['reason_code']) && $header['reason_code'] !== '' ? (string)$header['reason_code'] : null;
@@ -9259,6 +9262,10 @@ function apiSaveCashierWithdrawals(array $params = []): void
     if ($reasonCode !== null && !in_array($reasonCode, $allowedReasons, true)) {
         $ctx->json(['ok' => false, 'error' => 'Invalid reason_code'], 422);
         return;
+    }
+    if ($type === 'own_production' && $reasonCode === null) {
+        // The type states the reason: own production IS self production.
+        $reasonCode = 'self_production';
     }
     if (in_array($type, ['charge','pullout','adjustment_add','used','correction'], true) && $reasonCode === null) {
         $reasonCode = 'manual_adjustment';
@@ -9359,9 +9366,12 @@ function apiSaveCashierWithdrawals(array $params = []): void
         $stmtCheck = $ctx->db()->prepare(
             'SELECT id, addtl, withdraw FROM dl_daily_ledger WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d AND shift = :shift FOR UPDATE'
         );
-        // adjustment_add moves addtl (positive adds stock back to the branch, negative
-        // takes back an amount recorded too high); charge/pullout increase withdraw
-        $isAddtl = ($type === 'adjustment_add');
+        // adjustment_add and own_production move addtl (positive adds stock back to
+        // the branch, negative takes back an amount recorded too high);
+        // charge/pullout increase withdraw. Own production is a distinct TYPE so it
+        // stays distinguishable in labels, filters and reports, but it feeds the
+        // same Addt'l cell.
+        $isAddtl = in_array($type, ['adjustment_add', 'own_production'], true);
         if ($isAddtl) {
             // addtl accumulates from multiple sources — use increment, not replace
             $stmtUpd = $ctx->db()->prepare(
@@ -9680,7 +9690,7 @@ function apiUpdateCashierWithdrawal(array $params = []): void
     $lines = (array)($input['lines'] ?? []);
 
     $type = (string)($header['withdrawal_type'] ?? '');
-    if (!in_array($type, ['charge', 'pullout', 'adjustment_add', 'used', 'correction'], true)) {
+    if (!in_array($type, ['charge', 'pullout', 'adjustment_add', 'own_production', 'used', 'correction'], true)) {
         $ctx->json(['ok' => false, 'error' => 'Invalid withdrawal type'], 422);
         return;
     }
@@ -9776,7 +9786,7 @@ function apiUpdateCashierWithdrawal(array $params = []): void
             throw new RuntimeException('Withdrawal ledger date does not match the selected date.', 422);
         }
         $rowType = (string)($row['withdrawal_type'] ?? '');
-        if (!in_array($rowType, ['charge', 'pullout', 'adjustment_add', 'used', 'correction'], true)) {
+        if (!in_array($rowType, ['charge', 'pullout', 'adjustment_add', 'own_production', 'used', 'correction'], true)) {
             throw new RuntimeException('This withdrawal type cannot be edited.', 422);
         }
         if ($row['received_at'] !== null && $row['received_at'] !== '') {
@@ -9861,8 +9871,8 @@ function apiUpdateCashierWithdrawal(array $params = []): void
         // ── Recompute the shift-scoped daily-ledger row ─────────────
         // Both columns accumulate from multiple sources. Apply old→new deltas;
         // rebuilding withdraw from cashier rows would erase dispatch quantities.
-        $oldIsAddtl = ($rowType === 'adjustment_add');
-        $newIsAddtl = ($type === 'adjustment_add');
+        $oldIsAddtl = in_array($rowType, ['adjustment_add', 'own_production'], true);
+        $newIsAddtl = in_array($type, ['adjustment_add', 'own_production'], true);
 
         $ledgerCheck = $db->prepare(
             'SELECT id, addtl, withdraw FROM dl_daily_ledger
@@ -23670,6 +23680,7 @@ function handleAdminWithdrawals(): void
         'charge' => 0,
         'pullout' => 0,
         'adjustment_add' => 0,
+        'own_production' => 0,
     ];
     foreach ($allRows as $row) {
         if (($row['cashier_name'] ?? 'Unknown') !== 'Unknown') {
@@ -23727,5 +23738,6 @@ function handleAdminWithdrawals(): void
         'type_charge_count' => $typeCounts['charge'],
         'type_pullout_count' => $typeCounts['pullout'],
         'type_adjustment_add_count' => $typeCounts['adjustment_add'],
+        'type_own_production_count' => $typeCounts['own_production'],
     ]);
 }

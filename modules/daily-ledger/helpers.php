@@ -235,7 +235,8 @@ function dl_reconcileAddtl(\Ikabud\Kernel\Contracts\DatabaseContract $db, int $b
                 SELECT cw.product_id AS product_id, cw.ledger_date AS ledger_date,
                        SUM(cw.quantity) AS qty
                   FROM dl_cashier_withdrawals cw
-                 WHERE cw.branch_id = :adj_bid AND cw.withdrawal_type = 'adjustment_add'
+                 -- own production (self-produced stock) writes the same Addt'l cell
+                 WHERE cw.branch_id = :adj_bid AND cw.withdrawal_type IN ('adjustment_add', 'own_production')
                    AND cw.ledger_date BETWEEN :adj_from AND :adj_to
                  GROUP BY cw.product_id, cw.ledger_date
            ) adj ON adj.product_id = dl.product_id AND adj.ledger_date = dl.ledger_date
@@ -283,7 +284,31 @@ function dl_reconcileAddtl(\Ikabud\Kernel\Contracts\DatabaseContract $db, int $b
  */
 function dl_withdrawalTypeAllowsNegative(string $type): bool
 {
+    // Own production (own_production) is deliberately NOT here: it only ADDS stock
+    // the branch made. Taking back an amount recorded too high stays the job of
+    // adjustment_add / correction.
     return in_array($type, ['correction', 'adjustment_add'], true);
+}
+
+/**
+ * The shift a CAPTURE request lands on. Normally dl_resolveLedgerShift()'s
+ * answer: a shift-bound cashier is locked to their own shift (the
+ * accountability control). "Add Stock (own production)" is the deliberate
+ * exception (owner, 2026-10-13): self-production happens IN a shift, so the
+ * encoder picks AM/PM and the entry moves that shift's Addt'l cell. The
+ * finalized-shift lock still applies — dl_assertShiftMutable runs on the
+ * CHOSEN shift downstream, so a closed shift refuses the entry either way.
+ * One helper so the online save and the offline replay cannot disagree.
+ */
+function dl_resolveWithdrawalShift(array $user, array $input, string $type): string
+{
+    if ($type === 'own_production') {
+        $explicit = $input['shift'] ?? null;
+        if (in_array($explicit, ['AM', 'PM'], true)) {
+            return (string)$explicit;
+        }
+    }
+    return dl_resolveLedgerShift($user, $input)['shift'];
 }
 
 /**
@@ -315,7 +340,11 @@ function dl_resolveWithdrawalLineForType(\Ikabud\Kernel\Contracts\ModuleDB $db, 
  */
 function dl_allowedWithdrawalReasons(): array
 {
-    return ['spoilage', 'staff_meal', 'sampling', 'testing', 'promo', 'donation', 'damage', 'manual_adjustment', 'encoder_omission', 'other'];
+    // self_production is the own-production reason: stock the branch produced
+    // itself (no DR, no dispatch) captured as Add Stock on the shift it was made
+    // in — see dl_resolveWithdrawalShift(). The column is an ENUM; migration 093
+    // added the value.
+    return ['spoilage', 'staff_meal', 'sampling', 'testing', 'promo', 'donation', 'damage', 'manual_adjustment', 'encoder_omission', 'self_production', 'other'];
 }
 
 /**
@@ -727,6 +756,7 @@ function dlWithdrawalTypeMeta(string $type): array
         'used' => ['label' => 'Used', 'badge_classes' => 'bg-indigo-50 text-indigo-700 ring-indigo-200'],
         'correction' => ['label' => 'Correction', 'badge_classes' => 'bg-orange-50 text-orange-700 ring-orange-200'],
         'adjustment_add' => ['label' => 'Add Stock', 'badge_classes' => 'bg-emerald-50 text-emerald-700 ring-emerald-200'],
+        'own_production' => ['label' => 'Own production', 'badge_classes' => 'bg-teal-50 text-teal-700 ring-teal-200'],
         default => ['label' => dlHumanizeToken($type), 'badge_classes' => 'bg-slate-50 text-slate-700 ring-slate-200'],
     };
 }
