@@ -2977,7 +2977,7 @@ function apiBranchSearch(array $params = []): void
     if ($q === '') { $ctx->json(['ok' => true, 'branches' => []]); return; }
     $like = '%' . $q . '%';
     $stmt = $ctx->db()->prepare(
-        'SELECT id, code, name FROM dl_branches WHERE is_active = 1 AND (name LIKE :q OR code LIKE :q2) ORDER BY name LIMIT 15'
+        'SELECT id, code, name FROM dl_branches WHERE is_active = 1 AND (name LIKE :q OR code LIKE :q2) ORDER BY ' . dl_entityOrderBySql() . ' LIMIT 15'
     );
     $stmt->execute([':q' => $like, ':q2' => $like]);
     $ctx->json(['ok' => true, 'branches' => $stmt->fetchAll(PDO::FETCH_ASSOC) ?: []]);
@@ -3130,7 +3130,7 @@ function handleAdminDeliveries(array $params = []): void
     $accessibleBranchIds = dl_adminViewBranchIds($user, $input);
     if (count($accessibleBranchIds) === 0) { $accessibleBranchIds = [0]; }
     $branchPlaceholders = implode(',', array_fill(0, count($accessibleBranchIds), '?'));
-    $branches = $ctx->db()->prepare("SELECT id, code, name, is_commissary FROM dl_branches WHERE is_active = 1 AND id IN ({$branchPlaceholders}) ORDER BY name");
+    $branches = $ctx->db()->prepare("SELECT id, code, name, is_commissary FROM dl_branches WHERE is_active = 1 AND id IN ({$branchPlaceholders}) ORDER BY " . dl_entityOrderBySql());
     $branches->execute($accessibleBranchIds);
     $branches = $branches->fetchAll(PDO::FETCH_ASSOC) ?: [];
     $products = $ctx->db()->query('SELECT id, sku, name FROM dl_products WHERE is_active = 1 ORDER BY name LIMIT 500')->fetchAll(PDO::FETCH_ASSOC) ?: [];
@@ -3210,7 +3210,7 @@ function handleAdminPriceGroups(array $params = []): void
         'SELECT id, price_group_id, code, name
            FROM dl_branches
           WHERE price_group_id IS NOT NULL AND is_active = 1
-          ORDER BY name'
+          ORDER BY ' . dl_entityOrderBySql()
     )->fetchAll(PDO::FETCH_ASSOC) ?: [];
     foreach ($branchRows as $row) {
         $groupId = (int)($row['price_group_id'] ?? 0);

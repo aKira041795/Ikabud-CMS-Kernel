@@ -8406,7 +8406,7 @@ function handleCashierLedger(array $params = []): void
         if (count($accessible) > 0) {
             $placeholders = implode(',', array_fill(0, count($accessible), '?'));
             $stmt = $ctx->db()->prepare(
-                "SELECT id, code, name FROM dl_branches WHERE id IN ({$placeholders}) AND is_active = 1 ORDER BY name"
+                "SELECT id, code, name FROM dl_branches WHERE id IN ({$placeholders}) AND is_active = 1 ORDER BY " . dl_entityOrderBySql()
             );
             $stmt->execute($accessible);
             $branches = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
@@ -8435,7 +8435,7 @@ function handleCashierLedger(array $params = []): void
     // active branch as destination/origin), so these pickers must NOT be scoped
     // to the actor's accessible set — a cashier is locked to a single branch and
     // would otherwise see an empty destination list and be unable to send stock.
-    $allBranches = $ctx->db()->query("SELECT id, code, name, is_commissary FROM dl_branches WHERE is_active = 1 ORDER BY name")->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $allBranches = $ctx->db()->query("SELECT id, code, name, is_commissary FROM dl_branches WHERE is_active = 1 ORDER BY " . dl_entityOrderBySql())->fetchAll(PDO::FETCH_ASSOC) ?: [];
     $consignees = [];
     if ($branchId > 0) {
         $consigneeStmt = $ctx->db()->prepare(
@@ -11653,7 +11653,7 @@ function apiProductionDestinations(array $params = []): void
         "SELECT id, code, name
          FROM dl_branches
          WHERE is_active = 1 AND id IN ({$placeholders})
-         ORDER BY name"
+         ORDER BY " . dl_entityOrderBySql()
     );
     $stmt->execute($allowedBranchIds);
     $destinations = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
@@ -12267,7 +12267,7 @@ function handleAdminDashboard(array $params = []): void
         $accessibleBranchIds = [0]; // Ensure empty result
     }
     $branchPlaceholders = implode(',', array_fill(0, count($accessibleBranchIds), '?'));
-    $branches = $ctx->db()->prepare("SELECT id, code, name FROM dl_branches WHERE is_active = 1 AND id IN ({$branchPlaceholders}) ORDER BY name");
+    $branches = $ctx->db()->prepare("SELECT id, code, name FROM dl_branches WHERE is_active = 1 AND id IN ({$branchPlaceholders}) ORDER BY " . dl_entityOrderBySql());
     $branches->execute($accessibleBranchIds);
     $branches = $branches->fetchAll(PDO::FETCH_ASSOC) ?: [];
     dl_maybeAutoCloseBranches(array_column($branches, 'id'), dl_getActorUserId($user));
@@ -12316,8 +12316,8 @@ function handleAdminDashboard(array $params = []): void
          INNER JOIN dl_branches b ON b.id = dl.branch_id
          LEFT JOIN dl_ledger_shift_status ss ON ss.branch_id = dl.branch_id AND ss.ledger_date = dl.ledger_date AND ss.shift = dl.shift COLLATE utf8mb4_unicode_ci
          WHERE dl.ledger_date = ? AND dl.branch_id IN (' . $branchPlaceholders . ')
-         GROUP BY dl.branch_id
-         ORDER BY b.name'
+         GROUP BY dl.branch_id, b.sort_order, b.name
+         ORDER BY ' . dl_entityOrderBySql('b.')
     );
     $salesStmt->execute(array_merge([$today], $accessibleBranchIds));
     $todaySales = $salesStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
@@ -12338,7 +12338,7 @@ function handleAdminDashboard(array $params = []): void
         $filteredSalesSql .= ' AND dl.branch_id = ?';
         $filteredSalesBind[] = $salesFilterBranchId;
     }
-    $filteredSalesSql .= ' GROUP BY dl.branch_id ORDER BY b.name';
+    $filteredSalesSql .= ' GROUP BY dl.branch_id, b.sort_order, b.name ORDER BY ' . dl_entityOrderBySql('b.');
     $filteredSalesStmt = $ctx->db()->prepare($filteredSalesSql);
     $filteredSalesStmt->execute($filteredSalesBind);
     $filteredSalesRows = $filteredSalesStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
@@ -12630,7 +12630,7 @@ function handleAdminOverview(array $params = []): void
     $branches = [];
     if ($accessibleBranchIds !== []) {
         $branchPlaceholders = implode(',', array_fill(0, count($accessibleBranchIds), '?'));
-        $branchStmt = $ctx->db()->prepare("SELECT id, code, name FROM dl_branches WHERE is_active = 1 AND id IN ({$branchPlaceholders}) ORDER BY name");
+        $branchStmt = $ctx->db()->prepare("SELECT id, code, name FROM dl_branches WHERE is_active = 1 AND id IN ({$branchPlaceholders}) ORDER BY " . dl_entityOrderBySql());
         $branchStmt->execute($accessibleBranchIds);
         $branches = $branchStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
@@ -12675,7 +12675,7 @@ function handleAdminOverview(array $params = []): void
             // "official, finalized rows" beside an official amount. Sol: F2.
             $salesSql .= dl_officialOnlySqlPredicate('dl', 'ss');
         }
-        $salesSql .= ' GROUP BY dl.branch_id, b.name ORDER BY b.name';
+        $salesSql .= ' GROUP BY dl.branch_id, b.name, b.sort_order ORDER BY ' . dl_entityOrderBySql('b.');
         $salesStmt = $ctx->db()->prepare($salesSql);
         $salesStmt->execute($salesBind);
         foreach ($salesStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
@@ -13941,7 +13941,7 @@ function handleAdminSales(array $params = []): void
     $accessibleBranchIds = dl_adminViewBranchIds($user, $input);
     if (count($accessibleBranchIds) === 0) { $accessibleBranchIds = [0]; }
     $branchPlaceholders = implode(',', array_fill(0, count($accessibleBranchIds), '?'));
-    $branches = $ctx->db()->prepare("SELECT id, code, name FROM dl_branches WHERE is_active = 1 AND id IN ({$branchPlaceholders}) ORDER BY name");
+    $branches = $ctx->db()->prepare("SELECT id, code, name FROM dl_branches WHERE is_active = 1 AND id IN ({$branchPlaceholders}) ORDER BY " . dl_entityOrderBySql());
     $branches->execute($accessibleBranchIds);
     $branches = $branches->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
@@ -14088,7 +14088,7 @@ function handleAdminSales(array $params = []): void
     // would widen the coverage query and branch picker back outside the area.
     if (count($accessibleBranchIds) === 0) { $accessibleBranchIds = [0]; }
     $branchPlaceholders = implode(',', array_fill(0, count($accessibleBranchIds), '?'));
-    $stmtAll = $ctx->db()->prepare("SELECT id, name FROM dl_branches WHERE is_active = 1 AND id IN ({$branchPlaceholders}) ORDER BY name");
+    $stmtAll = $ctx->db()->prepare("SELECT id, name FROM dl_branches WHERE is_active = 1 AND id IN ({$branchPlaceholders}) ORDER BY " . dl_entityOrderBySql());
     $stmtAll->execute($accessibleBranchIds);
     $allBranches = $stmtAll->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
@@ -14984,7 +14984,7 @@ function handleAdminReconciliation(array $params = []): void
     $accessibleBranchIds = dl_adminViewBranchIds($user, $input);
     if (count($accessibleBranchIds) === 0) { $accessibleBranchIds = [0]; }
     $branchPlaceholders = implode(',', array_fill(0, count($accessibleBranchIds), '?'));
-    $branchStmt = $ctx->db()->prepare("SELECT id, code, name FROM dl_branches WHERE is_active = 1 AND id IN ({$branchPlaceholders}) ORDER BY name");
+    $branchStmt = $ctx->db()->prepare("SELECT id, code, name FROM dl_branches WHERE is_active = 1 AND id IN ({$branchPlaceholders}) ORDER BY " . dl_entityOrderBySql());
     $branchStmt->execute($accessibleBranchIds);
     $branches = $branchStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
@@ -15143,7 +15143,7 @@ function handleAdminVariances(array $params = []): void
     $accessibleBranchIds = dl_adminViewBranchIds($user, $input);
     if (count($accessibleBranchIds) === 0) { $accessibleBranchIds = [0]; }
     $branchPlaceholders = implode(',', array_fill(0, count($accessibleBranchIds), '?'));
-    $branches = $ctx->db()->prepare("SELECT id, code, name FROM dl_branches WHERE is_active = 1 AND id IN ({$branchPlaceholders}) ORDER BY name");
+    $branches = $ctx->db()->prepare("SELECT id, code, name FROM dl_branches WHERE is_active = 1 AND id IN ({$branchPlaceholders}) ORDER BY " . dl_entityOrderBySql());
     $branches->execute($accessibleBranchIds);
     $branches = $branches->fetchAll(PDO::FETCH_ASSOC) ?: [];
     if ($branchId && !in_array($branchId, $accessibleBranchIds, true)) {
@@ -16354,14 +16354,14 @@ function handleAdminTrace(array $params = []): void
     $pickerBranchIds = $accessibleBranchIds === [] ? [0] : $accessibleBranchIds;
     $branchPlaceholders = implode(',', array_fill(0, count($pickerBranchIds), '?'));
     $branchStmt = $ctx->db()->prepare(
-        "SELECT id, code, name FROM dl_branches WHERE is_active = 1 AND id IN ({$branchPlaceholders}) ORDER BY name"
+        "SELECT id, code, name FROM dl_branches WHERE is_active = 1 AND id IN ({$branchPlaceholders}) ORDER BY " . dl_entityOrderBySql()
     );
     $branchStmt->execute($pickerBranchIds);
     $branches = $branchStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
     $products = $ctx->db()->query('SELECT id, sku, name FROM dl_products WHERE is_active = 1 ORDER BY name LIMIT 500')
         ->fetchAll(PDO::FETCH_ASSOC) ?: [];
-    $commissaries = $ctx->db()->query('SELECT id, code, name FROM dl_branches WHERE is_commissary = 1 AND is_active = 1 ORDER BY name')
+    $commissaries = $ctx->db()->query('SELECT id, code, name FROM dl_branches WHERE is_commissary = 1 AND is_active = 1 ORDER BY ' . dl_entityOrderBySql())
         ->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
     $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
@@ -16617,7 +16617,7 @@ function handleAdminActivity(array $params = []): void
     $accessibleBranchIds = dl_adminViewBranchIds($user, $input);
     if (count($accessibleBranchIds) === 0) { $accessibleBranchIds = [0]; }
     $branchPlaceholders = implode(',', array_fill(0, count($accessibleBranchIds), '?'));
-    $branches = $ctx->db()->prepare("SELECT id, code, name FROM dl_branches WHERE is_active = 1 AND id IN ({$branchPlaceholders}) ORDER BY name");
+    $branches = $ctx->db()->prepare("SELECT id, code, name FROM dl_branches WHERE is_active = 1 AND id IN ({$branchPlaceholders}) ORDER BY " . dl_entityOrderBySql());
     $branches->execute($accessibleBranchIds);
     $branches = $branches->fetchAll(PDO::FETCH_ASSOC) ?: [];
     foreach ($branches as &$branchOption) {
@@ -17905,7 +17905,7 @@ function handleAdminProducts(array $params = []): void
     }
 
     // Shared by the assignment selector and the product modal's branch pickers.
-    $branches = $ctx->db()->query('SELECT id, code, name, is_commissary FROM dl_branches WHERE is_active = 1 AND id IN (' . $viewBranchSql . ') ORDER BY name')->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $branches = $ctx->db()->query('SELECT id, code, name, is_commissary FROM dl_branches WHERE is_active = 1 AND id IN (' . $viewBranchSql . ') ORDER BY ' . dl_entityOrderBySql())->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
     $consignees = $ctx->db()->query('SELECT id, code, name FROM dl_consignees WHERE is_active = 1 AND assigned_commissary_id IN (' . $viewBranchSql . ') ORDER BY ' . dl_entityOrderBySql())->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
@@ -19135,7 +19135,7 @@ function handleAdminBranches(array $params = []): void
     $branches = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
     // Commissary candidates for the supply-mode picker (any active branch flagged as commissary).
-    $commStmt = $ctx->db()->query('SELECT id, code, name FROM dl_branches WHERE is_commissary = 1 AND is_active = 1 ORDER BY name');
+    $commStmt = $ctx->db()->query('SELECT id, code, name FROM dl_branches WHERE is_commissary = 1 AND is_active = 1 ORDER BY ' . dl_entityOrderBySql());
     $commissaries = $commStmt ? ($commStmt->fetchAll(PDO::FETCH_ASSOC) ?: []) : [];
     $consigneeSql = 'SELECT c.id, c.code, c.name, c.area_id, a.name AS area, c.address, c.price_group_id, c.assigned_commissary_id, c.is_active, c.sort_order, b.code AS commissary_code, b.name AS commissary_name, pg.name AS price_group_name FROM dl_consignees c INNER JOIN dl_branches b ON b.id = c.assigned_commissary_id LEFT JOIN dl_areas a ON a.id = c.area_id LEFT JOIN dl_price_groups pg ON pg.id = c.price_group_id WHERE 1=1';
     $consigneeBind = [];
@@ -19486,7 +19486,7 @@ function handleAdminUsers(array $params = []): void
                    CASE WHEN u.role = 'cashier'
                         THEN (SELECT MIN(ub.branch_id) FROM dl_user_branches ub WHERE ub.user_id = u.id)
                         ELSE NULL END AS branch_id,
-                   (SELECT GROUP_CONCAT(b.name ORDER BY b.name SEPARATOR ', ')
+                   (SELECT GROUP_CONCAT(b.name ORDER BY " . dl_entityOrderBySql('b.') . " SEPARATOR ', ')
                       FROM dl_user_branches ub
                       INNER JOIN dl_branches b ON b.id = ub.branch_id
                       WHERE ub.user_id = u.id) AS branch_names,
@@ -19536,7 +19536,7 @@ function handleAdminUsers(array $params = []): void
         'deleted_count' => (int)($countRow['deleted_count'] ?? 0),
     ];
 
-    $branches = $ctx->db()->query('SELECT id, code, name FROM dl_branches WHERE is_active = 1 AND id IN (' . $viewBranchSql . ') ORDER BY name')->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $branches = $ctx->db()->query('SELECT id, code, name FROM dl_branches WHERE is_active = 1 AND id IN (' . $viewBranchSql . ') ORDER BY ' . dl_entityOrderBySql())->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
     $role = (string)($user['role'] ?? '');
     $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
@@ -20373,7 +20373,7 @@ function dl_buildUsagePageData(\Ikabud\Kernel\Contracts\DatabaseContract $db, ar
     $accessibleBranchIds = dl_adminViewBranchIds($user);
     $pickerBranchIds = $accessibleBranchIds === [] ? [0] : $accessibleBranchIds;
     $branchPlaceholders = implode(',', array_fill(0, count($pickerBranchIds), '?'));
-    $branchesStmt = $db->prepare("SELECT id, name FROM dl_branches WHERE is_active = 1 AND id IN ({$branchPlaceholders}) ORDER BY name ASC");
+    $branchesStmt = $db->prepare("SELECT id, name FROM dl_branches WHERE is_active = 1 AND id IN ({$branchPlaceholders}) ORDER BY " . dl_entityOrderBySql());
     $branchesStmt->execute($pickerBranchIds);
     $branches = $branchesStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     $availableBranchIds = array_map('intval', array_column($branches, 'id'));
@@ -20717,7 +20717,7 @@ function dl_fetchConsigneeSheetRows($db, string $date, int $commissaryId, ?strin
         $sql .= ' AND l.shift = :shift';
         $bind[':shift'] = $shift;
     }
-    $sql .= ' GROUP BY c.id, c.code, c.name, l.product_id, p.name, p.sku ORDER BY c.name, p.name';
+    $sql .= ' GROUP BY c.id, c.code, c.name, c.sort_order, l.product_id, p.name, p.sku ORDER BY ' . dl_entityOrderBySql('c.') . ', p.name';
     $stmt = $db->prepare($sql);
     $stmt->execute($bind);
     return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
@@ -21159,9 +21159,9 @@ function handleAdminCommissary(): void
     $narrowCommissarySelector = $applyViewBranchFilter
         && ($role !== 'admin' || ($viewScope['type'] ?? 'ALL') === 'COMMISSARY');
     if ($narrowCommissarySelector) {
-        $commissariesStmt = $db->query("SELECT b.id, b.code, b.name FROM dl_branches b WHERE b.is_commissary = 1 AND b.is_active = 1 AND b.id IN ({$viewBranchSql}) ORDER BY b.name ASC");
+        $commissariesStmt = $db->query("SELECT b.id, b.code, b.name FROM dl_branches b WHERE b.is_commissary = 1 AND b.is_active = 1 AND b.id IN ({$viewBranchSql}) ORDER BY " . dl_entityOrderBySql('b.'));
     } else {
-        $commissariesStmt = $db->query("SELECT id, code, name FROM dl_branches WHERE is_commissary = 1 AND is_active = 1 ORDER BY name ASC");
+        $commissariesStmt = $db->query("SELECT id, code, name FROM dl_branches WHERE is_commissary = 1 AND is_active = 1 ORDER BY " . dl_entityOrderBySql());
     }
     $commissaries = $commissariesStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     $availableCommissaryIds = array_map('intval', array_column($commissaries, 'id'));
@@ -21177,7 +21177,7 @@ function handleAdminCommissary(): void
     // Branches: when commissary selected, show only branches assigned to it OR with DR data from it
     if ($selectedCommissaryId > 0) {
         $branchesStmt = $db->prepare(
-            "SELECT DISTINCT b.id, b.name, b.is_commissary
+            "SELECT DISTINCT b.id, b.name, b.is_commissary, b.sort_order
                FROM dl_branches b
                LEFT JOIN dl_deliveries d ON d.destination_id = b.id
                  AND d.destination_type = 'branch'
@@ -21188,13 +21188,13 @@ function handleAdminCommissary(): void
               WHERE b.is_active = 1
                 " . ($applyViewBranchFilter ? "AND b.id IN ({$viewBranchSql})" : '') . "
                 AND (b.assigned_commissary_id = :cid2 OR d.id IS NOT NULL)
-              ORDER BY b.name ASC"
+              ORDER BY " . dl_entityOrderBySql('b.')
         );
         $branchesStmt->execute([':cid' => $selectedCommissaryId, ':cid2' => $selectedCommissaryId, ':date' => $rawDate]);
         $branches = $branchesStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     } else {
         $branchScopeSql = $applyViewBranchFilter ? " AND id IN ({$viewBranchSql})" : '';
-        $branchesStmt = $db->query("SELECT id, name, is_commissary FROM dl_branches WHERE is_active = 1{$branchScopeSql} ORDER BY name ASC");
+        $branchesStmt = $db->query("SELECT id, name, is_commissary FROM dl_branches WHERE is_active = 1{$branchScopeSql} ORDER BY " . dl_entityOrderBySql());
         $branches = $branchesStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
     $availableBranchIds = array_map('intval', array_column($branches, 'id'));
@@ -23231,7 +23231,7 @@ function apiDailyLedgerMe(array $params = []): void
     $allowedBranchIds = dl_accessibleBranchIds($user);
     if (count($allowedBranchIds) === 0) { $allowedBranchIds = [0]; }
     $branchPlaceholders = implode(',', array_fill(0, count($allowedBranchIds), '?'));
-    $stmtAll = $ctx->db()->prepare("SELECT id, name FROM dl_branches WHERE is_active = 1 AND id IN ({$branchPlaceholders}) ORDER BY name");
+    $stmtAll = $ctx->db()->prepare("SELECT id, name FROM dl_branches WHERE is_active = 1 AND id IN ({$branchPlaceholders}) ORDER BY " . dl_entityOrderBySql());
     $stmtAll->execute($allowedBranchIds);
     $allBranches = $stmtAll->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
@@ -23244,7 +23244,7 @@ function apiDailyLedgerMe(array $params = []): void
             "SELECT id, code, name
              FROM dl_branches
              WHERE is_active = 1 AND id IN ({$placeholders})
-             ORDER BY name"
+             ORDER BY " . dl_entityOrderBySql()
         );
         $stmt->execute($allowedBranchIds);
         $branches = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
@@ -23408,7 +23408,7 @@ function handleAdminWithdrawals(): void
         }
     }
 
-    $branchesStmt = $db->prepare("SELECT id, name FROM dl_branches WHERE is_active = 1 AND id IN ({$branchPlaceholders}) ORDER BY name");
+    $branchesStmt = $db->prepare("SELECT id, name FROM dl_branches WHERE is_active = 1 AND id IN ({$branchPlaceholders}) ORDER BY " . dl_entityOrderBySql());
     $branchesStmt->execute($accessibleBranchIds);
     $branches = $branchesStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
