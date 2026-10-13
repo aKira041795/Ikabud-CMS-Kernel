@@ -8871,6 +8871,117 @@ function dl_classifyPulloutReturnReason(?string $reasonCode): string
     return 'returned_saleable';
 }
 
+/**
+ * Persist a branch pullout return to its supplying commissary.
+ *
+ * ONE owner of this flow for both callers: the online handler
+ * (apiSaveCashierWithdrawals) and the offline device replay
+ * (dl_offlineApplyWithdrawal). They used to duplicate the block, and the copies
+ * had already drifted (the offline copy credited the ledger with no shift, i.e.
+ * into the legacy NULL bucket).
+ *
+ * OWNER RULING, 2026-10-13: "cashier entry is leaked to the production
+ * commissary ... this should not happen. review and fix from root cause."
+ * Measured leak this repairs: the Rizal cashier's pullout batch auto-received
+ * the return through the BRANCH receiving machinery, whose ledger effect wrote
+ * 11 `addtl` rows into RIZAL-COMMIS's own branch-side cashier sheet — encoded by
+ * branch 9's cashiers, addtl sum exactly the batch — and minted a copied
+ * receiving plus an uncounted-receipt notification at a site nobody there had
+ * acted on. A production site's stock lives in dl_commissary_product_ledger
+ * (the same rule dl_processProductionMovement states for output: "Do NOT update
+ * addtl directly — commissary production is tracked in
+ * dl_commissary_product_ledger"), so its branch-side sheet must never be
+ * written by another branch's flow. The return therefore mints NO receiving:
+ *   - the delivery row is the proof (Listed under Pullouts/Returns);
+ *   - receipt_required = 0, so it is never a pending incoming receipt;
+ *   - the branch-side withdraw (already applied by the caller) plus the
+ *     three-way commissary-ledger credit below are the whole accounting.
+ *
+ * THREE-WAY split (owner ruling):
+ * - returned_saleable -> produced_qty, because the goods physically came back
+ *   and can be re-dispatched.
+ * - wastage (spoilage, damage) -> wastage_qty, the only ledger column meaning
+ *   goods are gone for good.
+ * - consumed_no_delta (staff_meal, sampling, testing, promo, donation) ->
+ *   NEITHER. Not wastage, and crediting produced_qty would invent stock. The
+ *   dispatch already removed them.
+ *
+ * @param \Ikabud\Kernel\Contracts\DatabaseContract $db
+ * @param array<int,array{product_id:int,quantity:int}> $validLines
+ * @return array{delivery_id:int, dr_number:string} delivery_id is 0 when the
+ *         return is ledger-only (consumed reasons, or the branch IS the
+ *         commissary: self-managed production, no physical movement).
+ */
+function dl_persistPulloutReturnToCommissary($db, int $sourceBranchId, int $commissaryId, string $date, ?string $shift, array $validLines, int $actorId, bool $isWastage, bool $isSaleableReturn): array
+{
+    $dr = '[pullout-return-' . $date . '-' . $sourceBranchId . '-' . date('His') . ']';
+    $deliveryId = 0;
+
+    if (($isWastage || $isSaleableReturn) && $sourceBranchId !== $commissaryId) {
+        $priceGroupId = dl_defaultPriceGroupId();
+        $delIns = $db->prepare(
+            'INSERT INTO dl_deliveries
+                (origin_type, origin_id, destination_type, destination_id, dr_number,
+                 delivery_date, status, receipt_required, created_by, posted_by, posted_at, remarks)
+             VALUES (:ot, :oid, :dt, :did, :dr, :dd, "posted", 0, :uid1, :uid2, NOW(), :remarks)'
+        );
+        $delIns->execute([
+            ':ot' => 'branch',
+            ':oid' => $sourceBranchId,
+            ':dt' => 'branch',
+            ':did' => $commissaryId,
+            ':dr' => $dr,
+            ':dd' => $date,
+            ':uid1' => $actorId > 0 ? $actorId : null,
+            ':uid2' => $actorId > 0 ? $actorId : null,
+            // A wastage return is physical but already recorded as wastage_qty;
+            // the marker keeps it out of the saleable returned_qty the Summary
+            // credits.
+            ':remarks' => $isWastage ? '[cashier-pullout-return:wastage]' : '[cashier-pullout-return]',
+        ]);
+        $deliveryId = (int)$db->lastInsertId();
+
+        $itemIns = $db->prepare(
+            'INSERT INTO dl_delivery_items
+                (delivery_id, product_id, quantity, unit, unit_cost_snapshot, price_snapshot, price_group_id, remarks)
+             VALUES (:did, :pid, :qty, :unit, :cost, :price, :pg, :remarks)'
+        );
+        foreach ($validLines as $line) {
+            $itemIns->execute([
+                ':did' => $deliveryId,
+                ':pid' => $line['product_id'],
+                ':qty' => $line['quantity'],
+                ':unit' => 'pcs',
+                ':cost' => 0,
+                ':price' => dl_resolveProductPrice((int)$line['product_id'], $priceGroupId, $date),
+                ':pg' => $priceGroupId,
+                ':remarks' => 'pullout_return:' . $sourceBranchId,
+            ]);
+        }
+    }
+
+    foreach ($validLines as $line) {
+        $pid = (int)$line['product_id'];
+        $qty = (int)$line['quantity'];
+        if ($isWastage) {
+            dl_applyCommissaryProductLedgerDelta(
+                $db, $commissaryId, $pid, $date,
+                0, 0, $actorId, $qty, // wastage_qty += qty
+                false, $shift
+            );
+        } elseif ($isSaleableReturn) {
+            dl_applyCommissaryProductLedgerDelta(
+                $db, $commissaryId, $pid, $date,
+                $qty, 0, $actorId, 0, // produced_qty += qty
+                false, $shift
+            );
+        }
+        // else: consumed at the branch -- no commissary ledger delta.
+    }
+
+    return ['delivery_id' => $deliveryId, 'dr_number' => $dr];
+}
+
 function apiSaveCashierWithdrawals(array $params = []): void
 {
     $ctx = module();
@@ -9199,13 +9310,16 @@ function apiSaveCashierWithdrawals(array $params = []): void
         }
 
         // ── Pullout return to commissary ──────────────────────────────
-        // When a branch pullout is recorded with a target commissary,
-        // create a return delivery and auto-receive so the commissary
-        // ledger reflects the returned goods.
-        // If the branch IS the commissary (self-managed production),
-        // skip the delivery — no physical movement, just credit the ledger.
+        // When a branch pullout is recorded with a target commissary, the
+        // returned goods are credited to the COMMISSARY LEDGER (three-way split,
+        // inside dl_persistPulloutReturnToCommissary) and the return delivery
+        // stands as proof in the Pullouts tab. The production site's own
+        // branch-side sheet is NOT written: its stock lives in
+        // dl_commissary_product_ledger, and a cashier entry from another branch
+        // must never be emitted there (owner ruling 2026-10-13).
+        // If the branch IS the commissary (self-managed production), the return
+        // stays ledger-only — no physical movement.
         $returnDeliveryId = null;
-        $returnReceivingId = null;
         if ($type === 'pullout' && $targetBranchId !== null && dl_isFormalDeliveryEnabled()) {
             $commissaryCheck = $ctx->db()->prepare(
                 'SELECT id, name FROM dl_branches WHERE id = :id AND is_commissary = 1 AND is_active = 1 LIMIT 1'
@@ -9214,8 +9328,6 @@ function apiSaveCashierWithdrawals(array $params = []): void
             $commissary = $commissaryCheck->fetch(PDO::FETCH_ASSOC);
             if ($commissary) {
                 $actorId = dl_getActorUserId($user);
-                $effectiveUserId = $actorId > 0 ? $actorId : null;
-                $returnDr = '[pullout-return-' . $date . '-' . $branchId . '-' . date('His') . ']';
 
                 // Classify BEFORE any physical return is minted. Consumed goods
                 // (staff meal, sampling, testing, promo, donation) never came
@@ -9224,95 +9336,15 @@ function apiSaveCashierWithdrawals(array $params = []): void
                 $classification = dl_classifyPulloutReturnReason($reasonCode);
                 $isWastage = $classification === 'wastage';
                 $isSaleableReturn = $classification === 'returned_saleable';
-                $createsPhysicalReturn = $isWastage || $isSaleableReturn;
 
-                // Skip self-delivery when branch IS the commissary (self-managed production)
-                if (!$createsPhysicalReturn || $branchId === $targetBranchId) {
-                    // Consumed goods: no physical movement. Self-managed production:
-                    // goods stay at the production site. Wastage/saleable still
-                    // credit the commissary product ledger below.
-                } else {
-                    $priceGroupId = dl_defaultPriceGroupId();
+                $returnResult = dl_persistPulloutReturnToCommissary(
+                    $ctx->db(), $branchId, $targetBranchId, $date, $shift, $validLines, $actorId, $isWastage, $isSaleableReturn
+                );
+                $returnDeliveryId = (int)$returnResult['delivery_id'];
 
-                    $delIns = $ctx->db()->prepare(
-                        'INSERT INTO dl_deliveries
-                            (origin_type, origin_id, destination_type, destination_id, dr_number,
-                             delivery_date, status, created_by, posted_by, posted_at, remarks)
-                         VALUES (:ot, :oid, :dt, :did, :dr, :dd, "posted", :uid1, :uid2, NOW(), :remarks)'
-                    );
-                    $delIns->execute([
-                        ':ot' => 'branch',
-                        ':oid' => $branchId,
-                        ':dt' => 'branch',
-                        ':did' => $targetBranchId,
-                        ':dr' => $returnDr,
-                        ':dd' => $date,
-                        ':uid1' => $effectiveUserId,
-                        ':uid2' => $effectiveUserId,
-                        // A wastage return is physical but already recorded as
-                        // wastage_qty; the marker keeps it out of the saleable
-                        // returned_qty the Summary credits.
-                        ':remarks' => $isWastage ? '[cashier-pullout-return:wastage]' : '[cashier-pullout-return]',
-                    ]);
-                    $returnDeliveryId = (int)$ctx->db()->lastInsertId();
-
-                    // Add delivery items
-                    $itemIns = $ctx->db()->prepare(
-                        'INSERT INTO dl_delivery_items
-                            (delivery_id, product_id, quantity, unit, unit_cost_snapshot, price_snapshot, price_group_id, remarks)
-                         VALUES (:did, :pid, :qty, :unit, :cost, :price, :pg, :remarks)'
-                    );
-                    foreach ($validLines as $line) {
-                        $itemIns->execute([
-                            ':did' => $returnDeliveryId,
-                            ':pid' => $line['product_id'],
-                            ':qty' => $line['quantity'],
-                            ':unit' => 'pcs',
-                            ':cost' => 0,
-                            ':price' => dl_resolveProductPrice((int)$line['product_id'], $priceGroupId, $date),
-                            ':pg' => $priceGroupId,
-                            ':remarks' => 'pullout_return:' . $branchId,
-                        ]);
-                    }
-
-                    // Auto-receive for commissary
-                    $returnReceivingId = dl_acceptFormalDelivery(
-                        $ctx->db(), $targetBranchId, $returnDeliveryId, $actorId, $date, null, $shift
-                    );
-                    // Auto-receiving copies the sent quantity; no person counted it.
-                    dl_markReceivingCountBasis($ctx->db(), $returnReceivingId, 'copied');
-                }
-
-                // Credit commissary product ledger. THREE-WAY split (owner ruling):
-                // - returned_saleable -> produced_qty, because the goods physically
-                //   came back and can be re-dispatched.
-                // - wastage (spoilage, damage) -> wastage_qty, the only ledger
-                //   column meaning goods are gone for good.
-                // - consumed_no_delta (staff_meal, sampling, testing, promo,
-                //   donation) -> NEITHER. Not wastage, and crediting produced_qty
-                //   would invent stock. The dispatch already removed them.
-                foreach ($validLines as $line) {
-                    $pid = (int)$line['product_id'];
-                    $qty = (int)$line['quantity'];
-                    if ($isWastage) {
-                        dl_applyCommissaryProductLedgerDelta(
-                            $ctx->db(), $targetBranchId, $pid, $date,
-                            0, 0, $actorId, $qty, // wastage_qty += qty
-                            false, $shift
-                        );
-                    } elseif ($isSaleableReturn) {
-                        dl_applyCommissaryProductLedgerDelta(
-                            $ctx->db(), $targetBranchId, $pid, $date,
-                            $qty, 0, $actorId, 0, // produced_qty += qty
-                            false, $shift
-                        );
-                    }
-                    // else: consumed at the branch -- no commissary ledger delta.
-                }
-
-                dl_auditLog('create_delivery', $branchId, 'dl_deliveries', (string)($returnDeliveryId ?? 0), null, [
-                    'dr_number' => $returnDr ?? '[self-managed-no-delivery]',
-                    'status' => $returnDeliveryId ? 'posted' : 'ledger-only',
+                dl_auditLog('create_delivery', $branchId, 'dl_deliveries', (string)$returnDeliveryId, null, [
+                    'dr_number' => $returnDeliveryId > 0 ? (string)$returnResult['dr_number'] : '[self-managed-no-delivery]',
+                    'status' => $returnDeliveryId > 0 ? 'posted' : 'ledger-only',
                     'source' => 'cashier_pullout_return',
                     'destination_commissary_id' => $targetBranchId,
                     'saleable' => $isSaleableReturn,
@@ -9343,7 +9375,6 @@ function apiSaveCashierWithdrawals(array $params = []): void
         $response = ['ok' => true, 'totals' => $totals];
         if ($returnDeliveryId !== null) {
             $response['delivery_id'] = $returnDeliveryId;
-            $response['receiving_id'] = $returnReceivingId;
         }
         if ($idempotencyKey !== '') {
             dl_storeIdempotentResponse('cashier_withdrawal', $idempotencyKey, $response, 86400);
@@ -10490,12 +10521,44 @@ function dl_productionProducerOptions($db): array
     return $options;
 }
 
+/**
+ * A production site picked as a "branch" source IS a commissary source.
+ *
+ * OWNER RULING, 2026-10-13 ("cashier entry is leaked to the production
+ * commissary ... fix from root cause"). Measured leak this repairs: a branch
+ * cashier captured a paper DR choosing RIZAL-COMMIS as the source; the client
+ * sent origin_type='branch' + origin_id=18, the capture faithfully stored that,
+ * and the branch-origin path wrote a `withdraw` INTO THE COMMISSARY's own
+ * branch-side cashier sheet — while the effects path (which only applies to
+ * origin_type 'commissary' or consignee) credited nothing into
+ * dl_commissary_product_ledger.dispatched_qty, so the same dispatch that left
+ * the production site was invisible in the ledger that owns it.
+ *
+ * Normalising the origin type here makes the stored row and every downstream
+ * route truthful in one place: the branch-side write is skipped (it is not a
+ * branch dispatch), dl_applyPostedDeliveryCommissaryLedger credits
+ * dispatched_qty, and the delivery appears under the commissary's own
+ * Deliveries tab where a production dispatch belongs.
+ *
+ * Used by BOTH paper-DR implementations (the online handler and the offline
+ * replay), so the normalisation cannot drift between them.
+ *
+ * Call it AFTER request validation, so refusal semantics (late capture, closed
+ * source, auto-DR) stay exactly as they were for the type the client sent.
+ */
+function dl_normalizePaperDrOriginType($db, string $originType, ?int $originId): string
+{
+    if ($originType === 'branch' && $originId !== null && $originId > 0 && dl_branchIsProductionSite($db, (int)$originId)) {
+        return 'commissary';
+    }
+    return $originType;
+}
+
 function apiReceivePaperDelivery(array $params = []): void
 {
     $ctx = module();
     if (!$ctx) { http_response_code(500); return; }
     $user = dlCurrentUser();
-
     $input = (array)json_decode(file_get_contents('php://input'), true);
     $idempotencyKey = trim((string)($input['idempotency_key'] ?? ''));
     if ($idempotencyKey !== '') {
@@ -10651,6 +10714,11 @@ function apiReceivePaperDelivery(array $params = []): void
             return;
         }
     }
+
+    // A production site captured as a "branch" source is stored and routed as
+    // the commissary source it is: no branch-side ledger write on the
+    // production site, and the departure is credited to its own ledger.
+    $originType = dl_normalizePaperDrOriginType($ctx->db(), $originType, $originId);
 
     $existing = null;
     if (!$autoDr) {

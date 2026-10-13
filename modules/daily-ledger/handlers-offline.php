@@ -683,7 +683,6 @@ function dl_offlineApplyWithdrawal(array $user, array $op, bool $inTx = false): 
     $actorId = $userId;
     $totals = [];
     $returnDeliveryId = null;
-    $returnReceivingId = null;
 
     if (!$inTx) {
         $ctx->db()->beginTransaction();
@@ -832,85 +831,30 @@ function dl_offlineApplyWithdrawal(array $user, array $op, bool $inTx = false): 
             $commissaryCheck->execute([':id' => $targetBranchId]);
             $commissary = $commissaryCheck->fetch(PDO::FETCH_ASSOC);
             if ($commissary) {
-                $effectiveUserId = $actorId > 0 ? $actorId : null;
-                $returnDr = '[pullout-return-' . $date . '-' . $branchId . '-' . date('His') . ']';
-
                 // Classify BEFORE any physical return is minted. Consumed goods
                 // (staff meal, sampling, testing, promo, donation) never came
                 // back, so they must not create a return delivery at all. Wastage
                 // is physical but not saleable; saleable stock returns to stock.
-                // Mirrors apiSaveCashierWithdrawals (S13).
                 $classification = dl_classifyPulloutReturnReason($reasonCode);
                 $isWastage = $classification === 'wastage';
                 $isSaleableReturn = $classification === 'returned_saleable';
-                $createsPhysicalReturn = $isWastage || $isSaleableReturn;
 
-                if ($createsPhysicalReturn && $branchId !== $targetBranchId) {
-                    $priceGroupId = dl_defaultPriceGroupId();
-                    $delIns = $ctx->db()->prepare(
-                        'INSERT INTO dl_deliveries
-                            (origin_type, origin_id, destination_type, destination_id, dr_number,
-                             delivery_date, status, created_by, posted_by, posted_at, remarks)
-                         VALUES (:ot, :oid, :dt, :did, :dr, :dd, "posted", :uid1, :uid2, NOW(), :remarks)'
-                    );
-                    $delIns->execute([
-                        ':ot' => 'branch',
-                        ':oid' => $branchId,
-                        ':dt' => 'branch',
-                        ':did' => $targetBranchId,
-                        ':dr' => $returnDr,
-                        ':dd' => $date,
-                        ':uid1' => $effectiveUserId,
-                        ':uid2' => $effectiveUserId,
-                        // A wastage return is physical but already recorded as
-                        // wastage_qty; the marker keeps it out of the saleable
-                        // returned_qty the Summary credits.
-                        ':remarks' => $isWastage ? '[cashier-pullout-return:wastage]' : '[cashier-pullout-return]',
-                    ]);
-                    $returnDeliveryId = (int)$ctx->db()->lastInsertId();
+                // One shared implementation with apiSaveCashierWithdrawals. The
+                // return mints NO receiving at the production site and writes no
+                // branch-side row there: a production site's stock lives in
+                // dl_commissary_product_ledger (owner ruling 2026-10-13 — a
+                // cashier entry must never be emitted to the production
+                // commissary). The device replay used to duplicate this block AND
+                // credit the ledger without a shift (legacy NULL bucket) — both
+                // divergences are gone with the shared helper.
+                $returnResult = dl_persistPulloutReturnToCommissary(
+                    $ctx->db(), $branchId, $targetBranchId, $date, $shift, $validLines, $actorId, $isWastage, $isSaleableReturn
+                );
+                $returnDeliveryId = (int)$returnResult['delivery_id'];
 
-                    $itemIns = $ctx->db()->prepare(
-                        'INSERT INTO dl_delivery_items
-                            (delivery_id, product_id, quantity, unit, unit_cost_snapshot, price_snapshot, price_group_id, remarks)
-                         VALUES (:did, :pid, :qty, :unit, :cost, :price, :pg, :remarks)'
-                    );
-                    foreach ($validLines as $line) {
-                        $itemIns->execute([
-                            ':did' => $returnDeliveryId,
-                            ':pid' => $line['product_id'],
-                            ':qty' => $line['quantity'],
-                            ':unit' => 'pcs',
-                            ':cost' => 0,
-                            ':price' => dl_resolveProductPrice((int)$line['product_id'], $priceGroupId, $date),
-                            ':pg' => $priceGroupId,
-                            ':remarks' => 'pullout_return:' . $branchId,
-                        ]);
-                    }
-                    $returnReceivingId = dl_acceptFormalDelivery($ctx->db(), $targetBranchId, $returnDeliveryId, $actorId, $date, null, $shift);
-                    dl_markReceivingCountBasis($ctx->db(), $returnReceivingId, 'copied');
-                }
-
-                // Credit commissary product ledger. THREE-WAY split (owner ruling):
-                // - returned_saleable -> produced_qty, because the goods physically
-                //   came back and can be re-dispatched.
-                // - wastage (spoilage, damage) -> wastage_qty, the only ledger
-                //   column meaning goods are gone for good.
-                // - consumed_no_delta (staff_meal, sampling, testing, promo,
-                //   donation) -> NEITHER. Not wastage, and crediting produced_qty
-                //   would invent stock. The dispatch already removed them.
-                foreach ($validLines as $line) {
-                    $pid = (int)$line['product_id'];
-                    $qty = (int)$line['quantity'];
-                    if ($isWastage) {
-                        dl_applyCommissaryProductLedgerDelta($ctx->db(), $targetBranchId, $pid, $date, 0, 0, $actorId, $qty);
-                    } elseif ($isSaleableReturn) {
-                        dl_applyCommissaryProductLedgerDelta($ctx->db(), $targetBranchId, $pid, $date, $qty, 0, $actorId, 0);
-                    }
-                }
-
-                dl_auditLog('create_delivery', $branchId, 'dl_deliveries', (string)($returnDeliveryId ?? 0), null, [
-                    'dr_number' => $returnDr ?? '[self-managed-no-delivery]',
-                    'status' => $returnDeliveryId ? 'posted' : 'ledger-only',
+                dl_auditLog('create_delivery', $branchId, 'dl_deliveries', (string)$returnDeliveryId, null, [
+                    'dr_number' => $returnDeliveryId > 0 ? (string)$returnResult['dr_number'] : '[self-managed-no-delivery]',
+                    'status' => $returnDeliveryId > 0 ? 'posted' : 'ledger-only',
                     'source' => 'cashier_pullout_return',
                     'destination_commissary_id' => $targetBranchId,
                     'saleable' => $isSaleableReturn,
@@ -941,7 +885,6 @@ function dl_offlineApplyWithdrawal(array $user, array $op, bool $inTx = false): 
         $response = ['ok' => true, 'totals' => $totals];
         if ($returnDeliveryId !== null) {
             $response['delivery_id'] = $returnDeliveryId;
-            $response['receiving_id'] = $returnReceivingId;
         }
         if ($idempotencyKey !== '') {
             dl_storeIdempotentResponse('cashier_withdrawal', $idempotencyKey, $response, 86400);
@@ -1040,6 +983,12 @@ function dl_offlineApplyReceivePaperDr(array $user, array $op, bool $inTx = fals
             throw new RuntimeException('Admin required for closed source-branch paper DR capture', 403);
         }
     }
+
+    // A production site captured as a "branch" source is stored and routed as
+    // the commissary source it is: no branch-side ledger write on the production
+    // site, and the departure is credited to its own ledger. Shared with
+    // apiReceivePaperDelivery so the two implementations cannot drift.
+    $originType = dl_normalizePaperDrOriginType($ctx->db(), $originType, $originId);
 
     $findStmt = $ctx->db()->prepare(
         'SELECT id, status

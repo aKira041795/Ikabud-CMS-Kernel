@@ -505,7 +505,7 @@ function withdrawalModal() {
                                 ? 'Stock added — charged to liable person'
                                 : 'Stock added — entry correction, nothing was lost';
                         }
-                    } else if (!isEdit && data.delivery_id && data.receiving_id) {
+                    } else if (!isEdit && data.delivery_id) {
                         msg = 'Pullout recorded and returned to commissary';
                     }
                     showToast(msg, 'success');

@@ -39,7 +39,7 @@ ob_end_clean();
 
 // Rendering compiles the DiSyL template (one info line), and the first render
 // after a code change rebuilds the module registry cache. Neither is a defect.
-$h->allowLogLines('disyl.compile.phases', 'kernel_state_cache: module_registry rebuilt');
+$h->allowLogLines('disyl.compile.phases', 'kernel_state_cache: module_registry rebuilt', 'disyl.render.breakdown');
 
 $base = $h->basePath();
 require_once $base . '/src/helpers/module-manager.php';
@@ -390,12 +390,19 @@ $db->prepare('INSERT INTO dl_branch_products (branch_id, product_id, is_active) 
 $db->prepare('INSERT INTO dl_branch_products (branch_id, product_id, is_active) VALUES (?, ?, 1)')->execute([$fix4Branch, $fix4Product]);
 $fix4Date = '2031-06-15';
 
+// RE-ANCHORED 2026-10-13 (leak-fix triage): the fixture used to seed the legacy
+// NULL-shift ledger row while the flow credits the SHIFT bucket (production_shift
+// is REQUIRED — "without it the dispatch lands in the legacy NULL bucket, which
+// the AM/PM-keyed Daily Sheet cannot see" — dl_applyPostedDeliveryCommissaryLedger).
+// The online half of this section was already RED on that stale premise; the
+// offline parity fix made the offline half match. Seed and read the AM bucket the
+// withdrawal payload actually uses.
 $seedFix4Ledger = static function () use ($db, $fix4Comm, $fix4Product, $fix4Date): void {
-    $db->prepare('INSERT INTO dl_commissary_product_ledger (commissary_branch_id, product_id, ledger_date, beg_qty, produced_qty, dispatched_qty, wastage_qty) VALUES (?, ?, ?, 0, 20, 0, 0)')
+    $db->prepare('INSERT INTO dl_commissary_product_ledger (commissary_branch_id, product_id, ledger_date, shift, beg_qty, produced_qty, dispatched_qty, wastage_qty) VALUES (?, ?, ?, "AM", 0, 20, 0, 0)')
         ->execute([$fix4Comm, $fix4Product, $fix4Date]);
 };
 $fix4Ledger = static function () use ($db, $fix4Comm, $fix4Product, $fix4Date): array {
-    $stmt = $db->prepare('SELECT produced_qty, dispatched_qty, wastage_qty, remaining_qty FROM dl_commissary_product_ledger WHERE commissary_branch_id = ? AND product_id = ? AND ledger_date = ?');
+    $stmt = $db->prepare('SELECT produced_qty, dispatched_qty, wastage_qty, remaining_qty FROM dl_commissary_product_ledger WHERE commissary_branch_id = ? AND product_id = ? AND ledger_date = ? AND shift = "AM"');
     $stmt->execute([$fix4Comm, $fix4Product, $fix4Date]);
     return $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
 };
@@ -522,7 +529,7 @@ $seedOff4 = static function () use ($db, $seedBranch, $seedProduct, $off4Comm, $
     $seedProduct($off4Product, 'S13-OF4P', 'S13 OF4 Offline Pullout Product');
     $db->prepare('INSERT INTO dl_branch_products (branch_id, product_id, is_active) VALUES (?, ?, 1)')->execute([$off4Comm, $off4Product]);
     $db->prepare('INSERT INTO dl_branch_products (branch_id, product_id, is_active) VALUES (?, ?, 1)')->execute([$off4Branch, $off4Product]);
-    $db->prepare('INSERT INTO dl_commissary_product_ledger (commissary_branch_id, product_id, ledger_date, beg_qty, produced_qty, dispatched_qty, wastage_qty) VALUES (?, ?, ?, 0, 20, 0, 0)')
+    $db->prepare('INSERT INTO dl_commissary_product_ledger (commissary_branch_id, product_id, ledger_date, shift, beg_qty, produced_qty, dispatched_qty, wastage_qty) VALUES (?, ?, ?, "AM", 0, 20, 0, 0)')
         ->execute([$off4Comm, $off4Product, $off4Date]);
     $db->execute('DELETE FROM dl_offline_sync_receipts WHERE tenant_scope = :ts', [':ts' => $off4Scope]);
     $db->execute('DELETE FROM dl_offline_device_enrollments WHERE tenant_scope = :ts', [':ts' => $off4Scope]);
@@ -532,7 +539,8 @@ $seedOff4 = static function () use ($db, $seedBranch, $seedProduct, $off4Comm, $
         ->execute([$off4Scope, $off4Enrollment, $off4Device, $off4Hash, $off4Branch]);
 };
 $off4Ledger = static function () use ($db, $off4Comm, $off4Product, $off4Date): array {
-    $stmt = $db->prepare('SELECT produced_qty, dispatched_qty, wastage_qty, remaining_qty FROM dl_commissary_product_ledger WHERE commissary_branch_id = ? AND product_id = ? AND ledger_date = ?');
+    // Same re-anchor as the online fixture: the replay credits the AM bucket.
+    $stmt = $db->prepare('SELECT produced_qty, dispatched_qty, wastage_qty, remaining_qty FROM dl_commissary_product_ledger WHERE commissary_branch_id = ? AND product_id = ? AND ledger_date = ? AND shift = "AM"');
     $stmt->execute([$off4Comm, $off4Product, $off4Date]);
     return $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
 };
