@@ -357,6 +357,10 @@
                     "superadmin",
                     "admin"
                 ]
+            },
+            "POST /api/v1/cms/settings": {
+                "mode": "module-decides",
+                "capability": "settings.manage"
             }
         },
         "policy": {

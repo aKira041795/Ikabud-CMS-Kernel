@@ -36,10 +36,24 @@ $expectedRoutes = [
 $expectedRoles = ['editor', 'administrator', 'superadmin', 'admin'];
 $declaredRoutes = $manifest['capabilities']['routes'] ?? null;
 
+$roleModeRoutes = is_array($declaredRoutes)
+    ? array_keys(array_filter($declaredRoutes, static fn ($d): bool => is_array($d) && !array_key_exists('mode', $d)))
+    : [];
 $check(
-    'REAL-MANIFEST pins exactly the three CMS entity-capability write routes',
-    is_array($declaredRoutes) && array_keys($declaredRoutes) === $expectedRoutes,
-    json_encode(array_keys(is_array($declaredRoutes) ? $declaredRoutes : []))
+    'REAL-MANIFEST pins exactly the three role-mode CMS entity-capability write routes',
+    $roleModeRoutes === $expectedRoutes,
+    json_encode($roleModeRoutes)
+);
+// The fourth key is the slice-4 delegated contract; pinned exactly here too so a
+// future change to it fails in THIS suite as well, not only in the proof test.
+$delegatedSettings = is_array($declaredRoutes) ? ($declaredRoutes['POST /api/v1/cms/settings'] ?? null) : null;
+$check(
+    'REAL-MANIFEST pins the delegated CMS settings route as module-decides (slice 4)',
+    is_array($delegatedSettings)
+        && ($delegatedSettings['mode'] ?? null) === 'module-decides'
+        && ($delegatedSettings['capability'] ?? null) === 'settings.manage'
+        && !array_key_exists('allowed_roles', $delegatedSettings),
+    json_encode($delegatedSettings)
 );
 foreach ($expectedRoutes as $routeKey) {
     $declaration = is_array($declaredRoutes) ? ($declaredRoutes[$routeKey] ?? null) : null;
@@ -129,14 +143,14 @@ foreach ($expectedRoutes as $routeKey) {
 $undeclared = AuthorityDispatchGuard::decide(
     'cms',
     'POST',
-    '/api/v1/cms/settings',
-    '/api/v1/cms/settings',
+    '/api/v1/cms/settings/reset',
+    '/api/v1/cms/settings/reset',
     $manifest,
     ['id' => 301, 'role' => 'author', 'source' => 'cms', 'tenant_id' => 42],
     $resolver,
 );
 $check(
-    'PARITY: undeclared POST /api/v1/cms/settings remains permitted for a CMS author',
+    'PARITY: undeclared POST /api/v1/cms/settings/reset remains permitted for a CMS author',
     $undeclared['allowed'] && !$undeclared['configured'] && $undeclared['reason'] === 'no_authority_declared',
     json_encode($undeclared)
 );
