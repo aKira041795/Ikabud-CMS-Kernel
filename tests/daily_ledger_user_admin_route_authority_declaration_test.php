@@ -129,7 +129,9 @@ foreach ($expectedRoutes as $routeKey) {
     }
 }
 
-$undeclaredPath = '/daily-ledger/api/v1/commissary/run';
+// Parity-route rule (decision 158): the probe moved from /commissary/run to a permanently
+// undeclared auth-only route (dlCurrentUser() with no role set — never declared).
+$undeclaredPath = '/daily-ledger/api/v1/cashier/ledger/withdrawals';
 $undeclared = AuthorityDispatchGuard::decide(
     'daily-ledger',
     'POST',
@@ -140,7 +142,7 @@ $undeclared = AuthorityDispatchGuard::decide(
     $resolver,
 );
 $check(
-    'PARITY: undeclared POST /daily-ledger/api/v1/commissary/run remains permitted for a cashier',
+    'PARITY: undeclared POST /daily-ledger/api/v1/cashier/ledger/withdrawals remains permitted for a cashier',
     $undeclared['allowed'] && !$undeclared['configured'] && $undeclared['reason'] === 'no_authority_declared',
     json_encode($undeclared)
 );

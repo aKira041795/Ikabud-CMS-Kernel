@@ -60,9 +60,12 @@ $batch2Routes = [
 $expectedRoutes = array_merge($slice3Routes, $batch2Routes);
 $declaredRoutes = $manifest['capabilities']['routes'] ?? null;
 
+// Multi-batch pin rule: this suite owns ITS 21 routes (present and unchanged); the exact
+// full-set pin for the module lives in the NEWEST batch suite
+// (tests/daily_ledger_ops_production_route_authority_declaration_test.php, 33 keys).
 $check(
-    'REAL-MANIFEST pins exactly the 21 Daily Ledger exact-admin write routes',
-    is_array($declaredRoutes) && array_keys($declaredRoutes) === $expectedRoutes,
+    'REAL-MANIFEST contains the 21 Daily Ledger exact-admin write routes (subset pin)',
+    is_array($declaredRoutes) && array_diff($expectedRoutes, array_keys($declaredRoutes)) === [],
     json_encode(array_keys(is_array($declaredRoutes) ? $declaredRoutes : []))
 );
 foreach ($batch2Routes as $routeKey) {
@@ -145,7 +148,9 @@ foreach ($batch2Routes as $routeKey) {
     }
 }
 
-$undeclaredPath = '/daily-ledger/api/v1/admin/variances/update';
+// Parity-route rule (decision 158): the probe moved from /admin/variances/update to a
+// permanently undeclared auth-only route (dlCurrentUser() with no role set — never declared).
+$undeclaredPath = '/daily-ledger/api/v1/cashier/ledger/withdrawals';
 $undeclared = AuthorityDispatchGuard::decide(
     'daily-ledger',
     'POST',
@@ -156,7 +161,7 @@ $undeclared = AuthorityDispatchGuard::decide(
     $resolver,
 );
 $check(
-    'PARITY: undeclared POST /daily-ledger/api/v1/admin/variances/update remains permitted for a cashier',
+    'PARITY: undeclared POST /daily-ledger/api/v1/cashier/ledger/withdrawals remains permitted for a cashier',
     $undeclared['allowed'] && !$undeclared['configured'] && $undeclared['reason'] === 'no_authority_declared',
     json_encode($undeclared)
 );

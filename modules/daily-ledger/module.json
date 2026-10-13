@@ -389,6 +389,99 @@
         "allowed_roles": [
           "admin"
         ]
+      },
+      "POST /daily-ledger/api/v1/admin/reopen-day": {
+        "capability": "kernel.auth.authenticate@1",
+        "allowed_roles": [
+          "admin",
+          "supervisor"
+        ]
+      },
+      "POST /daily-ledger/api/v1/admin/variances/update": {
+        "capability": "kernel.auth.authenticate@1",
+        "allowed_roles": [
+          "admin",
+          "supervisor"
+        ]
+      },
+      "POST /daily-ledger/api/v1/admin/reconciliation/save": {
+        "capability": "kernel.auth.authenticate@1",
+        "allowed_roles": [
+          "admin",
+          "supervisor"
+        ]
+      },
+      "POST /daily-ledger/api/v1/production/withdrawal": {
+        "capability": "kernel.auth.authenticate@1",
+        "allowed_roles": [
+          "admin",
+          "supervisor",
+          "production_in_charge"
+        ]
+      },
+      "POST /daily-ledger/api/v1/production/output": {
+        "capability": "kernel.auth.authenticate@1",
+        "allowed_roles": [
+          "admin",
+          "supervisor",
+          "production_in_charge"
+        ]
+      },
+      "POST /daily-ledger/api/v1/production/reverse": {
+        "capability": "kernel.auth.authenticate@1",
+        "allowed_roles": [
+          "admin",
+          "supervisor",
+          "production_in_charge"
+        ]
+      },
+      "POST /daily-ledger/api/v1/production/sync-batch": {
+        "capability": "kernel.auth.authenticate@1",
+        "allowed_roles": [
+          "admin",
+          "supervisor",
+          "production_in_charge"
+        ]
+      },
+      "POST /daily-ledger/api/v1/commissary/run": {
+        "capability": "kernel.auth.authenticate@1",
+        "allowed_roles": [
+          "admin",
+          "supervisor",
+          "production_in_charge"
+        ]
+      },
+      "POST /daily-ledger/api/v1/commissary/material": {
+        "capability": "kernel.auth.authenticate@1",
+        "allowed_roles": [
+          "admin",
+          "supervisor",
+          "production_in_charge"
+        ]
+      },
+      "POST /daily-ledger/api/v1/commissary/dispatch": {
+        "capability": "kernel.auth.authenticate@1",
+        "allowed_roles": [
+          "admin",
+          "supervisor",
+          "production_in_charge"
+        ]
+      },
+      "POST /daily-ledger/api/v1/commissary/carry-beginnings": {
+        "capability": "kernel.auth.authenticate@1",
+        "allowed_roles": [
+          "admin",
+          "supervisor",
+          "production_in_charge",
+          "auditor"
+        ]
+      },
+      "POST /daily-ledger/api/v1/commissary/finalize-pm": {
+        "capability": "kernel.auth.authenticate@1",
+        "allowed_roles": [
+          "admin",
+          "production_in_charge"
+        ]
       }
     },
     "policy": {
