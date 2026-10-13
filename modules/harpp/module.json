@@ -344,6 +344,88 @@
             "kernel.audit.record@1",
             "kernel.auth.user@1"
         ],
+        "routes": {
+            "POST /api/v1/harpp/settings": {
+                "capability": "harpp.settings.manage@1",
+                "allowed_roles": [
+                    "owner",
+                    "admin",
+                    "superadmin"
+                ]
+            },
+            "POST /api/v1/harpp/users": {
+                "capability": "harpp.users.manage@1",
+                "allowed_roles": [
+                    "owner",
+                    "admin",
+                    "superadmin"
+                ]
+            },
+            "PUT /api/v1/harpp/users/{id}": {
+                "capability": "harpp.users.manage@1",
+                "allowed_roles": [
+                    "owner",
+                    "admin",
+                    "superadmin"
+                ]
+            },
+            "PATCH /api/v1/harpp/users/{id}": {
+                "capability": "harpp.users.manage@1",
+                "allowed_roles": [
+                    "owner",
+                    "admin",
+                    "superadmin"
+                ]
+            },
+            "DELETE /api/v1/harpp/users/{id}": {
+                "capability": "harpp.users.manage@1",
+                "allowed_roles": [
+                    "owner",
+                    "admin",
+                    "superadmin"
+                ]
+            },
+            "POST /api/v1/harpp/users/{id}/reset-password": {
+                "capability": "harpp.users.manage@1",
+                "allowed_roles": [
+                    "owner",
+                    "admin",
+                    "superadmin"
+                ]
+            },
+            "POST /api/v1/harpp/deploys": {
+                "capability": "harpp.deploy.request@1",
+                "allowed_roles": [
+                    "owner",
+                    "admin",
+                    "superadmin"
+                ]
+            },
+            "POST /api/v1/harpp/deploys/{id}/cancel": {
+                "capability": "harpp.deploy.request@1",
+                "allowed_roles": [
+                    "owner",
+                    "admin",
+                    "superadmin"
+                ]
+            },
+            "GET /api/v1/harpp/settings": {
+                "capability": "harpp.settings.read@1",
+                "allowed_roles": [
+                    "owner",
+                    "admin",
+                    "superadmin"
+                ]
+            },
+            "GET /api/v1/harpp/users": {
+                "capability": "harpp.users.manage@1",
+                "allowed_roles": [
+                    "owner",
+                    "admin",
+                    "superadmin"
+                ]
+            }
+        },
         "policy": {
             "capabilities": {
                 "kernel.auth.authenticate@1": {
