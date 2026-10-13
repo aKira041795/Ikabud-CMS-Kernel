@@ -2459,6 +2459,10 @@
         var raw = input.value.trim();
         var value = raw === '' ? 0 : parseInt(raw, 10);
         if (isNaN(value)) { showToast('BEG must be a whole number', 'error'); return; }
+        // The persisted value BEFORE this save: the book balance (and therefore the
+        // suggested actual count) moves by the same delta this edit applies.
+        var previousBeg = parseInt(input.getAttribute('data-original') || '0', 10);
+        if (isNaN(previousBeg)) previousBeg = 0;
         input.disabled = true;
         productionJson('{base_url}/api/v1/commissary/material', {
             entity: 'product_beg',
@@ -2470,6 +2474,8 @@
             submission_id: dlNewSubmissionId()
         }).then(function(res) {
             var persisted = res.row.beg_qty === null ? '' : String(res.row.beg_qty);
+            var persistedBeg = parseInt(persisted || '0', 10);
+            if (isNaN(persistedBeg)) persistedBeg = 0;
             input.value = persisted;
             input.setAttribute('data-original', persisted);
             input.setAttribute('data-recorded', '1');
@@ -2478,6 +2484,22 @@
             if (row) {
                 var variance = row.querySelector('.production-variance');
                 if (variance) variance.textContent = res.row.calc_variance === null ? '—' : res.row.calc_variance;
+                // Book balance = BEG + Produced - Dispatched - Wastage, so a BEG edit changes
+                // the suggested actual count by the same delta. Move the suggestion with it;
+                // an operator's own entry in the field is never overwritten.
+                var actual = row.querySelector('.production-actual-input');
+                if (actual) {
+                    var delta = persistedBeg - previousBeg;
+                    var oldSuggestion = parseInt(actual.getAttribute('data-suggestion') || '0', 10);
+                    if (isNaN(oldSuggestion)) oldSuggestion = 0;
+                    var newSuggestion = oldSuggestion + delta;
+                    var untouched = (actual.getAttribute('data-original') || '') === '';
+                    if (untouched && (parseInt(actual.value, 10) || 0) === oldSuggestion) {
+                        actual.value = String(newSuggestion);
+                    }
+                    actual.setAttribute('data-suggestion', String(newSuggestion));
+                    actual.title = 'Suggested book balance: ' + newSuggestion + '; clear and save for not counted';
+                }
             }
             showToast('Beginning saved', 'success');
         }).catch(function(error) {
