@@ -335,6 +335,84 @@
                 "allowed_roles": [
                     "admin"
                 ]
+            },
+            "POST /api/v1/wage/holidays": {
+                "capability": "attendance_wage.admin@1",
+                "allowed_roles": [
+                    "admin"
+                ]
+            },
+            "POST /api/v1/wage/holidays/{id}": {
+                "capability": "attendance_wage.admin@1",
+                "allowed_roles": [
+                    "admin"
+                ]
+            },
+            "POST /api/v1/wage/holidays/{id}/delete": {
+                "capability": "attendance_wage.admin@1",
+                "allowed_roles": [
+                    "admin"
+                ]
+            },
+            "POST /api/v1/wage/locations": {
+                "capability": "attendance_wage.admin@1",
+                "allowed_roles": [
+                    "admin"
+                ]
+            },
+            "POST /api/v1/wage/locations/{id}": {
+                "capability": "attendance_wage.admin@1",
+                "allowed_roles": [
+                    "admin"
+                ]
+            },
+            "POST /api/v1/wage/locations/{id}/delete": {
+                "capability": "attendance_wage.admin@1",
+                "allowed_roles": [
+                    "admin"
+                ]
+            },
+            "POST /api/v1/wage/settings": {
+                "capability": "attendance_wage.admin@1",
+                "allowed_roles": [
+                    "admin"
+                ]
+            },
+            "POST /api/v1/wage/settings/change-password": {
+                "capability": "attendance_wage.admin@1",
+                "allowed_roles": [
+                    "admin"
+                ]
+            },
+            "POST /api/v1/wage/settings/add-user": {
+                "capability": "attendance_wage.admin@1",
+                "allowed_roles": [
+                    "admin"
+                ]
+            },
+            "POST /api/v1/wage/settings/update-role": {
+                "capability": "attendance_wage.admin@1",
+                "allowed_roles": [
+                    "admin"
+                ]
+            },
+            "POST /api/v1/wage/settings/toggle-user": {
+                "capability": "attendance_wage.admin@1",
+                "allowed_roles": [
+                    "admin"
+                ]
+            },
+            "POST /api/v1/wage/settings/data-reset": {
+                "capability": "attendance_wage.admin@1",
+                "allowed_roles": [
+                    "admin"
+                ]
+            },
+            "POST /api/v1/wage/settings/backup": {
+                "capability": "attendance_wage.admin@1",
+                "allowed_roles": [
+                    "admin"
+                ]
             }
         },
         "depends": []
