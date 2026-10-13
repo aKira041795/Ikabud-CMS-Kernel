@@ -49,7 +49,8 @@ $routes = [
 ];
 $declaredRoutes = $manifest['capabilities']['routes'] ?? null;
 
-// Deliberately a subset pin: slice 9b will own the exact 25-key full-set pin.
+// Deliberately a subset pin: the exact full-set pin is owned by the NEWEST batch suite
+// (tests/attendance_wage_manage_approve_route_authority_declaration_test.php, 34 keys).
 foreach ($routes as $routeKey) {
     $declaration = is_array($declaredRoutes) ? ($declaredRoutes[$routeKey] ?? null) : null;
     $check(

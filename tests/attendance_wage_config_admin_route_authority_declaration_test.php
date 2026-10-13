@@ -64,10 +64,14 @@ $routes = [
 ];
 $declaredRoutes = $manifest['capabilities']['routes'] ?? null;
 $expectedRouteKeys = array_merge($slice9aRoutes, $routes);
+
+// Multi-batch pin rule (decisions 155/157/158, applied to decision 159): this suite owns ITS
+// 25 routes (present and unchanged); the exact full-set pin for the module lives in the NEWEST
+// batch suite (tests/attendance_wage_manage_approve_route_authority_declaration_test.php, 34 keys).
 $check(
-    'REAL-MANIFEST capabilities.routes contains exactly the 25 slice 9a + 9b keys',
-    is_array($declaredRoutes) && array_keys($declaredRoutes) === $expectedRouteKeys,
-    json_encode(is_array($declaredRoutes) ? array_keys($declaredRoutes) : $declaredRoutes)
+    'REAL-MANIFEST contains the 25 slice 9a + 9b route keys (subset pin)',
+    is_array($declaredRoutes) && array_diff($expectedRouteKeys, array_keys($declaredRoutes)) === [],
+    json_encode(array_keys(is_array($declaredRoutes) ? $declaredRoutes : []))
 );
 
 foreach ($routes as $routeKey) {

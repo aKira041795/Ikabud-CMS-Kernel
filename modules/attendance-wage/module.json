@@ -413,6 +413,63 @@
                 "allowed_roles": [
                     "admin"
                 ]
+            },
+            "POST /api/v1/wage/adjustments": {
+                "capability": "attendance_wage.manage@1",
+                "allowed_roles": [
+                    "admin",
+                    "supervisor"
+                ]
+            },
+            "POST /api/v1/wage/deductions": {
+                "capability": "attendance_wage.manage@1",
+                "allowed_roles": [
+                    "admin",
+                    "supervisor"
+                ]
+            },
+            "POST /api/v1/wage/deductions/{id}/status": {
+                "capability": "attendance_wage.manage@1",
+                "allowed_roles": [
+                    "admin",
+                    "supervisor"
+                ]
+            },
+            "POST /api/v1/wage/computations/{id}/approve": {
+                "capability": "attendance_wage.approve@1",
+                "allowed_roles": [
+                    "admin"
+                ]
+            },
+            "POST /api/v1/wage/computations/{id}/pay": {
+                "capability": "attendance_wage.approve@1",
+                "allowed_roles": [
+                    "admin"
+                ]
+            },
+            "POST /api/v1/wage/computations/batch/approve": {
+                "capability": "attendance_wage.approve@1",
+                "allowed_roles": [
+                    "admin"
+                ]
+            },
+            "POST /api/v1/wage/computations/batch/pay": {
+                "capability": "attendance_wage.approve@1",
+                "allowed_roles": [
+                    "admin"
+                ]
+            },
+            "POST /api/v1/wage/adjustments/{id}/approve": {
+                "capability": "attendance_wage.approve@1",
+                "allowed_roles": [
+                    "admin"
+                ]
+            },
+            "POST /api/v1/wage/cash-advances/{id}/approve": {
+                "capability": "attendance_wage.approve@1",
+                "allowed_roles": [
+                    "admin"
+                ]
             }
         },
         "depends": []
