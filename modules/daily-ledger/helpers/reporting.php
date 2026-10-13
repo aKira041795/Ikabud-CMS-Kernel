@@ -1020,6 +1020,13 @@ function dl_runScheduledReports(ModuleDB $db, array $user, DateTimeImmutable $no
             continue;
         }
         $window = dl_reportScheduleWindow($schedule, $now);
+        // A window entirely inside the training period is not an official report:
+        // skip it rather than archive a pack of pre-official numbers.
+        if (dl_scheduledWindowIsPreBoundary((string)$window['date_from'], (string)$window['date_to'])) {
+            $summary['skipped']++;
+            $summary['results'][] = ['type' => $type, 'status' => 'pre_official', 'window' => $window];
+            continue;
+        }
         $filters = $window + [
             'branch_id' => 0,
             'product_id' => 0,
@@ -1371,6 +1378,13 @@ function dl_forecastRows(ModuleDB $db, array $filters, string $targetDate, int $
     $target = new DateTimeImmutable($targetDate);
     $historyTo = $target->modify('-1 day')->format('Y-m-d');
     $historyFrom = $target->modify('-' . max(1, min(90, $window)) . ' days')->format('Y-m-d');
+    // Official data start: the history a suggestion learns from is an
+    // accountability read — it must not learn from a training period. A target
+    // that itself predates the boundary keeps reading that history unchanged.
+    $officialStart = dl_officialDataStart();
+    if ($officialStart !== null && $historyTo >= $officialStart && $historyFrom < $officialStart) {
+        $historyFrom = $officialStart;
+    }
     $historyFilters = $filters;
     $historyFilters['date_from'] = $historyFrom;
     $historyFilters['date_to'] = $historyTo;
@@ -1434,6 +1448,13 @@ function dl_forecastRows(ModuleDB $db, array $filters, string $targetDate, int $
                       WHERE latest.ledger_date <= ?
                         AND latest.bal_end IS NOT NULL";
     $inventoryBind = array_merge([$historyTo], $inventoryBranchIds, [$historyTo]);
+    // Official data start: a pre-boundary count must not read as "stock on hand"
+    // for a post-boundary suggestion. The latest-key pick may still be an old row;
+    // the outer floor then reports NO count rather than one from training data.
+    if ($officialStart !== null && $historyTo >= $officialStart) {
+        $inventorySql .= ' AND latest.ledger_date >= ?';
+        $inventoryBind[] = $officialStart;
+    }
     if ($filters['product_id'] > 0) {
         $inventorySql .= ' AND latest.product_id = ?';
         $inventoryBind[] = $filters['product_id'];

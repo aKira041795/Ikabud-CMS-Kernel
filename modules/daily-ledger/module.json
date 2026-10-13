@@ -945,6 +945,13 @@
       "description": "Time the AM shift ends and the PM shift begins. The ledger auto-selects PM for cashiers working at/after this time, and the PM shift starts with the AM ending count."
     },
     {
+      "key": "official_data_start",
+      "type": "date",
+      "label": "Official Data Start",
+      "default": "",
+      "description": "First date whose records count as official. Earlier dates (a testing/training period) stay stored, readable and audited, but are excluded from default accountability views: the unreviewed variance queue, lifetime totals, and beginning carry suggestions. Empty = no boundary."
+    },
+    {
       "key": "reset_second_phrase_enabled",
       "type": "checkbox",
       "label": "Require Second Phrase For Full Reset",

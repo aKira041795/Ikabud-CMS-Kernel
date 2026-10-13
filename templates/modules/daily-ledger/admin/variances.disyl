@@ -1042,6 +1042,16 @@
         </a>
     </div>
 
+    {if official_data_start}
+    <div class="mx-4 mt-3 rounded border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700" id="official-start-note" data-official-start="{official_data_start}" role="status">
+        {if variance_view_includes_training}
+        This view includes the <span class="font-semibold">training period before {official_data_start}</span> — those dates are shown because you filtered to them, and are not counted in official totals.
+        {else}
+        Official records start <span class="font-semibold">{official_data_start}</span>; earlier dates are excluded from this queue unless you filter to them.
+        {/if}
+    </div>
+    {/if}
+
     <!-- Filter bar -->
     <div class="variance-filter-bar">
         <span class="text-xs font-semibold text-gray-500 mr-1">Quick filter:</span>

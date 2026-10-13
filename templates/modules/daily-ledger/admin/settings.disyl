@@ -120,6 +120,20 @@
 
 <div class="card mb-6">
     <div class="card-header">
+        <span>Official Data Start</span>
+        <span class="text-sm text-muted">Accountability boundary</span>
+    </div>
+    <div class="card-body">
+        <div class="form-group mb-0 max-w-md">
+            <label class="form-label" for="official-data-start">First official date</label>
+            <input type="date" id="official-data-start" class="form-input" value="{official_data_start}">
+            <p class="mt-2 text-sm text-gray-500">Set this when an earlier month was a testing/training period. Records before this date stay stored, readable and audited, but are excluded from accountability views: the unreviewed variance queue, the lifetime totals, and beginning carry suggestions. Leave empty for no boundary (everything counts).</p>
+        </div>
+    </div>
+</div>
+
+<div class="card mb-6">
+    <div class="card-header">
         <span>Operating Clock</span>
         <span class="text-sm text-muted">Region and Timezone</span>
     </div>
@@ -1025,6 +1039,7 @@
             auto_close_enabled: autoCloseEnabled,
             close_of_day_time: closeOfDayTime,
             am_shift_cutoff: document.getElementById('am-shift-cutoff').value || '14:00',
+            official_data_start: (document.getElementById('official-data-start') || {}).value || '',
             backup_before_reset_enabled: document.getElementById('backup-before-reset-enabled').checked,
             backup_include_users: document.getElementById('backup-include-users').checked,
             backup_retention_days: parseInt(document.getElementById('backup-retention-days').value, 10) || 14,

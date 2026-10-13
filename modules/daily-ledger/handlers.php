@@ -2430,6 +2430,84 @@ function dl_amShiftCutoff(): string
 }
 
 /**
+ * The tenant's official data start — the first date whose records count as
+ * OFFICIAL (owner, 2026-10-13: a client whose first month was a testing period).
+ * Empty or unparseable = no boundary, which is the default for every tenant.
+ *
+ * It is a READ boundary, never a delete: pre-boundary rows remain stored,
+ * retrievable and audited; accountability surfaces (the unreviewed queue, the
+ * lifetime totals, carry suggestions) simply start at this date. Clearing the
+ * setting restores the previous behaviour exactly.
+ */
+function dl_officialDataStart(bool $refresh = false): ?string
+{
+    static $cache = null;
+    static $loaded = false;
+    if ($loaded && !$refresh) {
+        return $cache;
+    }
+    $raw = trim((string)(dlModuleSettings($refresh)['official_data_start'] ?? ''));
+    $value = preg_match('/^\d{4}-\d{2}-\d{2}$/', $raw) ? $raw : null;
+    if ($raw !== '' && $value === null) {
+        // A stored value we cannot parse must not quietly bend a boundary. Say so
+        // (once per request) and behave as "no boundary" until a human corrects it.
+        write_log('daily-ledger official_data_start is not a valid Y-m-d date; treated as unset', 'warning', ['stored' => $raw]);
+    }
+    $cache = $value;
+    $loaded = true;
+    return $value;
+}
+
+/** Normalise an incoming official_data_start value: a real Y-m-d date, or ''. */
+function dl_normalizeOfficialStart($value): string
+{
+    $raw = trim((string)$value);
+    return preg_match('/^\d{4}-\d{2}-\d{2}$/', $raw) ? $raw : '';
+}
+
+/** The later of $from and the official data start (unchanged when unset or empty). */
+function dl_officialClampFrom(string $from): string
+{
+    $official = dl_officialDataStart();
+    if ($official === null || $from === '') {
+        return $from;
+    }
+    return $from < $official ? $official : $from;
+}
+
+/** Whether a report window lies entirely before the official data start. */
+function dl_scheduledWindowIsPreBoundary(string $windowFrom, string $windowTo): bool
+{
+    $official = dl_officialDataStart();
+    return $official !== null && $windowTo !== '' && $windowTo < $official;
+}
+
+/**
+ * Unreviewed variance flags in the given branch set, floored at the official
+ * data start when one is configured. One counting rule for the dashboard card
+ * and the suites: a training period's flags are real rows but not current
+ * accountability.
+ */
+function dl_countUnreviewedVariances($db, array $branchIds): int
+{
+    $branchIds = array_values(array_filter(array_map('intval', $branchIds), static fn(int $id): bool => $id > 0));
+    if ($branchIds === []) {
+        return 0;
+    }
+    $placeholders = implode(',', array_fill(0, count($branchIds), '?'));
+    $sql = 'SELECT COUNT(*) FROM dl_variance_flags WHERE resolution_status = "unreviewed" AND branch_id IN (' . $placeholders . ')';
+    $bind = $branchIds;
+    $officialStart = dl_officialDataStart();
+    if ($officialStart !== null) {
+        $sql .= ' AND ledger_date >= ?';
+        $bind[] = $officialStart;
+    }
+    $stmt = $db->prepare($sql);
+    $stmt->execute($bind);
+    return (int)$stmt->fetchColumn();
+}
+
+/**
  * Explicit per-user shift assignment (AM/PM) read from dl_users.shift, or
  * null when the account has no assignment. Cached per request+user id so
  * the ledger hot path only queries once.
@@ -3485,22 +3563,33 @@ function dl_reverseConsigneeDeliveryCredits($db, int $deliveryId, int $actorId):
  */
 function dl_suggestCommissaryBeginning($db, int $commissaryBranchId, int $productId, string $ledgerDate): int
 {
+    // Official data start: a beginning ON/AFTER the boundary must not be seeded
+    // from pre-boundary counts or movements. Within the training period the
+    // suggestion keeps reading that history unchanged.
+    $officialStart = dl_officialDataStart();
+    $floorSql = '';
+    $floorBind = [];
+    if ($officialStart !== null && $ledgerDate >= $officialStart) {
+        $floorSql = ' AND ledger_date >= :official_floor';
+        $floorBind = [':official_floor' => $officialStart];
+    }
+
     $countStmt = $db->prepare(
         'SELECT ledger_date, actual_end_qty
            FROM dl_commissary_product_ledger
           WHERE commissary_branch_id = :cb AND product_id = :pid
-            AND ledger_date < :d AND actual_end_qty IS NOT NULL
+            AND ledger_date < :d AND actual_end_qty IS NOT NULL' . $floorSql . '
           ORDER BY ledger_date DESC
           LIMIT 1'
     );
-    $countStmt->execute([':cb' => $commissaryBranchId, ':pid' => $productId, ':d' => $ledgerDate]);
+    $countStmt->execute(array_merge([':cb' => $commissaryBranchId, ':pid' => $productId, ':d' => $ledgerDate], $floorBind));
     $count = $countStmt->fetch(PDO::FETCH_ASSOC) ?: null;
 
     $movementSql = 'SELECT COALESCE(SUM(produced_qty - dispatched_qty - wastage_qty), 0)
                       FROM dl_commissary_product_ledger
                      WHERE commissary_branch_id = :cb AND product_id = :pid
-                       AND ledger_date < :d';
-    $bind = [':cb' => $commissaryBranchId, ':pid' => $productId, ':d' => $ledgerDate];
+                       AND ledger_date < :d' . $floorSql;
+    $bind = array_merge([':cb' => $commissaryBranchId, ':pid' => $productId, ':d' => $ledgerDate], $floorBind);
     if ($count) {
         $movementSql .= ' AND ledger_date > :count_date';
         $bind[':count_date'] = (string)$count['ledger_date'];
@@ -3529,6 +3618,7 @@ function dl_fetchCommissaryBeginningSuggestions(
         return [];
     }
     $shift = dl_normalizeShift((string)$shift);
+    $bind = [':cb' => $commissaryBranchId, ':d' => $ledgerDate];
     if ($shift === 'PM') {
         $stmt = $db->prepare(
             'SELECT product_id, actual_end_qty
@@ -3538,17 +3628,26 @@ function dl_fetchCommissaryBeginningSuggestions(
               ORDER BY product_id, id DESC'
         );
     } else {
+        // Official data start: the AM suggestion must not reach back into a
+        // training period when the sheet date is on/after the boundary.
+        $officialStart = dl_officialDataStart();
+        $floorSql = ($officialStart !== null && $ledgerDate >= $officialStart)
+            ? ' AND ledger_date >= :official_floor'
+            : '';
+        if ($floorSql !== '') {
+            $bind[':official_floor'] = $officialStart;
+        }
         $stmt = $db->prepare(
             'SELECT product_id, actual_end_qty
                FROM dl_commissary_product_ledger
               WHERE commissary_branch_id = :cb AND ledger_date < :d
-                AND actual_end_qty IS NOT NULL
+                AND actual_end_qty IS NOT NULL' . $floorSql . '
               ORDER BY product_id, ledger_date DESC,
                        CASE shift WHEN "PM" THEN 2 WHEN "AM" THEN 1 ELSE 0 END DESC,
                        id DESC'
         );
     }
-    $stmt->execute([':cb' => $commissaryBranchId, ':d' => $ledgerDate]);
+    $stmt->execute($bind);
     $suggestions = [];
     foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
         $productId = (int)$row['product_id'];
@@ -8318,6 +8417,11 @@ function dl_autoCarryBeginnings(\Ikabud\Kernel\Contracts\ModuleDB $db, int $bran
     }
     $shift = $shift === 'PM' ? 'PM' : 'AM';
     $prevDate = (new \DateTimeImmutable($ledgerDate))->modify('-1 day')->format('Y-m-d');
+    // Official data start: a beginning must never be carried ACROSS the boundary
+    // (the previous date predates official records, so its ending is not a
+    // reference). Within the training period the handoff still works.
+    $officialStart = dl_officialDataStart();
+    $mayCarryPrev = ($officialStart === null || $ledgerDate < $officialStart || $prevDate >= $officialStart) ? 1 : 0;
 
     // `cur.id IS NULL` is the whole safety rule: the row must not exist. One placeholder per
     // binding because PDO does not reliably reuse a named parameter.
@@ -8325,8 +8429,9 @@ function dl_autoCarryBeginnings(\Ikabud\Kernel\Contracts\ModuleDB $db, int $bran
         "SELECT p.id AS product_id,
                 CASE
                     WHEN :isPm = 1 THEN am.bal_end
-                    WHEN prev_pm.bal_end IS NOT NULL THEN prev_pm.bal_end
-                    ELSE prev_am.bal_end
+                    WHEN :mayCarryPrev1 = 1 AND prev_pm.bal_end IS NOT NULL THEN prev_pm.bal_end
+                    WHEN :mayCarryPrev2 = 1 THEN prev_am.bal_end
+                    ELSE NULL
                 END AS carry_from
            FROM dl_products p
            INNER JOIN dl_branch_products bp ON bp.product_id = p.id AND bp.branch_id = :bid AND bp.is_active = 1
@@ -8343,6 +8448,7 @@ function dl_autoCarryBeginnings(\Ikabud\Kernel\Contracts\ModuleDB $db, int $bran
     );
     $stmt->execute([
         ':isPm' => $shift === 'PM' ? 1 : 0,
+        ':mayCarryPrev1' => $mayCarryPrev, ':mayCarryPrev2' => $mayCarryPrev,
         ':bid' => $branchId, ':bid2' => $branchId, ':bid3' => $branchId, ':bid4' => $branchId, ':bid5' => $branchId,
         ':d' => $ledgerDate, ':d2' => $ledgerDate, ':dprev' => $prevDate, ':dprev2' => $prevDate,
         ':shift' => $shift,
@@ -11291,11 +11397,16 @@ function dl_carryCashierBeginnings(array $user, array $input): array
     if ($duplicate->fetchColumn()) return ['carried' => 0, 'duplicate' => true];
 
     $prevDate = (new \DateTimeImmutable($date))->modify('-1 day')->format('Y-m-d');
+    // Official data start: the same rule as the automatic carry — no beginning is
+    // seeded from a date before the boundary (within the training period it works).
+    $officialStart = dl_officialDataStart();
+    $mayCarryPrev = ($officialStart === null || $date < $officialStart || $prevDate >= $officialStart) ? 1 : 0;
     $sourceStmt = $db->prepare(
         "SELECT p.id AS product_id,
                 CASE WHEN :is_pm = 1 THEN am.bal_end
-                     WHEN prev_pm.bal_end IS NOT NULL THEN prev_pm.bal_end
-                     ELSE prev_am.bal_end END AS carry_from
+                     WHEN :may_carry1 = 1 AND prev_pm.bal_end IS NOT NULL THEN prev_pm.bal_end
+                     WHEN :may_carry2 = 1 THEN prev_am.bal_end
+                     ELSE NULL END AS carry_from
            FROM dl_products p
            INNER JOIN dl_branch_products bp ON bp.product_id = p.id AND bp.branch_id = :b AND bp.is_active = 1
            LEFT JOIN dl_daily_ledger am ON am.product_id = p.id AND am.branch_id = :b2 AND am.ledger_date = :d AND am.shift = 'AM'
@@ -11305,6 +11416,7 @@ function dl_carryCashierBeginnings(array $user, array $input): array
     );
     $sourceStmt->execute([
         ':is_pm' => $shift === 'PM' ? 1 : 0,
+        ':may_carry1' => $mayCarryPrev, ':may_carry2' => $mayCarryPrev,
         ':b' => $branchId, ':b2' => $branchId, ':b3' => $branchId, ':b4' => $branchId,
         ':d' => $date, ':pd' => $prevDate, ':pd2' => $prevDate,
     ]);
@@ -12469,10 +12581,10 @@ function handleAdminDashboard(array $params = []): void
         $dayStatuses[(int)$s['branch_id']] = $s['status'];
     }
 
-    // Unreviewed variance count in the same branch set as the cards.
-    $varStmt = $ctx->db()->prepare('SELECT COUNT(*) FROM dl_variance_flags WHERE resolution_status = "unreviewed" AND branch_id IN (' . $branchPlaceholders . ')');
-    $varStmt->execute($accessibleBranchIds);
-    $unreviewedVariances = (int)$varStmt->fetchColumn();
+    // Unreviewed variance count in the same branch set as the cards, floored at
+    // the official data start when the tenant has one: a training period's flags
+    // are real rows but not current accountability.
+    $unreviewedVariances = dl_countUnreviewedVariances($ctx->db(), $accessibleBranchIds);
 
     // Recent encoder activity (last 20) — human-readable + branch-scoped for non-admins.
     $hasActorModuleUserId = dlAuditLogHasColumn('actor_module_user_id');
@@ -13043,7 +13155,9 @@ function handleAdminOverview(array $params = []): void
     $db = $ctx->db();
     if ($db !== null) {
         $lifetimeFilters = $filters;
-        $lifetimeFilters['date_from'] = '1970-01-01';
+        // Lifetime totals start at the official data start when one is set: the
+        // "all periods" figures are an accountability surface, not an archive scan.
+        $lifetimeFilters['date_from'] = dl_officialClampFrom('1970-01-01');
         $lifetimeFilters['date_to'] = $dateTo;
         $lifetimeGross = dl_overviewOfficialSalesTotal($db, $lifetimeFilters);
 
@@ -13065,10 +13179,16 @@ function handleAdminOverview(array $params = []): void
                 . ' LEFT JOIN dl_ledger_shift_status ss'
                 . ' ON ss.branch_id = dl.branch_id AND ss.ledger_date = dl.ledger_date'
                 . ' AND ss.shift = dl.shift COLLATE utf8mb4_unicode_ci'
-                . ' WHERE dl.branch_id IN (' . $lifetimeMarks . ')'
-                . dl_overviewPendingPredicate('dl');
+                . ' WHERE dl.branch_id IN (' . $lifetimeMarks . ')';
+            $lifetimeBind = $lifetimeIds;
+            $lifetimeOfficialStart = dl_officialDataStart();
+            if ($lifetimeOfficialStart !== null) {
+                $lifetimeSql .= ' AND dl.ledger_date >= ?';
+                $lifetimeBind[] = $lifetimeOfficialStart;
+            }
+            $lifetimeSql .= dl_overviewPendingPredicate('dl');
             $lifetimeStmt = $db->prepare($lifetimeSql);
-            $lifetimeStmt->execute($lifetimeIds);
+            $lifetimeStmt->execute($lifetimeBind);
             $lifetimeRow = $lifetimeStmt->fetch(PDO::FETCH_ASSOC) ?: [];
             $lifetimeFirstDate = (string)($lifetimeRow['first_date'] ?? '');
             $lifetimeLastDate = (string)($lifetimeRow['last_date'] ?? '');
@@ -14511,6 +14631,7 @@ function handleAdminSettings(array $params = []): void
         'auto_close_enabled' => $closeOfDaySettings['auto_close_enabled'],
         'close_of_day_time' => $closeOfDaySettings['close_of_day_time'],
         'am_shift_cutoff' => dl_amShiftCutoff(),
+        'official_data_start' => dl_officialDataStart() ?? '',
         'operating_timezone' => $closeOfDaySettings['operating_timezone'],
         'operating_region' => $closeOfDaySettings['operating_region'],
         'operating_timezone_choices' => dl_operatingTimezoneChoices($closeOfDaySettings['operating_timezone']),
@@ -14791,6 +14912,10 @@ function apiSaveRolePermissions(array $params = []): void
     if (!preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', trim((string)($input['am_shift_cutoff'] ?? '')))) {
         $amShiftCutoff = '14:00';
     }
+    // Official data start: a real Y-m-d date, or empty for "no boundary" (the
+    // default). Anything unparseable is refused to empty — an officialness
+    // boundary is not a place to guess.
+    $officialDataStart = dl_normalizeOfficialStart($input['official_data_start'] ?? '');
     $operatingTimezone = dl_normalizeTimezone($input['operating_timezone'] ?? config('app.timezone', 'Asia/Manila'));
     $operatingRegion = dl_normalizeRegion($input['operating_region'] ?? '');
     $featureSettings = dl_featureSettings();
@@ -14907,6 +15032,7 @@ function apiSaveRolePermissions(array $params = []): void
         'auto_close_enabled' => $autoCloseEnabled ? '1' : '0',
         'close_of_day_time' => $closeOfDayTime,
         'am_shift_cutoff' => $amShiftCutoff,
+        'official_data_start' => $officialDataStart,
         'operating_timezone' => $operatingTimezone,
         'operating_region' => $operatingRegion,
         'production_output_enabled' => $productionOutputEnabled ? '1' : '0',
@@ -14938,6 +15064,7 @@ function apiSaveRolePermissions(array $params = []): void
         'auto_close_enabled' => $autoCloseEnabled,
         'close_of_day_time' => $closeOfDayTime,
         'am_shift_cutoff' => $amShiftCutoff,
+        'official_data_start' => $officialDataStart,
         'operating_timezone' => $operatingTimezone,
         'operating_region' => $operatingRegion,
         'logo_url' => $logoUrl,
@@ -14972,6 +15099,7 @@ function apiSaveRolePermissions(array $params = []): void
         'reset_second_phrase_enabled' => $resetSecondPhraseEnabled,
         'close_of_day_time' => $closeOfDayTime,
         'am_shift_cutoff' => $amShiftCutoff,
+        'official_data_start' => $officialDataStart,
         'operating_timezone' => $operatingTimezone,
         'operating_region' => $operatingRegion,
         'production_output_enabled' => $productionOutputEnabled,
@@ -15305,6 +15433,20 @@ function handleAdminVariances(array $params = []): void
         $bind[':dto'] = $dateTo;
     }
 
+    // Official data start: the DEFAULT view (no explicit range) starts at the
+    // boundary, so a training period's flags never present as current
+    // accountability. An explicit range is honoured as chosen and labelled —
+    // deliberate navigation into history stays readable.
+    $officialStart = dl_officialDataStart();
+    $hasExplicitRange = ($dateFrom !== '' || $dateTo !== '');
+    if ($officialStart !== null && !$hasExplicitRange) {
+        $whereScope .= ' AND vf.ledger_date >= :official_start';
+        $bind[':official_start'] = $officialStart;
+    }
+    $viewIncludesTraining = $officialStart !== null
+        && $hasExplicitRange
+        && ($dateFrom === '' || $dateFrom < $officialStart);
+
     if ($branchId) {
         $whereScope .= ' AND vf.branch_id = :bid';
         $bind[':bid'] = $branchId;
@@ -15555,6 +15697,11 @@ function handleAdminVariances(array $params = []): void
         'date'          => $dateTo !== '' ? $dateTo : ($dateFrom !== '' ? $dateFrom : dl_businessDate()),
         'date_from'     => $dateFrom,
         'date_to'       => $dateTo,
+        // The official-start boundary (empty = none). The queue itself is floored
+        // in SQL; the template states the boundary and labels an explicit range
+        // that reaches into the training period.
+        'official_data_start' => $officialStart ?? '',
+        'variance_view_includes_training' => $viewIncludesTraining,
         // The Sales Summary hand-off carries the range the operator is looking at.
         'sales_link_from' => $dateFrom !== '' ? $dateFrom : dl_businessDate(),
         'sales_link_to'   => $dateTo !== '' ? $dateTo : dl_businessDate(),
