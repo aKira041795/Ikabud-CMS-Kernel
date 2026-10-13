@@ -19,7 +19,7 @@ accepts any `*_test.php`, so a subdirectory alone would not have excluded them.
 | `module_route_authority` | Calls nine `moduleRouteAuthority*` helpers that were never ported. They live at `src/helpers/module-manager.php:2861-3220` in ikabudsix. **Caveat:** those helpers have zero production callers in *either* repository — only tests call them — so porting them adds dead code. |
 | `read_authority_probe` | Requires the module **`cms-akira-shell`**, which does not exist in this repository at all. It cannot pass without porting an entire module. |
 | `cms_akira_policy_authority_contract` | Requires policy rows and editor-role declarations not present here (2 assertions fail). |
-| `gui_settings_route_authority_declaration` | Requires `gui-settings` `capabilities.routes` declarations plus policy rows and a registry seeder (7 assertions fail). |
+| `gui_settings_route_authority_declaration` | Requires `gui-settings` `capabilities.routes` declarations plus policy rows and a registry seeder (7 assertions fail). **Superseded 2026-10-13:** the declarations now exist (6.3 coverage slice 1) and the feature is covered here by `tests/gui_settings_route_authority_declaration_test.php` (passing, real runtime API); this pending variant still needs the registry seeder and stays excluded. |
 
 ## What is NOT missing
 
