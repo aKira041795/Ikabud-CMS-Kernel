@@ -676,6 +676,59 @@
         "allowed_roles": [
           "admin"
         ]
+      },
+      "POST /daily-ledger/api/v1/pos/mode/select": {
+        "capability": "kernel.auth.authenticate@1",
+        "allowed_roles": [
+          "cashier",
+          "supervisor",
+          "admin"
+        ]
+      },
+      "POST /daily-ledger/api/v1/pos/cart/save": {
+        "capability": "kernel.auth.authenticate@1",
+        "allowed_roles": [
+          "cashier",
+          "supervisor",
+          "admin"
+        ]
+      },
+      "POST /daily-ledger/api/v1/pos/cart/abandon": {
+        "capability": "kernel.auth.authenticate@1",
+        "allowed_roles": [
+          "cashier",
+          "supervisor",
+          "admin"
+        ]
+      },
+      "POST /daily-ledger/api/v1/pos/checkout": {
+        "capability": "kernel.auth.authenticate@1",
+        "allowed_roles": [
+          "cashier",
+          "supervisor",
+          "admin"
+        ]
+      },
+      "POST /daily-ledger/api/v1/pos/sales/void": {
+        "capability": "kernel.auth.authenticate@1",
+        "allowed_roles": [
+          "supervisor",
+          "admin"
+        ]
+      },
+      "POST /daily-ledger/api/v1/pos/sales/refund": {
+        "capability": "kernel.auth.authenticate@1",
+        "allowed_roles": [
+          "supervisor",
+          "admin"
+        ]
+      },
+      "POST /daily-ledger/api/v1/pos/fallback": {
+        "capability": "kernel.auth.authenticate@1",
+        "allowed_roles": [
+          "supervisor",
+          "admin"
+        ]
       }
     },
     "policy": {

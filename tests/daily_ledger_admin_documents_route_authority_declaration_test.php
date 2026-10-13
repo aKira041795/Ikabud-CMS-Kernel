@@ -97,9 +97,10 @@ $routeGroups = [
 ];
 $declaredRoutes = $manifest['capabilities']['routes'] ?? null;
 $expectedRoutes = array_merge($priorRoutes, array_keys($routeGroups));
+// The final 66-key totality pin is owned by daily_ledger_pos_route_authority_declaration_test.php.
 $check(
-    'REAL-MANIFEST pins exactly the 59 Daily Ledger authority route keys',
-    is_array($declaredRoutes) && array_keys($declaredRoutes) === $expectedRoutes,
+    'REAL-MANIFEST retains this slice subset of 59 Daily Ledger authority route keys',
+    is_array($declaredRoutes) && array_diff($expectedRoutes, array_keys($declaredRoutes)) === [],
     json_encode(array_keys(is_array($declaredRoutes) ? $declaredRoutes : []))
 );
 foreach ($routeGroups as $routeKey => $allowedRoles) {
