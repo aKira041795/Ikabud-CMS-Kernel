@@ -37,8 +37,9 @@
             border-radius: 3px !important;
         }
 
-        .form-label { display: block; font-size: .875rem; font-weight: 500; color: rgb(31 41 55); }
-        .form-input { margin-top: .25rem; height: 2.5rem; display: block; width: 100%; border-radius: 3px; border: 1px solid rgb(203 213 225); background: #fff; padding: .5rem .75rem; font-size: .875rem; color: rgb(15 23 42); box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        /* Field text = label text = guide text (12px). See layouts/app.disyl for the rationale. */
+        .form-label { display: block; font-size: .75rem; font-weight: 500; color: rgb(31 41 55); }
+        .form-input { margin-top: .25rem; height: 2.5rem; display: block; width: 100%; border-radius: 3px; border: 1px solid rgb(203 213 225); background: #fff; padding: .5rem .75rem; font-size: .75rem; color: rgb(15 23 42); box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
         /* Keep in step with layouts/app.disyl: one control height across every view. */
         textarea.form-input { height: auto; }
         /* Keep in step with layouts/app.disyl: one radius, 3px, across every view. Universal because
@@ -1078,7 +1079,7 @@
 
         <span class="mx-2 text-gray-300">|</span>
 
-        <select class="form-input w-auto mt-0 text-xs py-1 px-2" name="kind"
+        <select class="form-input w-auto mt-0" name="kind"
                 onchange="window.dlLoadKindFilter(this.value)">
             <option value="">All Kinds</option>
             <option value="overnight" {if kind_filter == 'overnight'}selected{/if}>Overnight (AM)</option>
@@ -1088,14 +1089,14 @@
             <option value="delivery" {if kind_filter == 'delivery'}selected{/if}>Delivery sent vs received</option>
         </select>
 
-        <select class="form-input w-auto mt-0 text-xs py-1 px-2" name="shift"
+        <select class="form-input w-auto mt-0" name="shift"
                 onchange="window.dlLoadShiftFilter(this.value)">
             <option value="">All Shifts</option>
             <option value="AM" {if shift_filter == 'AM'}selected{/if}>AM</option>
             <option value="PM" {if shift_filter == 'PM'}selected{/if}>PM</option>
         </select>
 
-        <select class="form-input w-auto mt-0 text-xs py-1 px-2" name="branch_id"
+        <select class="form-input w-auto mt-0" name="branch_id"
                 onchange="window.dlLoadBranchFilter(this.value)">
             <option value="">All Branches</option>
             {foreach branches as br}
@@ -1104,10 +1105,10 @@
         </select>
 
         <label class="text-xs text-gray-500 ml-1" for="vf-date-from">From</label>
-        <input id="vf-date-from" type="date" class="form-input w-auto mt-0 text-xs py-1 px-2"
+        <input id="vf-date-from" type="date" class="form-input w-auto mt-0"
                value="{date_from}" onchange="window.dlLoadDateRange()">
         <label class="text-xs text-gray-500" for="vf-date-to">To</label>
-        <input id="vf-date-to" type="date" class="form-input w-auto mt-0 text-xs py-1 px-2"
+        <input id="vf-date-to" type="date" class="form-input w-auto mt-0"
                value="{date_to}" onchange="window.dlLoadDateRange()">
 
         {if branch_id || status_filter || search != '' || date_from != '' || date_to != ''}

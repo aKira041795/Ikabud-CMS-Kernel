@@ -61,7 +61,7 @@
                                 <template x-for="(line, idx) in lines" :key="idx">
                                     <tr class="border-b border-gray-100">
                                         <td class="py-2 pr-2">
-                                            <select x-model="line.product_id" class="form-input mt-0 py-1 px-2 w-full">
+                                            <select x-model="line.product_id" class="form-input mt-0 w-full">
                                                 <option value="">-- Select Product --</option>
                                                 <template x-for="p in products" :key="p.id">
                                                     <option :value="p.id" x-text="p.name"></option>
@@ -69,7 +69,7 @@
                                             </select>
                                         </td>
                                         <td class="py-2 pr-2">
-                                            <input type="number" x-model="line.quantity" min="0" class="form-input mt-0 py-1 px-2 text-right w-full">
+                                            <input type="number" x-model="line.quantity" min="0" class="form-input mt-0 text-right w-full">
                                         </td>
                                         <td class="py-2 text-right">
                                             <button type="button" @click="lines.splice(idx, 1)" class="text-rose-500 hover:text-rose-700 p-1 rounded hover:bg-rose-50">

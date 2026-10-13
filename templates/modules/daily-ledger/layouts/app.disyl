@@ -38,8 +38,13 @@
             border-radius: 3px !important;
         }
 
-        .form-label { display: block; font-size: .875rem; font-weight: 500; color: rgb(31 41 55); }
-        .form-input { margin-top: .25rem; height: 2.5rem; display: block; width: 100%; border-radius: 3px; border: 1px solid rgb(203 213 225); background: #fff; padding: .5rem .75rem; font-size: .875rem; color: rgb(15 23 42); box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        /* ONE text size for the whole form system (owner direction 2026-10-13): the
+           size INSIDE a field must read exactly as its label and its guide text do.
+           Modal labels and hints are .text-xs (12px), fields were .875rem (14px), so
+           every modal showed fields louder than the labels explaining them.
+           Labels, fields and hints all render .75rem now. */
+        .form-label { display: block; font-size: .75rem; font-weight: 500; color: rgb(31 41 55); }
+        .form-input { margin-top: .25rem; height: 2.5rem; display: block; width: 100%; border-radius: 3px; border: 1px solid rgb(203 213 225); background: #fff; padding: .5rem .75rem; font-size: .75rem; color: rgb(15 23 42); box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
         /* One height for every control. Without it a select and a date input carrying the
            SAME .form-input padding render at different intrinsic heights (measured 35px against 41px),
            so any filter row looks ragged and the row's items-end alignment shifts every neighbour.

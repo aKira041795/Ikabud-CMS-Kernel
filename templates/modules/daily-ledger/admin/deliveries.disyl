@@ -358,7 +358,7 @@
                 </div>
                 <div>
                     <label class="form-label">Paper DR Number</label>
-                    <input class="form-input border-amber-300 bg-amber-50 font-mono text-base font-semibold uppercase tracking-[0.18em]" type="text" x-model="form.dr_number" placeholder="DR-YYYY-####">
+                    <input class="form-input border-amber-300 bg-amber-50 font-mono font-semibold uppercase tracking-[0.18em]" type="text" x-model="form.dr_number" placeholder="DR-YYYY-####">
                     <p class="mt-1 text-[11px] text-amber-700">Enter the DR exactly as written on paper.</p>
                 </div>
                 <div>

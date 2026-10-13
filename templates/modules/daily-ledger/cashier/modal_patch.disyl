@@ -123,7 +123,7 @@
                                 <template x-for="(line, idx) in lines" :key="idx">
                                     <tr class="border-b border-gray-100">
                                         <td class="py-2 pr-2">
-                                            <select x-model="line.product_id" @change="onProductChange(idx)" class="form-input mt-0 py-1 px-2 w-full">
+                                            <select x-model="line.product_id" @change="onProductChange(idx)" class="form-input mt-0 w-full">
                                                 <option value="">-- Select Product --</option>
                                                 <template x-for="p in products" :key="p.id">
                                                     <option :value="p.id" x-text="p.name"></option>
@@ -132,7 +132,7 @@
                                         </td>
                                         <td class="py-2 pr-2 align-middle">
                                             <template x-if="packFor(line.product_id)">
-                                                <select x-model="line.unit" class="form-input mt-0 py-1 px-1 w-full text-xs" title="Sold by box? Enter Qty as the number of boxes — the system converts to pieces.">
+                                                <select x-model="line.unit" class="form-input mt-0 w-full" title="Sold by box? Enter Qty as the number of boxes — the system converts to pieces.">
                                                     <option value="pcs">Pcs</option>
                                                     <option value="box">Box</option>
                                                 </select>
@@ -142,7 +142,7 @@
                                             </template>
                                         </td>
                                         <td class="py-2 pr-2">
-                                            <input type="number" x-model="line.quantity" :min="allowsNegative() ? -999999 : 0" class="form-input mt-0 py-1 px-2 text-right w-full">
+                                            <input type="number" x-model="line.quantity" :min="allowsNegative() ? -999999 : 0" class="form-input mt-0 text-right w-full">
                                             <div x-show="allowsNegative() && line.quantity < 0" class="mt-0.5 text-right text-[10px] font-semibold leading-tight text-orange-600">reduces today's total</div>
                                             <div x-show="line.unit === 'box' && packFor(line.product_id)" class="mt-0.5 text-right text-[10px] leading-tight text-gray-400">
                                                 1 box = <span x-text="packFor(line.product_id)"></span> pcs
