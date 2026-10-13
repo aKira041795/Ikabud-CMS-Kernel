@@ -457,6 +457,40 @@
             }
         ],
         "depends": [],
+        "routes": {
+            "POST /ecommerce/admin/products/create": {
+                "capability": "ecommerce.product.upsert@1",
+                "allowed_roles": [
+                    "administrator",
+                    "superadmin",
+                    "admin"
+                ]
+            },
+            "POST /ecommerce/admin/products/{id}/edit": {
+                "capability": "ecommerce.product.upsert@1",
+                "allowed_roles": [
+                    "administrator",
+                    "superadmin",
+                    "admin"
+                ]
+            },
+            "POST /api/v1/ecommerce/products": {
+                "capability": "ecommerce.product.upsert@1",
+                "allowed_roles": [
+                    "administrator",
+                    "superadmin",
+                    "admin"
+                ]
+            },
+            "POST /api/v1/ecommerce/products/{id}": {
+                "capability": "ecommerce.product.upsert@1",
+                "allowed_roles": [
+                    "administrator",
+                    "superadmin",
+                    "admin"
+                ]
+            }
+        },
         "policy": {
             "capabilities": {
                 "cms.cart.add@1": {
