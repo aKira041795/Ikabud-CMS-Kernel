@@ -37,6 +37,11 @@ jobs:
       - name: Certify every discovered module
         run: php ikabud module:certify --all
 
+      - name: Lint settings contract against the committed baseline
+        # Deterministic and byte-identical over runs; hard failures exit non-zero, and
+        # NEW violations surface against tests/fixtures/settings-contract-baseline.json.
+        run: composer contract:lint
+
       - name: Verify shared manifest and runtime route contracts
         run: |
           php tests/manifest_schema_v1_test.php
