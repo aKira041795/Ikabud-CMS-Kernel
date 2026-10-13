@@ -1263,17 +1263,17 @@
                 </select>
             </div>
             <div class="form-group mb-0">
-                <label class="form-label flex items-center justify-between gap-2">
+                <label class="form-label flex flex-wrap items-baseline justify-between gap-x-2">
                     <span>Commissary</span>
                     {* Remembered landing choice: set it here and opening this page without an explicit
-                       commissary in the URL lands on it (per browser, like the remembered tab). Sits
-                       on the label line so the control row keeps its full-width select and the
-                       filter row stays horizontally aligned. *}
+                       commissary in the URL lands on it (per browser, like the remembered tab). Lives
+                       inside the label so the select stays the last element of the cell - every
+                       control in the filter row bottom-aligns with it (items-end grid). *}
                     <button type="button" id="commissary-default-btn" onclick="dlCommissarySetDefault()"
                             title="Open this page on the selected commissary next time"
                             aria-label="Set the selected commissary as this page's default"
                             aria-pressed="false"
-                            class="text-sm leading-none text-indigo-600 hover:text-indigo-900 print-hidden">☆</button>
+                            class="text-xs font-medium text-indigo-600 hover:text-indigo-900 print-hidden">click to set default</button>
                 </label>
                 <!-- Default is the FIRST available commissary (the handler lands there when the URL
                      carries no choice at all), so the sheet shows data immediately. An explicit
@@ -1323,7 +1323,7 @@
         var btn = document.getElementById('commissary-default-btn');
         if (!sel || !btn) return;
         var isDefault = read() !== '' && sel.value === read();
-        btn.textContent = isDefault ? '\u2605' : '\u2606';
+        btn.textContent = isDefault ? 'default \u2014 click to remove' : 'click to set default';
         btn.title = isDefault
             ? 'This commissary opens by default on this page \u2014 click to remove'
             : 'Open this page on the selected commissary next time';
