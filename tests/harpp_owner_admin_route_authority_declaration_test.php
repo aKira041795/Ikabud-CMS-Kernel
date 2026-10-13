@@ -50,9 +50,12 @@ $expectedRoutes = [
 $allowedRoles = ['owner', 'admin', 'superadmin'];
 $declaredRoutes = $manifest['capabilities']['routes'] ?? null;
 
+// Multi-batch pin rule: this suite owns ITS ten routes (present and unchanged);
+// the exact full-set pin for the module lives in the NEWEST batch suite
+// (tests/harpp_admin_batch2_route_authority_declaration_test.php, 23 keys).
 $check(
-    'REAL-MANIFEST pins exactly the ten HARPP owner/admin control-surface routes',
-    is_array($declaredRoutes) && array_keys($declaredRoutes) === array_keys($expectedRoutes),
+    'REAL-MANIFEST contains the ten HARPP owner/admin control-surface routes (subset pin)',
+    is_array($declaredRoutes) && array_diff(array_keys($expectedRoutes), array_keys($declaredRoutes)) === [],
     json_encode(array_keys(is_array($declaredRoutes) ? $declaredRoutes : []))
 );
 foreach ($expectedRoutes as $routeKey => $capabilityId) {
