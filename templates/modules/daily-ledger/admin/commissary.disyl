@@ -1263,11 +1263,24 @@
                 </select>
             </div>
             <div class="form-group mb-0">
-                <label class="form-label">Commissary</label>
-                <!-- All is the DEFAULT: the landing sheet must not hide a network. When a specific
-                     commissary IS chosen the handler attributes the origin-less deliveries to it
-                     through the destination branch, so selecting one does not drop rows. The options
-                     are name-ordered (handler ORDER BY name ASC), so the list reads alphabetically. -->
+                <label class="form-label flex items-center justify-between gap-2">
+                    <span>Commissary</span>
+                    {* Remembered landing choice: set it here and opening this page without an explicit
+                       commissary in the URL lands on it (per browser, like the remembered tab). Sits
+                       on the label line so the control row keeps its full-width select and the
+                       filter row stays horizontally aligned. *}
+                    <button type="button" id="commissary-default-btn" onclick="dlCommissarySetDefault()"
+                            title="Open this page on the selected commissary next time"
+                            aria-label="Set the selected commissary as this page's default"
+                            aria-pressed="false"
+                            class="text-sm leading-none text-indigo-600 hover:text-indigo-900 print-hidden">☆</button>
+                </label>
+                <!-- Default is the FIRST available commissary (the handler lands there when the URL
+                     carries no choice at all), so the sheet shows data immediately. An explicit
+                     "All Commissaries" -- the empty value this dropdown submits -- still shows the
+                     network view: landing on a named commissary never drops rows because origin-less
+                     deliveries are attributed through the destination branch. Options are
+                     name-ordered (handler ORDER BY name ASC), so the list reads alphabetically. -->
                 <select class="form-input" name="commissary_id">
                     <option value="">All Commissaries</option>
                     {foreach commissaries as c}
@@ -1291,6 +1304,93 @@
         </div>
     </div>
 </form>
+<script>
+// dl-commissary-default:start
+// Default commissary view: opening this page with no explicit commissary choice
+// lands on the one the operator marked as default (stored per browser, same
+// pattern as the remembered tab further down). "All Commissaries" stays
+// reachable whenever the URL carries an explicit choice - including the empty
+// value the dropdown submits for All - an explicit choice is never overridden.
+(function () {
+    var KEY = 'dl_commissary_default';
+    var read = function () { try { return localStorage.getItem(KEY) || ''; } catch (e) { return ''; } };
+    var write = function (v) {
+        try { if (v) localStorage.setItem(KEY, v); else localStorage.removeItem(KEY); } catch (e) {}
+    };
+    var select = function () { return document.querySelector('select[name="commissary_id"]'); };
+    var label = function () {
+        var sel = select();
+        var btn = document.getElementById('commissary-default-btn');
+        if (!sel || !btn) return;
+        var isDefault = read() !== '' && sel.value === read();
+        btn.textContent = isDefault ? '\u2605' : '\u2606';
+        btn.title = isDefault
+            ? 'This commissary opens by default on this page \u2014 click to remove'
+            : 'Open this page on the selected commissary next time';
+        btn.setAttribute('aria-pressed', isDefault ? 'true' : 'false');
+    };
+
+    // Keep the button state honest while the operator browses the dropdown,
+    // before Apply.
+    var selectEl = select();
+    if (selectEl) selectEl.addEventListener('change', label);
+
+    window.dlCommissarySetDefault = function () {
+        var sel = select();
+        if (!sel) return;
+        var current = read();
+        var cleared = function () {
+            write('');
+            if (typeof window.showToast === 'function') {
+                window.showToast('Default cleared \u2014 this page opens on the first available commissary.', 'success');
+            }
+            label();
+        };
+        if (!sel.value) {
+            if (current === '') {
+                if (typeof window.showToast === 'function') {
+                    window.showToast('Choose a commissary in the dropdown first.', 'error');
+                }
+                return;
+            }
+            cleared();
+            return;
+        }
+        if (sel.value === current) {
+            // Same commissary already pinned: the click removes it.
+            cleared();
+            return;
+        }
+        write(sel.value);
+        var name = sel.options[sel.selectedIndex]
+            ? sel.options[sel.selectedIndex].textContent.trim()
+            : sel.value;
+        if (typeof window.showToast === 'function') {
+            window.showToast(name + ' now opens by default on this page.', 'success');
+        }
+        label();
+    };
+
+    (function () {
+        var params = new URLSearchParams(window.location.search);
+        // Explicit intent wins: a commissary choice (including the empty value
+        // for All) or a named branch (which must stay visible where it lands).
+        if (params.has('commissary_id') || (params.get('branch_id') || '') !== '') { label(); return; }
+        var saved = read();
+        if (!saved) { label(); return; }
+        var sel = select();
+        if (!sel || !sel.querySelector('option[value="' + saved + '"]')) {
+            // Stale or no-longer-accessible default: drop it instead of bouncing.
+            write('');
+            label();
+            return;
+        }
+        params.set('commissary_id', saved);
+        window.location.replace(window.location.pathname + '?' + params.toString());
+    })();
+})();
+// dl-commissary-default:end
+</script>
 {/if}
 
 {if can_view_production_management}

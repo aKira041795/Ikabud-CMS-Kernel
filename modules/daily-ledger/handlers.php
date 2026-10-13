@@ -21155,6 +21155,12 @@ function handleAdminCommissary(): void
 
     $requestedBranchId = (int)($input['branch_id'] ?? 0);
     $requestedCommissaryId = (int)($input['commissary_id'] ?? 0);
+    // Absent vs explicit-empty matters: the selector submits an empty value for
+    // "All Commissaries", which is an explicit choice. A URL that carries NO
+    // commissary choice at all (fresh open, sidebar link) lands on the first
+    // available commissary instead, so the operator sees a sheet immediately
+    // and never has to decode the network-wide view to start working.
+    $hasCommissaryChoice = array_key_exists('commissary_id', $input);
     // A commissary is a supply hub, NOT a geographic area. An ADMIN area selection must not narrow
     // this selector: an area's ordinary branch ids may contain no hub at all. Operational actors are
     // different: their presentation set is always their assigned set, so an unrelated hub must not
@@ -21171,14 +21177,27 @@ function handleAdminCommissary(): void
     }
     $commissaries = $commissariesStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     $availableCommissaryIds = array_map('intval', array_column($commissaries, 'id'));
-    // Admins default to All (0), while the operational presentation gate still keeps that landing
-    // view inside the actor's assigned set. The rows that made a default commissary filter look
-    // catastrophic before were NOT absent: they carry origin_id = NULL and a
-    // plain `origin_id = :cid` filtered them out. The delivery query below now attributes those rows
-    // through the destination branch, so choosing a specific commissary no longer drops them.
-    $selectedCommissaryId = in_array($requestedCommissaryId, $availableCommissaryIds, true)
-        ? $requestedCommissaryId
-        : 0;
+    // Explicit choice wins when it is available to this actor; an explicit but
+    // unavailable id keeps the old All fallback. A URL that carries NO choice at
+    // all (fresh open, sidebar link) lands on the first available commissary
+    // (canonical name order) so the operator sees a sheet immediately. All
+    // Commissaries stays one explicit selection away. The rows that made a
+    // default commissary filter look catastrophic before were NOT absent: they
+    // carry origin_id = NULL and a plain `origin_id = :cid` filtered them out.
+    // The delivery query below now attributes those rows through the destination
+    // branch, so landing on a specific commissary no longer drops them.
+    if ($hasCommissaryChoice) {
+        $selectedCommissaryId = in_array($requestedCommissaryId, $availableCommissaryIds, true)
+            ? $requestedCommissaryId
+            : 0;
+    } elseif ($requestedBranchId > 0) {
+        // An explicit branch selection keeps the network landing: a branch link
+        // must never hide the branch it names (that is the output-bound contract
+        // pinned by the area rollout suite).
+        $selectedCommissaryId = 0;
+    } else {
+        $selectedCommissaryId = $availableCommissaryIds[0] ?? 0;
+    }
 
     // Branches: when commissary selected, show only branches assigned to it OR with DR data from it
     if ($selectedCommissaryId > 0) {
