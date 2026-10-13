@@ -293,6 +293,102 @@
         "allowed_roles": [
           "admin"
         ]
+      },
+      "POST /daily-ledger/api/v1/admin/products": {
+        "capability": "kernel.auth.authenticate@1",
+        "allowed_roles": [
+          "admin"
+        ]
+      },
+      "POST /daily-ledger/api/v1/admin/products/update": {
+        "capability": "kernel.auth.authenticate@1",
+        "allowed_roles": [
+          "admin"
+        ]
+      },
+      "POST /daily-ledger/api/v1/admin/products/reprice": {
+        "capability": "kernel.auth.authenticate@1",
+        "allowed_roles": [
+          "admin"
+        ]
+      },
+      "POST /daily-ledger/api/v1/admin/products/import-csv": {
+        "capability": "kernel.auth.authenticate@1",
+        "allowed_roles": [
+          "admin"
+        ]
+      },
+      "POST /daily-ledger/api/v1/admin/branches": {
+        "capability": "kernel.auth.authenticate@1",
+        "allowed_roles": [
+          "admin"
+        ]
+      },
+      "POST /daily-ledger/api/v1/admin/branches/update": {
+        "capability": "kernel.auth.authenticate@1",
+        "allowed_roles": [
+          "admin"
+        ]
+      },
+      "POST /daily-ledger/api/v1/admin/consignees": {
+        "capability": "kernel.auth.authenticate@1",
+        "allowed_roles": [
+          "admin"
+        ]
+      },
+      "POST /daily-ledger/api/v1/admin/consignees/products": {
+        "capability": "kernel.auth.authenticate@1",
+        "allowed_roles": [
+          "admin"
+        ]
+      },
+      "POST /daily-ledger/api/v1/admin/branches/products": {
+        "capability": "kernel.auth.authenticate@1",
+        "allowed_roles": [
+          "admin"
+        ]
+      },
+      "POST /daily-ledger/api/v1/admin/variances/decide-delivery": {
+        "capability": "kernel.auth.authenticate@1",
+        "allowed_roles": [
+          "admin"
+        ]
+      },
+      "POST /daily-ledger/api/v1/admin/deliveries/resolve-origin": {
+        "capability": "kernel.auth.authenticate@1",
+        "allowed_roles": [
+          "admin"
+        ]
+      },
+      "POST /daily-ledger/api/v1/admin/receivings/resolve-count": {
+        "capability": "kernel.auth.authenticate@1",
+        "allowed_roles": [
+          "admin"
+        ]
+      },
+      "POST /daily-ledger/api/v1/admin/settings/branding-asset": {
+        "capability": "kernel.auth.authenticate@1",
+        "allowed_roles": [
+          "admin"
+        ]
+      },
+      "POST /daily-ledger/api/v1/commissary/settle-endings": {
+        "capability": "kernel.auth.authenticate@1",
+        "allowed_roles": [
+          "admin"
+        ]
+      },
+      "POST /daily-ledger/api/v1/commissary/verify-endings": {
+        "capability": "kernel.auth.authenticate@1",
+        "allowed_roles": [
+          "admin"
+        ]
+      },
+      "POST /daily-ledger/api/v1/commissary/revert-endings": {
+        "capability": "kernel.auth.authenticate@1",
+        "allowed_roles": [
+          "admin"
+        ]
       }
     },
     "policy": {

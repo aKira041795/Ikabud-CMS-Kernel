@@ -41,9 +41,12 @@ $expectedRoutes = [
 ];
 $declaredRoutes = $manifest['capabilities']['routes'] ?? null;
 
+// Multi-batch pin rule: this suite owns ITS five routes (present and unchanged);
+// the exact full-set pin for the module lives in the NEWEST batch suite
+// (tests/daily_ledger_admin_batch2_route_authority_declaration_test.php, 21 keys).
 $check(
-    'REAL-MANIFEST pins exactly the five Daily Ledger user/role administration write routes',
-    is_array($declaredRoutes) && array_keys($declaredRoutes) === $expectedRoutes,
+    'REAL-MANIFEST contains the five Daily Ledger user/role administration write routes (subset pin)',
+    is_array($declaredRoutes) && array_diff($expectedRoutes, array_keys($declaredRoutes)) === [],
     json_encode(array_keys(is_array($declaredRoutes) ? $declaredRoutes : []))
 );
 foreach ($expectedRoutes as $routeKey) {
