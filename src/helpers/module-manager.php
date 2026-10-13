@@ -3385,6 +3385,81 @@ function kernelAdminAccessGranted(array $user, string $moduleId): bool
 // ─── Handler Execution ────────────────────────────────────────────────────
 
 /**
+ * True when a module declares owned tables but NONE of them exist on the
+ * ACTIVE database connection — i.e. the module is enabled for a context it was
+ * never provisioned for (a tenant that inherited a global enable, or a request
+ * whose host bound the wrong tenant database).
+ *
+ * Measured 2026-10-13 on live: baronledger.zdnorte.net dispatched daily-ledger
+ * against a database without any dl_* tables and the first query died as a raw
+ * PDOException (42S02) fatal. The dispatch funnel refuses such a request with
+ * the standard 404 instead, and the log line NAMES the database so the cause is
+ * read, not guessed.
+ *
+ * Cheap by construction: probes up to three declared tables once per module per
+ * request and caches the verdict. FAIL-OPEN — any probe error returns false, so
+ * the check can never block a module that has not actually failed.
+ */
+function kernelModuleTablesMissing(string $moduleId, array $manifest): bool
+{
+    static $cache = [];
+    if (array_key_exists($moduleId, $cache)) {
+        return $cache[$moduleId];
+    }
+
+    $owned = $manifest['owns_tables'] ?? [];
+    if (!is_array($owned) || $owned === []) {
+        return $cache[$moduleId] = false;
+    }
+
+    $probes = [];
+    foreach ($owned as $entry) {
+        $table = trim((string)(is_array($entry) ? ($entry['table'] ?? '') : $entry));
+        if ($table !== '' && preg_match('/^[A-Za-z0-9_]+$/', $table)) {
+            $probes[] = $table;
+        }
+        if (count($probes) >= 3) {
+            break;
+        }
+    }
+    if ($probes === []) {
+        return $cache[$moduleId] = false;
+    }
+
+    try {
+        $db = app()->db();
+        foreach ($probes as $table) {
+            // The table name is manifest-declared and regex-whitelisted above;
+            // SHOW TABLES LIKE does not accept a bound placeholder (1064), so it
+            // must be inlined.
+            if ($db->query("SHOW TABLES LIKE '" . $table . "'")->fetchColumn() !== false) {
+                return $cache[$moduleId] = false; // provisioned (at least partially)
+            }
+        }
+
+        // None of the probed tables exist: the module cannot serve here.
+        $database = '';
+        try {
+            $database = (string)($db->query('SELECT DATABASE()')->fetchColumn() ?: '');
+        } catch (\Throwable $ignored) {
+        }
+        write_log('module enabled here but not provisioned on the active database', 'warning', [
+            'module' => $moduleId,
+            'missing_tables_probed' => $probes,
+            'database' => $database,
+            'host' => (string)($_SERVER['HTTP_HOST'] ?? ''),
+            'uri' => (string)($_SERVER['REQUEST_URI'] ?? ''),
+            'hint' => 'Provision this context (php ikabud tenant:migrate <tenant_id|tenant_key|domain> '
+                . $moduleId . ') or disable the module for it (superadmin Modules, or php ikabud module:disable ' . $moduleId . ').',
+        ]);
+        return $cache[$moduleId] = true;
+    } catch (\Throwable $e) {
+        // Fail-open: a probe failure must never block a working module.
+        return $cache[$moduleId] = false;
+    }
+}
+
+/**
  * @param array<string, string> $params
  */
 function executeModuleHandler(
@@ -3406,6 +3481,25 @@ function executeModuleHandler(
     if (!isset($modules[$moduleId])) {
         http_response_code(404);
         echo app()->render('pages/404.disyl', ['page_title' => 'Module Not Available']);
+        return;
+    }
+
+    // A module can be enabled for a context whose database was never provisioned
+    // with its tables. Without this check the first query dies as a raw
+    // PDOException fatal (live: daily-ledger on a wrongly bound database); here
+    // the request is refused with the standard 404 and the mismatch is logged
+    // with the database name. Nothing below (authority gate, module bootstrap,
+    // auth) can serve a module whose storage does not exist.
+    if (kernelModuleTablesMissing($moduleId, $modules[$moduleId])) {
+        http_response_code(404);
+        if (\Ikabud\Kernel\Http\ContentNegotiator::isApiRoute()) {
+            if (!headers_sent()) {
+                header('Content-Type: application/json');
+            }
+            echo json_encode(['ok' => false, 'error' => 'Module Not Available', 'state' => 'module_not_provisioned']);
+        } else {
+            echo app()->render('pages/404.disyl', ['page_title' => 'Module Not Available']);
+        }
         return;
     }
 
