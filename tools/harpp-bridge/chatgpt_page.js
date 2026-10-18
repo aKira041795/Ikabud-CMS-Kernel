@@ -31,8 +31,16 @@ const os = require("os");
 const path = require("path");
 const { chromium } = require("playwright");
 
+// The ChatGPT subscription login lives in a persistent Chromium profile (cookies; no API
+// key is ever written here). Default to the HARPP profile — the same one the advisor lane
+// (harpp_wake.py) and chair_consult.py use — so every entry point reaches the authenticated
+// session without an environment variable. The legacy chair-consult profile is used only
+// when it exists and the HARPP profile does not, so an existing login is never orphaned.
+const XDG_CONFIG_HOME = process.env.XDG_CONFIG_HOME || path.join(os.homedir(), ".config");
+const HARPP_PROFILE = path.join(XDG_CONFIG_HOME, "harpp", "chatgpt-profile");
+const LEGACY_PROFILE = path.join(XDG_CONFIG_HOME, "chair-consult", "chatgpt-profile");
 const DEFAULT_PROFILE = process.env.CHAIR_CONSULT_PROFILE
-    || path.join(os.homedir(), ".config", "chair-consult", "chatgpt-profile");
+    || (fs.existsSync(HARPP_PROFILE) || !fs.existsSync(LEGACY_PROFILE) ? HARPP_PROFILE : LEGACY_PROFILE);
 const HOME_URL = "https://chatgpt.com/";
 
 function argValue(args, name, fallback) {
@@ -118,9 +126,21 @@ async function waitForLoggedIn(page, timeoutMs) {
 }
 
 async function waitForComposer(page, timeoutMs) {
+    // startFreshChat can detach and re-attach the composer while the client-side route
+    // settles, and Cloudflare can re-challenge mid-run. Poll instead of one long wait:
+    // measured 2026-10-19, a single 15s wait failed on a profile that answered a probe
+    // immediately, so the page state — not the login — was the variable.
     const composer = page.locator('#prompt-textarea, div[contenteditable="true"]').first();
-    await composer.waitFor({ state: "visible", timeout: timeoutMs });
-    return composer;
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+        try {
+            await composer.waitFor({ state: "visible", timeout: 2000 });
+            return composer;
+        } catch {
+            // keep polling through transient navigation / challenge states
+        }
+    }
+    throw new Error(`composer did not appear within ${timeoutMs}ms`);
 }
 
 async function startFreshChat(page) {
@@ -258,17 +278,17 @@ async function cmdRun(args) {
         const page = ctx.pages()[0] || (await ctx.newPage());
         await page.goto(HOME_URL, { waitUntil: "domcontentloaded", timeout: 30000 });
         if (!(await waitForLoggedIn(page, 30000))) {
-            out({ ok: false, error: "not logged in to ChatGPT (or Cloudflare did not clear); run the 'login' subcommand - see extras/chatgpt-advisor/README.md" });
+            out({ ok: false, error: `not logged in to ChatGPT (profile: ${profile}); run the 'login' subcommand - see extras/chatgpt-advisor/README.md` });
             return 1;
         }
         await startFreshChat(page);
-        const composer = await waitForComposer(page, 15000);
+        const composer = await waitForComposer(page, 30000);
         await submitPrompt(page, composer, prompt);
         const reply = await waitForAssistantReply(page, timeout);
         out(reply.partial ? { ok: true, text: reply.text, partial: true } : { ok: true, text: reply.text });
         return 0;
     } catch (err) {
-        out({ ok: false, error: String(err && err.message ? err.message : err) });
+        out({ ok: false, error: `${String(err && err.message ? err.message : err)} (profile: ${profile})` });
         return 1;
     } finally {
         if (ctx) {
