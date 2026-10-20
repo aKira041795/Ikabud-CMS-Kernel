@@ -389,7 +389,7 @@ class TemplateEngine
      * Stale eligibility cache files from older versions are automatically
      * ignored — no manual cache clearing required.
      */
-    private const COMPILED_ELIGIBILITY_CACHE_VERSION = 4;
+    private const COMPILED_ELIGIBILITY_CACHE_VERSION = 5;
 
     /** Maximum output size in bytes (5 MB default — prevents runaway templates) */
     private const MAX_OUTPUT_BYTES = 5 * 1024 * 1024;
@@ -4198,13 +4198,24 @@ class TemplateEngine
         }
 
         // Persistent file-based eligibility cache: avoid re-scanning template
-        // sources on every request. Keyed by template path + mtime of root template.
+        // sources on every request. Keyed by template path + mtime of root template,
+        // with every visited dependency mtime validated before reusing the result.
         $eligibilityCacheFile = $this->getCompiledEligibilityCachePath($templatePath);
         if ($eligibilityCacheFile !== null && is_file($eligibilityCacheFile)) {
             $cached = @json_decode((string)@file_get_contents($eligibilityCacheFile), true);
-            if (is_array($cached) && isset($cached['eligible'])) {
-                $this->compiledEligibilityCache[$eligibilityKey] = (bool)$cached['eligible'];
-                return (bool)$cached['eligible'];
+            if (is_array($cached) && isset($cached['eligible']) && isset($cached['dependencies']) && is_array($cached['dependencies'])) {
+                $dependenciesCurrent = true;
+                foreach ($cached['dependencies'] as $dependencyPath => $cachedMtime) {
+                    clearstatcache(true, $dependencyPath);
+                    if (!is_file($dependencyPath) || @filemtime($dependencyPath) !== $cachedMtime) {
+                        $dependenciesCurrent = false;
+                        break;
+                    }
+                }
+                if ($dependenciesCurrent) {
+                    $this->compiledEligibilityCache[$eligibilityKey] = (bool)$cached['eligible'];
+                    return (bool)$cached['eligible'];
+                }
             }
         }
 
@@ -4212,11 +4223,12 @@ class TemplateEngine
         $eligible = !$this->templateGraphUsesComponentTags($templatePath, $visited);
         $this->compiledEligibilityCache[$eligibilityKey] = $eligible;
 
-        // Persist the result for future requests
+        // Persist the result and the graph state for future requests.
         if ($eligibilityCacheFile !== null) {
             @file_put_contents($eligibilityCacheFile, json_encode([
-                'eligible'   => $eligible,
-                'checked_at' => time(),
+                'eligible'     => $eligible,
+                'dependencies' => $visited,
+                'checked_at'   => time(),
             ]), LOCK_EX);
         }
 
@@ -4246,7 +4258,8 @@ class TemplateEngine
             return false;
         }
 
-        $visited[$templatePath] = true;
+        clearstatcache(true, $templatePath);
+        $visited[$templatePath] = @filemtime($templatePath);
         $source = $this->readTemplateSource($templatePath);
         if (!is_string($source)) {
             return false;
