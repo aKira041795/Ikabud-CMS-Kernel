@@ -1204,6 +1204,63 @@ that risk against a 30–50 ms request.
 ineligible set — a page rendering several `{ikb_ }` templates whose combined cost dominates. That is a
 measurement to take against live traffic, not a reason to start engine work now.
 
+## 4p. Where the registration cost really sits: two modules' trees — and why it still is not worth taking
+
+4n rejected lazy helper loading by bucket, which concluded "99.6% of the cost is in modules that expose
+capabilities". Normalising that same data **per KB** (ms/KB, median 0.085) exposed something the bucket
+split hid: the cost is not distributed with file size at all.
+
+| module | own helpers.php | ms/KB | multiple of median |
+|---|---:|---:|---:|
+| `cms` | 1.8 KB | 39.06 ms/KB | **461x** |
+| `ecommerce` | 3.6 KB | 17.03 ms/KB | **201x** |
+| `harpp` | 26.1 KB | 1.22 ms/KB | 14x |
+| `moodle-integration` | 102.8 KB | 0.067 ms/KB | 0.8x |
+| `daily-ledger` | 78.5 KB | 0.046 ms/KB | 0.5x |
+
+A tiny entry file that costs 461x the median per KB is a **dependency tree**, not a file. Measured
+(`probe-module-tree.php`): `cms/helpers.php` (1857 B) pulls **38 files / 1224 KB**; `ecommerce`
+(3.6 KB) pulls **47 files / 932 KB**. `cms` + `ecommerce` account for **43% of the whole measured
+registration load from 5.4 KB of entry files**.
+
+### A minimal eager set exists, and it is small
+
+`probe-capability-eager-set.php` resolves each handler through `ReflectionFunction::getFileName()`,
+because registration needs exactly one thing from that tree: callables that `is_callable()` can
+resolve, and a plain function exists only once its file is included.
+
+| module | capabilities | tree | files defining handlers | their size | deferrable |
+|---|---:|---:|---:|---:|---:|
+| `cms` | 35 | 1224 KB | **3** | 113.9 KB | **90.7%** |
+| `ecommerce` | 15 | 932 KB | 5 | 267.2 KB | **71.3%** |
+
+For `cms`, all 35 handlers live in `55-capabilities.php` (48.9 KB), `56-entity-capabilities.php`
+(55.5 KB) and `59-weather-entity.php` (9.6 KB). So a ~114 KB eager set covers the 1224 KB tree.
+
+### Why it is still not worth taking — and the number that decides it
+
+The tables above are CLI measures and `opcache.enable_cli=0`, so they are **compile** cost, exactly the
+trap 4n documents. In the production configuration the app's own instrumentation puts the **entire**
+helper load — all 348 files, 5039 KB — at **7.65 ms**. `cms` + `ecommerce` are 43% of the bytes, so
+about **3.3 ms** of it.
+
+So the attainable prize is ~3 ms per request, and the price is:
+
+1. restructuring two auto-generated concern loaders;
+2. `cms/helpers.php` states in its own header: *"Keep file order stable to preserve bootstrap side
+   effects."* The 90.7% that could be deferred is precisely the set that registers things at boot, so
+   deferring it changes **which side effects happen and in what order** — the silent-hook-loss class of
+   defect, not a mechanical edit;
+3. proof obligations that only a full CMS + ecommerce suite plus the 555-template differential can
+   discharge.
+
+~3 ms does not buy that. **Rejected on the same standard as 4n and 4o.**
+
+**Recorded because it is the real shape of the cost**, and because the two probes make the question
+re-answerable in seconds. Falsifier that would reopen it: a live profile showing registration
+materially above the 7.65 ms measured here, or evidence that the concern files' side effects are
+order-insensitive and confined to operations rather than boot.
+
 ## 5. Live baseline — for scale, not comparison
 
 From [perf-state-2026-10-10.md](perf-state-2026-10-10.md), 2026-10-09, `kernelappos.ikabudkernel.com`:
