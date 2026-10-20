@@ -197,6 +197,75 @@ used for this: its credits can be exhausted (measured 2026-10-05: HTTP 429
 `credit_balance_exhausted` produced a debate draft with no text). Naming ChatGPT only selects the
 partner; a passing mention ("I asked chatgpt about X") launches nothing.
 
+## Claude as a second discussant
+
+`tools/harpp-bridge/consult.py` is a provider-neutral form of the same grounded loop. ChatGPT
+remains the default chair; Claude is an **optional second discussant / red team**, not a second
+gate. Use it when a second model's disagreement is worth the tokens, not on every patch.
+
+```bash
+# Same role and transcript conventions as the chair, but Claude answers.
+python3 tools/harpp-bridge/consult.py \
+  --provider claude --session arch-2026-10-20 \
+  --query "should the host-portability boundary move into the gateway?"
+
+# Attack a recommendation instead of producing a parallel one.
+python3 tools/harpp-bridge/consult.py \
+  --provider claude --mode red-team \
+  --target-file .ai/consult/arch-2026-10-20.md \
+  --query "red-team the proposed boundary"
+
+# Run both models on the same prompt and save both replies side by side.
+python3 tools/harpp-bridge/consult.py --compare \
+  --session arch-2026-10-20 \
+  --query "which option has the lower rollback cost?"
+```
+
+Modes:
+
+| Mode | What the model is asked to do |
+|---|---|
+| `chair` (default) | discuss the intent and recommend |
+| `red-team` | falsify the recommendation: assumptions, failure modes, alternatives, falsifiers |
+| `--compare` | run ChatGPT and Claude on the same grounded prompt; write both replies and a descriptive signals block |
+
+Transports for Claude:
+
+- **Anthropic API** — set `ANTHROPIC_API_KEY` and `CONSULT_CLAUDE_MODEL`. The tool uses the
+  standard Messages API; `--max-tokens` caps the reply.
+- **Claude CLI** — set `CONSULT_CLAUDE_CMD` (default `claude -p`). The prompt is written to stdin
+  and the reply is read from stdout. Verify the CLI's headless quota and terms before automating it.
+- **claude.ai page** — `--claude-backend page` drives the web UI with a persistent browser
+  profile, using the account's chat quota rather than API credits. Log in once:
+
+  ```bash
+  node tools/harpp-bridge/claude_page.js login --profile ~/.config/harpp/claude-profile
+  ```
+
+  The browser opens on `https://claude.ai/new`; sign in, wait for the confirmation, and the
+  session is saved. The email is never stored by the tool — only the profile's cookies.
+  `--headless` is available but the web UI may challenge headless traffic, so headed is the
+  default.
+- **Do not automate claude.ai web chat through any other path.** The page backend is a
+  best-effort adapter for the owner's own account, not a stable API surface. Selectors may need
+  updating when the UI changes.
+
+**Free accounts have a message cap.** The adapter reports a usage-limit state explicitly
+(`limit: true`) instead of retrying, and the consult tool prefixes the error with
+"Claude usage limit reached (free account)". Prefer one focused red-team or chair call over
+`--compare`; a comparison spends two messages per run.
+
+Selection: `--claude-backend auto` (default) uses the API when a key **and** model are present,
+otherwise the CLI; it fails with a clear message when neither is available.
+
+Transcripts and prompts live under `.ai/consult/` (gitignored). `--dry-run` writes the prompt
+without calling a provider, so a discussion can be composed before spending tokens. `--compare`
+writes `compare-<session>.md` plus per-provider transcripts; its "deterministic signals" are only
+word/citation counts — agreement and disagreement must be read from the replies.
+
+A Claude opinion is **advice, not evidence**, exactly like the chair. The useful output is a
+disagreement that survives verification, not a second agreement.
+
 ## Operations
 
 ```bash

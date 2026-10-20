@@ -222,14 +222,14 @@ def _without_embedded_packs(lines: list[str]) -> list[tuple[int, str]]:
 
     A file with no reply marker is indexed as-is, so a plan or a note keeps working.
     """
-    replies_only = any(line.startswith("# CHATGPT REPLY") for line in lines)
+    replies_only = any(line.startswith(("# CHATGPT REPLY", "# CLAUDE REPLY")) for line in lines)
     kept: list[tuple[int, str]] = []
     in_pack = in_reply = False
     for number, line in enumerate(lines, start=1):
         if line.strip() == "# RETRIEVED REPOSITORY FACTS":
             in_pack = True
             continue
-        if line.startswith("# CHATGPT REPLY"):
+        if line.startswith(("# CHATGPT REPLY", "# CLAUDE REPLY")):
             in_pack, in_reply = False, True
             continue
         if in_pack and line.startswith("#"):

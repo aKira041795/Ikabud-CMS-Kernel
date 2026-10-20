@@ -91,6 +91,33 @@ grounded in your repository, before you write a brief. It is optional and indepe
 - Its context pack reads `docs/**/*.md`, `.ai/chair/ledger.md` and `modules/*/module.json` if they
   exist, and degrades to nothing if they do not. No repository-specific code.
 
+`tools/harpp-bridge/consult.py` adds an optional **Claude** discussant and a red-team mode without
+replacing the chair:
+
+```bash
+# Anthropic API (requires ANTHROPIC_API_KEY + CONSULT_CLAUDE_MODEL)
+python3 tools/harpp-bridge/consult.py --provider claude --query "..."
+
+# Claude CLI (CONSULT_CLAUDE_CMD, default: claude -p; prompt on stdin)
+CONSULT_CLAUDE_CMD='claude -p' python3 tools/harpp-bridge/consult.py --provider claude --query "..."
+
+# claude.ai page backend (owner's own profile; one-time login)
+node tools/harpp-bridge/claude_page.js login --profile ~/.config/harpp/claude-profile
+python3 tools/harpp-bridge/consult.py --provider claude --claude-backend page --query "..."
+
+# Same prompt, both models, both replies saved side by side
+python3 tools/harpp-bridge/consult.py --compare --query "..."
+```
+
+- `--mode red-team --target-file <file>` asks Claude to falsify a recommendation instead of
+  producing a parallel one.
+- `--dry-run` composes and saves the prompt without calling a provider.
+- Claude is advice, not evidence; disagreement between models is the useful signal.
+- The page backend uses the account's chat quota. Free accounts have a message cap; the adapter
+  reports it explicitly instead of retrying. Prefer a single focused call over `--compare`.
+- Do not automate claude.ai through any other path; the page adapter is best-effort and may need
+  selector updates when the web UI changes.
+
 This is a convenience, not a dependency. The lane harness is complete without it.
 
 ## 5. Test a provider cheaply before you trust it

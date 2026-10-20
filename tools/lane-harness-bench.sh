@@ -52,7 +52,12 @@ run_case "lane-events unit tests" \
 run_case "lane policy selftest" \
   bash "$ROOT/tools/lane-policy.sh" selftest
 
-# 3. The lane wrapper itself: landing detection, duplicate commit, attribution, legacy
+# 3. Provider-neutral consultation: prompt composition, red-team targeting, Claude
+#    CLI/API transports, and clean session history.
+run_case "consult provider tests" \
+  python3 -m unittest discover -s "$ROOT/tools/tests" -p 'test_consult.py'
+
+# 4. The lane wrapper itself: landing detection, duplicate commit, attribution, legacy
 #    records, non-git workspaces, and now the completion field.
 run_case "lane harness selftest" \
   bash "$ROOT/tools/lane.sh" selftest

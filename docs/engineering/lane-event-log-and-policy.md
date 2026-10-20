@@ -174,10 +174,10 @@ tools/lane.sh board --json     # the same data for a UI
 bash tools/lane-harness-bench.sh   # all harness selftests as one fail-closed gate
 ```
 
-`lane-harness-bench.sh` runs the event-log unit tests, the role-policy selftest, and the lane
-wrapper selftest, writing full logs to `.ai/runs/harness-bench-<timestamp>/`. It is the benchmark
-corpus for the harness itself: run it when `lane.sh`, `lane-policy.sh`, `lane-events.py`, or the
-model chain changes.
+`lane-harness-bench.sh` runs the event-log unit tests, the role-policy selftest, the consult
+provider tests, and the lane wrapper selftest, writing full logs to
+`.ai/runs/harness-bench-<timestamp>/`. It is the benchmark corpus for the harness itself: run it
+when `lane.sh`, `lane-policy.sh`, `lane-events.py`, `consult.py`, or the model chain changes.
 
 ## Tests
 
@@ -185,6 +185,7 @@ model chain changes.
 tools/lane.sh policy-selftest       # 7 cases: allowed, blocked, path scope, read-only
 tools/lane.sh events-selftest       # 8 cases: replay, contradictions, policy exit codes, completion
 tools/lane.sh selftest              # 38 cases: landing detection, attribution, completion gate
+python3 -m unittest discover -s tools/tests -p 'test_consult.py'   # 7 consult provider cases
 bash tools/lane-harness-bench.sh    # all of the above as one gate
 ```
 

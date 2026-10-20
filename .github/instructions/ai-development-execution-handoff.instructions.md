@@ -120,6 +120,23 @@ python3 tools/harpp-bridge/chair_consult.py \
 resolved automatically (override with `CHAIR_CONSULT_PROFILE`); the tool excludes its own transcript
 from retrieval. A chair opinion is advice, not evidence — verify its repository claims before acting.
 
+### Claude as an optional second discussant
+
+`tools/harpp-bridge/consult.py` is the provider-neutral form of the same loop. Use it when a second
+model's disagreement is worth the tokens, not on every consultation:
+
+- `--provider claude` — same grounded prompt and transcript format as the chair;
+- `--mode red-team --target-file <file>` — attack a recommendation instead of producing a parallel
+  one;
+- `--compare` — run ChatGPT and Claude on the same prompt and write both replies side by side.
+
+Claude uses the Anthropic API (`ANTHROPIC_API_KEY` + `CONSULT_CLAUDE_MODEL`), a Claude CLI command
+(`CONSULT_CLAUDE_CMD`, default `claude -p`), or — as a last resort — the `claude.ai` page adapter
+(`--claude-backend page`, one-time login via `node tools/harpp-bridge/claude_page.js login`). A
+free Claude account has a message cap: prefer one focused red-team call over `--compare`, which
+spends two messages per run. A Claude opinion is advice, not evidence; disagreement between the
+two is the useful signal, not agreement by volume.
+
 ---
 
 ## `/sol` — the review and edit lane
