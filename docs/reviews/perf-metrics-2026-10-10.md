@@ -1180,6 +1180,30 @@ returned `Permission denied` on every file. Any cache prune must therefore run a
 through an application endpoint. Do not reach for `sudo`; that is an operational decision for the
 owner.
 
+## 4o. Phase 2 is not justified on the current evidence either
+
+Phase 2 was "raise the compiled-mode ceiling": 4 public CMS pages are excluded by `{cache }` and 51
+templates by `{ikb_ }`. Its appeal rested on the ineligible path being "~10x slower".
+
+The numbers in this document do not support that framing:
+
+- the 243x median ratio measured earlier was obtained by **forcing** compiled mode off on
+  compiled-*eligible* templates — a configuration production never uses for them. Section 4l retracts
+  it as a production cost, correctly.
+- the faithful cost of the ineligible path is the 76 ineligible templates measured directly:
+  **median warm 4.26 ms**, min 0.40, max 31.30 after the O(n²) removal (−54% median, −84% max), with
+  3 of 72 over 20 ms.
+
+So the ceiling Phase 2 would lift is a ~4 ms median per ineligible template, and lifting it requires
+teaching the compiler to express `{ikb_ }` and `{cache }` — a language change, not a switch. This
+session produced two compiled/interpreted divergence defects from exactly that surface, and the
+`{extends}` compiled divergence on record is a third. A few milliseconds per template does not buy
+that risk against a 30–50 ms request.
+
+**What would change this answer:** a profile of a real request showing meaningful time inside the
+ineligible set — a page rendering several `{ikb_ }` templates whose combined cost dominates. That is a
+measurement to take against live traffic, not a reason to start engine work now.
+
 ## 5. Live baseline — for scale, not comparison
 
 From [perf-state-2026-10-10.md](perf-state-2026-10-10.md), 2026-10-09, `kernelappos.ikabudkernel.com`:
