@@ -220,6 +220,149 @@ if (!function_exists('kernelHandlePageKernelIntegrations')) {
     }
 }
 
+if (!function_exists('kernelPerfPageRows')) {
+    /**
+     * Assemble the performance payload into display rows without HTTP or auth dependencies.
+     */
+    function kernelPerfPageRows(array $perfData): array
+    {
+        $missing = 'not collected';
+        $get = static function (array $path, string $nullValue = 'not measured') use ($perfData, $missing) {
+            $value = $perfData;
+            foreach ($path as $key) {
+                if (!is_array($value) || !array_key_exists($key, $value)) {
+                    return $missing;
+                }
+                $value = $value[$key];
+            }
+            return $value === null ? $nullValue : $value;
+        };
+        $raw = static function (array $path, $default = null) use ($perfData) {
+            $value = $perfData;
+            foreach ($path as $key) {
+                if (!is_array($value) || !array_key_exists($key, $value)) {
+                    return $default;
+                }
+                $value = $value[$key];
+            }
+            return $value;
+        };
+        $has = static function (array $path) use ($perfData): bool {
+            $value = $perfData;
+            foreach ($path as $key) {
+                if (!is_array($value) || !array_key_exists($key, $value)) {
+                    return false;
+                }
+                $value = $value[$key];
+            }
+            return true;
+        };
+
+        $totalMs = $raw(['total_ms']);
+        $probeSelfMs = $raw(['probe_self_ms']);
+        $requestWorkMs = is_numeric($totalMs) && is_numeric($probeSelfMs)
+            ? round((float)$totalMs - (float)$probeSelfMs, 2)
+            : ($has(['total_ms']) && $has(['probe_self_ms']) ? 'not measured' : $missing);
+        $slowest = $raw(['db_slowest']);
+        $slowestQuery = is_array($slowest)
+            ? round((float)($slowest['ms'] ?? 0), 2) . ' ms · ' . (string)($slowest['sql'] ?? '')
+            : ($has(['db_slowest']) ? 'not measured' : $missing);
+        $manifestCollected = $has(['manifest']);
+        $manifest = $raw(['manifest'], []);
+        $opcacheCollected = $has(['opcache']);
+        $opcache = $raw(['opcache'], []);
+        $apcuCollected = $has(['apcu']);
+        $apcu = $raw(['apcu']);
+        $apcuUsable = is_array($apcu) ? (bool)($apcu['usable'] ?? false) : null;
+        $apcuReason = is_array($apcu) ? (string)($apcu['reason'] ?? '') : '';
+        $apcuRoundTrip = 'not measured';
+        if (is_array($apcu) && ($apcu['store_ms'] ?? null) !== null && ($apcu['fetch_ms'] ?? null) !== null) {
+            $apcuRoundTrip = round((float)$apcu['store_ms'], 3) . ' store / '
+                . round((float)$apcu['fetch_ms'], 3) . ' fetch';
+        }
+        $apcuEntryLabel = is_array($apcu) && ($apcu['entry_kb'] ?? null) !== null
+            ? 'APCu round trip (' . $apcu['entry_kb'] . ' KB entry)'
+            : 'APCu round trip';
+        $apcuRoundTripNote = is_array($apcu) && ($apcu['roundtrip_ok'] ?? null) === false
+            ? 'round trip FAILED - timings discarded, not zero'
+            : '';
+        $coldState = $raw(['module_discover_cold_state']);
+        $coldValue = $coldState === 'measured'
+            ? $get(['module_discover_cold_ms'])
+            : ($has(['module_discover_cold_state']) ? 'not run (add ?deep=1)' : $missing);
+        $coldUnit = $coldState === 'measured'
+            ? 'ms · ' . $get(['module_discover_cold_count']) . ' modules'
+            : '';
+        $settingsMeasured = $raw(['settings_preload_state']) === 'measured';
+
+        return [
+            ['Request DB queries', $get(['db_queries']), 'queries', ''],
+            ['Request CREATE TABLE queries', $get(['ddl_queries']), 'queries', ''],
+            ['Request DB total', $get(['db_total_ms']), 'ms', ''],
+            ['Request slowest query', $slowestQuery, '', ''],
+            ['Request phase: boot', $get(['phases', 'boot']), 'ms elapsed', ''],
+            ['Boot: fast-path cache', $get(['phases', 'boot_fastpath']), 'ms elapsed', ''],
+            ['Boot: -> bootstrap.php', $get(['phases', 'boot_bootstrap']), 'ms elapsed', ''],
+            ['Boot: -> require block', $get(['phases', 'boot_requires']), 'ms elapsed', ''],
+            ['Request phase: dispatch', $get(['phases', 'dispatch']), 'ms elapsed', ''],
+            ['Request phase: render (not applicable: page emits raw HTML)', 'not applicable', '', ''],
+            ['Request phase: shutdown (not applicable: occurs after response)', 'not applicable', '', ''],
+            ['Dispatch segment: session', $get(['phase_deltas', 'session']), 'ms', ''],
+            ['Dispatch segment: core routes', $get(['phase_deltas', 'core_routes']), 'ms', ''],
+            ['Dispatch segment: settings preload', $get(['phase_deltas', 'settings_preload']), 'ms', ''],
+            ['Dispatch segment: module routes', $get(['phase_deltas', 'module_routes']), 'ms', ''],
+            ['Module routes: discovery', $get(['module_route_deltas', 'discovery']), 'ms', ''],
+            ['Module routes: registration', $get(['module_route_deltas', 'registration']), 'ms', ''],
+            ['Registration: helpers load', $get(['registration_deltas', 'helpers_load']), 'ms', ''],
+            ['Registration: capability validate', $get(['registration_deltas', 'capability_validate']), 'ms', ''],
+            ['Registration: capability register', $get(['registration_deltas', 'capability_register']), 'ms', ''],
+            ['Registration: entity context', $get(['registration_deltas', 'entity_context']), 'ms', ''],
+            ['Registration: entity sources', $get(['registration_deltas', 'entity_sources']), 'ms', ''],
+            ['Registration: route merge', $get(['registration_deltas', 'route_merge']), 'ms', ''],
+            ['Registration: newly included files', $get(['registration_include_cost', 'files']), 'files', ''],
+            ['Registration: newly included size', is_numeric($raw(['registration_include_cost', 'bytes'])) ? round((float)$raw(['registration_include_cost', 'bytes']) / 1024, 2) : $missing, 'KB', ''],
+            ['Module routes: event flush', $get(['module_route_deltas', 'event_flush']), 'ms', ''],
+            ['Module routes: contract drift', $get(['module_route_deltas', 'contract_drift']), 'ms', ''],
+            ['Module routes: tail', $get(['module_route_deltas', 'tail']), 'ms', ''],
+            ['Dispatch segment: dispatch hooks', $get(['phase_deltas', 'dispatch_hooks']), 'ms', ''],
+            ['Dispatch segment: route match', $get(['phase_deltas', 'route_match']), 'ms', ''],
+            ['Route match: sort (request-invariant)', $get(['phase_deltas', 'route_match_sort']), 'ms', ''],
+            ['Route match: regex scan', $get(['phase_deltas', 'route_match_scan']), 'ms', ''],
+            ['Dispatch segment: tail', $get(['phase_deltas', 'dispatch_tail']), 'ms', ''],
+            ['DB ping (SELECT 1)', $get(['db_ping_ms']), 'ms', $raw(['db_ok'], false) ? '' : 'FAIL'],
+            ['Module discover (warm)', $get(['module_discover_ms']), 'ms', ''],
+            ['Module discover (cold scan, probe-induced)', $coldValue, $coldUnit, ''],
+            ['Manifest fingerprint', !empty($manifest['available']) ? round((float)$manifest['fingerprint_ms'], 3) : ($manifestCollected ? 'not measured' : $missing), 'ms', !empty($manifest['state_cached']) ? 'revalidated by stat (fast path)' : 'full walk'],
+            ['Manifest tree walk (one-off)', !empty($manifest['available']) ? round((float)$manifest['walk_ms'], 3) : ($manifestCollected ? 'not measured' : $missing), 'ms', 'what the fast path avoids'],
+            ['Manifest state revalidate', !empty($manifest['available']) ? round((float)$manifest['validate_ms'], 3) : ($manifestCollected ? 'not measured' : $missing), 'ms · ' . ($manifest['dirs'] ?? '?') . ' dirs / ' . ($manifest['files'] ?? '?') . ' files', !empty($manifest['dirs_complete']) ? '' : 'INCOMPLETE - state not cached'],
+            ['Settings preload', $settingsMeasured ? $get(['settings_preload_ms']) : ($has(['settings_preload_state']) ? 'skipped (no tenant)' : $missing), $settingsMeasured ? 'ms · ' . $get(['settings_preload_rows']) . ' rows' : '', ''],
+            ['Cache round-trip', $get(['cache_roundtrip_ms']), 'ms', $raw(['cache_ok'], false) ? '' : 'FAIL'],
+            ['Cache hit rate (page cache)', $get(['cache_hit_rate_pct']), '% (page cache)', ''],
+            ['Cache miss rate', $get(['cache_miss_rate_pct']), '%', ''],
+            ['Cache bypass rate', $get(['cache_bypass_rate_pct']), '%', ''],
+            ['Cache files (active/expired)', $raw(['cache_active_files']) !== null && $raw(['cache_expired_files']) !== null ? $raw(['cache_active_files']) . '/' . $raw(['cache_expired_files']) : $missing, '', ''],
+            ['Cache eviction', $get(['cache_eviction']), '', ''],
+            ['Cache disk usage', $get(['cache_total_size_mb']), 'MB', ''],
+            ['APCu entries', $get(['cache_apcu_entries']), $raw(['cache_apcu_available'], false) ? 'entries' : 'entries (APCu off)', ''],
+            ['APCu usable for a cross-request cache', $apcuUsable === null ? ($apcuCollected ? 'not measured' : $missing) : ($apcuUsable ? 'yes' : 'no'), $apcuReason, $apcuUsable === false ? 'OFF' : ''],
+            [$apcuEntryLabel, is_array($apcu) ? $apcuRoundTrip : ($apcuCollected ? 'not measured' : $missing), 'ms', $apcuRoundTripNote],
+            ['APCu shared memory', is_array($apcu) ? ($apcu['shm_size'] ?? 'unknown') : ($apcuCollected ? 'not measured' : $missing), '', ''],
+            ['APCu hits / misses', is_array($apcu) ? (($apcu['cache_hits'] ?? '?') . ' / ' . ($apcu['cache_misses'] ?? '?')) : ($apcuCollected ? 'not measured' : $missing), '', ''],
+            ['DiSyL render (extends)', $get(['disyl_render_ms']), 'ms · ' . $get(['disyl_template']) . ' · extends=' . ($raw(['disyl_extends'], false) ? 'true' : 'false'), $raw(['disyl_ok'], false) ? '' : 'FAIL'],
+            ['OPcache enabled', !empty($opcache['available']) ? 'yes' : 'no / not readable', '', ''],
+            ['OPcache scripts compiled this request', $opcache['compiled_this_request'] ?? ($opcacheCollected ? 'not measured' : $missing), 'scripts', ''],
+            ['OPcache cached scripts / max keys', !empty($opcache['available']) ? $opcache['now']['cached_scripts'] . ' / ' . $opcache['now']['max_cached_keys'] : ($opcacheCollected ? 'not measured' : $missing), '', ''],
+            ['OPcache memory used / free', !empty($opcache['available']) ? $opcache['now']['used_mb'] . ' / ' . $opcache['now']['free_mb'] . ' MB' : ($opcacheCollected ? 'not measured' : $missing), 'wasted ' . (!empty($opcache['available']) ? $opcache['now']['wasted_mb'] : '?') . ' MB', ''],
+            ['OPcache restarts (OOM / hash)', !empty($opcache['available']) ? $opcache['now']['oom_restarts'] . ' / ' . $opcache['now']['hash_restarts'] : ($opcacheCollected ? 'not measured' : $missing), '', ''],
+            ['OPcache validate_timestamps / freq', $opcache['validate_timestamps'] ?? ($opcacheCollected ? 'unknown' : $missing), (string)($opcache['revalidate_freq'] ?? ''), ''],
+            ['Probe self-measurement', $get(['probe_self_ms']), 'ms (this page only, included in total)', ''],
+            ['Request work (total minus probe overhead)', $requestWorkMs, 'ms', ''],
+            ['Total wall time (includes probe overhead)', $get(['total_ms']), 'ms', ''],
+            ['Peak memory', $get(['peak_memory_kb']), 'KB', ''],
+        ];
+    }
+}
+
 if (!function_exists('kernelHandlePageSuperadminPerf')) {
     function kernelHandlePageSuperadminPerf(): void
     {
@@ -247,9 +390,14 @@ if (!function_exists('kernelHandlePageSuperadminPerf')) {
         $perfData['module_discover_ms'] = round((microtime(true) - $t) * 1000, 2);
         $perfData['module_count'] = count($perfDiscoveredModules);
 
-        $coldDiscover = kernelPerfProbeColdModuleDiscover();
-        $perfData['module_discover_cold_ms'] = round((float)$coldDiscover['ms'], 2);
-        $perfData['module_discover_cold_count'] = (int)$coldDiscover['modules'];
+        $deepProbe = isset($_GET['deep']) && (string)$_GET['deep'] === '1';
+        $perfData['module_discover_cold_state'] = 'not_run';
+        if ($deepProbe) {
+            $coldDiscover = kernelPerfProbeColdModuleDiscover(true);
+            $perfData['module_discover_cold_state'] = 'measured';
+            $perfData['module_discover_cold_ms'] = round((float)$coldDiscover['ms'], 2);
+            $perfData['module_discover_cold_count'] = (int)$coldDiscover['modules'];
+        }
 
         $settingsPreload = kernelPerfProbeSettingsPreload();
         $perfData['settings_preload_ms'] = round((float)$settingsPreload['ms'], 2);
@@ -305,35 +453,21 @@ if (!function_exists('kernelHandlePageSuperadminPerf')) {
         $perfData['disyl_template'] = (string)$disylRender['template'];
         $perfData['disyl_extends'] = !empty($disylRender['extends']);
 
-        // Measured from the REQUEST's start, the same origin as every phase row above, so the numbers in
-        // this table are comparable and a row labelled "total" cannot come out smaller than one of its own
-        // phases. The probe's own measurement cost is its own row rather than folded into the total: no
-        // ordinary page pays it, and hiding it inside the headline made this page look far worse than the
-        // site it measures.
+        // Measured from the REQUEST's start, the same origin as every phase row. This necessarily includes
+        // the diagnostic probes run above; the rows distinguish that overhead from estimated request work.
         $requestElapsedMs = kernelPerfRequestElapsedMs();
         $perfData['total_ms'] = $requestElapsedMs === null ? null : round($requestElapsedMs, 2);
         $perfData['probe_self_ms'] = round((microtime(true) - $perfOverallStart) * 1000, 2);
         $perfOpcache = kernelPerfProbeOpcache();
         $perfManifest = kernelPerfProbeManifestFingerprint();
+        $perfData['opcache'] = $perfOpcache;
+        $perfData['manifest'] = $perfManifest;
         // Whether APCu could carry a cross-request cache on THIS host, and what a round trip costs.
         // The `APCu entries` row below proves the cache is populated; it cannot say whether an entry
         // of the size a route-order cache needs is affordable, which is the fact a cross-request cache
         // decision actually turns on. The CLI cannot answer it either (apc.enable_cli is off, so
         // store/fetch are no-ops there), which makes this page the only place it can be seen.
-        $perfApcu = function_exists('kernelPerfProbeApcu') ? kernelPerfProbeApcu() : null;
-        $perfApcuUsable = is_array($perfApcu) ? (bool)$perfApcu['usable'] : null;
-        $perfApcuReason = is_array($perfApcu) ? (string)($perfApcu['reason'] ?? '') : '';
-        $perfApcuRoundTrip = 'not measured';
-        if (is_array($perfApcu) && $perfApcu['store_ms'] !== null && $perfApcu['fetch_ms'] !== null) {
-            $perfApcuRoundTrip = round((float)$perfApcu['store_ms'], 3) . ' store / '
-                . round((float)$perfApcu['fetch_ms'], 3) . ' fetch';
-        }
-        $perfApcuEntryLabel = is_array($perfApcu) && $perfApcu['entry_kb'] !== null
-            ? 'APCu round trip (' . $perfApcu['entry_kb'] . ' KB entry)'
-            : 'APCu round trip';
-        $perfApcuRoundTripNote = (is_array($perfApcu) && $perfApcu['roundtrip_ok'] === false)
-            ? 'round trip FAILED - timings discarded, not zero'
-            : '';
+        $perfData['apcu'] = function_exists('kernelPerfProbeApcu') ? kernelPerfProbeApcu() : null;
         $perfData['php_version'] = PHP_VERSION;
         $perfData['peak_memory_kb'] = (int) round(memory_get_peak_usage(true) / 1024);
         $perfData['host'] = $_SERVER['HTTP_HOST'] ?? '';
@@ -349,88 +483,7 @@ if (!function_exists('kernelHandlePageSuperadminPerf')) {
         $perfData['module_route_deltas'] = $requestAttribution['module_route_deltas'];
         $perfData['registration_deltas'] = $requestAttribution['registration_deltas'];
         $perfData['registration_include_cost'] = $requestAttribution['registration_include_cost'];
-        $slowestQuery = is_array($perfData['db_slowest'])
-            ? round((float)$perfData['db_slowest']['ms'], 2) . ' ms · ' . (string)$perfData['db_slowest']['sql']
-            : 'not measured';
-
-        $perfRows = [
-            ['Request DB queries', $perfData['db_queries'], 'queries', ''],
-            ['Request CREATE TABLE queries', $perfData['ddl_queries'], 'queries', ''],
-            ['Request DB total', $perfData['db_total_ms'], 'ms', ''],
-            ['Request slowest query', $slowestQuery, '', ''],
-            ['Request phase: boot', $perfData['phases']['boot'] ?? 'not measured', 'ms elapsed', ''],
-            // Boot was one opaque mark until 2026-10-10. These are the boundaries behind it, published
-            // by kernelPerfPublishBootBoundaries(): same clock and same request origin as every other
-            // row, so these four MUST sum to the boot row above. If they do not, the origin is wrong.
-            ['Boot: fast-path cache', $perfData['phases']['boot_fastpath'] ?? 'not measured', 'ms elapsed', ''],
-            ['Boot: -> bootstrap.php', $perfData['phases']['boot_bootstrap'] ?? 'not measured', 'ms elapsed', ''],
-            ['Boot: -> require block', $perfData['phases']['boot_requires'] ?? 'not measured', 'ms elapsed', ''],
-            ['Request phase: dispatch', $perfData['phases']['dispatch'] ?? 'not measured', 'ms elapsed', ''],
-            ['Request phase: render', $perfData['phases']['render'] ?? 'not measured', 'ms elapsed', ''],
-            ['Request phase: shutdown', $perfData['phases']['shutdown'] ?? 'not measured', 'ms elapsed', ''],
-            ['Dispatch segment: session', $perfData['phase_deltas']['session'] ?? 'not measured', 'ms', ''],
-            ['Dispatch segment: core routes', $perfData['phase_deltas']['core_routes'] ?? 'not measured', 'ms', ''],
-            ['Dispatch segment: settings preload', $perfData['phase_deltas']['settings_preload'] ?? 'not measured', 'ms', ''],
-            ['Dispatch segment: module routes', $perfData['phase_deltas']['module_routes'] ?? 'not measured', 'ms', ''],
-            ['Module routes: discovery', $perfData['module_route_deltas']['discovery'] ?? 'not measured', 'ms', ''],
-            ['Module routes: registration', $perfData['module_route_deltas']['registration'] ?? 'not measured', 'ms', ''],
-            ['Registration: helpers load', $perfData['registration_deltas']['helpers_load'] ?? 'not measured', 'ms', ''],
-            ['Registration: capability validate', $perfData['registration_deltas']['capability_validate'] ?? 'not measured', 'ms', ''],
-            ['Registration: capability register', $perfData['registration_deltas']['capability_register'] ?? 'not measured', 'ms', ''],
-            ['Registration: entity context', $perfData['registration_deltas']['entity_context'] ?? 'not measured', 'ms', ''],
-            ['Registration: entity sources', $perfData['registration_deltas']['entity_sources'] ?? 'not measured', 'ms', ''],
-            ['Registration: route merge', $perfData['registration_deltas']['route_merge'] ?? 'not measured', 'ms', ''],
-            ['Registration: newly included files', $perfData['registration_include_cost']['files'] ?? 0, 'files', ''],
-            ['Registration: newly included size', round((float)($perfData['registration_include_cost']['bytes'] ?? 0) / 1024, 2), 'KB', ''],
-            ['Module routes: event flush', $perfData['module_route_deltas']['event_flush'] ?? 'not measured', 'ms', ''],
-            ['Module routes: contract drift', $perfData['module_route_deltas']['contract_drift'] ?? 'not measured', 'ms', ''],
-            ['Module routes: tail', $perfData['module_route_deltas']['tail'] ?? 'not measured', 'ms', ''],
-            ['Dispatch segment: dispatch hooks', $perfData['phase_deltas']['dispatch_hooks'] ?? 'not measured', 'ms', ''],
-            ['Dispatch segment: route match', $perfData['phase_deltas']['route_match'] ?? 'not measured', 'ms', ''],
-            // The split that decided the memoisation: the sort is request-invariant work that can be
-            // removed, the scan is URI-dependent and cannot. Measured 2026-10-10 the sort was ~98% of
-            // route match, which is what justified optimising it rather than the scan.
-            ['Route match: sort (request-invariant)', $perfData['phase_deltas']['route_match_sort'] ?? 'not measured', 'ms', ''],
-            ['Route match: regex scan', $perfData['phase_deltas']['route_match_scan'] ?? 'not measured', 'ms', ''],
-            ['Dispatch segment: tail', $perfData['phase_deltas']['dispatch_tail'] ?? 'not measured', 'ms', ''],
-            ['DB ping (SELECT 1)', $perfData['db_ping_ms'], 'ms', $perfData['db_ok'] ? '' : 'FAIL'],
-            ['Module discover (warm)', $perfData['module_discover_ms'], 'ms', ''],
-            ['Module discover (cold scan)', $perfData['module_discover_cold_ms'], 'ms · ' . $perfData['module_discover_cold_count'] . ' modules', ''],
-            // The fingerprint keys the discovery cache and runs on EVERY request, so whether it took the
-            // stat path or the walk is the difference between ~1ms and ~8ms of every page in the app.
-            ['Manifest fingerprint', $perfManifest['available'] ? round((float)$perfManifest['fingerprint_ms'], 3) : 'not measured', 'ms', $perfManifest['state_cached'] ? 'revalidated by stat (fast path)' : 'full walk'],
-            ['Manifest tree walk (one-off)', $perfManifest['available'] ? round((float)$perfManifest['walk_ms'], 3) : 'not measured', 'ms', 'what the fast path avoids'],
-            ['Manifest state revalidate', $perfManifest['available'] ? round((float)$perfManifest['validate_ms'], 3) : 'not measured', 'ms · ' . ($perfManifest['dirs'] ?? '?') . ' dirs / ' . ($perfManifest['files'] ?? '?') . ' files', $perfManifest['dirs_complete'] ? '' : 'INCOMPLETE - state not cached'],
-            ['Settings preload', $perfData['settings_preload_state'] === 'measured' ? $perfData['settings_preload_ms'] : 'skipped (no tenant)', $perfData['settings_preload_state'] === 'measured' ? 'ms · ' . $perfData['settings_preload_rows'] . ' rows' : '', ''],
-            ['Cache round-trip', $perfData['cache_roundtrip_ms'], 'ms', $perfData['cache_ok'] ? '' : 'FAIL'],
-            ['Cache hit rate', $perfData['cache_hit_rate_pct'], '%', ''],
-            ['Cache miss rate', $perfData['cache_miss_rate_pct'], '%', ''],
-            ['Cache bypass rate', $perfData['cache_bypass_rate_pct'], '%', ''],
-            ['Cache files (active/expired)', $perfData['cache_active_files'] . '/' . $perfData['cache_expired_files'], '', ''],
-            ['Cache eviction', $perfData['cache_eviction'], '', ''],
-            ['Cache disk usage', $perfData['cache_total_size_mb'], 'MB', ''],
-            ['APCu entries', $perfData['cache_apcu_entries'], $perfData['cache_apcu_available'] ? 'entries' : 'entries (APCu off)', ''],
-            // APCu readiness for a cross-request cache. `APCu entries` above proves it is populated
-            // on this host; these say whether an entry of the size such a cache needs is affordable.
-            // A failed round trip reports '-' and says so, rather than presenting the cost of a
-            // failure as the cost of a hit.
-            ['APCu usable for a cross-request cache', $perfApcuUsable === null ? 'not measured' : ($perfApcuUsable ? 'yes' : 'no'), $perfApcuReason, $perfApcuUsable === false ? 'OFF' : ''],
-            [$perfApcuEntryLabel, $perfApcuRoundTrip, 'ms', $perfApcuRoundTripNote],
-            ['APCu shared memory', is_array($perfApcu) ? ($perfApcu['shm_size'] ?? 'unknown') : 'not measured', '', ''],
-            ['APCu hits / misses', is_array($perfApcu) ? (($perfApcu['cache_hits'] ?? '?') . ' / ' . ($perfApcu['cache_misses'] ?? '?')) : 'not measured', '', ''],
-            ['DiSyL render (extends)', $perfData['disyl_render_ms'], 'ms · ' . $perfData['disyl_template'] . ' · extends=' . ($perfData['disyl_extends'] ? 'true' : 'false'), $perfData['disyl_ok'] ? '' : 'FAIL'],
-            // OPcache. `compiled_this_request` is the row that matters: a cached-script count cannot tell
-            // "OPcache serves the module helper files" apart from "they are recompiled every request".
-            ['OPcache enabled', $perfOpcache['available'] ? 'yes' : 'no / not readable', '', ''],
-            ['OPcache scripts compiled this request', $perfOpcache['compiled_this_request'] ?? 'not measured', 'scripts', ''],
-            ['OPcache cached scripts / max keys', $perfOpcache['available'] ? $perfOpcache['now']['cached_scripts'] . ' / ' . $perfOpcache['now']['max_cached_keys'] : 'not measured', '', ''],
-            ['OPcache memory used / free', $perfOpcache['available'] ? $perfOpcache['now']['used_mb'] . ' / ' . $perfOpcache['now']['free_mb'] . ' MB' : 'not measured', 'wasted ' . ($perfOpcache['available'] ? $perfOpcache['now']['wasted_mb'] : '?') . ' MB', ''],
-            ['OPcache restarts (OOM / hash)', $perfOpcache['available'] ? $perfOpcache['now']['oom_restarts'] . ' / ' . $perfOpcache['now']['hash_restarts'] : 'not measured', '', ''],
-            ['OPcache validate_timestamps / freq', $perfOpcache['validate_timestamps'] ?? 'unknown', (string)($perfOpcache['revalidate_freq'] ?? ''), ''],
-            ['Probe self-measurement', $perfData['probe_self_ms'], 'ms (this page only, not a normal request)', ''],
-            ['Total wall time', $perfData['total_ms'] ?? 'not measured', 'ms', ''],
-            ['Peak memory', $perfData['peak_memory_kb'], 'KB', ''],
-        ];
+        $perfRows = kernelPerfPageRows($perfData);
 
         $baseUrl = external_base_url();
         header('Content-Type: text/html; charset=utf-8');

@@ -15,15 +15,19 @@ if (!function_exists('kernelPerfProbeElapsedMs')) {
 }
 
 if (!function_exists('kernelPerfProbeColdModuleDiscover')) {
-    function kernelPerfProbeColdModuleDiscover(): array
+    function kernelPerfProbeColdModuleDiscover(bool $deep = true): array
     {
         $startedAt = hrtime(true);
         $modules = [];
 
-        try {
-            $modules = discoverModulesScanAll();
-        } catch (Throwable $e) {
-            $modules = [];
+        // The perf page only enters this branch for ?deep=1. The true default preserves this probe's
+        // standalone API for explicit CLI diagnostics while the normal page does not call it at all.
+        if ($deep) {
+            try {
+                $modules = discoverModulesScanAll();
+            } catch (Throwable $e) {
+                $modules = [];
+            }
         }
 
         return [
