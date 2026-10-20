@@ -1,7 +1,8 @@
 # Lane Event Log and Role Policy
 
-Two harness primitives added on 2026-10-20, after evaluating DeepSeek Harness (`dsh`). They are
-implemented natively in the existing harness; no new runtime was adopted.
+Harness primitives added on 2026-10-20, after evaluating DeepSeek Harness (`dsh`) and the
+permission/hook models of Claude Code, Cline, Kiro, Aider, and SWE-agent. They are implemented
+natively in the existing harness; no new runtime was adopted.
 
 The evaluation is in
 `.ai/consult/` (gitignored) and the durable decision record is
@@ -116,12 +117,75 @@ tools/lane.sh run my-impl tools/lane-my-impl.sh \
 - A lane can always be run without `--role`; the default is `implement`. Use roles for the lanes
   where the constraint matters.
 
+## 3. Completion gate
+
+`state: landed` says the process held an exit status; it does not say the work met its bar. The
+completion gate records that distinction on every landing:
+
+| `completion` | Meaning |
+|---|---|
+| `PASS` | exited 0 **and** the supplied acceptance criterion passed |
+| `UNVERIFIED` | exited 0, but the acceptance gate was bypassed (`--no-acceptance-gate`) |
+| `BLOCKED` | non-zero exit, or the criterion failed / timed out / errored |
+
+It is written to the marker (`completion`, `completion_detail`), the journal line, and the
+`run_finished` event. A `BLOCKED` landing also emits a `completion_blocked` event. `verify` treats
+`completion=BLOCKED` with `exit_code=0` as a contradiction — the exact case where a cheerful
+`landed` used to be read as success.
+
+```bash
+tools/lane.sh status <name>     # completion + detail, next to acceptance and verdict
+tools/lane.sh list              # completion column
+```
+
+`tools/lane-watch.sh` prints the completion verdict for every landing and raises its urgency to
+`critical` when it is `BLOCKED`, so a lane that exited 0 while failing its criterion cannot be
+mistaken for success by a watcher that only sees the state line.
+
+For callers that check only the return code, `run --strict-completion` returns **4** when a clean
+exit is `BLOCKED`. It is opt-in because the existing fixture corpus deliberately dispatches lanes
+with an always-failing criterion to exercise the pre-dispatch gate.
+
+## 4. Checkpoint and rewind
+
+Before the lane writes anything, the generated runner calls `lane.sh checkpoint <name>`, which
+captures recoverable pre-lane state:
+
+- `.ai/runs/<name>.checkpoint.patch` — tracked changes vs `HEAD`, binary-safe;
+- `.ai/runs/<name>.checkpoint.untracked.tgz` — untracked, non-ignored files;
+- `.ai/runs/<name>.checkpoint.json` — `head`, sizes, availability.
+
+Checkpointing is non-fatal: a harness that cannot snapshot must not block the work.
+
+```bash
+tools/lane.sh rewind <name>              # dry-run: what would be restored
+tools/lane.sh rewind <name> --execute    # stash current work, restore the checkpoint
+```
+
+`rewind` is deliberately dry-run by default. `--execute` first stashes the **current** changes
+(including untracked files), so the operation is reversible even when it goes wrong; the stash ref is
+printed. It refuses when `HEAD` moved since the checkpoint unless `--force-head` is passed.
+
+## 5. Run board and harness bench
+
+```bash
+tools/lane.sh board            # every run with an event log: state, completion, role, reason, attempts, model, duration
+tools/lane.sh board --json     # the same data for a UI
+bash tools/lane-harness-bench.sh   # all harness selftests as one fail-closed gate
+```
+
+`lane-harness-bench.sh` runs the event-log unit tests, the role-policy selftest, and the lane
+wrapper selftest, writing full logs to `.ai/runs/harness-bench-<timestamp>/`. It is the benchmark
+corpus for the harness itself: run it when `lane.sh`, `lane-policy.sh`, `lane-events.py`, or the
+model chain changes.
+
 ## Tests
 
 ```bash
 tools/lane.sh policy-selftest       # 7 cases: allowed, blocked, path scope, read-only
-tools/lane.sh events-selftest       # 5 cases: replay, contradictions, policy exit codes
-tools/lane.sh selftest              # existing 34-case landing-detection selftest
+tools/lane.sh events-selftest       # 8 cases: replay, contradictions, policy exit codes, completion
+tools/lane.sh selftest              # 38 cases: landing detection, attribution, completion gate
+bash tools/lane-harness-bench.sh    # all of the above as one gate
 ```
 
 ## Integration notes

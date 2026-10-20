@@ -40,9 +40,12 @@
 #                          [--criterion-level=<unit|http|browser|corpus>]
 #                          [--no-level-gate="<reason>"] [--no-acceptance-gate="<reason>"]
 #                          [--touches="<path,path>"] [--role=<architect|implement|review|release-gate>]
-#                          [--notify]
+#                          [--strict-completion] [--notify]
 #   tools/lane.sh status   <name>
 #   tools/lane.sh events   <name> [--json]      # event-sourced timeline + summary
+#   tools/lane.sh board    [--json]             # every run with an event log
+#   tools/lane.sh checkpoint <name>             # capture recoverable pre-lane state
+#   tools/lane.sh rewind   <name> [--execute]   # dry-run unless --execute; stashes current work first
 #   tools/lane.sh list
 #   tools/lane.sh pending                      # landed but not yet reported to the agent
 #   tools/lane.sh ack                          # mark everything reported
@@ -90,6 +93,7 @@
 #
 # Exit status of `run`:  0 = landed (clean) | <n> = landed with the lane's exit code <n>
 #                        3 = STILL RUNNING, re-arm the watcher | 1 = unverified / timeout
+#                        4 = landed but completion BLOCKED (only with --strict-completion)
 #
 # Run it in an ASYNC terminal at dispatch. Every wake tells you what happened, or that the
 # lane is still going - so the "is it done yet?" round-trip never has to be asked.
@@ -270,6 +274,23 @@ commit_landing() {
     SKIPPED) verdict="EXECUTION_ONLY";;
     *) verdict="NOT_VERIFIED";;
   esac
+  # The completion gate: PASS only when the lane exited cleanly AND its own executable
+  # criterion passed. A bypassed acceptance gate is UNVERIFIED, never PASS. A failed or
+  # timed-out criterion is BLOCKED, even if the lane process itself exited 0 - that is the
+  # case where a cheerful `state: landed` used to be read as success.
+  local completion="${LANE_COMPLETION_VERDICT:-}" completionDetail="${LANE_COMPLETION_DETAIL:-}"
+  if [ -z "$completion" ]; then
+    if [ -n "$exitCode" ] && [ "$exitCode" != "0" ]; then
+      completion="BLOCKED"; completionDetail="exit_code=$exitCode"
+    elif [ "$acceptance" = "PASS" ]; then
+      completion="PASS"; completionDetail="acceptance passed"
+    elif [ "$acceptance" = "SKIPPED" ]; then
+      completion="UNVERIFIED"; completionDetail="acceptance gate was bypassed"
+    else
+      completion="BLOCKED"; completionDetail="acceptance=$acceptance"
+    fi
+  fi
+  export LANE_COMPLETION_VERDICT="$completion" LANE_COMPLETION_DETAIL="$completionDetail"
   local lock="$RUNS/$name.commit.lock"
   if ! mkdir "$lock" 2>/dev/null; then
     echo "   (landing already committed by another process - not duplicating)" >&2
@@ -285,8 +306,11 @@ commit_landing() {
   jstatus=$(json_escape "$status")
   jrunid=$(json_escape "$runId")
   if [ -n "$exitCode" ] && [ "$exitCode" -eq "$exitCode" ] 2>/dev/null; then ec="$exitCode"; else ec="null"; fi
-  printf '{"name":"%s","landed_at":"%s","state":"%s","reason":"%s","exit_code":%s,"status_line":"%s","log_bytes":%s,"changed_files":%s,"changed_files_basis":"%s","dirty_before":%s,"run_id":"%s","acceptance":"%s","required_level":"%s","criterion_level":"%s","verdict":"%s"}\n' \
-    "$jname" "$(iso)" "$state" "$reason" "$ec" "$jstatus" "${bytes:-0}" "${changed:-0}" "$ATTR_BASIS" "$ATTR_DIRTY_BEFORE" "$jrunid" "$acceptance" "$requiredLevel" "$criterionLevel" "$verdict" \
+  local jcompletion jdetail
+  jcompletion=$(json_escape "$completion")
+  jdetail=$(json_escape "$completionDetail")
+  printf '{"name":"%s","landed_at":"%s","state":"%s","reason":"%s","exit_code":%s,"status_line":"%s","log_bytes":%s,"changed_files":%s,"changed_files_basis":"%s","dirty_before":%s,"run_id":"%s","acceptance":"%s","required_level":"%s","criterion_level":"%s","verdict":"%s","completion":"%s","completion_detail":"%s"}\n' \
+    "$jname" "$(iso)" "$state" "$reason" "$ec" "$jstatus" "${bytes:-0}" "${changed:-0}" "$ATTR_BASIS" "$ATTR_DIRTY_BEFORE" "$jrunid" "$acceptance" "$requiredLevel" "$criterionLevel" "$verdict" "$jcompletion" "$jdetail" \
     >> "$JOURNAL" 2>/dev/null || true
 
   notify_landing "$name" "$reason" "$state" "${status:-no status line | exit=${exitCode:-?} | files=${changed:-?}}"
@@ -385,6 +409,24 @@ write_marker() {
     SKIPPED) verdict="EXECUTION_ONLY";;
     *) verdict="NOT_VERIFIED";;
   esac
+  # COMPLETION is deliberately separate from VERDICT. Verdict describes the evidence level;
+  # completion says whether the run may be called done. A lane that exits 0 but fails its own
+  # acceptance criterion is `landed` with `completion: BLOCKED` - the exact contradiction the
+  # gate exists to surface, and one a reader could previously miss by trusting `state`.
+  local completion="${LANE_COMPLETION_VERDICT:-}" completionDetail="${LANE_COMPLETION_DETAIL:-}"
+  if [ -z "$completion" ]; then
+    if [ -n "$exitCode" ] && [ "$exitCode" != "0" ]; then
+      completion="BLOCKED"; completionDetail="exit_code=$exitCode"
+    elif [ "$acceptance" = "PASS" ]; then
+      completion="PASS"; completionDetail="acceptance passed"
+    elif [ "$acceptance" = "SKIPPED" ]; then
+      completion="UNVERIFIED"; completionDetail="acceptance gate was bypassed"
+    else
+      completion="BLOCKED"; completionDetail="acceptance=$acceptance"
+    fi
+  fi
+  completion=$(json_escape "$completion")
+  completionDetail=$(json_escape "$completionDetail")
   local marker="$RUNS/$name.landed.json"
   local tmp="$marker.tmp"
   # sanitise every free-text field for JSON: no CR/control chars, quotes/backslashes escaped
@@ -426,6 +468,8 @@ write_marker() {
     printf '  "acceptance_log": "%s",\n' "$acceptanceLog"
     printf '  "required_level": "%s",\n' "$requiredLevel"
     printf '  "criterion_level": "%s",\n' "$criterionLevel"
+    printf '  "completion": "%s",\n' "$completion"
+    printf '  "completion_detail": "%s",\n' "$completionDetail"
     printf '  "verdict": "%s"\n' "$verdict"
     printf '}\n'
   } > "$tmp"
@@ -493,6 +537,7 @@ cmd_run() {
   local levelOverride=""
   local touches=""
   local role="implement"
+  local strictCompletion="${LANE_STRICT_COMPLETION:-0}"
   for arg in "$@"; do
     case "$arg" in
       --timeout=*) timeoutSecs="${arg#*=}";;
@@ -508,6 +553,7 @@ cmd_run() {
       --no-level-gate=*) levelOverride="${arg#*=}";;
       --touches=*) touches="${arg#*=}";;
       --role=*) role="${arg#*=}";;
+      --strict-completion) strictCompletion=1;;
       --notify) LANE_NOTIFY=1;;
     esac
   done
@@ -515,7 +561,7 @@ cmd_run() {
   [ -n "$name" ] && [ -n "$laneScript" ] || {
     echo "usage: tools/lane.sh run <name> <lane-script> [--timeout=N] [--slice=N] [--require-clean]" >&2
     echo "       --acceptance=\"<cmd>\" --pass-looks-like=\"<what PASS looks like>\" [--no-acceptance-gate=\"<reason>\"]" >&2
-    echo "       [--required-level=<unit|http|browser|corpus>] [--criterion-level=<unit|http|browser|corpus>] [--no-level-gate=\"<reason>\"] [--touches=\"<path,path>\"] [--role=<architect|implement|review|release-gate>] [--notify]" >&2
+    echo "       [--required-level=<unit|http|browser|corpus>] [--criterion-level=<unit|http|browser|corpus>] [--no-level-gate=\"<reason>\"] [--touches=\"<path,path>\"] [--role=<architect|implement|review|release-gate>] [--strict-completion] [--notify]" >&2
     exit 2
   }
 
@@ -721,6 +767,10 @@ cmd_run() {
     printf 'trap lane_finish EXIT HUP INT TERM\n'
     printf 'lane_policy_prepare %q %q\n' "$role" "$touches"
     printf 'lane_policy_snapshot %q\n' "$RUNS/$name.policy.before"
+    # Recoverable pre-lane checkpoint: patch + untracked tar + HEAD. Runs BEFORE the lane
+    # writes anything, and its failure is non-fatal (a harness that cannot snapshot must not
+    # block the work; it must say the snapshot is unavailable).
+    printf 'bash %q checkpoint %q > %q 2>&1 || true\n' "$absRoot/tools/lane.sh" "$name" "$RUNS/$name.checkpoint.log"
     printf 'bash %q\n' "$laneScript"
   } > "$runner"
   chmod +x "$runner"
@@ -798,7 +848,7 @@ cmd_run() {
   fi
 
   local bytes mtime reason status changed exitCode state marker acceptance verdict acceptanceLog
-  local treeDirty dirtyBefore changedBasis
+  local treeDirty dirtyBefore changedBasis completion completionDetail
   marker="$RUNS/$name.landed.json"
   bytes=$(wc -c < "$log" 2>/dev/null || echo 0)
   mtime=$(date -r "$log" -Iseconds 2>/dev/null || echo "")
@@ -819,6 +869,8 @@ cmd_run() {
     treeDirty=$(marker_number "$marker" tree_dirty)
     dirtyBefore=$(marker_number "$marker" dirty_before)
     changedBasis=$(marker_field "$marker" changed_files_basis)
+    completion=$(marker_field "$marker" completion)
+    completionDetail=$(marker_field "$marker" completion_detail)
     echo "   (committed by the runner - reporting its record verbatim, not a re-guess)"
   elif [ "$saw" = "1" ]; then
     # Sentinel seen but no marker: the runner was killed between recording and echoing.
@@ -845,7 +897,11 @@ cmd_run() {
     acceptance="SKIPPED"; verdict="EXECUTION_ONLY"; acceptanceLog=""
     changed=$(marker_number "$marker" changed_files); treeDirty=$(marker_number "$marker" tree_dirty)
     dirtyBefore=$(marker_number "$marker" dirty_before); changedBasis=$(marker_field "$marker" changed_files_basis)
+    completion="${LANE_COMPLETION_VERDICT:-UNVERIFIED}"; completionDetail="${LANE_COMPLETION_DETAIL:-}"
   fi
+
+  completion="${completion:-UNVERIFIED}"
+  completionDetail="${completionDetail:-}"
 
   echo
   echo "== $name LANDED =="
@@ -865,6 +921,7 @@ cmd_run() {
   echo "   lane exit:     ${exitCode:-unknown}"
   echo "   status:        ${status:-<none found>}"
   echo "   acceptance:    ${acceptance:-SKIPPED}${acceptanceLog:+ (log: $acceptanceLog)}"
+  echo "   completion:    ${completion}${completionDetail:+ ($completionDetail)}"
   echo "   --- first 3 lines ---"
   head -3 "$log" 2>/dev/null | sed 's/^/   /'
   echo "   marker:  $marker"
@@ -875,6 +932,10 @@ cmd_run() {
     NOT_VERIFIED)   echo "   VERDICT: NOT VERIFIED - the acceptance criterion did not pass";;
     EXECUTION_ONLY) echo "   VERDICT: EXECUTION ONLY - nothing was checked";;
   esac
+  if [ "$completion" = "BLOCKED" ]; then
+    echo "   COMPLETION: BLOCKED - the run does not satisfy its own completion gate"
+    echo "               (state=landed only means the process exited; it is not success)"
+  fi
   # THE GOVERNED VERDICT IS ABOUT THE OBJECTIVE; THE LINE BELOW IS ABOUT THE EXECUTION. They are
   # two axes and neither may be dropped to make room for the other. An earlier version of this
   # block REPLACED the outcome warnings with the acceptance verdict, so a lane that crashed under a
@@ -906,6 +967,12 @@ cmd_run() {
   # crashing lane is reported as a successful landing by the shell return code.
   if [ "$state" = "unverified" ]; then
     return 1
+  fi
+  # STRICT COMPLETION: a lane that exited 0 but failed its own criterion must not look like
+  # success to a caller that only checks the return code. Opt-in so the existing corpus of
+  # fixture lanes (which deliberately use an always-failing criterion) keeps its semantics.
+  if [ "$strictCompletion" = "1" ] && [ "$completion" = "BLOCKED" ] && [ "${exitCode:-0}" = "0" ]; then
+    return 4
   fi
   if [ -n "$exitCode" ] && [ "$exitCode" -eq "$exitCode" ] 2>/dev/null; then
     return "$exitCode"
@@ -982,6 +1049,7 @@ cmd_status() {
   if [ -f "$marker" ]; then
     echo "   state:      LANDED (recorded)"
     echo "   acceptance: $(marker_field "$marker" acceptance)"
+    echo "   completion: $(marker_field "$marker" completion)  ($(marker_field "$marker" completion_detail))"
     echo "   verdict:    $(marker_field "$marker" verdict)"
     sed 's/^/   /' "$marker"
   else
@@ -1003,20 +1071,139 @@ cmd_events() {
   python3 "$EVENTS_TOOL" --runs-dir "$RUNS" replay "$name" "$@"
 }
 
+# ── checkpoint / rewind ───────────────────────────────────────────────────────
+# A lane is dispatched against a dirty tree; when it fails, the owner previously had no way
+# back to the exact pre-lane state. `.policy.before` records HASHES for attribution, not
+# content, so it cannot restore anything. This captures recoverable content:
+#   - tracked changes vs HEAD, as a binary patch;
+#   - untracked (non-ignored) files, as a tar.gz;
+#   - the HEAD sha, so a rewind can refuse when history moved underneath it.
+# `rewind` is dry-run by default. `--execute` first stashes the CURRENT changes, so the
+# operation is reversible even when it goes wrong.
+cmd_checkpoint() {
+  local name="${1:-}"
+  [ -n "$name" ] || { echo "usage: tools/lane.sh checkpoint <name>" >&2; exit 2; }
+  local patch="$RUNS/$name.checkpoint.patch"
+  local tgz="$RUNS/$name.checkpoint.untracked.tgz"
+  local meta="$RUNS/$name.checkpoint.json"
+  local available=false head="" patchBytes=0 tgzBytes=0
+  if git -C "$ROOT" rev-parse --git-dir > /dev/null 2>&1; then
+    available=true
+    head=$(git -C "$ROOT" rev-parse HEAD 2>/dev/null || echo "")
+    git -C "$ROOT" diff HEAD --binary > "$patch" 2>/dev/null || : > "$patch"
+    if command -v tar > /dev/null 2>&1; then
+      git -C "$ROOT" ls-files --others --exclude-standard -z 2>/dev/null \
+        | tar --null -T - -czf "$tgz" 2>/dev/null || : > "$tgz"
+    else
+      : > "$tgz"
+    fi
+  else
+    : > "$patch"; : > "$tgz"
+  fi
+  patchBytes=$(wc -c < "$patch" 2>/dev/null || echo 0)
+  tgzBytes=$(wc -c < "$tgz" 2>/dev/null || echo 0)
+  {
+    printf '{\n'
+    printf '  "name": "%s",\n' "$(json_escape "$name")"
+    printf '  "created_at": "%s",\n' "$(iso)"
+    printf '  "available": %s,\n' "$available"
+    printf '  "head": "%s",\n' "$head"
+    printf '  "patch": "%s",\n' "$patch"
+    printf '  "patch_bytes": %s,\n' "$patchBytes"
+    printf '  "untracked": "%s",\n' "$tgz"
+    printf '  "untracked_bytes": %s\n' "$tgzBytes"
+    printf '}\n'
+  } > "$meta.tmp" && mv "$meta.tmp" "$meta"
+  echo "checkpoint $name: head=${head:-none} patch=${patchBytes}B untracked=${tgzBytes}B"
+}
+
+cmd_rewind() {
+  local name="${1:-}"; shift || true
+  local execute=0 forceHead=0
+  for arg in "$@"; do
+    case "$arg" in
+      --execute) execute=1;;
+      --force-head) forceHead=1;;
+      *) echo "unknown option: $arg" >&2; exit 2;;
+    esac
+  done
+  [ -n "$name" ] || { echo "usage: tools/lane.sh rewind <name> [--execute] [--force-head]" >&2; exit 2; }
+  local meta="$RUNS/$name.checkpoint.json"
+  local patch="$RUNS/$name.checkpoint.patch"
+  local tgz="$RUNS/$name.checkpoint.untracked.tgz"
+  [ -f "$meta" ] || { echo "no checkpoint for lane '$name' (expected $meta)" >&2; exit 1; }
+  local available head
+  available=$(grep -o '"available": *[a-z]*' "$meta" 2>/dev/null | head -1 | awk '{print $2}')
+  head=$(marker_field "$meta" head)
+  [ "$available" = "true" ] || { echo "checkpoint is not git-backed; nothing to rewind" >&2; exit 2; }
+  local currentHead
+  currentHead=$(git -C "$ROOT" rev-parse HEAD 2>/dev/null || echo "")
+  if [ "$head" != "$currentHead" ] && [ "$forceHead" != 1 ]; then
+    echo "REFUSING TO REWIND: HEAD moved since the checkpoint." >&2
+    echo "  checkpoint HEAD: $head" >&2
+    echo "  current HEAD:    $currentHead" >&2
+    echo "  inspect the diff first, or pass --force-head to rewrite the working tree anyway." >&2
+    exit 3
+  fi
+  if [ "$execute" != 1 ]; then
+    echo "rewind plan for $name (dry-run; pass --execute to perform):"
+    echo "  1. stash current changes, including untracked files (recoverable)"
+    echo "  2. git checkout -- .   (restore tracked files to HEAD)"
+    echo "  3. apply $patch ($(wc -c < "$patch" 2>/dev/null || echo 0) bytes)"
+    echo "  4. extract $tgz ($(wc -c < "$tgz" 2>/dev/null || echo 0) bytes)"
+    echo "  pre-lane HEAD: $head"
+    return 0
+  fi
+  local stashOut stashRef="none"
+  stashOut=$(git -C "$ROOT" stash push --include-untracked -m "lane-rewind:$name" 2>&1) || {
+    echo "failed to stash current changes; nothing was reverted" >&2
+    echo "$stashOut" >&2
+    exit 1
+  }
+  case "$stashOut" in
+    *"No local changes to save"*) ;;
+    *) stashRef=$(git -C "$ROOT" rev-parse refs/stash 2>/dev/null || echo "stash");;
+  esac
+  git -C "$ROOT" checkout -- . || { echo "checkout failed; current changes are in stash: $stashRef" >&2; exit 1; }
+  if [ -s "$patch" ]; then
+    git -C "$ROOT" apply --binary "$patch" || {
+      echo "checkpoint patch did not apply cleanly; current changes are in stash: $stashRef" >&2
+      exit 1
+    }
+  fi
+  if [ -s "$tgz" ]; then
+    tar -xzf "$tgz" -C "$ROOT" || {
+      echo "untracked restore failed; current changes are in stash: $stashRef" >&2
+      exit 1
+    }
+  fi
+  echo "rewound $name to the pre-lane checkpoint"
+  echo "pre-rewind changes preserved in: $stashRef"
+}
+
+# One screen over every run with an event log. The data already exists; this is the
+# terminal-shaped version of the run board, and the same JSON feeds a UI later.
+cmd_board() {
+  [ -f "$EVENTS_TOOL" ] || { echo "missing $EVENTS_TOOL" >&2; exit 1; }
+  python3 "$EVENTS_TOOL" --runs-dir "$RUNS" list "$@"
+}
+
 cmd_list() {
   local total cursor
   total=$(journal_total)
   cursor=$(cursor_get)
   echo "== recent landings =="
+  printf '   %-28s %-11s %-16s %-8s %-11s %s\n' "NAME" "STATE" "REASON" "ACCEPT" "COMPLETION" "LANDED"
   for m in "$RUNS"/*.landed.json; do
     [ -f "$m" ] || continue
-    local name reason state landed acceptance
+    local name reason state landed acceptance completion
     name=$(marker_field "$m" name)
     state=$(marker_field "$m" state)
     reason=$(marker_field "$m" reason)
     landed=$(marker_field "$m" landed_at)
     acceptance=$(marker_field "$m" acceptance)
-    printf '   %-28s %-11s %-16s %-8s %s\n' "$name" "${state:-pre-journal}" "$reason" "${acceptance:--}" "$landed"
+    completion=$(marker_field "$m" completion)
+    printf '   %-28s %-11s %-16s %-8s %-11s %s\n' "$name" "${state:-pre-journal}" "$reason" "${acceptance:--}" "${completion:--}" "$landed"
   done
   echo "   journal: $total entries, $((total - cursor)) not yet reported to the agent"
   echo "   (tools/lane.sh pending shows them; tools/lane.sh ack clears them)"
@@ -1064,12 +1251,17 @@ cmd_record() {
   commit_landing "$name" "landed" "$reason" "$log" "$bytes" "$mtime" "$status" "$changed" "$exitCode" "$runId" \
     "$acceptance" "$acceptanceExit" "$acceptanceCmd" "$acceptanceLog" "$requiredLevel" "$criterionLevel"
 
-  lane_event "$name" run_finished state="landed" reason="$reason" exit_code="$exitCode" acceptance="$acceptance" acceptance_exit="$acceptanceExit" log="$log" bytes="$bytes" status_line="$status" changed_files="$changed" run_id="$runId" role="${LANE_POLICY_ROLE:-}"
+  local completion="${LANE_COMPLETION_VERDICT:-UNVERIFIED}"
+  local completionDetail="${LANE_COMPLETION_DETAIL:-}"
+  lane_event "$name" run_finished state="landed" reason="$reason" exit_code="$exitCode" acceptance="$acceptance" acceptance_exit="$acceptanceExit" completion="$completion" completion_detail="$completionDetail" log="$log" bytes="$bytes" status_line="$status" changed_files="$changed" run_id="$runId" role="${LANE_POLICY_ROLE:-}"
+  if [ "$completion" = "BLOCKED" ]; then
+    lane_event "$name" completion_blocked role="${LANE_POLICY_ROLE:-implement}" completion="$completion" detail="$completionDetail" acceptance="$acceptance" exit_code="$exitCode"
+  fi
   if [ "${exitCode:-}" = "97" ]; then
     lane_event "$name" policy_violation role="${LANE_POLICY_ROLE:-implement}" touches="${LANE_POLICY_TOUCHES:-}" detail="policy postcheck failed; see $log"
   fi
 
-  echo "[lane record] $name: state=landed reason=$reason exit=$exitCode acceptance=$acceptance bytes=$bytes files=$changed"
+  echo "[lane record] $name: state=landed reason=$reason exit=$exitCode acceptance=$acceptance completion=$completion bytes=$bytes files=$changed"
 }
 
 # Landings in the journal that the agent has not yet been told about. This is the
@@ -1104,6 +1296,16 @@ cmd_ack() {
 cmd_selftest() {
   local SELF="$ROOT/tools/lane.sh"
   local P="$RUNS/selftest"
+  # SERIALISE the suite. Every fixture lane reuses a small set of names (st1, st8...), so two
+  # concurrent selftests share markers, commit locks, and journal lines. Measured 2026-10-20:
+  # a bench run and a manual run overlapped and S8 failed with reason=timeout journal=0 even
+  # though the landing WAS recorded - the count belonged to the other run. That is a false red
+  # caused by the test harness, which is worse than no test because it condemns correct work.
+  exec 9> "$RUNS/.selftest.lock"
+  if command -v flock > /dev/null 2>&1 && ! flock -n 9; then
+    echo "REFUSING: another lane selftest is already running (shared fixture names would race)." >&2
+    return 2
+  fi
   rm -rf "$P"; mkdir -p "$P"
   local pass=0 fail=0
   ok()  { echo "   PASS  $1"; pass=$((pass+1)); }
@@ -1595,6 +1797,49 @@ EOS
     bad "S14c legacy record without a baseline broke"
   fi
 
+  # S17 (must-allow) - a criterion that passes is completion PASS.
+  echo 'status: PASS' > "$RUNS/st17.log"
+  rm -f "$RUNS/st17.landed.json"; rmdir "$RUNS/st17.commit.lock" 2>/dev/null || true
+  bash "$SELF" record st17 "$RUNS/st17.log" 0 "" "true" > "$P/st17.rec.log" 2>&1
+  if [ "$(marker_field "$RUNS/st17.landed.json" completion)" = "PASS" ]; then
+    ok "S17 a passing criterion is completion PASS"
+  else
+    bad "S17 a passing criterion was not completion PASS"
+  fi
+
+  # S18 (must-refuse) - exit 0 with a failing criterion is BLOCKED, not success.
+  echo 'status: PASS' > "$RUNS/st18.log"
+  rm -f "$RUNS/st18.landed.json"; rmdir "$RUNS/st18.commit.lock" 2>/dev/null || true
+  bash "$SELF" record st18 "$RUNS/st18.log" 0 "" "false" > "$P/st18.rec.log" 2>&1
+  if [ "$(marker_field "$RUNS/st18.landed.json" completion)" = "BLOCKED" ] \
+     && grep -q 'completion_blocked' "$RUNS/st18.events.jsonl" 2>/dev/null; then
+    ok "S18 exit 0 with a failing criterion is completion BLOCKED"
+  else
+    bad "S18 exit 0 with a failing criterion was not completion BLOCKED"
+  fi
+
+  # S20 (must-refuse) - strict completion turns that landing into a non-zero exit, so a
+  # caller that only checks the return code cannot read it as success.
+  { echo '#!/usr/bin/env bash'; echo 'echo "status: PASS"'; echo 'exit 0'; } > "$P/lane-st20.sh"
+  chmod +x "$P/lane-st20.sh"
+  bash "$SELF" run st20 "$P/lane-st20.sh" --timeout=60 --wait-grace=2 --strict-completion "${GATE[@]}" > "$P/st20.mon.log" 2>&1
+  local rc20=$?
+  if [ "$rc20" -eq 4 ] && [ "$(marker_field "$RUNS/st20.landed.json" completion)" = "BLOCKED" ]; then
+    ok "S20 strict completion returns 4 for a clean exit that failed its criterion"
+  else
+    bad "S20 strict completion did not return 4 (rc=$rc20)"
+  fi
+
+  # S19 (pin) - a bypassed acceptance gate is UNVERIFIED, never PASS.
+  echo 'status: PASS' > "$RUNS/st19.log"
+  rm -f "$RUNS/st19.landed.json"; rmdir "$RUNS/st19.commit.lock" 2>/dev/null || true
+  bash "$SELF" record st19 "$RUNS/st19.log" 0 > "$P/st19.rec.log" 2>&1
+  if [ "$(marker_field "$RUNS/st19.landed.json" completion)" = "UNVERIFIED" ]; then
+    ok "S19 a bypassed acceptance gate is completion UNVERIFIED"
+  else
+    bad "S19 a bypassed acceptance gate was not completion UNVERIFIED"
+  fi
+
   # S16 (must-refuse) - OUTSIDE A GIT REPOSITORY, attribution is UNAVAILABLE, never a silent zero.
   # The harness is meant to work in ANY workspace, and a workspace that is not a repository is the
   # case that would otherwise report "0 files changed" for a lane that rewrote twenty - a wrong
@@ -1639,6 +1884,9 @@ case "${1:-}" in
   list)    shift; cmd_list "$@";;
   record)  shift; cmd_record "$@";;
   events)  shift; cmd_events "$@";;
+  checkpoint) shift; cmd_checkpoint "$@";;
+  rewind)  shift; cmd_rewind "$@";;
+  board)   shift; cmd_board "$@";;
   policy-selftest) shift; bash "$POLICY_TOOL" selftest;;
   events-selftest) shift; python3 -m unittest discover -s "$ROOT/tools/tests" -p 'test_lane_events.py' -v;;
   watchdog) shift; cmd_watchdog "$@";;

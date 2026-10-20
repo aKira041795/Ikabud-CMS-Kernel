@@ -103,6 +103,11 @@ def _summary(events: list[dict[str, Any]]) -> dict[str, Any]:
         "reason": None,
         "exit_code": None,
         "acceptance": None,
+        "completion": None,
+        "completion_detail": None,
+        "role": None,
+        "attempts": 0,
+        "duration_s": None,
         "model": None,
         "model_log": None,
         "model_log_bytes": None,
@@ -115,17 +120,29 @@ def _summary(events: list[dict[str, Any]]) -> dict[str, Any]:
         kind = event.get("type")
         if kind == "run_started" and summary["started_at"] is None:
             summary["started_at"] = event.get("ts")
+            summary["role"] = event.get("role")
+        if kind == "attempt_started":
+            summary["attempts"] += 1
         if kind == "model_completed":
             summary["model"] = event.get("model")
             summary["model_log"] = event.get("log")
             summary["model_log_bytes"] = event.get("bytes")
         if kind == "run_finished":
             summary["finished_at"] = event.get("ts")
-            for key in ("state", "reason", "exit_code", "acceptance", "changed_files", "run_id"):
+            for key in ("state", "reason", "exit_code", "acceptance", "changed_files", "run_id", "completion"):
                 if key in event:
                     summary[key] = event.get(key)
+            summary["completion_detail"] = event.get("completion_detail")
         if kind == "policy_violation":
             summary["policy"] = event.get("detail") or event.get("role")
+    started, finished = summary["started_at"], summary["finished_at"]
+    if started and finished:
+        try:
+            summary["duration_s"] = int(
+                (datetime.fromisoformat(str(finished)) - datetime.fromisoformat(str(started))).total_seconds()
+            )
+        except ValueError:
+            summary["duration_s"] = None
     return summary
 
 
@@ -222,6 +239,12 @@ def cmd_verify(args: argparse.Namespace) -> int:
             + str(violations[-1].get("detail") or violations[-1].get("role") or "unknown")
         )
 
+    if finished and finished[-1].get("completion") == "BLOCKED" and finished[-1].get("exit_code") == 0:
+        problems.append(
+            "completion=BLOCKED but exit_code is 0: the lane exited cleanly while its own "
+            "criterion did not pass (see completion_detail/acceptance)"
+        )
+
     if problems:
         print(f"VERIFY FAIL: {args.run}")
         for problem in problems:
@@ -252,10 +275,13 @@ def cmd_list(args: argparse.Namespace) -> int:
         return 0
     print(f"== lane runs ({len(rows)}) ==")
     for row in rows:
+        duration = row.get("duration_s")
         print(
             f"   {str(row['run']):<28} {str(row['state'] or '-'):<10} "
-            f"{str(row['reason'] or '-'):<16} {str(row['model'] or '-'):<24} "
-            f"{row['events']} events"
+            f"{str(row['completion'] or '-'):<11} {str(row['role'] or '-'):<10} "
+            f"{str(row['reason'] or '-'):<16} {row['attempts']} att "
+            f"{str(row['model'] or '-'):<24} "
+            f"{str(duration) + 's' if duration is not None else '-'}"
         )
     return 0
 

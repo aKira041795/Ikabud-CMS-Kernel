@@ -111,6 +111,63 @@ class LaneEventsTest(unittest.TestCase):
         result = self.tool("verify", "policy-nonzero")
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
+    def test_completion_blocked_with_zero_exit_is_a_contradiction(self) -> None:
+        # The exact case the completion gate exists for: the lane process exited cleanly,
+        # but its own acceptance criterion did not pass. `state=landed` must not be read
+        # as success when completion says BLOCKED.
+        self.append("blocked-zero", "run_started", role="implement")
+        self.append(
+            "blocked-zero",
+            "run_finished",
+            state="landed",
+            reason="report_present",
+            exit_code=0,
+            completion="BLOCKED",
+            completion_detail="acceptance=FAIL",
+        )
+        result = self.tool("verify", "blocked-zero")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("completion=BLOCKED", result.stdout)
+
+    def test_completion_blocked_with_nonzero_exit_is_consistent(self) -> None:
+        self.append("blocked-nonzero", "run_started", role="implement")
+        self.append(
+            "blocked-nonzero",
+            "run_finished",
+            state="landed",
+            reason="crash",
+            exit_code=97,
+            completion="BLOCKED",
+            completion_detail="exit_code=97",
+        )
+        result = self.tool("verify", "blocked-nonzero")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_summary_reports_role_completion_and_attempts(self) -> None:
+        self.append("summary", "run_started", role="review")
+        self.append("summary", "attempt_started", model="deepseek-v4-flash", attempt=1)
+        self.append(
+            "summary",
+            "run_finished",
+            state="landed",
+            reason="report_present",
+            exit_code=0,
+            completion="PASS",
+            completion_detail="acceptance passed",
+        )
+        replay = self.tool("replay", "summary", "--json")
+        self.assertEqual(replay.returncode, 0)
+        summary = json.loads(replay.stdout)
+        self.assertEqual(summary["role"], "review")
+        self.assertEqual(summary["completion"], "PASS")
+        self.assertEqual(summary["attempts"], 1)
+        self.assertIsNotNone(summary["duration_s"])
+
+        board = self.tool("list")
+        self.assertEqual(board.returncode, 0)
+        self.assertIn("PASS", board.stdout)
+        self.assertIn("review", board.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()

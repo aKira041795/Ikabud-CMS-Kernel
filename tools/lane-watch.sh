@@ -112,9 +112,11 @@ while true; do
       status=$(jfield "$line" status_line)
       landed=$(jfield "$line" landed_at)
       changed=$(printf '%s' "$line" | grep -o '"changed_files":[0-9]*' | cut -d: -f2)
+      completion=$(jfield "$line" completion)
 
       urgency="normal"
       [ "$state" = "unverified" ] && urgency="critical"
+      [ "$completion" = "BLOCKED" ] && urgency="critical"
       case "$reason" in quota|fatal|empty|crash|timeout) urgency="critical";; esac
 
       echo
@@ -122,6 +124,7 @@ while true; do
       echo "   lane:          ${name:-unknown}"
       echo "   state:         ${state:-unknown}"
       echo "   reason:        ${reason:-unknown}"
+      echo "   completion:    ${completion:-unknown}"
       echo "   landed_at:     ${landed:-unknown}"
       echo "   status:        ${status:-<none>}"
       echo "   changed files: ${changed:-unknown}"
@@ -129,8 +132,11 @@ while true; do
       if [ "$state" = "unverified" ]; then
         echo "   NOTE: not verified - the lane never recorded an exit status."
       fi
+      if [ "$completion" = "BLOCKED" ]; then
+        echo "   NOTE: completion BLOCKED - this landing is not success, even if it exited 0."
+      fi
 
-      notify "lane $name: ${reason:-unknown}" "${status:-no status line}" "$urgency"
+      notify "lane $name: ${reason:-unknown}" "${completion:+completion=$completion | }${status:-no status line}" "$urgency"
     done
     # Advance ONLY now, having actually reported them. If anything above failed the
     # cursor is untouched and the landings are reported again rather than lost: the
