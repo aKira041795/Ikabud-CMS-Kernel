@@ -179,6 +179,7 @@ return [
         '/daily-ledger/api/v1/admin/reconciliation/save' => 'daily-ledger:apiSaveReconciliation',
         '/daily-ledger/api/v1/admin/settings/permissions' => 'daily-ledger:apiSaveRolePermissions',
         '/daily-ledger/api/v1/admin/settings/branding-asset' => 'daily-ledger:apiUploadBrandingAsset',
+        '/daily-ledger/api/v1/admin/settings/prune-notifications' => 'daily-ledger:apiPruneIntegrityNotifications',
 
         // Production movements (supports transition + offline sync)
         '/daily-ledger/api/v1/production/withdrawal'      => 'daily-ledger:apiProductionWithdrawal',

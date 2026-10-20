@@ -15,6 +15,7 @@
     <a href="#settings-day">Day close</a>
     <a href="#settings-offline">Offline</a>
     <a href="#settings-access">Features &amp; permissions</a>
+    <a href="#settings-maintenance">Database maintenance</a>
     <a href="#settings-data">Backup &amp; resets</a>
 </nav>
 
@@ -531,6 +532,50 @@
     </div>
 </div>
 
+<div class="settings-section" id="settings-maintenance">
+    <h3>Database maintenance</h3>
+    <p>Integrity notifications accumulate when a variance flag is re-derived. This clears the ones whose flag no longer exists and that every recipient has already read. Anything unread is always kept.</p>
+</div>
+
+<div class="card mb-6">
+    <div class="card-header">
+        <span>Integrity notifications</span>
+        <span class="text-sm text-muted">Orphan cleanup</span>
+    </div>
+    <div class="card-body">
+        <div class="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900">
+            A ratio far above 1 means orphaned notifications are accumulating faster than they are cleared.
+            A ratio near 1&ndash;3 means the capture path is collapsing duplicates correctly.
+        </div>
+
+        <div class="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+            <div>
+                <div class="text-xs text-gray-400">Notifications</div>
+                <div class="font-semibold" id="maint-notifications">{maint_notifications}</div>
+            </div>
+            <div>
+                <div class="text-xs text-gray-400">Variance flags</div>
+                <div class="font-semibold" id="maint-flags">{maint_flags}</div>
+            </div>
+            <div>
+                <div class="text-xs text-gray-400">Ratio</div>
+                <div class="font-semibold" id="maint-ratio">{maint_ratio_display}</div>
+            </div>
+            <div>
+                <div class="text-xs text-gray-400">Prune candidates</div>
+                <div class="font-semibold" id="maint-candidates">&mdash;</div>
+            </div>
+        </div>
+
+        <div class="mt-4 flex flex-wrap items-center gap-2">
+            <button type="button" class="btn btn-secondary" id="maint-check-btn" onclick="maintenanceCheck()">Check for orphans</button>
+            <button type="button" class="btn btn-primary" id="maint-prune-btn" onclick="maintenancePrune()">Prune orphans</button>
+        </div>
+
+        <p class="mt-3 text-sm text-gray-500" id="maint-status"></p>
+    </div>
+</div>
+
 <div class="settings-section" id="settings-data">
     <h3>Backup &amp; resets</h3>
     <p>Backups, and the reset operations. Read each warning: resets delete data.</p>
@@ -824,6 +869,85 @@
 
         box.innerHTML = html;
         box.classList.remove('hidden');
+    }
+
+    function maintSetText(id, value) {
+        var el = document.getElementById(id);
+        if (el) {
+            el.textContent = value;
+        }
+    }
+
+    function maintRender(res) {
+        if (typeof res.notifications !== 'undefined') { maintSetText('maint-notifications', res.notifications); }
+        if (typeof res.flags !== 'undefined') { maintSetText('maint-flags', res.flags); }
+        if (typeof res.ratio !== 'undefined') { maintSetText('maint-ratio', res.ratio === null ? '—' : res.ratio); }
+        if (typeof res.candidates !== 'undefined') { maintSetText('maint-candidates', res.candidates); }
+    }
+
+    function maintStatus(text) {
+        maintSetText('maint-status', text);
+    }
+
+    function maintCall(payload) {
+        return fetch('{base_url}/api/v1/admin/settings/prune-notifications', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': (window.DL_CSRF || ''),
+                'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
+            },
+            body: JSON.stringify(payload)
+        }).then(function(r) { return r.json(); });
+    }
+
+    function maintenanceCheck() {
+        var btn = document.getElementById('maint-check-btn');
+        if (btn) { btn.disabled = true; }
+        maintStatus('Checking...');
+        maintCall({ apply: false })
+            .then(function(res) {
+                if (!res.ok) { throw new Error(res.error || 'Check failed'); }
+                maintRender(res);
+                maintStatus(res.candidates > 0
+                    ? res.candidates + ' orphaned notification(s) can be pruned (' + res.recipients + ' recipient rows).'
+                    : 'Nothing to prune.');
+            })
+            .catch(function(err) { maintStatus('Error: ' + err.message); })
+            .then(function() { if (btn) { btn.disabled = false; } });
+    }
+
+    function maintenancePrune() {
+        var btn = document.getElementById('maint-prune-btn');
+        if (btn) { btn.disabled = true; }
+        var total = 0;
+        var rounds = 0;
+
+        // One bounded chunk per request, repeated until the server reports done.
+        // Never loop to completion inside a single request: that is what runs past
+        // max_execution_time and loses its place if the browser goes away.
+        function step() {
+            return maintCall({ apply: true, batches: 4 }).then(function(res) {
+                if (!res.ok) { throw new Error(res.error || 'Prune failed'); }
+                total += (res.deleted || 0);
+                rounds++;
+                maintRender(res);
+                maintStatus('Pruned ' + total + ' notification(s); ' + res.candidates + ' remaining...');
+                if (!res.done && rounds < 200) { return step(); }
+                return res;
+            });
+        }
+
+        maintStatus('Pruning...');
+        step()
+            .then(function(res) {
+                maintRender(res);
+                maintStatus('Done. Pruned ' + total + ' notification(s); ' + (res.candidates || 0) + ' remaining.');
+                showToast('Prune complete: ' + total + ' removed.', 'success');
+            })
+            .catch(function(err) { maintStatus('Error: ' + err.message); })
+            .then(function() { if (btn) { btn.disabled = false; } });
     }
 
     function runManualBackup() {

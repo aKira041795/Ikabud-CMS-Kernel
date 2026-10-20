@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/helpers/admin-area-scope.php';
+require_once __DIR__ . '/helpers/maintenance.php';
 
 /**
  * Raised when a cashier withdrawal insert hits the DB-level dedup guard

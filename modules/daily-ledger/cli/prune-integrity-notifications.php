@@ -90,27 +90,9 @@ if (!$lock || !flock($lock, LOCK_EX | LOCK_NB)) {
     exit(3);
 }
 
-/**
- * The candidate predicate, shared by the count and the delete so they can never drift apart.
- * $retentionDays > 0 adds a floor; 0 removes the clause entirely rather than relying on INTERVAL 0.
- */
-function dlPruneWhere(int $retentionDays): string
-{
-    $sql = " FROM dl_integrity_notifications n
-             LEFT JOIN dl_variance_flags v
-                    ON v.id = n.entity_id AND n.entity_type = 'dl_variance_flags'
-            WHERE n.finding_type = 'variance'
-              AND n.entity_type = 'dl_variance_flags'
-              AND v.id IS NULL
-              AND EXISTS (SELECT 1 FROM dl_integrity_notification_recipients r
-                           WHERE r.notification_id = n.id)
-              AND NOT EXISTS (SELECT 1 FROM dl_integrity_notification_recipients r2
-                               WHERE r2.notification_id = n.id AND r2.seen_at IS NULL)";
-    if ($retentionDays > 0) {
-        $sql .= ' AND n.raised_at < DATE_SUB(NOW(), INTERVAL ' . $retentionDays . ' DAY)';
-    }
-    return $sql;
-}
+// The predicate and the batch delete live in helpers/maintenance.php, because the Settings panel
+// offers the same operation and the two must not be able to disagree about what counts as orphaned.
+require_once __DIR__ . '/../helpers/maintenance.php';
 
 try {
     $app = kernelCliBootstrap($basePath);
@@ -130,17 +112,9 @@ try {
     /** @var \Ikabud\Kernel\Contracts\ModuleDB $db */
     $db = $context->db();
 
-    $where = dlPruneWhere($retentionDays);
+    $total = dlPruneCandidateCount($db, $retentionDays);
 
-    $total = (int)$db->query('SELECT COUNT(*) AS c' . $where)->fetchColumn();
-
-    $recipientShare = 0;
-    if ($total > 0) {
-        $recipientShare = (int)$db->query(
-            'SELECT COUNT(*) AS c FROM dl_integrity_notification_recipients r
-              WHERE r.notification_id IN (SELECT n.id' . $where . ')'
-        )->fetchColumn();
-    }
+    $recipientShare = $total > 0 ? dlPruneRecipientShare($db, $retentionDays) : 0;
 
     $surviving = (int)$db->query('SELECT COUNT(*) AS c FROM dl_integrity_notifications')->fetchColumn();
     $liveFlags = (int)$db->query('SELECT COUNT(*) AS c FROM dl_variance_flags')->fetchColumn();
@@ -171,18 +145,7 @@ try {
     $started = microtime(true);
 
     while ($batches < $maxBatches) {
-        // Materialised derived table: satisfies 5.7 (no CTE, single-table DELETE) AND avoids error 1093.
-        $sql = 'DELETE FROM dl_integrity_notifications
-                 WHERE id IN (
-                   SELECT id FROM (
-                     SELECT n.id AS id' . $where . '
-                     ORDER BY n.id
-                     LIMIT ' . $batch . '
-                   ) AS prune_batch
-                 )';
-        $affected = $db->prepare($sql);
-        $affected->execute();
-        $rows = $affected->rowCount();
+        $rows = dlPruneBatchDelete($db, $batch, $retentionDays);
 
         if ($rows === 0) {
             break;
@@ -198,7 +161,7 @@ try {
     }
 
     $elapsed = microtime(true) - $started;
-    $remaining = (int)$db->query('SELECT COUNT(*) AS c' . $where)->fetchColumn();
+    $remaining = dlPruneCandidateCount($db, $retentionDays);
     $after = (int)$db->query('SELECT COUNT(*) AS c FROM dl_integrity_notifications')->fetchColumn();
 
     echo "\n";

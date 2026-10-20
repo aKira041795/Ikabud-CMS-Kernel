@@ -107,6 +107,7 @@
                 "/daily-ledger/api/v1/admin/receivings/resolve-count",
                 "/daily-ledger/api/v1/admin/settings/branding-asset",
                 "/daily-ledger/api/v1/admin/settings/permissions",
+                "/daily-ledger/api/v1/admin/settings/prune-notifications",
                 "/daily-ledger/api/v1/admin/variances/update",
                 "/daily-ledger/api/v1/admin/variances/decide-delivery",
                 "/daily-ledger/api/v1/auth/forgot-password",
@@ -1079,6 +1080,33 @@
         {
             "id": "action-daily-ledger-api-v1-admin-settings-branding-asset",
             "route": "/daily-ledger/api/v1/admin/settings/branding-asset",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-daily-ledger-api-v1-admin-settings-prune-notifications",
+            "route": "/daily-ledger/api/v1/admin/settings/prune-notifications",
             "method": "POST",
             "requires": {
                 "authenticated": true,

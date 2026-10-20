@@ -14629,6 +14629,9 @@ function handleAdminSettings(array $params = []): void
     $featureSettings = dl_featureSettings();
     $backupSettings = dl_backupSettings();
     $resetSafeguardSettings = dl_resetSafeguardSettings();
+    // Cheap counts only (two COUNT(*)s). The candidate count runs correlated subqueries and is
+    // therefore taken on an explicit user action, not on every settings page load.
+    $maintenanceCounts = dlPruneCheapCounts($ctx->db());
 
     $role = (string)($user['role'] ?? '');
     $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
@@ -14673,6 +14676,10 @@ function handleAdminSettings(array $params = []): void
         'reset_second_phrase' => $resetSafeguardSettings['reset_second_phrase'],
         'max_offline_days' => dl_offlineMaxDays(),
         'consignee_sales_mode' => dl_normalizeConsigneeSalesMode(dlModuleSettings()['consignee_sales_mode'] ?? null),
+        'maint_notifications' => $maintenanceCounts['notifications'],
+        'maint_flags' => $maintenanceCounts['flags'],
+        'maint_ratio' => $maintenanceCounts['ratio'],
+        'maint_ratio_display' => $maintenanceCounts['ratio'] === null ? '—' : number_format((float)$maintenanceCounts['ratio'], 1),
     ]);
 }
 
@@ -14690,6 +14697,108 @@ function handleAdminBackupDownload(array $params = []): void
     // Standard secure download via the shared kernel service (validates the
     // {slug}-db-backup-YYYYMMDD-HHMMSS.sql filename, guards path traversal).
     \Ikabud\Kernel\Services\ModuleBackupService::download($ctx, 'dl_', (string) ($_GET['file'] ?? ''));
+}
+
+/**
+ * Prune orphaned integrity notifications, one bounded chunk per request.
+ *
+ * The kernel has no job queue, so this runs inline in the web request. That is
+ * exactly why it takes a batch count instead of looping to completion: a single
+ * request that deleted every candidate would run past max_execution_time on
+ * shared hosting, and if the browser went away there would be no record of how
+ * far it got. The caller repeats until `done` is true.
+ *
+ * The predicate is dlPruneWhere() in helpers/maintenance.php - the same one the
+ * CLI worker uses - so the panel and the cron can never disagree about what
+ * counts as orphaned.
+ *
+ * Input:  apply (bool), retention_days (int, default 7), batch (int, default 500),
+ *         batches (int, default 4, capped at 20)
+ * Output: ok, applied, done, deleted, rounds, notifications, flags, ratio, candidates
+ */
+function apiPruneIntegrityNotifications(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) {
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => 'Module context unavailable']);
+        return;
+    }
+
+    dlCurrentUser(['admin']);
+
+    $input = $ctx->input();
+    $retentionDays = max(0, min(365, (int)($input['retention_days'] ?? 7)));
+    $batch = max(1, min(5000, (int)($input['batch'] ?? 500)));
+    $batches = max(1, min(20, (int)($input['batches'] ?? 4)));
+    $apply = !empty($input['apply']);
+    $db = $ctx->db();
+
+    if (!$apply) {
+        // Preview only: report what would go, delete nothing.
+        $ctx->json([
+            'ok' => true,
+            'applied' => false,
+            'done' => false,
+            'deleted' => 0,
+            'rounds' => 0,
+        ] + dlPruneSummary($db, $retentionDays));
+        return;
+    }
+
+    $tenantId = (int)(app()->tenant()->current() ?? 0);
+    $lock = dlPruneAcquireLock($tenantId);
+    if ($lock === null) {
+        $ctx->json([
+            'ok' => false,
+            'error' => 'A prune is already running for this tenant (CLI worker or another tab).',
+        ], 409);
+        return;
+    }
+
+    @set_time_limit(120);
+
+    try {
+        $deleted = 0;
+        $rounds = 0;
+        for ($i = 0; $i < $batches; $i++) {
+            $rows = dlPruneBatchDelete($db, $batch, $retentionDays);
+            if ($rows <= 0) {
+                break;
+            }
+            $deleted += $rows;
+            $rounds++;
+        }
+
+        $candidates = dlPruneCandidateCount($db, $retentionDays);
+        $counts = dlPruneCheapCounts($db);
+
+        if ($deleted > 0) {
+            write_log('daily-ledger integrity notifications pruned', 'info', [
+                'deleted' => $deleted,
+                'rounds' => $rounds,
+                'remaining' => $candidates,
+                'retention_days' => $retentionDays,
+            ]);
+        }
+
+        $ctx->json([
+            'ok' => true,
+            'applied' => true,
+            'done' => $candidates === 0,
+            'deleted' => $deleted,
+            'rounds' => $rounds,
+            'candidates' => $candidates,
+        ] + $counts);
+    } catch (Throwable $e) {
+        write_log('daily-ledger integrity notification prune failed', 'error', [
+            'message' => $e->getMessage(),
+            'retention_days' => $retentionDays,
+        ]);
+        $ctx->json(['ok' => false, 'error' => 'Prune failed: ' . $e->getMessage()], 500);
+    } finally {
+        dlPruneReleaseLock($lock);
+    }
 }
 
 function apiUploadBrandingAsset(array $params = []): void
