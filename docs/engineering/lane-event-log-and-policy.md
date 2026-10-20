@@ -187,14 +187,20 @@ changes.
 an autonomous task, the record schema, and the `gate`/`merged` requirement are in
 [autonomy-loop.md](autonomy-loop.md).
 
+`tools/autonomy-contract.py` validates a task before dispatch: it refuses a criterion that cannot
+fail or already passes, and refuses a routine declaration when a touched path is high-risk. It
+writes a JSON contract that `tools/lane-autonomy.py --contract` consumes.
+
 `tools/lane-autonomy.py` runs a task and then a bounded number of repair attempts, feeding the
 previous attempt's failure bundle back into the next prompt. It stops on a repeated identical
 failure, a policy violation, an exhausted model, or the attempt limit, and it never merges or
 pushes. A zero lane exit without `completion = PASS` is not treated as success.
 
 ```bash
-python3 tools/lane-autonomy.py run --task my-task --objective "..." \
-  --acceptance "php tests/my_contract_test.php" --pass-looks-like "prints OK" --max-attempts 2
+python3 tools/autonomy-contract.py --task my-task --objective "..." \
+  --acceptance "php tests/my_contract_test.php" --pass-looks-like "prints OK" \
+  --touches "modules/my-module/,tests/my_contract_test.php"
+python3 tools/lane-autonomy.py --contract .ai/autonomy/contracts/my-task.json --max-attempts 2
 python3 tools/autonomy-ledger.py report
 ```
 
@@ -205,6 +211,7 @@ tools/lane.sh policy-selftest       # 7 cases: allowed, blocked, path scope, rea
 tools/lane.sh events-selftest       # 8 cases: replay, contradictions, policy exit codes, completion
 tools/lane.sh selftest              # 38 cases: landing detection, attribution, completion gate
 python3 -m unittest discover -s tools/tests -p 'test_consult.py'   # 7 consult provider cases
+python3 -m unittest discover -s tools/tests -p 'test_autonomy_contract.py'  # 6 contract cases
 python3 -m unittest discover -s tools/tests -p 'test_autonomy_ledger.py'   # 5 ledger cases
 python3 -m unittest discover -s tools/tests -p 'test_lane_autonomy.py'    # 3 repair-loop cases
 bash tools/lane-harness-bench.sh    # all of the above as one gate

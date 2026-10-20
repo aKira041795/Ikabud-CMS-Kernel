@@ -708,6 +708,10 @@ Prefer escalation over speculative token consumption.
 
 ### The bound is a tool, and its outcome is measured
 
+`tools/autonomy-contract.py` validates the task before dispatch: it refuses a criterion that
+cannot fail or already passes, and refuses a routine declaration when a touched path is high-risk.
+The contract it writes is consumed by `tools/lane-autonomy.py --contract`.
+
 `tools/lane-autonomy.py` implements this section: it runs an implementation lane, verifies the
 fixed acceptance criterion itself, and feeds a compact failure bundle into at most
 `--max-attempts` repair attempts. It stops on a repeated identical acceptance failure, a policy

@@ -62,12 +62,17 @@ run_case "consult provider tests" \
 run_case "autonomy ledger tests" \
   python3 -m unittest discover -s "$ROOT/tools/tests" -p 'test_autonomy_ledger.py'
 
-# 5. Bounded repair: a stub lane that fails once then passes, identical-failure
+# 5. Pre-dispatch contract: a criterion that cannot fail is refused, high-risk
+#    paths cannot be declared routine, and an already-passing criterion is refused.
+run_case "autonomy contract tests" \
+  python3 -m unittest discover -s "$ROOT/tools/tests" -p 'test_autonomy_contract.py'
+
+# 6. Bounded repair: a stub lane that fails once then passes, identical-failure
 #    detection, and dry-run that spends nothing.
 run_case "lane autonomy repair loop" \
   python3 -m unittest discover -s "$ROOT/tools/tests" -p 'test_lane_autonomy.py'
 
-# 6. The lane wrapper itself: landing detection, duplicate commit, attribution, legacy
+# 7. The lane wrapper itself: landing detection, duplicate commit, attribution, legacy
 #    records, non-git workspaces, and now the completion field.
 run_case "lane harness selftest" \
   bash "$ROOT/tools/lane.sh" selftest

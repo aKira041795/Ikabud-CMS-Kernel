@@ -50,19 +50,21 @@ def _now() -> str:
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("run", nargs="?", default="run", help=argparse.SUPPRESS)
-    parser.add_argument("--task", required=True, help="task id (letters, digits, ._-)")
-    prompt = parser.add_mutually_exclusive_group(required=True)
+    parser.add_argument("--task", help="task id (letters, digits, ._-); required unless --contract supplies it")
+    prompt = parser.add_mutually_exclusive_group(required=False)
     prompt.add_argument("--objective", help="the task brief")
     prompt.add_argument("--prompt-file", help="file containing the task brief")
-    parser.add_argument("--acceptance", required=True, help="command that fails now and passes when done")
-    parser.add_argument("--pass-looks-like", required=True, help="what PASS looks like")
+    parser.add_argument("--acceptance", help="command that fails now and passes when done")
+    parser.add_argument("--pass-looks-like", help="what PASS looks like")
+    parser.add_argument("--contract", help="contract JSON written by tools/autonomy-contract.py")
     parser.add_argument("--touches", default="", help="comma-separated path prefixes/globs")
     parser.add_argument("--role", default="implement",
                         choices=("architect", "implement", "review", "release-gate"))
     parser.add_argument("--max-attempts", type=int, default=2, help="implementation + repair attempts (default: 2)")
     parser.add_argument("--timeout", type=int, default=7200, help="per-lane timeout seconds (default: 7200)")
     parser.add_argument("--max-seconds", type=int, default=0, help="overall wall-clock cap (0 = no cap)")
-    parser.add_argument("--class", dest="task_class", default="routine", choices=("routine", "high-risk"))
+    parser.add_argument("--class", dest="task_class", default=None,
+                        choices=("routine", "high-risk"))
     parser.add_argument("--lane-script", help="override the generated model lane (advanced/testing)")
     parser.add_argument("--model-chain", default="", help="override LANE_MODEL_CHAIN for the generated lane")
     parser.add_argument("--work-dir", help="prompt/evidence directory (default: .ai/autonomy/<task>)")
@@ -270,8 +272,53 @@ def _record(task: str, args: argparse.Namespace, attempts: int, acceptance: str,
         print(f"lane-autonomy: ledger record failed: {result.stderr.strip()}", file=sys.stderr)
 
 
+def _load_contract(path: str | None) -> dict | None:
+    if not path:
+        return {}
+    source = Path(path).expanduser()
+    try:
+        value = json.loads(source.read_text(encoding="utf-8", errors="replace"))
+    except OSError as exc:
+        print(f"lane-autonomy: contract unreadable: {source}: {exc}", file=sys.stderr)
+        return None
+    except ValueError as exc:
+        print(f"lane-autonomy: contract is not valid JSON: {source}: {exc}", file=sys.stderr)
+        return None
+    if not isinstance(value, dict):
+        print(f"lane-autonomy: contract must be a JSON object: {source}", file=sys.stderr)
+        return None
+    return value
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
+    contract = _load_contract(args.contract)
+    if contract is None:
+        return 2
+    if contract:
+        if args.task and contract.get("task") and _slug(args.task) != _slug(str(contract["task"])):
+            print("lane-autonomy: --task does not match the contract task", file=sys.stderr)
+            return 2
+        args.task = args.task or contract.get("task")
+        if not args.objective and not args.prompt_file:
+            args.objective = contract.get("objective")
+        args.acceptance = args.acceptance or contract.get("acceptance")
+        args.pass_looks_like = args.pass_looks_like or contract.get("pass_looks_like")
+        if not args.touches:
+            value = contract.get("touches") or []
+            args.touches = ",".join(str(item) for item in value) if isinstance(value, list) else str(value)
+        args.task_class = args.task_class or contract.get("class")
+    args.task_class = args.task_class or "routine"
+    if args.task_class not in ("routine", "high-risk"):
+        print(f"lane-autonomy: invalid contract class: {args.task_class}", file=sys.stderr)
+        return 2
+    if not args.task:
+        print("lane-autonomy: --task is required (or supply --contract)", file=sys.stderr)
+        return 2
+    if not args.acceptance or not args.pass_looks_like:
+        print("lane-autonomy: --acceptance and --pass-looks-like are required (or supply --contract)",
+              file=sys.stderr)
+        return 2
     task = _slug(args.task)
     if task != args.task:
         print(f"lane-autonomy: using sanitized task id '{task}'", file=sys.stderr)
