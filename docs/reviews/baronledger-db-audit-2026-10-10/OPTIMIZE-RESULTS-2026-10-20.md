@@ -96,11 +96,18 @@ schema. Reducible only by uninstalling unused modules; not by `OPTIMIZE`.
 
 ## Index counterpart
 
-`dl_daily_ledger` carries **8 indexes** for 2.17 MB of data (index = 1.65x data). Six structural
-duplicates exist across other `dl_` tables, all verified FK-safe (another index still leads with the
-same column). See `probe-index-audit.php` and `probe-index-usage.php`. Every secondary index is
-maintained on every save and is an extra lock entry on the insert path, so this is the lever that
-scales with concurrent branches — but on this data the win is small next to the prune.
+`dl_daily_ledger` carries **8 indexes**, and with fresh statistics (post-`OPTIMIZE`, cache disabled)
+its index is **11.61 MB against 5.52 MB of data — 2.1x the data**, about 224 bytes of index per row.
+
+That ratio is worse than the 1.65x first reported, because the earlier figure came from
+`information_schema` estimates that had gone stale and were under-reporting both sides. The corrected
+figure makes the index question worth more attention than it first appeared: the table is 54,265 rows
+in 17.1 MB, and two thirds of that is index maintenance paid on every save.
+
+Six structural duplicates exist across other `dl_` tables, all verified FK-safe (another index still
+leads with the same column). See `probe-index-audit.php` and `probe-index-usage.php`. Every secondary
+index is maintained on every save and is an extra lock entry on the insert path, so this is the lever
+that scales with concurrent branches — but on this data the win is still small next to the prune.
 
 ## Recommended order (highest measured value first)
 
