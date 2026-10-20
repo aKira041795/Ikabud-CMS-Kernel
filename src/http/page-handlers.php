@@ -348,7 +348,13 @@ if (!function_exists('kernelPerfPageRows')) {
             [$apcuEntryLabel, is_array($apcu) ? $apcuRoundTrip : ($apcuCollected ? 'not measured' : $missing), 'ms', $apcuRoundTripNote],
             ['APCu shared memory', is_array($apcu) ? ($apcu['shm_size'] ?? 'unknown') : ($apcuCollected ? 'not measured' : $missing), '', ''],
             ['APCu hits / misses', is_array($apcu) ? (($apcu['cache_hits'] ?? '?') . ' / ' . ($apcu['cache_misses'] ?? '?')) : ($apcuCollected ? 'not measured' : $missing), '', ''],
+            ['Probe tenant', $raw(['probe_tenant']) === null ? 'none (kernel host path)' : (string)$raw(['probe_tenant']), 'add ?tenant=<id> to measure a branch path', ''],
             ['DiSyL render (extends)', $get(['disyl_render_ms']), 'ms · ' . $get(['disyl_template']) . ' · extends=' . ($raw(['disyl_extends'], false) ? 'true' : 'false'), $raw(['disyl_ok'], false) ? '' : 'FAIL'],
+            ['DiSyL render, warm spread (min / median / max)',
+                $raw(['disyl_render_warm_median_ms']) === null
+                    ? 'add ?samples=N to measure the spread'
+                    : ($raw(['disyl_render_warm_min_ms']) . ' / ' . $raw(['disyl_render_warm_median_ms']) . ' / ' . $raw(['disyl_render_warm_max_ms'])),
+                'ms · ' . (int)($raw(['disyl_render_samples']) ?? 1) . ' sample(s)', ''],
             ['OPcache enabled', !empty($opcache['available']) ? 'yes' : 'no / not readable', '', ''],
             ['OPcache scripts compiled this request', $opcache['compiled_this_request'] ?? ($opcacheCollected ? 'not measured' : $missing), 'scripts', ''],
             ['OPcache cached scripts / max keys', !empty($opcache['available']) ? $opcache['now']['cached_scripts'] . ' / ' . $opcache['now']['max_cached_keys'] : ($opcacheCollected ? 'not measured' : $missing), '', ''],
@@ -372,7 +378,22 @@ if (!function_exists('kernelHandlePageSuperadminPerf')) {
             return;
         }
 
+        // Opt-in tenant context: ?tenant=<id>. On this page moduleTenantSettingsTenantId() returns null
+        // (correctly), so Settings preload always reported no_tenant and the tenant DB was never touched —
+        // the probe could only ever describe the kernel superadmin host, not the path that actually serves
+        // the branches. Applying the tenant here deliberately changes the request context, which is why it
+        // is opt-in and never inferred.
+        $perfTenantId = isset($_GET['tenant']) ? (int)$_GET['tenant'] : 0;
+        if ($perfTenantId > 0) {
+            try {
+                app()->tenant()->setTenantId($perfTenantId);
+            } catch (Throwable $e) {
+                $perfTenantId = 0;
+            }
+        }
+
         $perfData = [];
+        $perfData['probe_tenant'] = $perfTenantId > 0 ? $perfTenantId : null;
         $perfOverallStart = microtime(true);
 
         $t = microtime(true);
@@ -447,11 +468,34 @@ if (!function_exists('kernelHandlePageSuperadminPerf')) {
             ? 'disabled (limit 0 = unlimited)'
             : 'enabled (' . (int)$cacheStats['max_size_mb'] . ' MB limit)';
 
+        // Sample 0 is the COLD render and keeps its existing meaning in disyl_render_ms. Extra samples are
+        // warm repeats: this host drifts +/-10-30% between readings, so a single number invites a
+        // conclusion the data cannot support. Report the warm spread, not a point.
+        $perfSamples = isset($_GET['samples']) ? (int)$_GET['samples'] : 1;
+        $perfSamples = max(1, min(20, $perfSamples));
+
         $disylRender = kernelPerfProbeDisylRender();
         $perfData['disyl_render_ms'] = round((float)$disylRender['ms'], 2);
         $perfData['disyl_ok'] = !empty($disylRender['ok']);
         $perfData['disyl_template'] = (string)$disylRender['template'];
         $perfData['disyl_extends'] = !empty($disylRender['extends']);
+        $perfData['disyl_render_samples'] = $perfSamples;
+
+        if ($perfSamples > 1) {
+            $disylWarm = [];
+            for ($perfSample = 1; $perfSample < $perfSamples; $perfSample++) {
+                $perfRepeat = kernelPerfProbeDisylRender();
+                if (!empty($perfRepeat['ok'])) {
+                    $disylWarm[] = round((float)$perfRepeat['ms'], 2);
+                }
+            }
+            if ($disylWarm !== []) {
+                sort($disylWarm);
+                $perfData['disyl_render_warm_min_ms'] = $disylWarm[0];
+                $perfData['disyl_render_warm_median_ms'] = $disylWarm[intdiv(count($disylWarm), 2)];
+                $perfData['disyl_render_warm_max_ms'] = $disylWarm[count($disylWarm) - 1];
+            }
+        }
 
         // Measured from the REQUEST's start, the same origin as every phase row. This necessarily includes
         // the diagnostic probes run above; the rows distinguish that overhead from estimated request work.

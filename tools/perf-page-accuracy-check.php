@@ -96,5 +96,73 @@ $assert(
     is_array($cacheHit) ? 'label=' . $cacheHit[0] . ', unit=' . $cacheHit[2] : 'row missing'
 );
 
+// --- Phase 0: sampling and tenant context.
+// A single reading on this host drifts +/-10-30%, and the page used to describe only the kernel host
+// because no tenant was ever set. Both must be visible, and both must say how to enable them.
+
+$warmDefault = $findRow(static fn(string $label): bool => str_contains(strtolower($label), 'warm spread'));
+$assert(
+    'warm-spread row explains how to enable sampling when it was not requested',
+    is_array($warmDefault) && str_contains((string)$warmDefault[1], 'samples=N'),
+    is_array($warmDefault) ? 'value=' . $warmDefault[1] : 'row missing'
+);
+
+$tenantDefault = $findRow(static fn(string $label): bool => str_contains(strtolower($label), 'probe tenant'));
+$assert(
+    'tenant row states the probe ran on the kernel host path by default',
+    is_array($tenantDefault) && str_contains(strtolower((string)$tenantDefault[1]), 'none'),
+    is_array($tenantDefault) ? 'value=' . $tenantDefault[1] : 'row missing'
+);
+
+// The populated path: a sampled render against an explicit tenant.
+$sampledRows = kernelPerfPageRows([
+    'total_ms' => 50.0,
+    'probe_self_ms' => 45.0,
+    'probe_tenant' => 207,
+    'disyl_render_ms' => 44.7,
+    'disyl_ok' => true,
+    'disyl_template' => 'pages/_perf-probe.disyl',
+    'disyl_render_samples' => 5,
+    'disyl_render_warm_min_ms' => 0.37,
+    'disyl_render_warm_median_ms' => 0.46,
+    'disyl_render_warm_max_ms' => 0.48,
+]);
+$findIn = static function (array $set, callable $matches): ?array {
+    foreach ($set as $row) {
+        if ($matches((string)$row[0], $row)) {
+            return $row;
+        }
+    }
+    return null;
+};
+
+$warm = $findIn($sampledRows, static fn(string $label): bool => str_contains(strtolower($label), 'warm spread'));
+$assert(
+    'warm-spread row reports min / median / max and the sample count',
+    is_array($warm)
+        && str_contains((string)$warm[1], '0.37')
+        && str_contains((string)$warm[1], '0.46')
+        && str_contains((string)$warm[1], '0.48')
+        && str_contains((string)$warm[2], '5'),
+    is_array($warm) ? 'value=' . $warm[1] . ', unit=' . $warm[2] : 'row missing'
+);
+
+$tenant = $findIn($sampledRows, static fn(string $label): bool => str_contains(strtolower($label), 'probe tenant'));
+$assert(
+    'tenant row shows the requested tenant id',
+    is_array($tenant) && (string)$tenant[1] === '207',
+    is_array($tenant) ? 'value=' . $tenant[1] : 'row missing'
+);
+
+$coldRow = $findIn($sampledRows, static fn(string $label): bool => str_contains(strtolower($label), 'disyl render (extends)'));
+$assert(
+    'cold render and warm samples stay separate rows so neither is mistaken for the other',
+    is_array($coldRow) && (string)$coldRow[1] === '44.7'
+        && is_array($warm)
+        && !str_contains((string)$warm[1], 'samples=N')
+        && (string)$warm[1] !== (string)$coldRow[1],
+    is_array($coldRow) && is_array($warm) ? 'cold=' . $coldRow[1] . ' warm=' . $warm[1] : 'row missing'
+);
+
 echo PHP_EOL . $passed . ' passed, ' . $failed . ' failed' . PHP_EOL;
 exit($failed === 0 ? 0 : 1);

@@ -1094,6 +1094,39 @@ change alters those shapes. The thing that proves the refactor is the byte-compa
 
 ---
 
+## 4m. The perf page could only describe the kernel host, and reported one cold point
+
+`/superadmin/perf` answered with a single render figure and no tenant. Both were structural,
+not incidental:
+
+- `probe_tenant` was never set, so `Settings preload` reported `skipped (no tenant)` and every
+  figure described the kernel host path. The branch path — the one the live tenants actually
+  use — was unmeasurable from the page.
+- the render probe ran once. Interleaved runs on this host drift ±10–30%, so a single reading is
+  not a measurement.
+
+Both are now opt-in parameters that default to the previous behaviour: `?tenant=<id>` and
+`?samples=N` (1–20).
+
+The first sampled tenant run (`?samples=5&tenant=207`) is the argument for the change:
+
+| row | value |
+|---|---|
+| `DiSyL render (extends)` — cold | 44.70 ms |
+| `DiSyL render, warm spread` (min / median / max, n=5) | 0.37 / 0.46 / 0.48 ms |
+| `Settings preload` | 2.28 ms · 26 rows (previously `skipped (no tenant)`) |
+
+**~97× between the first render and the amortised one.** A single figure misdescribes steady
+state in one direction and the compile cost in the other, so cold and warm are separate rows:
+`disyl_render_ms` keeps its cold semantics, the spread lives in
+`disyl_render_warm_{min,median,max}_ms`. Anything tuning steady-state render latency must read
+the warm row; anything sizing compile cost must read the cold one.
+
+Guarded by `tools/perf-page-accuracy-check.php` — 13 assertions, 5 of them new. Each new
+assertion was shown to fail against a mutation that breaks it (warm row collapsed to the hint;
+cold row reporting the warm number; both enablement hints removed), because a guard that cannot
+fail is a guard that is trusted wrongly.
+
 ## 5. Live baseline — for scale, not comparison
 
 From [perf-state-2026-10-10.md](perf-state-2026-10-10.md), 2026-10-09, `kernelappos.ikabudkernel.com`:
