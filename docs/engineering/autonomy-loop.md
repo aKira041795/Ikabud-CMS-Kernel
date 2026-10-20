@@ -130,6 +130,15 @@ The loop:
 The identical-failure rule is what prevents the endless `edit -> test -> edit` loop: if two
 attempts produce the same acceptance output, more attempts are speculation, not repair.
 
+### Do not write into the tree while a lane runs
+
+The lane policy snapshots the tree at dispatch and attributes every new path to the lane. A file
+created by the caller during the lane is indistinguishable from a model edit and fails the policy
+gate with exit 97, even when the acceptance criterion passes. Measured 2026-10-20: a review document
+created during a CMS lane produced `completion=BLOCKED` with `acceptance=PASS`; a clean rerun with
+the document outside the tree passed on attempt 1. Prepare tests, contracts, and documentation
+before dispatch; do not edit the repository while a lane is running.
+
 ### What the loop does not do
 
 It never merges, pushes, or runs the release gate. It produces a verified tree and a ledger
