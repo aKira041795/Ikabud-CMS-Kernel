@@ -1127,6 +1127,59 @@ assertion was shown to fail against a mutation that breaks it (warm row collapse
 cold row reporting the warm number; both enablement hints removed), because a guard that cannot
 fail is a guard that is trusted wrongly.
 
+## 4n. Phase 1 was measured and rejected — the lazy-helper lever is 0.4%, not 7.65 ms
+
+The plan's Phase 1 premise was "routes are declarative, so registration shouldn't need all the
+helper files". Reading the code killed half of that premise; the probe killed the rest.
+
+`loadModuleRoutes()` calls `loadModuleHelpers($module)` for **every** enabled module, inside the
+loop, before `validateModuleCapabilities()`. It has to: a module publishes its capability callables
+through `helpers.php` — either as a `*_capability_handlers()` export function or as a global
+`$capability_handlers` map — and registration is the act of resolving those callables. You cannot
+register a capability without the file that defines it.
+
+So the size of the available lever is not "the whole 7.65 ms" but "the share attributable to
+modules that expose no capability". `probe-helper-load-budget.php` measures that split on the real
+enabled set, loading helpers in the same order the real path does:
+
+| bucket | modules | bytes | load time |
+|---|---|---|---|
+| exposes capabilities | 57 | 1.2 MB (99.1%) | 304.75 ms (99.6%) |
+| exposes none | 7 | 0.011 MB (0.9%) | 1.28 ms (0.4%) |
+
+The 7 modules without capabilities are 1.5–1.8 KB profile stubs (`workflow`, four
+`cms-akira-profile-*`, `cms-akira-builder`, `help`). Lazy-loading reaches **0.4%** of the cost.
+
+**Reconciling the absolute scale.** The probe reports 306 ms where the perf page reports 7.65 ms,
+and that is not a contradiction: `opcache.enable_cli=0`, so the probe **compiled** all 348 files
+from scratch while the web path serves them from OPcache (778 cached scripts, 0 restarts) and pays
+only execution. Both buckets were measured under identical conditions, so the ratio holds; the
+absolute figure is not comparable to the page's and must not be quoted as one.
+
+**Verdict: rejected.** Moving this cost would require replacing the documented
+`*_capability_handlers()` convention with a handler map declared in `module.json`, so that
+registration becomes a pure manifest read. That is 57 manifest edits, it inverts a convention the
+repo mandates, it would still have to preserve whatever else those helpers register at load time
+(hooks, event triggers, entity sources), and it only pays on requests that dispatch into no
+capability module — the rare path, not the traffic path. 7.65 ms on the rare path does not buy a
+57-module convention change.
+
+The reconceived variant — cache the route table, then skip registration entirely when the request
+path matches no module route — fails the same test: `EventTriggers` is documented as called "once
+after all modules have been loaded (from `loadModuleRoutes`)", so skipping the loop on kernel paths
+changes which hooks fire there, and the requests it would speed up are the ones that run least.
+
+**What this leaves.** Registration cost is dominated by work that is structurally required for the
+modules that actually serve traffic. The remaining levers are a language-level change (Phase 2:
+`{cache }` and `{ikb_ }` are the only constructs excluding 4 public CMS pages and 51 entity-view
+templates from compiled mode) and operations (Phase 4) — not micro-work inside the route loader.
+
+**A note on cache cleanup (Phase 3 input).** `storage/cache/` is written by the FPM user, so the
+CLI user cannot delete from it: an attempted removal of two stale `compiled.bak.*` directories
+returned `Permission denied` on every file. Any cache prune must therefore run as the web user or
+through an application endpoint. Do not reach for `sudo`; that is an operational decision for the
+owner.
+
 ## 5. Live baseline — for scale, not comparison
 
 From [perf-state-2026-10-10.md](perf-state-2026-10-10.md), 2026-10-09, `kernelappos.ikabudkernel.com`:
