@@ -1,0 +1,116 @@
+]633;E;php -l modules/cms/helpers/20-seo-public.php;62d4073b-a1b7-413f-b7b2-f8d91c4a9201]633;CNo syntax errors detected in modules/cms/helpers/20-seo-public.php
+  PASS post maps to /cms/blog/hello-world
+  PASS page maps to /cms/page/about
+  PASS product maps to /ecommerce/shop/red-shirt
+  PASS portfolio maps to /cms/portfolio/case-study
+  PASS event maps to /cms/event/launch-day
+  PASS sitemap uses the type-aware path helper
+  PASS sitemap no longer sends every non-page type to /cms/blog
+
+OK: 7 passed, 0 failed
+  PASS theme public layouts were found
+  PASS storage/cms-themes/ark/layouts/public.disyl loads the CMS stylesheet exactly once
+  PASS storage/cms-themes/ark/layouts/public.disyl link is real markup, not a comment
+  PASS storage/cms-themes/ark/layouts/public.disyl link is inside <head>
+  PASS storage/cms-themes/entity-commerce-poc/layouts/public.disyl loads the CMS stylesheet exactly once
+  PASS storage/cms-themes/entity-commerce-poc/layouts/public.disyl link is real markup, not a comment
+  PASS storage/cms-themes/entity-commerce-poc/layouts/public.disyl link is inside <head>
+  PASS storage/cms-themes/entity-commerce-poc/modules/ecommerce/layouts/public.disyl loads the CMS stylesheet exactly once
+  PASS storage/cms-themes/entity-commerce-poc/modules/ecommerce/layouts/public.disyl link is real markup, not a comment
+  PASS storage/cms-themes/entity-commerce-poc/modules/ecommerce/layouts/public.disyl link is inside <head>
+  PASS storage/cms-themes/entity-native/layouts/public.disyl loads the CMS stylesheet exactly once
+  PASS storage/cms-themes/entity-native/layouts/public.disyl link is real markup, not a comment
+  PASS storage/cms-themes/entity-native/layouts/public.disyl link is inside <head>
+  PASS storage/cms-themes/minimal/layouts/public.disyl loads the CMS stylesheet exactly once
+  PASS storage/cms-themes/minimal/layouts/public.disyl link is real markup, not a comment
+  PASS storage/cms-themes/minimal/layouts/public.disyl link is inside <head>
+  PASS storage/cms-themes/minimalist/layouts/public.disyl loads the CMS stylesheet exactly once
+  PASS storage/cms-themes/minimalist/layouts/public.disyl link is real markup, not a comment
+  PASS storage/cms-themes/minimalist/layouts/public.disyl link is inside <head>
+  PASS storage/cms-themes/native-default/layouts/public.disyl loads the CMS stylesheet exactly once
+  PASS storage/cms-themes/native-default/layouts/public.disyl link is real markup, not a comment
+  PASS storage/cms-themes/native-default/layouts/public.disyl link is inside <head>
+
+OK: 22 passed, 0 failed
+  PASS hostile title still produces parseable JSON-LD
+  PASS headline round-trips unchanged
+  PASS no executable script survives in the output
+  PASS exactly one ld+json element is emitted
+  PASS ampersands, quotes and angle brackets round-trip
+  PASS invalid UTF-8 never emits a partial script
+  PASS no PHP fatal error logged
+
+OK: 7 passed, 0 failed
+PASS: the CMS widget vocabulary is non-empty and parsed
+PASS: every CMS widget type the editor offers is drawn by the canvas
+PASS: the canvas draws no widget type outside the CMS vocabulary
+PASS: the selectable component registry matches the CMS widget vocabulary
+PASS: the render path renders from a cold load, before any renderer has run
+PASS: the PHP renderer registry is non-empty
+PASS: every CMS widget type has a server renderer
+PASS: no server renderer exists for a widget the editor cannot offer
+PASS: every registered renderer names an existing function
+PASS: every registered renderer is callable with empty props, returns a string, and stays quiet
+PASS: the document pipeline renders a composed document to HTML
+PASS: the composed document render raises no PHP warning
+PASS: the composed render carries the node-id marker the editor keys on
+PASS: the document root carries a join key
+PASS: every emitted marker belongs to a declared node
+PASS: no node is emitted more than once
+PASS: every node that renders is marked
+PASS: the only unmarked nodes are the deliberately excluded ones
+PASS: a heading never contains a block element
+PASS: a heading keeps its text (the node is not left empty)
+PASS: paragraph-wrapped content is flattened, not run together
+PASS: a button label never contains an escaped block wrapper
+
+Builder render parity: 22 passed, 0 failed
+Scope: vocabulary + dispatch + registry agreement, renderer callability,
+and composed-document rendering. Visual parity is NOT covered here.
+resource_guard_log: interpreted_guard_logged=yes
+counts: declarative_core=19 governed_extension=16 compatibility_only=0 prohibited_application_logic=6
+lsp: block=10 keyword=5 component=1 expression=15 prohibited_not_blessed=6 not_applicable=10 disagreements=0
+promotion_matrix: id=arithmetic-basic docs=pass dual_mode=pass ebnf=pass inventory=pass lsp=pass resource_limit=not_applicable promoted=yes
+promotion_matrix: id=bitwise-and docs=pass dual_mode=pass ebnf=pass inventory=pass lsp=pass resource_limit=not_applicable promoted=yes
+promotion_matrix: id=bitwise-shift-left docs=pass dual_mode=pass ebnf=pass inventory=pass lsp=pass resource_limit=not_applicable promoted=yes
+promotion_matrix: id=bitwise-shift-right docs=pass dual_mode=pass ebnf=pass inventory=pass lsp=pass resource_limit=not_applicable promoted=yes
+promotion_matrix: id=bitwise-xor docs=pass dual_mode=pass ebnf=pass inventory=pass lsp=pass resource_limit=not_applicable promoted=yes
+promotion_matrix: id=block-define docs=pass dual_mode=pass ebnf=pass inventory=pass lsp=pass resource_limit=not_applicable promoted=yes
+promotion_matrix: id=break-stmt docs=pass dual_mode=pass ebnf=pass inventory=pass lsp=not_applicable resource_limit=not_applicable promoted=yes
+promotion_matrix: id=comment-strip docs=pass dual_mode=pass ebnf=pass inventory=pass lsp=not_applicable resource_limit=not_applicable promoted=yes
+promotion_matrix: id=component-tag docs=pass dual_mode=pass ebnf=pass inventory=pass lsp=pass resource_limit=not_applicable promoted=yes
+promotion_matrix: id=compound-assignment docs=pass dual_mode=pass ebnf=pass inventory=pass lsp=pass resource_limit=not_applicable promoted=yes
+promotion_matrix: id=continue-stmt docs=pass dual_mode=pass ebnf=pass inventory=pass lsp=not_applicable resource_limit=not_applicable promoted=yes
+promotion_matrix: id=expression-output docs=pass dual_mode=pass ebnf=pass inventory=pass lsp=pass resource_limit=not_applicable promoted=yes
+promotion_matrix: id=extends-stmt docs=pass dual_mode=pass ebnf=pass inventory=pass lsp=pass resource_limit=not_applicable promoted=yes
+promotion_matrix: id=filter-chain docs=pass dual_mode=pass ebnf=pass inventory=pass lsp=pass resource_limit=not_applicable promoted=yes
+promotion_matrix: id=for-c-style docs=pass dual_mode=pass ebnf=pass inventory=pass lsp=pass resource_limit=pass promoted=yes
+promotion_matrix: id=for-in docs=pass dual_mode=pass ebnf=pass inventory=pass lsp=pass resource_limit=pass promoted=yes
+promotion_matrix: id=foreach-basic docs=pass dual_mode=pass ebnf=pass inventory=pass lsp=pass resource_limit=pass promoted=yes
+promotion_matrix: id=foreach-else docs=pass dual_mode=pass ebnf=pass inventory=pass lsp=pass resource_limit=pass promoted=yes
+promotion_matrix: id=if-elseif-else docs=pass dual_mode=pass ebnf=pass inventory=pass lsp=pass resource_limit=not_applicable promoted=yes
+promotion_matrix: id=include-stmt docs=pass dual_mode=pass ebnf=pass inventory=pass lsp=pass resource_limit=not_applicable promoted=yes
+promotion_matrix: id=json-decode docs=pass dual_mode=pass ebnf=pass inventory=pass lsp=pass resource_limit=not_applicable promoted=yes
+promotion_matrix: id=json-encode docs=pass dual_mode=pass ebnf=pass inventory=pass lsp=pass resource_limit=not_applicable promoted=yes
+promotion_matrix: id=keyof docs=pass dual_mode=pass ebnf=pass inventory=pass lsp=not_applicable resource_limit=not_applicable promoted=yes
+promotion_matrix: id=literal-block docs=pass dual_mode=pass ebnf=pass inventory=pass lsp=pass resource_limit=not_applicable promoted=yes
+promotion_matrix: id=macro-def docs=pass dual_mode=pass ebnf=pass inventory=pass lsp=pass resource_limit=not_applicable promoted=yes
+promotion_matrix: id=math-tag docs=pass dual_mode=pass ebnf=pass inventory=pass lsp=pass resource_limit=not_applicable promoted=yes
+promotion_matrix: id=null-coalesce docs=pass dual_mode=pass ebnf=pass inventory=pass lsp=pass resource_limit=not_applicable promoted=yes
+promotion_matrix: id=postfix-stmt docs=pass dual_mode=pass ebnf=pass inventory=pass lsp=pass resource_limit=not_applicable promoted=yes
+promotion_matrix: id=prohibited-arbitrary-php docs=pass dual_mode=not_applicable ebnf=pass inventory=pass lsp=not_applicable resource_limit=not_applicable promoted=yes
+promotion_matrix: id=prohibited-error-suppression docs=pass dual_mode=not_applicable ebnf=pass inventory=pass lsp=not_applicable resource_limit=not_applicable promoted=yes
+promotion_matrix: id=prohibited-instanceof docs=pass dual_mode=not_applicable ebnf=pass inventory=pass lsp=not_applicable resource_limit=not_applicable promoted=yes
+promotion_matrix: id=prohibited-nullsafe-property docs=pass dual_mode=not_applicable ebnf=pass inventory=pass lsp=not_applicable resource_limit=not_applicable promoted=yes
+promotion_matrix: id=prohibited-php-concat-dot docs=pass dual_mode=not_applicable ebnf=pass inventory=pass lsp=not_applicable resource_limit=not_applicable promoted=yes
+promotion_matrix: id=prohibited-spaceship docs=pass dual_mode=not_applicable ebnf=pass inventory=pass lsp=not_applicable resource_limit=not_applicable promoted=yes
+promotion_matrix: id=set-basic docs=pass dual_mode=pass ebnf=pass inventory=pass lsp=pass resource_limit=not_applicable promoted=yes
+promotion_matrix: id=set-typed docs=pass dual_mode=pass ebnf=pass inventory=pass lsp=pass resource_limit=not_applicable promoted=yes
+promotion_matrix: id=string-concat docs=pass dual_mode=pass ebnf=pass inventory=pass lsp=pass resource_limit=not_applicable promoted=yes
+promotion_matrix: id=ternary-basic docs=pass dual_mode=pass ebnf=pass inventory=pass lsp=pass resource_limit=not_applicable promoted=yes
+promotion_matrix: id=variable-path docs=pass dual_mode=pass ebnf=pass inventory=pass lsp=pass resource_limit=not_applicable promoted=yes
+promotion_matrix: id=verbatim-block docs=pass dual_mode=pass ebnf=pass inventory=pass lsp=pass resource_limit=not_applicable promoted=yes
+promotion_matrix: id=while-loop docs=pass dual_mode=pass ebnf=pass inventory=pass lsp=pass resource_limit=pass resource_runtime=pass promoted=yes
+promotion: promoted=41 partial=0
+poc5: lane_green=YES source_guards=PASS runtime_proof_interpreted=PASS runtime_proof_compiled=PASS
+disagreements: none

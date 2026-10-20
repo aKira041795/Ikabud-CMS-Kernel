@@ -1,0 +1,11 @@
+Status: **PASS**
+
+- Updated `modules/cms/helpers/20-seo-public.php`
+- Added `JSON_HEX_TAG`, `JSON_HEX_AMP`, `JSON_HEX_APOS`, and `JSON_HEX_QUOT` to JSON-LD encoding, preventing script breakout while preserving decoded data.
+
+Acceptance:
+```text
+OK: 7 passed, 0 failed
+```
+
+Both `storage/logs/app.log` and `storage/logs/error.log` remain empty. No unresolved issues.

@@ -1,0 +1,16 @@
+Status: **PASS**
+
+Changes:
+- Added `cmsSitemapPathForType()` and used it in sitemap generation for post, page, product, and custom content paths.
+- Added the CMS structural stylesheet once, before theme styles, in all four specified public layouts.
+- Canonical and JSON-LD behavior unchanged.
+
+Acceptance:
+- `cms_sitemap_type_url_test.php`: **OK — 7 passed, 0 failed**
+- `cms_theme_builder_stylesheet_test.php`: **OK — 22 passed, 0 failed**
+
+Logs:
+- `storage/logs/app.log`: no errors
+- `storage/logs/error.log`: no errors
+
+Unresolved: None.

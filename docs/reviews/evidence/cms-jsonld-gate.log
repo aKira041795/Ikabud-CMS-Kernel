@@ -1,0 +1,35 @@
+  PASS hostile title still produces parseable JSON-LD
+  PASS headline round-trips unchanged
+  PASS no executable script survives in the output
+  PASS exactly one ld+json element is emitted
+  PASS ampersands, quotes and angle brackets round-trip
+  PASS invalid UTF-8 never emits a partial script
+  PASS no PHP fatal error logged
+
+OK: 7 passed, 0 failed
+PASS: the CMS widget vocabulary is non-empty and parsed
+PASS: every CMS widget type the editor offers is drawn by the canvas
+PASS: the canvas draws no widget type outside the CMS vocabulary
+PASS: the selectable component registry matches the CMS widget vocabulary
+PASS: the render path renders from a cold load, before any renderer has run
+PASS: the PHP renderer registry is non-empty
+PASS: every CMS widget type has a server renderer
+PASS: no server renderer exists for a widget the editor cannot offer
+PASS: every registered renderer names an existing function
+PASS: every registered renderer is callable with empty props, returns a string, and stays quiet
+PASS: the document pipeline renders a composed document to HTML
+PASS: the composed document render raises no PHP warning
+PASS: the composed render carries the node-id marker the editor keys on
+PASS: the document root carries a join key
+PASS: every emitted marker belongs to a declared node
+PASS: no node is emitted more than once
+PASS: every node that renders is marked
+PASS: the only unmarked nodes are the deliberately excluded ones
+PASS: a heading never contains a block element
+PASS: a heading keeps its text (the node is not left empty)
+PASS: paragraph-wrapped content is flattened, not run together
+PASS: a button label never contains an escaped block wrapper
+
+Builder render parity: 22 passed, 0 failed
+Scope: vocabulary + dispatch + registry agreement, renderer callability,
+and composed-document rendering. Visual parity is NOT covered here.
