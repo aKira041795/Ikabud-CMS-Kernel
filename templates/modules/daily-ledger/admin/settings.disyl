@@ -405,6 +405,26 @@
                 {/if}
             </div>
 
+            <div>
+                <p class="text-sm text-gray-700 font-medium">Email Integrity Alerts</p>
+                <p class="mt-1 text-sm text-gray-500">Email active admins and branch supervisors when an integrity finding is raised (for example an uncounted receipt). The in-app notification is always recorded; this only controls email delivery.</p>
+            </div>
+            <div>
+                {if can_manage_feature_activation}
+                <label class="inline-flex items-center gap-2 text-sm text-gray-700">
+                    <input type="checkbox" id="feature-integrity-email" {if integrity_email_enabled}checked{/if}>
+                    Email admins and supervisors about integrity findings
+                </label>
+                <p class="mt-2 text-sm text-gray-500">Turn off to silence email without losing the in-app finding or its audit trail.</p>
+                {/if}
+                {if !can_manage_feature_activation}
+                <div class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset {if integrity_email_enabled}bg-emerald-50 text-emerald-700 ring-emerald-200{/if}{if !integrity_email_enabled}bg-gray-100 text-gray-700 ring-gray-300{/if}">
+                    Integrity emails are {if integrity_email_enabled}Enabled{/if}{if !integrity_email_enabled}Disabled{/if}
+                </div>
+                <p class="mt-2 text-sm text-gray-500">Only Admin or Superadmin can change this setting.</p>
+                {/if}
+            </div>
+
         </div>
     </div>
 </div>
@@ -1092,6 +1112,10 @@
         var featureCashPaperCheck = document.getElementById('feature-cash-paper-check');
         if (featureCashPaperCheck) {
             payload.cash_paper_check_enabled = featureCashPaperCheck.checked;
+        }
+        var featureIntegrityEmail = document.getElementById('feature-integrity-email');
+        if (featureIntegrityEmail) {
+            payload.integrity_email_enabled = featureIntegrityEmail.checked;
         }
 
         var appNameInput = document.getElementById('app-name');

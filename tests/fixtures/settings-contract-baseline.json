@@ -1514,6 +1514,13 @@
                 "has_options": false
             },
             {
+                "key": "integrity_email_enabled",
+                "type": "checkbox",
+                "has_default": true,
+                "default": "1",
+                "has_options": false
+            },
+            {
                 "key": "logo_url",
                 "type": "text",
                 "has_default": true,
@@ -1532,6 +1539,13 @@
                 "type": "text",
                 "has_default": true,
                 "default": "0",
+                "has_options": false
+            },
+            {
+                "key": "official_data_start",
+                "type": "date",
+                "has_default": true,
+                "default": "",
                 "has_options": false
             },
             {

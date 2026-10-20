@@ -11,7 +11,7 @@
 declare(strict_types=1);
 
 const SETTINGS_CONTRACT_TYPES = [
-    'bool', 'checkbox', 'email', 'number', 'password', 'select', 'text', 'textarea', 'time',
+    'bool', 'checkbox', 'date', 'email', 'number', 'password', 'select', 'text', 'textarea', 'time',
 ];
 const SETTINGS_CONTRACT_BASELINE = 'tests/fixtures/settings-contract-baseline.json';
 

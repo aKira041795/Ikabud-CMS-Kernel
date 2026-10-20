@@ -925,6 +925,13 @@
       "description": "Shift reconciliation of the paper sheet and cash remitted against the ledger. Off by default: the page and its nav entry stay hidden until an admin enables it."
     },
     {
+      "key": "integrity_email_enabled",
+      "type": "checkbox",
+      "label": "Email Integrity Alerts",
+      "default": "1",
+      "description": "Email active admins and branch supervisors when a Daily Ledger integrity finding is raised (for example an uncounted receipt or an unresolved dispatch origin). The in-app notification is always recorded; this setting only controls email delivery."
+    },
+    {
       "key": "pos_allowed_tenders",
       "type": "text",
       "label": "POS Allowed Tenders",

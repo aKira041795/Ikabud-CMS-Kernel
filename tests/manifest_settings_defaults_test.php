@@ -185,7 +185,7 @@ foreach ($contracts as $moduleId => $meta) {
 
 echo "\n=== SETTINGS CONTRACT CHARACTERIZATION ===\n";
 
-$supportedSettingsTypes = ['text', 'textarea', 'email', 'time', 'number', 'select', 'checkbox', 'bool', 'password'];
+$supportedSettingsTypes = ['text', 'textarea', 'email', 'time', 'date', 'number', 'select', 'checkbox', 'bool', 'password'];
 $emptyKeyFindings = [];
 $duplicateKeyFindings = [];
 $selectDefaultFindings = [];
