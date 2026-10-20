@@ -261,10 +261,22 @@ def _conclusion_entries(root: Path, terms: list[str], phrase: str,
                 if not file_path.is_file() or file_path.is_symlink():
                     continue
                 relative = file_path.relative_to(root).as_posix()
+                # Prompt artifacts are not conclusions. A .turn.md / .prompt.md holds the
+                # question and retrieved facts, so indexing it lets the next consult cite
+                # its own previous prompt as repository evidence (measured 2026-10-20).
+                if relative.endswith((".turn.md", ".prompt.md")):
+                    continue
                 if relative in skip or _SECRET_PATH.search(relative):
                     continue
-                lines = _without_embedded_packs(
-                    file_path.read_text(encoding="utf-8", errors="replace").splitlines())
+                text = file_path.read_text(encoding="utf-8", errors="replace")
+                raw_lines = text.splitlines()
+                first = next((line.strip() for line in raw_lines if line.strip()), "")
+                has_reply = any(line.startswith(("# CHATGPT REPLY", "# CLAUDE REPLY")) for line in raw_lines)
+                # A consult prompt with no reply is an unfinished question, not a
+                # conclusion. Indexing it made the next consult cite its own scaffolding.
+                if not has_reply and first in ("# CHAIR CONSULTATION", "# RED TEAM REVIEW", "# CONSULT COMPARISON"):
+                    continue
+                lines = _without_embedded_packs(raw_lines)
                 candidates.append((file_path.stat().st_mtime_ns, relative, lines))
             except Exception:
                 continue

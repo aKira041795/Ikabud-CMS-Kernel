@@ -90,6 +90,39 @@ function out(obj) {
     process.stdout.write(JSON.stringify(obj) + "\n");
 }
 
+function cleanReply(text) {
+    // The message container includes web-UI chrome: a "Claude responded:" header, repeated
+    // streaming-status lines, and action buttons/timestamps. Keep the prose, drop the shell.
+    const junkExact = new Set(["Create a doc", "just now", "Copy", "Retry", "Edit", "Share"]);
+    const raw = String(text || "").replace(/\r/g, "").split("\n");
+    const lines = [];
+    for (const input of raw) {
+        let line = input.replace(/[\uE000-\uF8FF]/g, "").replace(/^Claude responded:\s*/i, "").trimEnd();
+        const trimmed = line.trim();
+        if (!trimmed) {
+            if (lines.length && lines[lines.length - 1] !== "") lines.push("");
+            continue;
+        }
+        if (junkExact.has(trimmed)) continue;
+        // A status line that appears before the answer is not content.
+        if (lines.filter((l) => l.trim()).length < 3 && /^Drafting\b.*\b(evidence|response)\b\.?$/i.test(trimmed)) {
+            continue;
+        }
+        if (lines.length && lines[lines.length - 1].trim() === trimmed) continue;
+        lines.push(line);
+    }
+    // Drop a leading one-line summary when the same sentence opens the body below it.
+    const nonEmpty = lines.map((line, index) => ({ line, index })).filter((item) => item.line.trim());
+    if (nonEmpty.length > 1) {
+        const first = nonEmpty[0].line.trim();
+        const repeated = nonEmpty.slice(1, 8).find((item) => item.line.trim() === first);
+        if (repeated) {
+            lines.splice(nonEmpty[0].index, 1);
+        }
+    }
+    return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
 async function launch(profile, headless) {
     const opts = {
         headless,
@@ -239,7 +272,7 @@ async function waitForAssistantReply(page, timeoutMs, prompt) {
         if (text) lastText = echo ? "" : text;
         const stable = text.length > 0 && text.length === lastLen && !echo;
         if (stable && !stopping) {
-            return { text, partial: false };
+            return { text: cleanReply(text), partial: false };
         }
         lastLen = echo ? -1 : text.length;
         try {
@@ -248,14 +281,14 @@ async function waitForAssistantReply(page, timeoutMs, prompt) {
             // The page/context went away mid-wait. Keep whatever was already read and mark
             // it partial rather than discarding a reply that is on screen.
             if (lastText.trim()) {
-                return { text: lastText, partial: true };
+                return { text: cleanReply(lastText), partial: true };
             }
             throw err;
         }
     }
     const finalText = lastText || (await assistant.innerText().catch(() => "")) || "";
     if (finalText.trim()) {
-        return { text: finalText, partial: true };
+        return { text: cleanReply(finalText), partial: true };
     }
     throw new Error("timed out waiting for a Claude reply in any known reply element");
 }
@@ -344,7 +377,11 @@ async function main() {
     usage();
 }
 
-main().catch((err) => {
-    out({ ok: false, error: String(err && err.message ? err.message : err) });
-    process.exit(1);
-});
+if (require.main === module) {
+    main().catch((err) => {
+        out({ ok: false, error: String(err && err.message ? err.message : err) });
+        process.exit(1);
+    });
+}
+
+module.exports = { cleanReply };

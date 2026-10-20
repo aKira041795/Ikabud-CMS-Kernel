@@ -297,6 +297,47 @@ class ConsultTest(unittest.TestCase):
         self.assertIn("usage limit", limited_payload["error"])
         self.assertIn("free account", limited_payload["error"])
 
+    def test_prompt_artifacts_are_not_cited_as_conclusions(self) -> None:
+        consult_dir = self.workspace / ".ai" / "consult"
+        consult_dir.mkdir(parents=True)
+        (consult_dir / "prior.turn.md").write_text(
+            "# CHAIR CONSULTATION\n\nTURN ARTIFACT UNIQUE 9957\n", encoding="utf-8"
+        )
+        (consult_dir / "prior-prompt-only.md").write_text(
+            "# CHAIR CONSULTATION\n\nPROMPT ONLY UNIQUE 9957\n", encoding="utf-8"
+        )
+        (consult_dir / "prior.md").write_text(
+            "# CHAIR CONSULTATION\n\n# CHATGPT REPLY\nREAL CONCLUSION UNIQUE 9957\n", encoding="utf-8"
+        )
+        result = self.run_consult(
+            "--provider", "claude", "--query", "UNIQUE 9957",
+            "--dry-run", "--json", "--budget", "4000",
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        prompt = json.loads(result.stdout)["prompt"]
+        facts = prompt.split("# RETRIEVED REPOSITORY FACTS", 1)[-1]
+        self.assertNotIn("prior.turn.md", facts)
+        self.assertNotIn("prior-prompt-only.md", facts)
+        self.assertIn("prior.md", facts)
+
+    def test_claude_page_reply_cleaner(self) -> None:
+        if shutil.which("node") is None:
+            self.skipTest("node is not installed")
+        adapter = ROOT / "tools" / "harpp-bridge" / "claude_page.js"
+        raw = (
+            "Claude responded: Recommendation: do X.\n"
+            "Drafting a critical chair recommendation with supporting evidence.\n"
+            "Drafting a critical chair recommendation with supporting evidence.\n"
+            "Recommendation: do X.\n\nBody paragraph.\n\nCreate a doc\njust now"
+        )
+        code = (
+            f"const {{cleanReply}} = require({json.dumps(str(adapter))});"
+            f"process.stdout.write(cleanReply({json.dumps(raw)}));"
+        )
+        result = subprocess.run(["node", "-e", code], capture_output=True, text=True, timeout=20)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, "Recommendation: do X.\n\nBody paragraph.")
+
     def test_session_history_is_clean_and_does_not_nest(self) -> None:
         env = dict(self.env, CONSULT_CLAUDE_CMD=self.cli_stub())
         first = self.run_consult(
