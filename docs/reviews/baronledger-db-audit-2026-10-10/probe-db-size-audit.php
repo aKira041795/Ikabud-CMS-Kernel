@@ -58,6 +58,12 @@ $pdo = new PDO(
     [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC]
 );
 
+// MySQL 8 caches information_schema statistics for up to 24 hours. Without this, a report run after a
+// DELETE or an OPTIMIZE returns the PREVIOUS state - measured 2026-10-20: an OPTIMIZE that reclaimed
+// 125,761 rows still reported the old data_length, data_free and table_rows, which reads as "nothing
+// happened" when in fact the work succeeded.
+$pdo->exec('SET SESSION information_schema_stats_expiry = 0');
+
 // ---- Per-table size + exact row count.
 //
 // EVERY column is aliased on purpose. MySQL 8's information_schema exposes column names in UPPERCASE
