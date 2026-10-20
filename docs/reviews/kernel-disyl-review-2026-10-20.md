@@ -138,4 +138,5 @@ that found the regression: [`evidence/disyl-fallback-gate-failed.log`](evidence/
 - High-risk tasks are excluded from the autonomy rate by the contract classifier (`^kernel/`); they
   are reported separately rather than inflating the routine rate.
 
-Commits: `3aa5cb39` (eligibility), `39139906` (fallback + loop-limit repair).
+Commits: `3aa5cb39` (eligibility), `39139906` (fallback + loop-limit repair),
+`1b6b2ccb` (packaging cleanup and tenant-diagnostics verification).
