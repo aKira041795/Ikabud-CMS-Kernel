@@ -104,7 +104,7 @@ async function receiveAndWait(page, modal) {
     ]);
     expect(response.ok(), `receive-delivery returned HTTP ${response.status()}`).toBeTruthy();
     // The ledger success path is a full reload; settle it before the next sign-in.
-    await page.waitForLoadState('networkidle').catch(() => {});
+    await page.waitForLoadState('networkidle').catch(() => { });
     await expect(page.locator('#ledger-body')).toBeVisible();
 }
 
@@ -120,7 +120,7 @@ async function dispatchFromCommissary(page, branchId, dr, items) {
         page.locator('#submit-dispatch').click(),
     ]);
     expect(response.ok(), `commissary dispatch returned HTTP ${response.status()}`).toBeTruthy();
-    await page.waitForLoadState('networkidle').catch(() => {});
+    await page.waitForLoadState('networkidle').catch(() => { });
 }
 
 /** Open the receive modal, narrow to one DR and return its locators. */
