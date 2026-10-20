@@ -87,7 +87,7 @@ try {
     $offId = dl_raiseIntegrityNotification(
         $db,
         $offKey,
-        'uncounted_receipt',
+        'unresolved_origin',
         $branchId,
         'dl_branch_receivings',
         $branchId,
@@ -105,7 +105,7 @@ try {
     $onId = dl_raiseIntegrityNotification(
         $db,
         $onKey,
-        'uncounted_receipt',
+        'unresolved_origin',
         $branchId,
         'dl_branch_receivings',
         $branchId,

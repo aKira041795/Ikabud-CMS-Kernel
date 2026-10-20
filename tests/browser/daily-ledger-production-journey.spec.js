@@ -7,7 +7,7 @@
  *   B AM ending -> PM beginning carry-over, and no affordance for a zero AM ending
  *   C production addition per destination branch (per-branch split on the sheet)
  *   D dispatch a delivery from the commissary to branch 1
- *   E branch 1 receives exactly as sent (copied basis, zero variance, admin can read it)
+ *   E branch 1 receives exactly as sent (matched basis, zero variance, admin can read it)
  *   F dispatch to branch 2 and receive short by 2 (corrected qty persisted + variance flag)
  *   G as admin: is the discrepancy visible, and does it survive an AM/PM shift filter?
  *
@@ -286,9 +286,9 @@ test('production -> delivery -> receiving -> admin variance (baronledger.test, t
     await expect(exactLineTwo).toContainText('4');
     await expect(exactLineTwo.locator('td').last()).toHaveText('0');
 
-    // The recorded basis is copied ("not independently counted") in the trace UI.
+    // No quantity was adjusted, so the receipt is recorded as a confirmed match.
     await page.goto(`/daily-ledger/admin/trace?dr=${exactDr}&date_from=${seed.date}&date_to=${seed.date}&branch_id=${seed.branch_one}`);
-    await expect(page.getByText('not independently counted', { exact: true }).first()).toBeVisible();
+    await expect(page.getByText('independently counted', { exact: true }).first()).toBeVisible();
 
     // ── F. Dispatch to branch 2 and receive short by 2 ────────────────────
     await login(page, seed.admin, 'Journey Admin');

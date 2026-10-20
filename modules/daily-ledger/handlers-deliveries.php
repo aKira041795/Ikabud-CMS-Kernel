@@ -748,14 +748,13 @@ function dl_acceptFormalDelivery(\Ikabud\Kernel\Contracts\DatabaseContract $db, 
         ':received_shift' => $shift,
         ':posted_by' => $userId > 0 ? $userId : null,
         ':remarks' => $head['remarks'],
-        ':count_basis' => $partialQtys === null ? 'copied' : 'independently_counted',
+        // A receiver who leaves the dispatched quantities untouched is confirming
+        // that the manual count matched the DR. The Receive Stock modal only asks
+        // for an edit when the count differs, so "no adjustment" is a match, not
+        // an uncounted copy. Corrections carry their own variance evidence.
+        ':count_basis' => 'independently_counted',
     ]);
     $receivingId = (int)$db->lastInsertId();
-    if ($partialQtys === null) {
-        dl_raiseIntegrityNotification($db, 'receiving-count-' . $receivingId, 'uncounted_receipt', $branchId,
-            'dl_branch_receivings', $receivingId, 'Receipt needs an independent count',
-            'Receiving #' . $receivingId . ' copied sent quantities and is explicitly labelled uncounted/single-witness.', true);
-    }
 
     $rcvItemStmt = $db->prepare(
         'INSERT INTO dl_branch_receiving_items
@@ -1854,7 +1853,9 @@ function apiCreateReceiving(array $params = []): void
         $originId   = ($del['resolved_origin_id'] ?? null) !== null ? (int)$del['resolved_origin_id'] : ($del['origin_id'] !== null ? (int)$del['origin_id'] : null);
         $drNumber   = $del['dr_number'] ?: $drNumber;
         if (count($items) === 0) {
-            $countBasis = 'copied';
+            // No submitted counts means the caller confirmed the dispatched
+            // quantities as a match. The modal only sends counts when the
+            // manual count differs from the DR.
             $diStmt = $ctx->db()->prepare('SELECT id, product_id, quantity, unit, price_snapshot FROM dl_delivery_items WHERE delivery_id = :d');
             $diStmt->execute([':d' => $deliveryId]);
             foreach ($diStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $di) {
@@ -1928,11 +1929,6 @@ function apiCreateReceiving(array $params = []): void
             ':rb' => $userId ?: null, ':rd' => $rcvDate, ':rmk' => $remarks, ':count_basis' => $countBasis,
         ]);
         $rcvId = (int)$ctx->db()->lastInsertId();
-        if ($countBasis === 'copied') {
-            dl_raiseIntegrityNotification($ctx->db(), 'receiving-count-' . $rcvId, 'uncounted_receipt', $branchId,
-                'dl_branch_receivings', $rcvId, 'Receipt needs an independent count',
-                'Receiving #' . $rcvId . ' copied sent quantities and is explicitly labelled uncounted/single-witness.', true);
-        }
 
         $insItem = $ctx->db()->prepare(
             'INSERT INTO dl_branch_receiving_items

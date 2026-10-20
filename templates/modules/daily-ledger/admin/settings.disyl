@@ -407,7 +407,7 @@
 
             <div>
                 <p class="text-sm text-gray-700 font-medium">Email Integrity Alerts</p>
-                <p class="mt-1 text-sm text-gray-500">Email active admins and branch supervisors when an integrity finding is raised (for example an uncounted receipt). The in-app notification is always recorded; this only controls email delivery.</p>
+                <p class="mt-1 text-sm text-gray-500">Email active admins and branch supervisors when an integrity finding is raised (for example an unresolved dispatch origin). The in-app notification is always recorded; this only controls email delivery.</p>
             </div>
             <div>
                 {if can_manage_feature_activation}

@@ -10534,9 +10534,9 @@ function apiReceiveDelivery(array $params = []): void
                         $ctx->db(), $branchId, $deliveryId, $userId, $receiveDate, $providedCounts, $shift
                     );
                 } else {
-                    // An untouched one-click confirmation deliberately copies the
-                    // dispatched quantities. dl_acceptFormalDelivery records the
-                    // honest `copied` basis and raises the uncounted notification.
+                    // An untouched one-click confirmation is a MATCH: the receiver
+                    // confirmed the DR quantities, and the modal only requires an
+                    // edit when the manual count differs.
                     $rcvId = dl_acceptFormalDelivery(
                         $ctx->db(), $branchId, $deliveryId, $userId, $receiveDate, null, $shift
                     );
@@ -11113,9 +11113,8 @@ function apiReceivePaperDelivery(array $params = []): void
 
         $ledgerEffect = dl_applyPostedDeliveryCommissaryLedger($ctx->db(), $deliveryId, $actorId);
         $receivingId = dl_acceptFormalDelivery($ctx->db(), $destinationBranchId, $deliveryId, $actorId, $receiveDate, null, $shift);
-        // Paper capture and auto-DR both copy SENT into RECEIVED. Preserve the
-        // quantity, but label its evidentiary basis honestly.
-        dl_markReceivingCountBasis($ctx->db(), $receivingId, 'copied');
+        // Paper capture and auto-DR copy SENT into RECEIVED because that is the
+        // receiver's confirmed match. No adjustment means no variance to flag.
         $ctx->db()->commit();
         $response = [
             'ok' => true,

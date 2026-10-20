@@ -1089,7 +1089,6 @@ function dl_offlineApplyReceivePaperDr(array $user, array $op, bool $inTx = fals
         // Offline replay uses the same durable, item-keyed debit path as online paper capture.
         $ledgerEffect = dl_applyPostedDeliveryCommissaryLedger($ctx->db(), $deliveryId, $actorId);
         $receivingId = dl_acceptFormalDelivery($ctx->db(), $destinationBranchId, $deliveryId, $actorId, $receiveDate, null, $shift);
-        dl_markReceivingCountBasis($ctx->db(), $receivingId, 'copied');
         if (!$inTx) {
             $ctx->db()->commit();
         }

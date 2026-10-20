@@ -194,12 +194,12 @@ try {
     echo 'ACCEPTANCE_COPIED_API=' . json_encode($copiedApi, JSON_UNESCAPED_SLASHES) . "\n";
     echo 'ACCEPTANCE_COPIED_DB=' . json_encode($copiedRow, JSON_UNESCAPED_SLASHES) . "\n";
     $h->test(
-        'correct DR receives with no edits as copied and raises uncounted_receipt',
+        'correct DR receives with no edits as matched (independently counted) and raises no uncounted_receipt',
         $copiedApi['exit'] === 0
         && str_contains($copiedApi['raw'], '"ok":true')
-        && ($copiedRow['count_basis'] ?? '') === 'copied'
+        && ($copiedRow['count_basis'] ?? '') === 'independently_counted'
         && (int)($copiedRow['quantity_received'] ?? -1) === 10
-        && ($copiedRow['finding_type'] ?? '') === 'uncounted_receipt',
+        && ($copiedRow['finding_type'] ?? null) === null,
         $copiedApi['raw'] . "\n" . json_encode($copiedRow)
     );
 
