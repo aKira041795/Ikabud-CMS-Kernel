@@ -138,6 +138,7 @@ $excludeFilePatterns = [
     '/\.tar$/i',            // tar archives
     '/\.DS_Store$/i',       // macOS
     '/^Thumbs\.db$/i',     // Windows
+    '/\.(?:orig|rej|bak)$/i', // patch/backup artifacts (never ship code history)
 ];
 
 // ── Build file list ─────────────────────────────────────────────────────

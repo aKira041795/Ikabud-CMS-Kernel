@@ -96,6 +96,7 @@ After repair: `conformance 229/0`, `promoted=41 partial=0`, `lane_green=YES`, `d
 | DiSyL conformance checker | `promoted=41 partial=0`, `lane_green=YES`, `disagreements: none` |
 | DiSyL parity | 178/178 |
 | Security fuzz | pass |
+| Archive artifact policy | 8/8 |
 | `storage/logs/error.log` | empty |
 
 Full logs: [`evidence/disyl-final-gate.log`](evidence/disyl-final-gate.log),
@@ -103,19 +104,24 @@ Full logs: [`evidence/disyl-final-gate.log`](evidence/disyl-final-gate.log),
 [`evidence/disyl-eligibility-gate.log`](evidence/disyl-eligibility-gate.log), and the failed gate
 that found the regression: [`evidence/disyl-fallback-gate-failed.log`](evidence/disyl-fallback-gate-failed.log).
 
-## Review boundaries and remaining work
+## Completed after the review
 
-- **Not a kernel defect:** `KernelPDO.php.orig`/`.rej` are inert (not loaded by PHP/Composer). They
-  are gitignored but not excluded by `create-bluehost-archive.php:135-140`, so they can ship in
-  Bluehost zips. Packaging cleanup only; delete them when that archive path is touched.
+- **Patch artifacts removed and excluded.** Deleted `kernel/Database/KernelPDO.php.orig` and `.rej`
+  and added `/\.(?:orig|rej|bak)$/i` to both `create-bluehost-archive.php` and
+  `create-barebones-archive.php`. Guard: `tests/archive_patch_artifact_exclusions_test.php`
+  (8 assertions: both builders keep the policy, and both files are absent).
+- **Tenant-entry diagnostics verified present.** `kernel/Http/TenantEntryRouter.php` logs
+  `tenant_rewrite_fallback` with host/uri/error in its catch, and `write_log()` adds `request_id`
+  (`bootstrap.php:703-704`). The 2026 review's A1 acceptance is met; no code change was needed.
+
+## Remaining work and boundaries
+
 - **Not a defect:** `{include}` resolution is cached; the residual per-request `sha1_file` /
   `file_get_contents` in cache validation is performance, not recompilation.
-- **Still open (larger than one lane):** synchronous Tailwind JIT on the auth/admin shells is the
-  highest mobile critical-path cost from `docs/reviews/kernel-disyl-render-review-2026-10-09.md`.
-  Replacing it requires precompiled, same-origin CSS and visual parity work.
-- **Still open:** the 2026 kernel review's tenant-entry rewrite fallback / entry-module 404
-  diagnostics (`docs/reviews/application-kernel-os-review-2026.md`) are not addressed here.
-- **Feature, not fix:** `{cache }` is the only reason four public CMS pages remain interpreted;
+- **Separate initiative:** synchronous Tailwind JIT on the auth/admin shells is the highest mobile
+  critical-path cost from `docs/reviews/kernel-disyl-render-review-2026-10-09.md`. Replacing it
+  requires precompiled, same-origin CSS and visual parity work; it is not a one-lane fix.
+- **Separate feature:** `{cache }` is the only reason four public CMS pages remain interpreted;
   `{ikb_}` compiled support would move the entity-view engine. Both are language features.
 - **mtime boundary:** dependency validation uses `filemtime`, matching the compiled cache's existing
   invalidation model. A same-second edit that preserves the timestamp is not detected; `sha1_file`
