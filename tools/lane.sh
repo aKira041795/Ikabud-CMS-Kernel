@@ -39,12 +39,16 @@
 #                          [--required-level=<unit|http|browser|corpus>]
 #                          [--criterion-level=<unit|http|browser|corpus>]
 #                          [--no-level-gate="<reason>"] [--no-acceptance-gate="<reason>"]
-#                          [--touches="<path,path>"] [--notify]
+#                          [--touches="<path,path>"] [--role=<architect|implement|review|release-gate>]
+#                          [--notify]
 #   tools/lane.sh status   <name>
+#   tools/lane.sh events   <name> [--json]      # event-sourced timeline + summary
 #   tools/lane.sh list
 #   tools/lane.sh pending                      # landed but not yet reported to the agent
 #   tools/lane.sh ack                          # mark everything reported
 #   tools/lane.sh selftest                     # prove this harness detects its own failures
+#   tools/lane.sh policy-selftest              # prove role/tool/git-policy enforcement
+#   tools/lane.sh events-selftest              # prove the event log and its contradictions
 #   tools/lane.sh record   <name> <log> <exit> [run-id] [acceptance-command]   # generated runner
 #
 # THE PRE-DISPATCH ACCEPTANCE GATE. `run` REFUSES to dispatch unless:
@@ -136,6 +140,16 @@ CURSOR="$RUNS/.reported.cursor"
 # GNU `date -Iseconds` does not exist on BSD/macOS; fall back to a POSIX format so the landing
 # marker stays valid JSON instead of carrying an empty timestamp.
 iso() { date -Iseconds 2>/dev/null || date +%Y-%m-%dT%H:%M:%S%z; }
+
+# Event-sourced run log. The text logs and markers remain for compatibility; this is the
+# append-only record that explains them. Fail-open: a missing python3 must never stop a lane.
+EVENTS_TOOL="$ROOT/tools/lane-events.py"
+POLICY_TOOL="$ROOT/tools/lane-policy.sh"
+lane_event() {
+  [ -f "$EVENTS_TOOL" ] || return 0
+  command -v python3 >/dev/null 2>&1 || return 0
+  python3 "$EVENTS_TOOL" --runs-dir "$RUNS" append "$@" >/dev/null 2>&1 || true
+}
 
 journal_total() { [ -f "$JOURNAL" ] && wc -l < "$JOURNAL" 2>/dev/null || echo 0; }
 
@@ -478,6 +492,7 @@ cmd_run() {
   local criterionLevel=""
   local levelOverride=""
   local touches=""
+  local role="implement"
   for arg in "$@"; do
     case "$arg" in
       --timeout=*) timeoutSecs="${arg#*=}";;
@@ -492,6 +507,7 @@ cmd_run() {
       --criterion-level=*) criterionLevel="${arg#*=}";;
       --no-level-gate=*) levelOverride="${arg#*=}";;
       --touches=*) touches="${arg#*=}";;
+      --role=*) role="${arg#*=}";;
       --notify) LANE_NOTIFY=1;;
     esac
   done
@@ -499,9 +515,12 @@ cmd_run() {
   [ -n "$name" ] && [ -n "$laneScript" ] || {
     echo "usage: tools/lane.sh run <name> <lane-script> [--timeout=N] [--slice=N] [--require-clean]" >&2
     echo "       --acceptance=\"<cmd>\" --pass-looks-like=\"<what PASS looks like>\" [--no-acceptance-gate=\"<reason>\"]" >&2
-    echo "       [--required-level=<unit|http|browser|corpus>] [--criterion-level=<unit|http|browser|corpus>] [--no-level-gate=\"<reason>\"] [--touches=\"<path,path>\"] [--notify]" >&2
+    echo "       [--required-level=<unit|http|browser|corpus>] [--criterion-level=<unit|http|browser|corpus>] [--no-level-gate=\"<reason>\"] [--touches=\"<path,path>\"] [--role=<architect|implement|review|release-gate>] [--notify]" >&2
     exit 2
   }
+
+  bash "$POLICY_TOOL" validate "$role" || exit 2
+  lane_event "$name" run_started role="$role" lane="$laneScript" timeout="$timeoutSecs" acceptance="$acceptanceCmd" pass_looks_like="$passLooksLike" touches="$touches"
 
   # ── criterion-level gate ───────────────────────────────────────────────────
   # This MUST run before the acceptance gate: otherwise "no criterion" or "already
@@ -674,6 +693,14 @@ cmd_run() {
     # after SIGKILL, which is what --wait-grace exists to cover.)
     printf 'lane_finish() {\n'
     printf '  rc=$?\n'
+    printf '  policy_rc=0\n'
+    printf '  if declare -F lane_policy_postcheck >/dev/null 2>&1; then\n'
+    printf '    lane_policy_postcheck %q %q %q || policy_rc=$?\n' "$role" "$touches" "$RUNS/$name.policy.before"
+    printf '  fi\n'
+    printf '  if [ "$policy_rc" -eq 97 ]; then\n'
+    printf '    echo "POLICY_VIOLATION role=%s touches=%s" >> %q\n' "$role" "$touches" "$RUNS/$name.log"
+    printf '    rc=97\n'
+    printf '  fi\n'
     if [ -n "$acceptanceCmd" ]; then
       printf '  LANE_REQUIRED_LEVEL=%q LANE_CRITERION_LEVEL=%q bash %q record %q %q "$rc" %q %q\n' \
         "$requiredLevel" "$criterionLevel" "$absRoot/tools/lane.sh" "$name" "$RUNS/$name.log" "$runId" "$acceptanceCmd"
@@ -681,11 +708,19 @@ cmd_run() {
       printf '  LANE_REQUIRED_LEVEL=%q LANE_CRITERION_LEVEL=%q bash %q record %q %q "$rc" %q\n' \
         "$requiredLevel" "$criterionLevel" "$absRoot/tools/lane.sh" "$name" "$RUNS/$name.log" "$runId"
     fi
+    printf '  [ -n "${LANE_POLICY_DIR:-}" ] && lane_policy_cleanup\n'
     printf '  echo "%s=$rc"\n' "$sentinel"
     printf '}\n'
     # EXIT alone is not enough: bash runs an EXIT trap on a signal only if that signal is
     # trapped, and `script` kills the session when `timeout` fires. Trap them explicitly.
+    printf 'export LANE_EVENT_RUN=%q\n' "$name"
+    printf 'export LANE_RUNS_DIR=%q\n' "$RUNS"
+    printf 'export LANE_POLICY_ROLE=%q\n' "$role"
+    printf 'export LANE_POLICY_TOUCHES=%q\n' "$touches"
+    printf '. %q\n' "$absRoot/tools/lane-policy.sh"
     printf 'trap lane_finish EXIT HUP INT TERM\n'
+    printf 'lane_policy_prepare %q %q\n' "$role" "$touches"
+    printf 'lane_policy_snapshot %q\n' "$RUNS/$name.policy.before"
     printf 'bash %q\n' "$laneScript"
   } > "$runner"
   chmod +x "$runner"
@@ -955,7 +990,17 @@ cmd_status() {
     echo "   mtime:    $(date -r "$log" -Iseconds 2>/dev/null || echo '-')"
     echo "   (a running lane writes nothing until it exits - that is normal, not a hang)"
   fi
+  if [ -f "$RUNS/$name.events.jsonl" ]; then
+    echo "   events:     $RUNS/$name.events.jsonl"
+    python3 "$EVENTS_TOOL" --runs-dir "$RUNS" replay "$name" --json 2>/dev/null | sed 's/^/   /'
+  fi
   echo "   pending:  $(( $(journal_total) - $(cursor_get) )) landing(s) not yet reported to the agent"
+}
+
+cmd_events() {
+  local name="${1:-}"; shift || true
+  [ -n "$name" ] || { echo "usage: tools/lane.sh events <name> [--json]" >&2; exit 2; }
+  python3 "$EVENTS_TOOL" --runs-dir "$RUNS" replay "$name" "$@"
 }
 
 cmd_list() {
@@ -1018,6 +1063,11 @@ cmd_record() {
   # That is the only place a verdict may come from.
   commit_landing "$name" "landed" "$reason" "$log" "$bytes" "$mtime" "$status" "$changed" "$exitCode" "$runId" \
     "$acceptance" "$acceptanceExit" "$acceptanceCmd" "$acceptanceLog" "$requiredLevel" "$criterionLevel"
+
+  lane_event "$name" run_finished state="landed" reason="$reason" exit_code="$exitCode" acceptance="$acceptance" acceptance_exit="$acceptanceExit" log="$log" bytes="$bytes" status_line="$status" changed_files="$changed" run_id="$runId" role="${LANE_POLICY_ROLE:-}"
+  if [ "${exitCode:-}" = "97" ]; then
+    lane_event "$name" policy_violation role="${LANE_POLICY_ROLE:-implement}" touches="${LANE_POLICY_TOUCHES:-}" detail="policy postcheck failed; see $log"
+  fi
 
   echo "[lane record] $name: state=landed reason=$reason exit=$exitCode acceptance=$acceptance bytes=$bytes files=$changed"
 }
@@ -1588,6 +1638,9 @@ case "${1:-}" in
   status)  shift; cmd_status "$@";;
   list)    shift; cmd_list "$@";;
   record)  shift; cmd_record "$@";;
+  events)  shift; cmd_events "$@";;
+  policy-selftest) shift; bash "$POLICY_TOOL" selftest;;
+  events-selftest) shift; python3 -m unittest discover -s "$ROOT/tools/tests" -p 'test_lane_events.py' -v;;
   watchdog) shift; cmd_watchdog "$@";;
   pending) shift; cmd_pending "$@";;
   ack)     shift; cmd_ack "$@";;

@@ -35,6 +35,13 @@
 
 LANE_MODEL_CMD="${LANE_MODEL_CMD:-pi --print --approve}"
 _LANE_MODEL_TOOLS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+_LANE_EVENT_TOOL="$_LANE_MODEL_TOOLS_DIR/lane-events.py"
+_lane_event() {
+  local run="${LANE_EVENT_RUN:-lane}"
+  [ -f "$_LANE_EVENT_TOOL" ] || return 0
+  command -v python3 >/dev/null 2>&1 || return 0
+  python3 "$_LANE_EVENT_TOOL" append "$run" "$@" >/dev/null 2>&1 || true
+}
 MODEL_UNAVAILABLE_PATTERNS="$_LANE_MODEL_TOOLS_DIR/model-unavailable.patterns"
 
 # Remember exhausted models ACROSS runs. Without this, every dispatch rediscovers exhaustion by
@@ -134,6 +141,8 @@ lane_model_run() {
   fi
 
   local models="$1" prompt="$2" prefix="$3"
+  # Event log identity: the lane harness sets this; direct callers fall back to the log prefix.
+  export LANE_EVENT_RUN="${LANE_EVENT_RUN:-$(basename "$prefix")}"
 
   # A list shorter than the canonical chain is the defect that ended the work on
   # 2026-10-03: both models exhausted, nothing continued. This is a WARNING, not a
@@ -216,11 +225,16 @@ lane_model_run() {
       [ "$attempt_cap" -ge 1 ] || attempt_cap=1
       echo "--- attempt ${attempt}/${total}: ${model}; cap=${attempt_cap}s (budget ${LANE_MODEL_BUDGET}s, ${attempts_left} attempts left) ---"
     fi
+    local attempt_started=$SECONDS
+    _lane_event attempt_started model="$model" attempt="$attempt" cap="$attempt_cap"
     # shellcheck disable=SC2086
     timeout --signal=TERM --kill-after=60 "$attempt_cap" \
-      $LANE_MODEL_CMD --model "$model" "$prompt" > "$log" 2>&1
+      $LANE_MODEL_CMD ${LANE_POLICY_PI_FLAGS:-} --model "$model" "$prompt" > "$log" 2>&1
     rc=$?
-    echo "    exit=${rc} log=$(wc -c < "$log" 2>/dev/null || echo 0)b"
+    local log_bytes
+    log_bytes=$(wc -c < "$log" 2>/dev/null || echo 0)
+    echo "    exit=${rc} log=${log_bytes}b"
+    _lane_event attempt_finished model="$model" exit="$rc" log="$log" bytes="$log_bytes" duration="$((SECONDS - attempt_started))"
 
     if [ "$rc" -eq 0 ]; then
       # SUCCESS IS DECIDED BY THE EXIT STATUS ALONE.
@@ -236,6 +250,7 @@ lane_model_run() {
       # to CLASSIFY a failure, never to overrule a success.
       LANE_MODEL_USED="$model"
       LANE_MODEL_LOG="$log"
+      _lane_event model_completed model="$model" log="$log" bytes="$log_bytes"
       echo "=== MODEL THAT COMPLETED: ${model} ==="
       # Clear any recorded outage, and learn how long the last one actually lasted, so the cooldown
       # converges on the provider's real window instead of a hard-coded guess.
@@ -248,11 +263,13 @@ lane_model_run() {
     case "$rc" in
       124|137|143)
         saw_timeout=1
+        _lane_event attempt_failed model="$model" reason="timeout" exit="$rc"
         echo "    timeout: attempt was cut by its ${attempt_cap}s cap"
         ;;
       *)
         if lane_model_unavailable "$log"; then
           saw_unavailable=1
+          _lane_event attempt_failed model="$model" reason="unavailable" exit="$rc"
           echo "    unavailable signature:"
           lane_model_unavailable_line "$log" | head -3
           if command -v model_mark_exhausted >/dev/null 2>&1; then
@@ -260,6 +277,7 @@ lane_model_run() {
             echo "    recorded: ${model} is exhausted; it will be skipped until $(model_reset_hint "$model")"
           fi
         else
+          _lane_event attempt_failed model="$model" reason="crash" exit="$rc"
           echo "    (failed without an unavailability signature - treating as a crash)"
         fi
         ;;
