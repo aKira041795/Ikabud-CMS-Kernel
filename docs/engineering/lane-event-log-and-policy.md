@@ -175,9 +175,28 @@ bash tools/lane-harness-bench.sh   # all harness selftests as one fail-closed ga
 ```
 
 `lane-harness-bench.sh` runs the event-log unit tests, the role-policy selftest, the consult
-provider tests, and the lane wrapper selftest, writing full logs to
-`.ai/runs/harness-bench-<timestamp>/`. It is the benchmark corpus for the harness itself: run it
-when `lane.sh`, `lane-policy.sh`, `lane-events.py`, `consult.py`, or the model chain changes.
+provider tests, the autonomy ledger tests, the bounded repair loop's integration tests, and the
+lane wrapper selftest, writing full logs to `.ai/runs/harness-bench-<timestamp>/`. It is the
+benchmark corpus for the harness itself: run it when `lane.sh`, `lane-policy.sh`,
+`lane-events.py`, `consult.py`, `autonomy-ledger.py`, `lane-autonomy.py`, or the model chain
+changes.
+
+## 6. Autonomy ledger and bounded repair
+
+`tools/autonomy-ledger.py` records task outcomes and reports the autonomy rate; the definition of
+an autonomous task, the record schema, and the `gate`/`merged` requirement are in
+[autonomy-loop.md](autonomy-loop.md).
+
+`tools/lane-autonomy.py` runs a task and then a bounded number of repair attempts, feeding the
+previous attempt's failure bundle back into the next prompt. It stops on a repeated identical
+failure, a policy violation, an exhausted model, or the attempt limit, and it never merges or
+pushes. A zero lane exit without `completion = PASS` is not treated as success.
+
+```bash
+python3 tools/lane-autonomy.py run --task my-task --objective "..." \
+  --acceptance "php tests/my_contract_test.php" --pass-looks-like "prints OK" --max-attempts 2
+python3 tools/autonomy-ledger.py report
+```
 
 ## Tests
 
@@ -186,6 +205,8 @@ tools/lane.sh policy-selftest       # 7 cases: allowed, blocked, path scope, rea
 tools/lane.sh events-selftest       # 8 cases: replay, contradictions, policy exit codes, completion
 tools/lane.sh selftest              # 38 cases: landing detection, attribution, completion gate
 python3 -m unittest discover -s tools/tests -p 'test_consult.py'   # 7 consult provider cases
+python3 -m unittest discover -s tools/tests -p 'test_autonomy_ledger.py'   # 5 ledger cases
+python3 -m unittest discover -s tools/tests -p 'test_lane_autonomy.py'    # 3 repair-loop cases
 bash tools/lane-harness-bench.sh    # all of the above as one gate
 ```
 

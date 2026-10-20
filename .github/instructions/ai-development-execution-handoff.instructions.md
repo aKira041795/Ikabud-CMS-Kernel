@@ -706,6 +706,29 @@ Stop and escalate when:
 
 Prefer escalation over speculative token consumption.
 
+### The bound is a tool, and its outcome is measured
+
+`tools/lane-autonomy.py` implements this section: it runs an implementation lane, verifies the
+fixed acceptance criterion itself, and feeds a compact failure bundle into at most
+`--max-attempts` repair attempts. It stops on a repeated identical acceptance failure, a policy
+violation, an exhausted model, the wall-clock cap, or the attempt limit. A lane that exits zero
+without `completion = PASS` is **not** success.
+
+It never merges, pushes, or runs the release gate. The result is recorded with
+`tools/autonomy-ledger.py`, which reports the autonomy rate. A task counts as autonomous only when
+it is `routine`, has zero owner interventions, `acceptance = PASS`, `gate = PASS`, `merged = true`,
+and was not rolled back. `gate = SKIPPED` deliberately does not count.
+
+Measure before widening the loop:
+
+```bash
+python3 tools/autonomy-ledger.py report
+python3 tools/lane-autonomy.py run --task <id> --objective "..." \
+  --acceptance "<fails now, passes when done>" --pass-looks-like "..." --max-attempts 2
+```
+
+See `docs/engineering/autonomy-loop.md` for the record schema, stop conditions, and exit codes.
+
 ---
 
 # 14. IMPLEMENTATION RESULT

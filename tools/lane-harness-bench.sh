@@ -57,7 +57,17 @@ run_case "lane policy selftest" \
 run_case "consult provider tests" \
   python3 -m unittest discover -s "$ROOT/tools/tests" -p 'test_consult.py'
 
-# 4. The lane wrapper itself: landing detection, duplicate commit, attribution, legacy
+# 4. Autonomy measurement: the ledger's routine/high-risk split, latest-record
+#    precedence, and the rollback rule that removes an autonomous result.
+run_case "autonomy ledger tests" \
+  python3 -m unittest discover -s "$ROOT/tools/tests" -p 'test_autonomy_ledger.py'
+
+# 5. Bounded repair: a stub lane that fails once then passes, identical-failure
+#    detection, and dry-run that spends nothing.
+run_case "lane autonomy repair loop" \
+  python3 -m unittest discover -s "$ROOT/tools/tests" -p 'test_lane_autonomy.py'
+
+# 6. The lane wrapper itself: landing detection, duplicate commit, attribution, legacy
 #    records, non-git workspaces, and now the completion field.
 run_case "lane harness selftest" \
   bash "$ROOT/tools/lane.sh" selftest
