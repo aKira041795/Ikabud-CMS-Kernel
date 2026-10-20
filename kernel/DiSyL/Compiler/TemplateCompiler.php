@@ -40,7 +40,7 @@ class TemplateCompiler
      * changes.  TemplateCache includes this in cache filenames so stale
      * compiled files are automatically bypassed after an upgrade.
      */
-    public const COMPILER_VERSION = 18;
+    public const COMPILER_VERSION = 19;
 
     /**
      * Maximum iterations for unbounded loops ({while} and C-style {for}).
@@ -430,7 +430,7 @@ PHP;
         $code = $this->line("\$__iter = 0;");
         $code .= $this->line("for ({$init}; \$this->isTruthy({$condition}); {$increment}) {");
         $this->indentLevel++;
-        $code .= $this->line("if (++\$__iter > " . self::MAX_LOOP_ITERATIONS . ") { throw new \\RuntimeException('DiSyL loop exceeded max iterations (" . self::MAX_LOOP_ITERATIONS . ")'); }");
+        $code .= $this->line("if (++\$__iter > " . self::MAX_LOOP_ITERATIONS . ") { throw new \\Ikabud\\Kernel\\DiSyL\\Exceptions\\TemplateLoopLimitException('DiSyL loop exceeded max iterations (" . self::MAX_LOOP_ITERATIONS . ")'); }");
 
         if ($node->getBody()) {
             $code .= $this->compileDocument($node->getBody());
@@ -504,7 +504,7 @@ PHP;
         $code = $this->line("\$__iter = 0;");
         $code .= $this->line("while (\$this->isTruthy({$condition})) {");
         $this->indentLevel++;
-        $code .= $this->line("if (++\$__iter > " . self::MAX_LOOP_ITERATIONS . ") { throw new \\RuntimeException('DiSyL while-loop exceeded max iterations (" . self::MAX_LOOP_ITERATIONS . ")'); }");
+        $code .= $this->line("if (++\$__iter > " . self::MAX_LOOP_ITERATIONS . ") { throw new \\Ikabud\\Kernel\\DiSyL\\Exceptions\\TemplateLoopLimitException('DiSyL while-loop exceeded max iterations (" . self::MAX_LOOP_ITERATIONS . ")'); }");
 
         if ($node->getBody()) {
             $code .= $this->compileDocument($node->getBody());

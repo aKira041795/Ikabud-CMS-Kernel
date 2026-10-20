@@ -11,7 +11,8 @@
  * Thrown when a rendered template exceeds the configured output byte budget.
  *
  * This is deliberately a distinct type rather than a bare RuntimeException: the
- * compiled renderer must abort on it (it is a hard safety limit), while every
+ * compiled renderer must abort on it (it is a hard safety limit). The compiled
+ * loop guard has its own TemplateLoopLimitException for the same reason. Every
  * other render failure — an unwritable compiled cache, a read-only release
  * directory, a full disk — must fall back to the interpreted pipeline so a
  * caching problem can never break page rendering (including error pages).

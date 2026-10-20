@@ -543,8 +543,8 @@ class TemplateEngine
                 }
 
                 return $result;
-            } catch (\RuntimeException $e) {
-                throw $e; // re-throw size limit errors
+            } catch (\Ikabud\Kernel\DiSyL\Exceptions\TemplateLoopLimitException|\Ikabud\Kernel\DiSyL\Exceptions\TemplateOutputTooLargeException $e) {
+                throw $e; // Keep hard safety limits hard
             } catch (\Throwable $e) {
                 // Compiled path failed — fall through to interpreted path
                 $this->logError("Compiled render failed, falling back: " . $e->getMessage());
