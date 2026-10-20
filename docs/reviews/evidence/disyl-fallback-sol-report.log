@@ -1,0 +1,8 @@
+Status: **PASS**
+
+- Updated `kernel/DiSyL/TemplateEngine.php` so only `TemplateOutputTooLargeException` aborts compiled rendering; all other `Throwable`s fall back to interpreted rendering.
+- Acceptance: **4 passed, 0 failed**, exit code `0`.
+- Logs:
+  - `storage/logs/error.log`: no new entries.
+  - `storage/logs/app.log`: expected fallback and output-size warning entries from the test.
+- Unresolved: none.

@@ -1,0 +1,229 @@
+DiSyL Interpreted ↔ Compiled Parity Test Suite
+================================================
+
+── 1. Simple variables & auto-escaping ─────────────────────────
+  ✓ plain text passthrough
+  ✓ simple variable
+  ✓ HTML auto-escaping
+  ✓ raw output with |raw filter
+  ✓ multiple variables
+  ✓ missing variable yields empty
+  ✓ numeric variable
+  ✓ boolean true renders as 1
+  ✓ null renders as empty
+   (9/9 passed)
+
+── 2. Dot-path property access ─────────────────────────────────
+  ✓ nested array access
+  ✓ deep nesting
+  ✓ missing nested key
+   (3/3 passed)
+
+── 3. Filters ──────────────────────────────────────────────────
+  ✓ upper filter
+  ✓ lower filter
+  ✓ capitalize filter
+  ✓ trim filter
+  ✓ length filter on string
+  ✓ length filter on array
+  ✓ default filter on null
+  ✓ default filter with value
+  ✓ replace filter
+  ✓ truncate filter
+  ✓ nl2br filter
+  ✓ json filter
+  ✓ chained filters
+  ✓ number_format filter
+  ✓ reverse filter on string
+  ✓ join filter
+  ✓ keys filter
+  ✓ values filter
+  ✓ first filter
+  ✓ last filter
+  ✓ sort filter
+  ✓ unique filter
+  ✓ slice filter
+  ✓ split filter
+  ✓ abs filter
+  ✓ round filter
+  ✓ url_encode filter
+  ✓ striptags filter
+  ✓ wordcount filter
+  ✓ md5 filter
+  ✓ base64 filter
+  ✓ repeat filter
+  ✓ pad_left filter
+  ✓ pad_right filter
+   (34/34 passed)
+
+── 4. Conditions (if / elseif / else) ──────────────────────────
+  ✓ if true
+  ✓ if false
+  ✓ if/else — true branch
+  ✓ if/else — false branch
+  ✓ if with string equality
+  ✓ if with numeric comparison
+  ✓ negation with not
+  ✓ if with AND
+  ✓ if with OR
+  ✓ truthy: empty string is false
+  ✓ truthy: empty array is false
+  ✓ truthy: zero is false
+  ✓ truthy: null is false
+  ✓ truthy: non-empty string is true
+  ✓ truthy: non-empty array is true
+  ✓ if != comparison
+  ✓ if with <=
+  ✓ if with >=
+   (18/18 passed)
+
+── 5. Loops ────────────────────────────────────────────────────
+  ✓ for...in loop
+  ✓ foreach loop
+  ✓ each loop
+  ✓ loop with empty array
+  ✓ loop.first / loop.last
+  ✓ loop.index
+  ✓ loop.length
+  ✓ nested loops
+  ✓ loop over object properties
+   (9/9 passed)
+
+── 6. Set statements ───────────────────────────────────────────
+  ✓ set a string
+  ✓ set a number
+  ✓ set from variable
+   (3/3 passed)
+
+── 7. Arithmetic & ternary ─────────────────────────────────────
+  ✓ addition
+  ✓ subtraction
+  ✓ multiplication
+  ✓ division
+  ✓ modulo
+  ✓ division by zero safe
+   (6/6 passed)
+
+── 8. Comments ─────────────────────────────────────────────────
+  ✓ bang-dash comment
+  ✓ star comment
+  ✓ comment with variable syntax inside
+   (3/3 passed)
+
+── 9. Verbatim & literal blocks ────────────────────────────────
+  ✓ verbatim preserves syntax
+  ✓ literal preserves curlies
+   (2/2 passed)
+
+── 10. Mixed / nested structures ───────────────────────────────
+  ✓ loop with conditional
+  ✓ conditional with filter
+  ✓ variable in loop with filter
+  ✓ set then use in condition
+  ✓ nested if inside if
+   (5/5 passed)
+
+── 11. Escaping edge cases ─────────────────────────────────────
+  ✓ ampersand escaping
+  ✓ quote escaping
+  ✓ single quote escaping
+  ✓ angle bracket escaping
+  ✓ XSS script escaping
+   (5/5 passed)
+
+── 12. Script/style safe output (compiled pipeline) ────────────
+  ✓ script body emits script-escaped value
+  ✓ style body emits script-escaped value
+  ✓ script body escaped inside {if} true branch
+  ✓ script body escaped inside {if} false branch
+  ✓ style body escaped inside {if}
+  ✓ plain HTML expression remains escaped
+  ✓ script opening-tag attribute remains escaped
+  ✓ style opening-tag attribute remains escaped
+  ✓ explicit raw filter unchanged in HTML
+  ✓ explicit esc_html filter unchanged in HTML
+  ✓ filter in script body is escaped by default
+  ✓ explicit esc_html filter escapes in script body
+  ✓ explicit esc_html filter escapes in style body
+  ✓ explicit raw filter stays raw in script body
+  ✓ explicit raw filter stays raw in style body
+  ✓ JS object braces preserved in script
+  ✓ CSS rule braces preserved in style
+  ✓ comment fake script boundary does not suppress HTML escaping
+  ✓ comment fake style boundary does not suppress HTML escaping
+  ✓ verbatim fake script boundary does not suppress HTML escaping
+  ✓ verbatim fake style boundary does not suppress HTML escaping
+  ✓ compiled script body emits escaped bytes
+  ✓ compiled script opening-tag attribute is escaped
+  ✓ compiled style opening-tag attribute is escaped
+  ✓ compiled comment fake script boundary stays escaped
+  ✓ compiled comment fake style boundary stays escaped
+  ✓ compiled verbatim fake script boundary stays escaped
+  ✓ compiled verbatim fake style boundary stays escaped
+  ✓ compiled loop body in script emits escaped bytes
+  ✓ compiled script attr with > keeps expression escaped
+  ✓ compiled style attr with > keeps expression escaped
+  ✓ compiled script attr with > still escapes body
+  ✓ compiled explicit esc_html filter escapes in script body
+  ✓ compiled explicit esc_html filter escapes in style body
+  ✓ compiled explicit raw filter stays raw in script body
+   (35/35 passed)
+
+── 13. E2E TemplateEngine::render() compiled fast path ─────────
+  ✓ e2e compiled render matches interpreted
+  ✓ e2e compiled render is active
+  ✓ e2e compiled cache file written
+  ✓ e2e compiled render without fallback errors
+  ✓ e2e script body escaped bytes survived render()
+  ✓ e2e style body escaped bytes survived render()
+  ✓ e2e surrounding HTML expression stayed escaped
+  ✓ e2e opening-tag attribute stayed escaped
+  ✓ e2e compiled render equals explicit expected output
+  ✓ e2e attr with > stays escaped while body is script-escaped
+  ✓ e2e attr with > render has no fallback errors
+   (11/11 passed)
+
+── 14. compileSource cache identity + cleanup versioning ───────
+  ✓ compiled source executes before cleanup
+  ✓ source cache file exists after compileSource
+  ✓ source cache filename carries current compiler version tag
+  ✓ cleanup removes stale-version cache
+  ✓ cleanup removes only the stale-version file
+  ✓ cleanup retains current-version source cache
+  ✓ current-version source cache remains usable after cleanup
+   (7/7 passed)
+
+── 15. Synthetic {extends} inheritance parity ──────────────────
+  ✓ extends reference: single override wins
+  ✓ extends single-level one overridden block
+  ✓ extends reference: overridden and default blocks
+  ✓ extends several blocks preserve unoverridden default
+  ✓ extends reference: nearest definitions win across levels
+  ✓ extends multi-level nearest-safe-ancestor preservation
+  ✓ extends reference: override evaluates control flow variables and filters
+  ✓ extends override with control flow variables and filters
+  ✓ extends reference: never-overridden layout block renders
+  ✓ extends layout block never overridden
+  ✓ extends cycle A to B to A
+  ✓ extends cycle A to B to A diagnostics
+  ✓ extends self-cycle
+  ✓ extends self-cycle diagnostics
+  ✓ extends chain exercises depth limit
+  ✓ extends chain exercises depth limit diagnostics
+  ✓ extends missing parent
+  ✓ extends missing parent diagnostics
+  ✓ extends reference: inheritance inside included file is allowed
+  ✓ extends inside included file
+  ✓ extends inside included file diagnostics
+  ✓ extends reference: host parent is not consumed by plain include
+  ✓ extends host with plain include has isolated inheritance
+  ✓ extends host with plain include has isolated inheritance diagnostics
+  ✓ host and include resolve different inheritance independently
+  ✓ host and include resolve different inheritance independently diagnostics
+  ✓ nested includes keep every inheritance boundary isolated
+  ✓ nested includes keep every inheritance boundary isolated diagnostics
+   (28/28 passed)
+
+════════════════════════════════════════════════════════════
+PARITY RESULTS: 178/178 passed
+════════════════════════════════════════════════════════════

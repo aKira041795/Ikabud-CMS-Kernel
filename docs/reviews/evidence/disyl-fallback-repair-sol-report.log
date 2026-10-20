@@ -1,0 +1,18 @@
+Status: **PASS**
+
+Changes:
+- Added `TemplateLoopLimitException extends RuntimeException`.
+- Compiled `while` and C-style `for` guards now throw it.
+- Hard loop/output limits are rethrown before generic compiled-render fallback.
+- Bumped compiler version to invalidate stale compiled templates.
+
+Acceptance:
+- Fallback test: **5 passed, 0 failed**
+- Conformance test: **229 passed, 0 failed**
+- Both exited `0`.
+
+Logs:
+- `storage/logs/error.log`: empty.
+- `storage/logs/app.log`: only expected test warnings; no new unexpected errors.
+
+Unresolved: None.

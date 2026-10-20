@@ -1,0 +1,322 @@
+No syntax errors detected in kernel/DiSyL/TemplateEngine.php
+  PASS phase 1: plain partial renders
+  PASS phase 1: plain graph is compiled-eligible
+  PASS phase 1: eligibility decision was persisted
+  PASS phase 2: edited graph is NOT compiled-eligible
+  PASS phase 2: component in the edited partial renders
+  PASS phase 2: no raw component syntax leaks
+  PASS phase 3: plain partial renders after reverting the component
+  PASS phase 3: graph is eligible after reverting the component
+  PASS negative phase 1: component partial renders
+  PASS negative phase 1: component graph is ineligible
+  PASS negative phase 2: graph becomes eligible after the component is removed
+  PASS negative phase 2: plain partial renders
+  PASS phase 4: deleted dependency does not fatal
+  PASS phase 4: page wrapper still renders
+
+OK: 14 passed, 0 failed
+DiSyL compiled component fallback test
+=====================================
+
+  ✓ compiled mode stays enabled in the engine
+  ✓ component-based template renders section markup instead of raw ikb_section text
+  ✓ included component renders badge markup instead of raw ikb_badge text
+
+Passed: 3, Failed: 0
+fixture: pages/_perf-probe.disyl
+compiled mode env: DISYL_COMPILED_MODE=true DISYL_EXTENDS_COMPILED=true
+PASS: the fixture rendered twice — rendered=2 of 2
+PASS: fixture is compiled-eligible (interpreted pipeline did NOT run) — no disyl.compile.phases, so the compiled path is the one under test
+PASS: both compiled renders emit disyl.render.breakdown with cache_path=compiled — 2 line(s) for 2 renders
+
+log lines total: 2
+Total: 3 PASS: 3 FAIL: 0
+
+=== TEMPLATE CACHE SENTINEL ===
+  ✓ writeCache prepends sentinel header
+  ✓ validateCacheFile accepts freshly written cache
+  ✓ validateCacheFile rejects tampered cache body
+  ✓ validateCacheFile rejects cache without sentinel
+  ✓ writeCache normalizes CRLF open tags for validation
+
+══════════════════════════════════════════════════
+  PASS: 5  FAIL: 0
+══════════════════════════════════════════════════
+  ✓ inventory is a JSON array
+  ✓ inventory is non-empty
+  ✓ inventory has 41 entries
+  ✓ has at least one prohibited_application_logic entry
+  ✓ has at least one governed_extension entry
+  ✓ conformance checker exits 0
+  ✓ checker prints counts summary
+  ✓ checker prints lsp summary
+  ✓ checker prints promotion summary
+  ✓ checker prints poc5 green line
+  ✓ checker reports no disagreements
+  ✓ EBNF contains rule expression
+  ✓ EBNF contains rule variable
+  ✓ EBNF contains rule filter
+  ✓ EBNF contains rule arithmetic
+  ✓ EBNF contains rule ternary
+  ✓ EBNF contains rule set_stmt
+  ✓ EBNF contains rule postfix_stmt
+  ✓ EBNF contains rule if_block
+  ✓ EBNF contains rule foreach_block
+  ✓ EBNF contains rule for_block
+  ✓ EBNF contains rule while_block
+  ✓ EBNF contains rule verbatim_block
+  ✓ EBNF contains rule literal_block
+  ✓ EBNF contains rule block_def
+  ✓ EBNF contains rule extends_stmt
+  ✓ EBNF contains rule include_stmt
+  ✓ EBNF contains rule math_tag
+  ✓ EBNF contains rule macro_def
+  ✓ EBNF contains rule component_tag
+  ✓ EBNF contains rule comment
+  ✓ inventory maps rule expression
+  ✓ inventory maps rule variable
+  ✓ inventory maps rule filter
+  ✓ inventory maps rule arithmetic
+  ✓ inventory maps rule ternary
+  ✓ inventory maps rule set_stmt
+  ✓ inventory maps rule postfix_stmt
+  ✓ inventory maps rule if_block
+  ✓ inventory maps rule foreach_block
+  ✓ inventory maps rule for_block
+  ✓ inventory maps rule while_block
+  ✓ inventory maps rule verbatim_block
+  ✓ inventory maps rule literal_block
+  ✓ inventory maps rule block_def
+  ✓ inventory maps rule extends_stmt
+  ✓ inventory maps rule include_stmt
+  ✓ inventory maps rule math_tag
+  ✓ inventory maps rule macro_def
+  ✓ inventory maps rule component_tag
+  ✓ inventory maps rule comment
+  ✓ arithmetic-basic has valid resource_limit
+  ✓ arithmetic-basic resource_limit not-applicable is justified in notes
+  ✓ arithmetic-basic lsp:true is not prohibited
+  ✓ arithmetic-basic lsp:true resolves to a known LSP surface
+  ✓ bitwise-and has valid resource_limit
+  ✓ bitwise-and resource_limit not-applicable is justified in notes
+  ✓ bitwise-and lsp:true is not prohibited
+  ✓ bitwise-and lsp:true resolves to a known LSP surface
+  ✓ bitwise-shift-left has valid resource_limit
+  ✓ bitwise-shift-left resource_limit not-applicable is justified in notes
+  ✓ bitwise-shift-left lsp:true is not prohibited
+  ✓ bitwise-shift-left lsp:true resolves to a known LSP surface
+  ✓ bitwise-shift-right has valid resource_limit
+  ✓ bitwise-shift-right resource_limit not-applicable is justified in notes
+  ✓ bitwise-shift-right lsp:true is not prohibited
+  ✓ bitwise-shift-right lsp:true resolves to a known LSP surface
+  ✓ bitwise-xor has valid resource_limit
+  ✓ bitwise-xor resource_limit not-applicable is justified in notes
+  ✓ bitwise-xor lsp:true is not prohibited
+  ✓ bitwise-xor lsp:true resolves to a known LSP surface
+  ✓ block-define has valid resource_limit
+  ✓ block-define resource_limit not-applicable is justified in notes
+  ✓ block-define lsp:true is not prohibited
+  ✓ block-define lsp:true resolves to a known LSP surface
+  ✓ break-stmt has valid resource_limit
+  ✓ break-stmt resource_limit not-applicable is justified in notes
+  ✓ break-stmt lsp:false has explicit justification
+  ✓ comment-strip has valid resource_limit
+  ✓ comment-strip resource_limit not-applicable is justified in notes
+  ✓ comment-strip lsp:false has explicit justification
+  ✓ component-tag has valid resource_limit
+  ✓ component-tag resource_limit not-applicable is justified in notes
+  ✓ component-tag lsp:true is not prohibited
+  ✓ component-tag lsp:true resolves to a known LSP surface
+  ✓ compound-assignment has valid resource_limit
+  ✓ compound-assignment resource_limit not-applicable is justified in notes
+  ✓ compound-assignment lsp:true is not prohibited
+  ✓ compound-assignment lsp:true resolves to a known LSP surface
+  ✓ continue-stmt has valid resource_limit
+  ✓ continue-stmt resource_limit not-applicable is justified in notes
+  ✓ continue-stmt lsp:false has explicit justification
+  ✓ expression-output has valid resource_limit
+  ✓ expression-output resource_limit not-applicable is justified in notes
+  ✓ expression-output lsp:true is not prohibited
+  ✓ expression-output lsp:true resolves to a known LSP surface
+  ✓ extends-stmt has valid resource_limit
+  ✓ extends-stmt resource_limit not-applicable is justified in notes
+  ✓ extends-stmt lsp:true is not prohibited
+  ✓ extends-stmt lsp:true resolves to a known LSP surface
+  ✓ filter-chain has valid resource_limit
+  ✓ filter-chain resource_limit not-applicable is justified in notes
+  ✓ filter-chain lsp:true is not prohibited
+  ✓ filter-chain lsp:true resolves to a known LSP surface
+  ✓ for-c-style has valid resource_limit
+  ✓ for-c-style lsp:true is not prohibited
+  ✓ for-c-style lsp:true resolves to a known LSP surface
+  ✓ for-in has valid resource_limit
+  ✓ for-in lsp:true is not prohibited
+  ✓ for-in lsp:true resolves to a known LSP surface
+  ✓ foreach-basic has valid resource_limit
+  ✓ foreach-basic lsp:true is not prohibited
+  ✓ foreach-basic lsp:true resolves to a known LSP surface
+  ✓ foreach-else has valid resource_limit
+  ✓ foreach-else lsp:true is not prohibited
+  ✓ foreach-else lsp:true resolves to a known LSP surface
+  ✓ if-elseif-else has valid resource_limit
+  ✓ if-elseif-else resource_limit not-applicable is justified in notes
+  ✓ if-elseif-else lsp:true is not prohibited
+  ✓ if-elseif-else lsp:true resolves to a known LSP surface
+  ✓ include-stmt has valid resource_limit
+  ✓ include-stmt resource_limit not-applicable is justified in notes
+  ✓ include-stmt lsp:true is not prohibited
+  ✓ include-stmt lsp:true resolves to a known LSP surface
+  ✓ json-decode has valid resource_limit
+  ✓ json-decode resource_limit not-applicable is justified in notes
+  ✓ json-decode lsp:true is not prohibited
+  ✓ json-decode lsp:true resolves to a known LSP surface
+  ✓ json-encode has valid resource_limit
+  ✓ json-encode resource_limit not-applicable is justified in notes
+  ✓ json-encode lsp:true is not prohibited
+  ✓ json-encode lsp:true resolves to a known LSP surface
+  ✓ keyof has valid resource_limit
+  ✓ keyof resource_limit not-applicable is justified in notes
+  ✓ keyof lsp:false has explicit justification
+  ✓ literal-block has valid resource_limit
+  ✓ literal-block resource_limit not-applicable is justified in notes
+  ✓ literal-block lsp:true is not prohibited
+  ✓ literal-block lsp:true resolves to a known LSP surface
+  ✓ macro-def has valid resource_limit
+  ✓ macro-def resource_limit not-applicable is justified in notes
+  ✓ macro-def lsp:true is not prohibited
+  ✓ macro-def lsp:true resolves to a known LSP surface
+  ✓ math-tag has valid resource_limit
+  ✓ math-tag resource_limit not-applicable is justified in notes
+  ✓ math-tag lsp:true is not prohibited
+  ✓ math-tag lsp:true resolves to a known LSP surface
+  ✓ null-coalesce has valid resource_limit
+  ✓ null-coalesce resource_limit not-applicable is justified in notes
+  ✓ null-coalesce lsp:true is not prohibited
+  ✓ null-coalesce lsp:true resolves to a known LSP surface
+  ✓ postfix-stmt has valid resource_limit
+  ✓ postfix-stmt resource_limit not-applicable is justified in notes
+  ✓ postfix-stmt lsp:true is not prohibited
+  ✓ postfix-stmt lsp:true resolves to a known LSP surface
+  ✓ prohibited-arbitrary-php has valid resource_limit
+  ✓ prohibited-arbitrary-php resource_limit not-applicable is justified in notes
+  ✓ prohibited-arbitrary-php lsp:false has explicit justification
+  ✓ prohibited-error-suppression has valid resource_limit
+  ✓ prohibited-error-suppression resource_limit not-applicable is justified in notes
+  ✓ prohibited-error-suppression lsp:false has explicit justification
+  ✓ prohibited-instanceof has valid resource_limit
+  ✓ prohibited-instanceof resource_limit not-applicable is justified in notes
+  ✓ prohibited-instanceof lsp:false has explicit justification
+  ✓ prohibited-nullsafe-property has valid resource_limit
+  ✓ prohibited-nullsafe-property resource_limit not-applicable is justified in notes
+  ✓ prohibited-nullsafe-property lsp:false has explicit justification
+  ✓ prohibited-php-concat-dot has valid resource_limit
+  ✓ prohibited-php-concat-dot resource_limit not-applicable is justified in notes
+  ✓ prohibited-php-concat-dot lsp:false has explicit justification
+  ✓ prohibited-spaceship has valid resource_limit
+  ✓ prohibited-spaceship resource_limit not-applicable is justified in notes
+  ✓ prohibited-spaceship lsp:false has explicit justification
+  ✓ set-basic has valid resource_limit
+  ✓ set-basic resource_limit not-applicable is justified in notes
+  ✓ set-basic lsp:true is not prohibited
+  ✓ set-basic lsp:true resolves to a known LSP surface
+  ✓ set-typed has valid resource_limit
+  ✓ set-typed resource_limit not-applicable is justified in notes
+  ✓ set-typed lsp:true is not prohibited
+  ✓ set-typed lsp:true resolves to a known LSP surface
+  ✓ string-concat has valid resource_limit
+  ✓ string-concat resource_limit not-applicable is justified in notes
+  ✓ string-concat lsp:true is not prohibited
+  ✓ string-concat lsp:true resolves to a known LSP surface
+  ✓ ternary-basic has valid resource_limit
+  ✓ ternary-basic resource_limit not-applicable is justified in notes
+  ✓ ternary-basic lsp:true is not prohibited
+  ✓ ternary-basic lsp:true resolves to a known LSP surface
+  ✓ variable-path has valid resource_limit
+  ✓ variable-path resource_limit not-applicable is justified in notes
+  ✓ variable-path lsp:true is not prohibited
+  ✓ variable-path lsp:true resolves to a known LSP surface
+  ✓ verbatim-block has valid resource_limit
+  ✓ verbatim-block resource_limit not-applicable is justified in notes
+  ✓ verbatim-block lsp:true is not prohibited
+  ✓ verbatim-block lsp:true resolves to a known LSP surface
+  ✓ while-loop has valid resource_limit
+  ✓ while-loop lsp:true is not prohibited
+  ✓ while-loop lsp:true resolves to a known LSP surface
+  ✓ all 31 lsp:true entries resolved
+  ✓ all 10 lsp:false entries justified
+  ✓ resource_limit bounded count is 5
+  ✓ resource_limit not-applicable count is 36
+  ✓ coding-standards job contains strict proof lane gate
+  ✓ prohibited-arbitrary-php token is not recognized by LSP block/keyword/component surface
+  ✓ prohibited-error-suppression token is not recognized by LSP block/keyword/component surface
+  ✓ prohibited-instanceof token is not recognized by LSP block/keyword/component surface
+  ✓ prohibited-nullsafe-property token is not recognized by LSP block/keyword/component surface
+  ✓ prohibited-php-concat-dot token is not recognized by LSP block/keyword/component surface
+  ✓ prohibited-spaceship token is not recognized by LSP block/keyword/component surface
+  ✓ TemplateEngine while guard contains 10000
+  ✓ TemplateEngine for guard contains 10000
+  ✓ TemplateCompiler exposes MAX_LOOP_ITERATIONS
+  ✓ TemplateCompiler while loop throw contains 100000
+  ✓ IncludeResolver include-pass guard exists
+  ✓ Parser depth guard exists
+  ✓ ExtendsProcessor chain-depth guard exists
+  ✓ Sandbox CPU default exists
+  ✓ Sandbox memory default exists
+  ✓ Sandbox pop resource check exists
+  ✓ interpreted unbounded while completes
+  ✓ interpreted unbounded while returns empty output
+  ✓ compiled unbounded while throws RuntimeException
+  ✓ compiled unbounded while message mentions max iterations
+  ✓ checker emits promotion matrix lines for all entries
+  ✓ promotion summary counts all entries
+  ✓ promotion summary has zero partial entries
+  ✓ promotion summary promotes all entries including prohibited justified entries
+
+Summary: 229 passed, 0 failed
+resource_guard_log: interpreted_guard_logged=yes
+counts: declarative_core=19 governed_extension=16 compatibility_only=0 prohibited_application_logic=6
+lsp: block=10 keyword=5 component=1 expression=15 prohibited_not_blessed=6 not_applicable=10 disagreements=0
+promotion_matrix: id=arithmetic-basic docs=pass dual_mode=pass ebnf=pass inventory=pass lsp=pass resource_limit=not_applicable promoted=yes
+promotion_matrix: id=bitwise-and docs=pass dual_mode=pass ebnf=pass inventory=pass lsp=pass resource_limit=not_applicable promoted=yes
+promotion_matrix: id=bitwise-shift-left docs=pass dual_mode=pass ebnf=pass inventory=pass lsp=pass resource_limit=not_applicable promoted=yes
+promotion_matrix: id=bitwise-shift-right docs=pass dual_mode=pass ebnf=pass inventory=pass lsp=pass resource_limit=not_applicable promoted=yes
+promotion_matrix: id=bitwise-xor docs=pass dual_mode=pass ebnf=pass inventory=pass lsp=pass resource_limit=not_applicable promoted=yes
+promotion_matrix: id=block-define docs=pass dual_mode=pass ebnf=pass inventory=pass lsp=pass resource_limit=not_applicable promoted=yes
+promotion_matrix: id=break-stmt docs=pass dual_mode=pass ebnf=pass inventory=pass lsp=not_applicable resource_limit=not_applicable promoted=yes
+promotion_matrix: id=comment-strip docs=pass dual_mode=pass ebnf=pass inventory=pass lsp=not_applicable resource_limit=not_applicable promoted=yes
+promotion_matrix: id=component-tag docs=pass dual_mode=pass ebnf=pass inventory=pass lsp=pass resource_limit=not_applicable promoted=yes
+promotion_matrix: id=compound-assignment docs=pass dual_mode=pass ebnf=pass inventory=pass lsp=pass resource_limit=not_applicable promoted=yes
+promotion_matrix: id=continue-stmt docs=pass dual_mode=pass ebnf=pass inventory=pass lsp=not_applicable resource_limit=not_applicable promoted=yes
+promotion_matrix: id=expression-output docs=pass dual_mode=pass ebnf=pass inventory=pass lsp=pass resource_limit=not_applicable promoted=yes
+promotion_matrix: id=extends-stmt docs=pass dual_mode=pass ebnf=pass inventory=pass lsp=pass resource_limit=not_applicable promoted=yes
+promotion_matrix: id=filter-chain docs=pass dual_mode=pass ebnf=pass inventory=pass lsp=pass resource_limit=not_applicable promoted=yes
+promotion_matrix: id=for-c-style docs=pass dual_mode=pass ebnf=pass inventory=pass lsp=pass resource_limit=pass promoted=yes
+promotion_matrix: id=for-in docs=pass dual_mode=pass ebnf=pass inventory=pass lsp=pass resource_limit=pass promoted=yes
+promotion_matrix: id=foreach-basic docs=pass dual_mode=pass ebnf=pass inventory=pass lsp=pass resource_limit=pass promoted=yes
+promotion_matrix: id=foreach-else docs=pass dual_mode=pass ebnf=pass inventory=pass lsp=pass resource_limit=pass promoted=yes
+promotion_matrix: id=if-elseif-else docs=pass dual_mode=pass ebnf=pass inventory=pass lsp=pass resource_limit=not_applicable promoted=yes
+promotion_matrix: id=include-stmt docs=pass dual_mode=pass ebnf=pass inventory=pass lsp=pass resource_limit=not_applicable promoted=yes
+promotion_matrix: id=json-decode docs=pass dual_mode=pass ebnf=pass inventory=pass lsp=pass resource_limit=not_applicable promoted=yes
+promotion_matrix: id=json-encode docs=pass dual_mode=pass ebnf=pass inventory=pass lsp=pass resource_limit=not_applicable promoted=yes
+promotion_matrix: id=keyof docs=pass dual_mode=pass ebnf=pass inventory=pass lsp=not_applicable resource_limit=not_applicable promoted=yes
+promotion_matrix: id=literal-block docs=pass dual_mode=pass ebnf=pass inventory=pass lsp=pass resource_limit=not_applicable promoted=yes
+promotion_matrix: id=macro-def docs=pass dual_mode=pass ebnf=pass inventory=pass lsp=pass resource_limit=not_applicable promoted=yes
+promotion_matrix: id=math-tag docs=pass dual_mode=pass ebnf=pass inventory=pass lsp=pass resource_limit=not_applicable promoted=yes
+promotion_matrix: id=null-coalesce docs=pass dual_mode=pass ebnf=pass inventory=pass lsp=pass resource_limit=not_applicable promoted=yes
+promotion_matrix: id=postfix-stmt docs=pass dual_mode=pass ebnf=pass inventory=pass lsp=pass resource_limit=not_applicable promoted=yes
+promotion_matrix: id=prohibited-arbitrary-php docs=pass dual_mode=not_applicable ebnf=pass inventory=pass lsp=not_applicable resource_limit=not_applicable promoted=yes
+promotion_matrix: id=prohibited-error-suppression docs=pass dual_mode=not_applicable ebnf=pass inventory=pass lsp=not_applicable resource_limit=not_applicable promoted=yes
+promotion_matrix: id=prohibited-instanceof docs=pass dual_mode=not_applicable ebnf=pass inventory=pass lsp=not_applicable resource_limit=not_applicable promoted=yes
+promotion_matrix: id=prohibited-nullsafe-property docs=pass dual_mode=not_applicable ebnf=pass inventory=pass lsp=not_applicable resource_limit=not_applicable promoted=yes
+promotion_matrix: id=prohibited-php-concat-dot docs=pass dual_mode=not_applicable ebnf=pass inventory=pass lsp=not_applicable resource_limit=not_applicable promoted=yes
+promotion_matrix: id=prohibited-spaceship docs=pass dual_mode=not_applicable ebnf=pass inventory=pass lsp=not_applicable resource_limit=not_applicable promoted=yes
+promotion_matrix: id=set-basic docs=pass dual_mode=pass ebnf=pass inventory=pass lsp=pass resource_limit=not_applicable promoted=yes
+promotion_matrix: id=set-typed docs=pass dual_mode=pass ebnf=pass inventory=pass lsp=pass resource_limit=not_applicable promoted=yes
+promotion_matrix: id=string-concat docs=pass dual_mode=pass ebnf=pass inventory=pass lsp=pass resource_limit=not_applicable promoted=yes
+promotion_matrix: id=ternary-basic docs=pass dual_mode=pass ebnf=pass inventory=pass lsp=pass resource_limit=not_applicable promoted=yes
+promotion_matrix: id=variable-path docs=pass dual_mode=pass ebnf=pass inventory=pass lsp=pass resource_limit=not_applicable promoted=yes
+promotion_matrix: id=verbatim-block docs=pass dual_mode=pass ebnf=pass inventory=pass lsp=pass resource_limit=not_applicable promoted=yes
+promotion_matrix: id=while-loop docs=pass dual_mode=pass ebnf=pass inventory=pass lsp=pass resource_limit=pass resource_runtime=pass promoted=yes
+promotion: promoted=41 partial=0
+poc5: lane_green=YES source_guards=PASS runtime_proof_interpreted=PASS runtime_proof_compiled=PASS
+disagreements: none

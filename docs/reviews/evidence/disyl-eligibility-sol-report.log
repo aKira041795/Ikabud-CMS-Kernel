@@ -1,0 +1,20 @@
+Status: **PASS**
+
+Changed `kernel/DiSyL/TemplateEngine.php`:
+- Bumped `COMPILED_ELIGIBILITY_CACHE_VERSION` from 4 to 5.
+- Persisted visited template paths and mtimes in eligibility JSON.
+- Validated every persisted dependency before cache reuse.
+- Recomputes eligibility when a dependency changes or is missing.
+- Preserved existing eligibility logic and cache-path scheme.
+
+Acceptance:
+```text
+OK: 14 passed, 0 failed
+```
+
+Logs checked:
+- Expected warning for the deleted test dependency.
+- `error.log` contains PHP 8.5 deprecation notices from the test’s `ReflectionMethod::setAccessible()` call.
+- No implementation errors found.
+
+Unresolved: None.
