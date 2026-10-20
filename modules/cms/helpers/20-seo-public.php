@@ -198,6 +198,21 @@ function cmsDefaultSeoHeadHtml(array $content = []): string
 
 // ── CMS Sitemap ─────────────────────────────────────────────────────
 
+function cmsSitemapPathForType(string $type, string $slug): string
+{
+    if ($type === 'post') {
+        return '/cms/blog/' . $slug;
+    }
+    if ($type === 'page') {
+        return '/cms/page/' . $slug;
+    }
+    if ($type === 'product') {
+        return '/ecommerce/shop/' . $slug;
+    }
+
+    return '/cms/' . $type . '/' . $slug;
+}
+
 function cmsBuildSitemapUrls(): array
 {
     $appUrl = external_base_url((string)app()->config('app.url', ''));
@@ -223,7 +238,7 @@ function cmsBuildSitemapUrls(): array
             $type = (string)($r['type'] ?? 'post');
             $slug = (string)($r['slug'] ?? '');
             if ($slug === '' || $appUrl === '') continue;
-            $path = $type === 'page' ? '/cms/page/' . $slug : '/cms/blog/' . $slug;
+            $path = cmsSitemapPathForType($type, $slug);
             $last = (string)($r['updated_at'] ?? $r['published_at'] ?? '');
             $lastmod = $last !== '' ? gmdate('Y-m-d', strtotime($last)) : gmdate('Y-m-d');
             $urls[] = [
