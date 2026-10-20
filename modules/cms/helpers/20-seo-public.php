@@ -323,7 +323,7 @@ function cmsStructuredDataJsonLd(array $content): string
         if ($canonical !== '') $data['url'] = $canonical;
     }
 
-    $json = json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+    $json = json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
     if ($json === false) return '';
 
     return '<script type="application/ld+json">' . "\n" . $json . "\n" . '</script>';
