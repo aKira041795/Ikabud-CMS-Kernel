@@ -87,9 +87,9 @@ model's.
 
 - P0: commit `580063e9`; ledger `cms-jsonld-xss` = routine, acceptance PASS, gate PASS, merged, 0
   interventions, 1 attempt.
-- P1/P2: see the commit that adds `cmsSitemapPathForType` and the four theme links; ledger
-  `cms-public-output-gaps` (logical task, 2 attempts) and its clean rerun `cms-public-output-gaps-r1`
-  (1 attempt) are both acceptance PASS, gate PASS, merged, 0 owner interventions.
+- P1/P2: commit `408a1a21`; ledger `cms-public-output-gaps` (logical task, 2 attempts) and its clean
+  rerun `cms-public-output-gaps-r1` (1 attempt) are both acceptance PASS, gate PASS, merged, 0 owner
+  interventions.
 - Autonomy ledger: 3 entries — 2 logical tasks plus the clean rerun — all autonomous, rate 100% on the
   targeted CMS gate. The full application release gate was not run.
 
