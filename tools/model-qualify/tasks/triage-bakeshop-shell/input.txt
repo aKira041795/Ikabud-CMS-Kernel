@@ -1,0 +1,54 @@
+TEST RUN - bakeshop module (PHP integration suite)
+
+  OK  admin page renders quick-start panel
+  OK  admin page renders branch-first workflow copy
+  OK  admin page uses bakeshop shell instead of kernel admin
+  OK  admin dashboard renders summary report
+  OK  admin dashboard keeps work areas visible
+  OK  admin dashboard renders workspace submenu deep links
+  FAIL dashboard work area tabs preserve applied report scope
+  OK  focused workspace mode updates shell title
+  OK  focused workspace mode hides dashboard overview panels
+  OK  focused workspace mode exposes contextual title targets
+  OK  focused workspace tabs expose contextual header metadata
+  OK  focused workspace mode defaults shell submenu to branches
+  OK  work-area pages use contextual description in shell header
+  OK  work-area pages no longer use generic shell description
+  OK  work-area pages hide dashboard quick-start panel
+  OK  work-area pages hide dashboard summary report
+  OK  work-area pages keep workspace tabs visible
+  FAIL admin pages preserve scoped workspace return links
+  OK  history filters map back into workspace scope links
+  OK  settings page renders branding section
+  OK  settings page renders store branding fields
+  OK  settings page renders branding save action
+  OK  settings page renders logo upload controls
+
+  FAIL shell sidebar uses configured store name -- assertion received:
+  <!DOCTYPE html>
+  <html lang="en">
+  <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Bakeshop Operations</title>
+      <link rel="icon" href="/uploads/bakeshop/north-oven.png">
+      <style>
+      /* shell CSS (truncated) */
+      </style>
+  </head>
+  <body>
+      <!-- truncated -->
+  </body>
+  </html>
+
+FAIL SUMMARY
+  - dashboard work area tabs preserve applied report scope
+  - admin pages preserve scoped workspace return links
+  - shell sidebar uses configured store name
+
+NOTES FROM THE RUN
+  - All three failures are in the same module and the same request path: the
+    module shell is rendered on all three pages.
+  - Every assertion that inspects a page FRAGMENT passes.
+  - The settings branding value is genuinely saved: the save-action test passes
+    and the settings page itself renders the configured store name.

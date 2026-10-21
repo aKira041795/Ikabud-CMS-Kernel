@@ -1,0 +1,99 @@
+{
+    "version": 1,
+    "why": "Model qualification corpus. A model is QUALIFIED for a class only when every task in that class passes its check inside its budget. The checks are deterministic - no judge model - so a verdict is reproducible and costs nothing to re-run. Adding a model (cloud, local, or fine-tuned later) means adding a row to a report, never editing tools/model-chain.txt.",
+    "classes": {
+        "advisory-triage": "Read a failure bundle and name the shared root cause, the broken layer, and one confirming check. No code edits.",
+        "mechanical-edit": "Produce one corrected PHP function that satisfies an executable behavioral check.",
+        "repair-loop": "Read a failing acceptance report plus the source, and return a file that turns every listed case green. Larger and closer to lane work than mechanical-edit: several functions, several defects, one shot."
+    },
+    "tasks": [
+        {
+            "id": "triage-bakeshop-shell",
+            "class": "advisory-triage",
+            "gating": false,
+            "why_not_gating": "A text rubric can reject a correct answer for its phrasing, and accept a plausible wrong one. The first real run proved both directions: the 1.5B answer named 'render cache' while inventing a sidebar mechanism (would pass a loose rubric), and a correct cloud answer was failed for not containing the word 'tabs'. Judgement work therefore SCREENS; it does not certify. Only executable checks gate a class.",
+            "prompt": "tasks/triage-bakeshop-shell/prompt.md",
+            "input": "tasks/triage-bakeshop-shell/input.txt",
+            "budget": {
+                "max_wall_seconds": 600,
+                "max_output_tokens": 500
+            },
+            "rubric": {
+                "max_words": 300,
+                "must_include_all_of": [
+                    [
+                        "\\bcach(e|ed|ing)\\b",
+                        "\\bstale\\b",
+                        "\\brender path\\b",
+                        "wrong (template|view|page)"
+                    ],
+                    [
+                        "\\bcache\\b",
+                        "\\btemplate\\b",
+                        "render"
+                    ],
+                    [
+                        "rerun|re-run|run (only )?those",
+                        "(clear|bypass|flush|invalidate|purge)[^.]{0,40}cach",
+                        "cach[^.]{0,40}(clear|bypass|flush|invalidate|purge)"
+                    ]
+                ],
+                "must_exclude": [
+                    "(css|stylesheet)[^.]{0,40}not (being )?applied",
+                    "(css|stylesheet)\\s+(is|was)\\s+(the\\s+)?(issue|problem|cause|root cause)",
+                    "branding (is )?not (being )?persist",
+                    "\\bdata\\b[^.]{0,25}(\\blayer\\b is (wrong|broken)|not being persisted)"
+                ]
+            },
+            "max_prompt_tokens": 950
+        },
+        {
+            "id": "edit-php-identifier-guard",
+            "class": "mechanical-edit",
+            "prompt": "tasks/edit-php-identifier-guard/prompt.md",
+            "input": "tasks/edit-php-identifier-guard/input.txt",
+            "budget": {
+                "max_wall_seconds": 420,
+                "max_output_tokens": 700
+            },
+            "check": {
+                "extract": "fenced:php",
+                "commands": [
+                    {
+                        "run": "php -l {file}",
+                        "expect_exit": 0
+                    },
+                    {
+                        "run": "php tools/model-qualify/checks/identifier_guard.php {file}",
+                        "expect_exit": 0
+                    }
+                ]
+            },
+            "max_prompt_tokens": 250
+        },
+        {
+            "id": "repair-sheet-helpers",
+            "class": "repair-loop",
+            "prompt": "tasks/repair-sheet-helpers/prompt.md",
+            "input": "tasks/repair-sheet-helpers/input.txt",
+            "budget": {
+                "max_wall_seconds": 600,
+                "max_output_tokens": 900
+            },
+            "check": {
+                "extract": "fenced:php",
+                "commands": [
+                    {
+                        "run": "php -l {file}",
+                        "expect_exit": 0
+                    },
+                    {
+                        "run": "php tools/model-qualify/checks/sheet_helpers.php {file}",
+                        "expect_exit": 0
+                    }
+                ]
+            },
+            "max_prompt_tokens": 750
+        }
+    ]
+}

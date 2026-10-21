@@ -1,0 +1,23 @@
+```php
+function slugify(string $title): string
+{
+    $slug = strtolower($title);
+    $slug = str_replace(' ', '-', $slug);
+    return $slug;
+}
+
+function paginate(int $total, int $perPage, int $page): array
+{
+    $offset = ($page - 1) * $perPage;
+    return [
+        'offset' => $offset,
+        'limit'  => $perPage,
+        'pages'  => (int) ($total / $perPage),
+    ];
+}
+
+function formatMoney(float $amount, string $currency = 'PHP'): string
+{
+    return $currency . number_format($amount, 2);
+}
+```

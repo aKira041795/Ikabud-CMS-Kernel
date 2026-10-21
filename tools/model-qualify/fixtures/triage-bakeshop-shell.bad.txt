@@ -1,0 +1,10 @@
+1. ROOT CAUSE: The branding is not being persisted to the database. The settings save handler is
+likely failing silently, so the store name is empty and the sidebar has nothing to render.
+
+2. EVIDENCE: The failures all involve data that comes from the database. If the value never reaches
+the database, every page that reads it will be wrong.
+
+3. LAYER: Data. The handler is not writing the branding row.
+
+4. NEXT STEP: Inspect the bakeshop_settings table and confirm whether a branding row exists for this
+tenant.

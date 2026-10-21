@@ -1,0 +1,13 @@
+1. ROOT CAUSE: The shared bakeshop shell is being served from a stale or under-keyed render cache.
+The cached shell lacks request-specific data: configured store name, applied report scope, and
+scoped return links. Page fragments render fresh, so their assertions pass.
+
+2. EVIDENCE: "All three failures are in the same module and the same request path: the module shell
+is rendered on all three pages." Also, "Every assertion that inspects a page FRAGMENT passes," and
+the settings page renders the configured store name while the shell sidebar does not.
+
+3. LAYER: Render cache. Data and handler are working because branding is saved and the settings page
+shows it.
+
+4. NEXT STEP: Clear or bypass the shell/render cache, then rerun only those three tests. If they
+pass, the shell cache key or invalidation is confirmed as the cause.
