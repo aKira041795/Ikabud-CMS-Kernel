@@ -2267,10 +2267,18 @@
 
 {if can_view_production_management}
 <!-- Dispatch to Branch -->
-<div class="card mt-6">
+<div class="print-hidden" style="margin-top: 1.5rem;">
+    <button type="button" class="btn btn-primary" onclick="openDispatchEntry()">New Delivery (DR)</button>
+    <span class="text-sm text-muted" style="margin-left: .75rem;">Records a delivery to a branch against a DR number.</span>
+</div>
+
+<div id="dispatch-backdrop" class="fixed inset-0 z-40 bg-black/40 print-hidden" style="display: none;" onclick="closeDispatchEntry()"></div>
+
+<div class="card" id="dispatch-panel" style="display: none; position: fixed; z-index: 50; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(64rem, 95vw); max-height: 90vh; overflow: auto;">
     <div class="card-header">
         <span>Dispatch to Branch</span>
         <span class="text-sm text-muted">Select a destination branch, enter DR number, fill quantities for products on hand</span>
+        <button type="button" class="btn btn-outline btn-sm print-hidden" style="margin-left: auto;" onclick="closeDispatchEntry()">Close</button>
     </div>
     <div class="card-body">
         {if cumulative_stock | count == 0}
@@ -3040,6 +3048,20 @@
         }).catch(function(err) {
             showToast(err.message || 'Save failed', 'error');
         }).finally(function() { button.disabled = false; });
+    }
+
+    function openDispatchEntry() {
+        var panel = document.getElementById('dispatch-panel');
+        var backdrop = document.getElementById('dispatch-backdrop');
+        if (panel) { panel.style.display = 'block'; }
+        if (backdrop) { backdrop.style.display = 'block'; }
+    }
+
+    function closeDispatchEntry() {
+        var panel = document.getElementById('dispatch-panel');
+        var backdrop = document.getElementById('dispatch-backdrop');
+        if (panel) { panel.style.display = 'none'; }
+        if (backdrop) { backdrop.style.display = 'none'; }
     }
 
     function submitDispatch() {
