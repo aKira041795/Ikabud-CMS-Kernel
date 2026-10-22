@@ -9332,6 +9332,20 @@ function apiSaveCashierWithdrawals(array $params = []): void
         $ctx->json(['ok' => false, 'error' => 'Invalid withdrawal type'], 422);
         return;
     }
+    // Owner 2026-10-22: `adjustment_add` (Add Stock) and `own_production` create stock with no
+    // delivery and no paper DR. That is the bypass cashiers were using INSTEAD of encoding a DR
+    // number, so the per-branch switch closes exactly these two types for cashiers. Charge,
+    // pullout, used and correction are untouched - they are outflows and corrections, not
+    // stock conjured without a paper trail. Admin and supervisor always keep the bypass.
+    if (in_array($type, ['adjustment_add', 'own_production'], true)
+        && !dl_canAddStockWithoutPaperDr($user, (int)$branchId)) {
+        $ctx->json([
+            'ok' => false,
+            'error' => 'Adding stock without a paper DR is disabled for this branch. Receive it against a paper DR instead.',
+            'code' => 'PAPERLESS_DR_DISABLED',
+        ], 403);
+        return;
+    }
     // Resolved AFTER the type: own production carries its own AM/PM choice (the
     // shift the stock was produced in, not necessarily the viewer's); every
     // other type keeps the shift lock. See dl_resolveWithdrawalShift().
@@ -10077,10 +10091,6 @@ function apiCreateCashierDispatch(array $params = []): void
         return;
     }
     $originBranchId = (int)$authResult['branch_id'];
-    if (!dl_canUsePaperDr($user, $originBranchId)) {
-        $ctx->json(['ok' => false, 'error' => 'Paper DR is disabled for this branch.', 'code' => 'PAPER_DR_DISABLED'], 403);
-        return;
-    }
     $shiftResolved = dl_resolveLedgerShift($user, $input);
     $shift = $shiftResolved['shift'];
     $requestedReceivingShift = $input['receiving_shift'] ?? null;
@@ -10889,10 +10899,6 @@ function apiReceivePaperDelivery(array $params = []): void
         return;
     }
     $destinationBranchId = (int)$authResult['branch_id'];
-    if (!dl_canUsePaperDr($user, $destinationBranchId)) {
-        $ctx->json(['ok' => false, 'error' => 'Paper DR is disabled for this branch.', 'code' => 'PAPER_DR_DISABLED'], 403);
-        return;
-    }
     if ($idempotencyKey !== '') {
         $cached = dl_loadIdempotentResponse('receive_paper_dr', $idempotencyKey);
         if ($cached !== null) {

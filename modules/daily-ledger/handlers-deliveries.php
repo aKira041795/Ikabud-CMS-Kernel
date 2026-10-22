@@ -43,6 +43,49 @@ if (!function_exists('dl_branchPaperDrEnabled')) {
     }
 }
 
+if (!function_exists('dl_branchPaperlessDrEnabled')) {
+    /**
+     * Whether cashiers at this branch may add stock WITHOUT a paper DR (Stock Adjustment →
+     * Add Stock / own production). Reads dl_branches.paper_dr_enabled, which keeps its legacy
+     * column name but means "paperless allowed" - 1 (the default) is today's behaviour.
+     *
+     * Fail-open TRUE: an unreadable flag must never block a path that works today.
+     * Never memoised - the acceptance test flips it inside a single request.
+     */
+    function dl_branchPaperlessDrEnabled(int $branchId): bool
+    {
+        if ($branchId <= 0) {
+            return true;
+        }
+        try {
+            $ctx = module();
+            if (!$ctx) {
+                return true;
+            }
+            $stmt = $ctx->db()->prepare('SELECT paper_dr_enabled FROM dl_branches WHERE id = :id LIMIT 1');
+            $stmt->execute([':id' => $branchId]);
+            $value = $stmt->fetchColumn();
+            if ($value === false) {
+                return true;
+            }
+            return (int)$value === 1;
+        } catch (\Throwable $e) {
+            return true;
+        }
+    }
+}
+
+if (!function_exists('dl_canAddStockWithoutPaperDr')) {
+    /** Admin and supervisor always keep it; cashiers follow the branch switch. */
+    function dl_canAddStockWithoutPaperDr(array $user, int $branchId): bool
+    {
+        if (in_array((string)($user['role'] ?? ''), ['admin', 'supervisor'], true)) {
+            return true;
+        }
+        return dl_branchPaperlessDrEnabled($branchId);
+    }
+}
+
 if (!function_exists('dl_canUsePaperDr')) {
     function dl_canUsePaperDr(array $user, int $branchId): bool
     {
@@ -2661,10 +2704,6 @@ function apiGetDeliveryByDrForEdit(array $params = []): void
         return;
     }
     $branchId = (int)$authResult['branch_id'];
-    if (!dl_canUsePaperDr($user, $branchId)) {
-        $ctx->json(['ok' => false, 'error' => 'Paper DR is disabled for this branch.', 'code' => 'PAPER_DR_DISABLED'], 403);
-        return;
-    }
     $drNumber = trim((string)($_GET['dr_number'] ?? ''));
     if ($branchId <= 0 || $drNumber === '') {
         $ctx->json(['ok' => false, 'error' => 'branch and dr_number are required.'], 422);
@@ -2734,10 +2773,9 @@ function apiEditDeliveryByDr(array $params = []): void
         $ctx->json(['ok' => false, 'error' => 'No branch assigned.'], 422);
         return;
     }
-    if (!dl_canUsePaperDr($user, $branchId)) {
-        $ctx->json(['ok' => false, 'error' => 'Paper DR is disabled for this branch.', 'code' => 'PAPER_DR_DISABLED'], 403);
-        return;
-    }
+
+    // Paper DR is ALWAYS available (owner 2026-10-22): the per-branch switch governs the
+    // PAPERLESS stock-in path (Add Stock / own production), never the paper-DR path.
     $drNumber = trim((string)($input['dr_number'] ?? ''));
     $reason = trim((string)($input['reason'] ?? ''));
     $rawItems = is_array($input['items'] ?? null) ? $input['items'] : [];
