@@ -14,7 +14,7 @@
                  x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
                  x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
                  @click.away="closeModal()"
-                 class="relative transform overflow-hidden rounded-lg bg-white px-4 pb-4 pt-5 text-left shadow-xl transition-all sm:my-8 w-full sm:max-w-3xl sm:p-6">
+                 class="relative transform overflow-hidden rounded-lg bg-white px-4 pb-4 pt-5 text-left shadow-xl transition-all sm:my-8 w-full sm:max-w-5xl sm:p-6">
 
                 <div>
                     <h3 class="text-lg font-semibold leading-6 text-gray-900" id="receive-modal-title">Receive Stock</h3>
@@ -110,87 +110,82 @@
                         <p class="mt-2 text-[11px] leading-5 text-gray-500">If the correct DR shows up below, use <span class="font-semibold text-gray-700">Receive Now</span>. Only use the Paper DR entry when nothing appears here.</p>
                     </div>
 
-                    <div class="space-y-3 max-h-[60vh] overflow-y-auto">
-                        <template x-for="(g, gi) in filteredDeliveries" :key="g.group_key">
-                            <div class="rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
-                                <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
-                                    <div>
-                                        <div class="inline-flex items-center rounded-lg bg-slate-900 px-3 py-1.5 font-mono text-sm font-semibold tracking-[0.18em] text-white shadow-sm" x-text="g.dr_number || 'NO DR'"></div>
-                                        <div class="text-xs text-gray-500">
-                                            From <span class="font-medium" x-text="g.origin_branch_name"></span>
-                                            &middot; <span x-text="g.ledger_date"></span>
-                                        </div>
-                                        <template x-if="g.provenance_status === 'none'">
-                                            <div class="mt-1 text-xs text-gray-700">
-                                                Sent by: <span class="font-semibold" x-text="g.dispatching_cashier_name || 'not recorded (historical)'"></span>
-                                            </div>
-                                        </template>
-                                        <template x-if="g.provenance_status === 'paper_dr_pending'">
-                                            <div class="mt-1 text-xs font-semibold text-amber-800">
-                                                not electronically dispatched - captured from paper DR
-                                            </div>
-                                        </template>
-                                    </div>
-                                    <div class="flex items-center gap-2">
-                                        <template x-if="isPartial(g)">
-                                            <span class="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700 ring-1 ring-inset ring-amber-200">Partial</span>
-                                        </template>
-                                        <button type="button"
-                                                class="btn btn-primary"
-                                                x-bind:disabled="busyKey === g.group_key || hasInvalidCorrection(g)"
-                                                x-effect="$el.disabled = busyKey === g.group_key || hasInvalidCorrection(g) || !canAcceptGroup(g)"
-                                                @click="acceptGroup(g)">
-                                            <span x-text="busyKey === g.group_key ? 'Receiving...' : 'Receive Now'"></span>
-                                        </button>
-                                    </div>
-                                </div>
-                                <template x-if="declaredReceivingShiftFor(g)">
-                                    <div class="mb-3 rounded-md border p-2 text-xs leading-5"
-                                         :class="receiptShiftMismatch(g) ? 'border-amber-300 bg-amber-50 text-amber-900' : 'border-indigo-200 bg-indigo-50 text-indigo-900'">
-                                        <div><span class="font-semibold">Sender expected receiving shift:</span> <span x-text="declaredReceivingShiftFor(g)"></span></div>
-                                        <div><span class="font-semibold">This receipt posts to:</span> <span x-text="receivingShift || 'not selected'"></span><span x-show="receivingShift"> shift</span></div>
-                                        <p x-show="receiptShiftMismatch(g)" class="mt-1 font-semibold">
-                                            Note: the sender expected <span x-text="declaredReceivingShiftFor(g)"></span>; this receipt posts to <span x-text="receivingShift"></span>. You can still receive it.
-                                        </p>
-                                    </div>
-                                </template>
-                                <div class="mb-3 rounded-md border border-amber-200 bg-amber-50 p-2">
-                                    <label class="block text-xs font-semibold text-amber-900 mb-1">Production shift *</label>
-                                    <select x-model="g.production_shift" class="form-input mt-0 w-full sm:w-40">
-                                        <option value="">-- Select --</option>
-                                        <option value="AM">AM</option>
-                                        <option value="PM">PM</option>
-                                    </select>
-                                    <p class="mt-1 text-[11px] text-amber-800">Prefilled from the dispatch when known. Correct it if the paper DR differs.</p>
-                                </div>
-                                <p class="mb-2 text-xs font-medium text-slate-600">Confirm as sent, or correct the received qty if it differs.</p>
-                                <table class="w-full text-sm">
-                                    <thead class="text-xs uppercase text-gray-500">
-                                        <tr>
-                                            <th class="text-left py-1">Product</th>
-                                            <th class="text-right py-1 pr-2">Sent</th>
-                                            <th class="text-right py-1">Received</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <template x-for="it in g.items" :key="it.id">
-                                            <tr class="border-t border-gray-100">
-                                                <td class="py-1 text-gray-800" x-text="it.product_name"></td>
-                                                <td class="py-1 text-right pr-2 text-gray-500" x-text="it.quantity"></td>
-                                                <td class="py-1 text-right">
+                    <div class="max-h-[60vh] overflow-y-auto rounded-lg border border-gray-200 bg-white">
+                        <table class="w-full text-sm">
+                            <thead class="sticky top-0 z-10 bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
+                                <tr>
+                                    <th class="px-2 py-2 text-left">DR Number</th>
+                                    <th class="px-2 py-2 text-left">Branch / Commissary</th>
+                                    <th class="px-2 py-2 text-left">Items</th>
+                                    <th class="px-2 py-2 text-right">Qty (received / sent)</th>
+                                    <th class="px-2 py-2 text-left">Shift</th>
+                                    <th class="px-2 py-2 text-right">Receive</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {* One row per DR so the whole backlog is scannable instead of one tall
+                                   card per delivery (branch 8 carried 219 pending rows on 2026-10-22).
+                                   Each row carries its own Receive button and is completed on its own
+                                   click - there is no bulk action, because these rows post stock and a
+                                   mistaken mass-receipt could not be undone. Quantities stay editable
+                                   per line inside the Qty cell; an untouched value is a match. *}
+                                <template x-for="(g, gi) in filteredDeliveries" :key="g.group_key">
+                                    <tr class="border-t border-gray-100 align-top hover:bg-gray-50">
+                                        <td class="px-2 py-2">
+                                            <div class="inline-flex items-center rounded bg-slate-900 px-2 py-0.5 font-mono text-xs font-semibold tracking-[0.14em] text-white" x-text="g.dr_number || 'NO DR'"></div>
+                                            <div class="mt-1 text-[11px] text-gray-500" x-text="g.ledger_date"></div>
+                                            <template x-if="g.provenance_status === 'none'">
+                                                <div class="text-[11px] text-gray-600">Sent by <span class="font-semibold" x-text="g.dispatching_cashier_name || 'not recorded'"></span></div>
+                                            </template>
+                                            <template x-if="g.provenance_status === 'paper_dr_pending'">
+                                                <div class="text-[11px] font-semibold text-amber-800">paper DR</div>
+                                            </template>
+                                        </td>
+                                        <td class="px-2 py-2 text-gray-800" x-text="g.origin_branch_name"></td>
+                                        <td class="px-2 py-2">
+                                            <template x-for="it in g.items" :key="'n' + it.id">
+                                                <div class="text-xs text-gray-800" x-text="it.product_name"></div>
+                                            </template>
+                                            <template x-if="isPartial(g)">
+                                                <span class="mt-1 inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700 ring-1 ring-inset ring-amber-200">Partial</span>
+                                            </template>
+                                        </td>
+                                        <td class="px-2 py-2">
+                                            <template x-for="it in g.items" :key="'q' + it.id">
+                                                <div class="flex items-center justify-end gap-1">
                                                     <input type="number"
-                                                           class="w-20 rounded border border-gray-300 px-2 py-0.5 text-right text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                                           class="w-16 rounded border border-gray-300 px-1.5 py-0.5 text-right text-sm focus:border-indigo-500 focus:ring-indigo-500"
                                                            :min="0"
                                                            :value="receivedQty(g, it)"
                                                            placeholder="Count"
                                                            @input="setReceivedQty(g, it, $event.target.value)">
-                                                </td>
-                                            </tr>
-                                        </template>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </template>
+                                                    <span class="text-[11px] text-gray-400" x-text="'of ' + it.quantity"></span>
+                                                </div>
+                                            </template>
+                                        </td>
+                                        <td class="px-2 py-2">
+                                            <select x-model="g.production_shift" class="form-input mt-0 w-20 py-0.5 text-xs">
+                                                <option value="">--</option>
+                                                <option value="AM">AM</option>
+                                                <option value="PM">PM</option>
+                                            </select>
+                                            <template x-if="receiptShiftMismatch(g)">
+                                                <div class="mt-1 text-[10px] font-semibold text-amber-800" title="The sender expected a different receiving shift. You can still receive it.">shift differs</div>
+                                            </template>
+                                        </td>
+                                        <td class="px-2 py-2 text-right">
+                                            <button type="button"
+                                                    class="btn btn-primary btn-sm"
+                                                    x-bind:disabled="busyKey === g.group_key || hasInvalidCorrection(g)"
+                                                    x-effect="$el.disabled = busyKey === g.group_key || hasInvalidCorrection(g) || !canAcceptGroup(g)"
+                                                    @click="acceptGroup(g)">
+                                                <span x-text="busyKey === g.group_key ? 'Receiving…' : 'Receive'"></span>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
                     </div>
 
                     <div class="mt-4 rounded-lg border border-indigo-200 bg-indigo-50 p-3">
