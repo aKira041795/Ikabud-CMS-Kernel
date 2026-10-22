@@ -17,7 +17,21 @@
                  class="relative transform overflow-hidden rounded-lg bg-white px-4 pb-4 pt-5 text-left shadow-xl transition-all sm:my-8 w-full sm:max-w-5xl sm:p-6">
 
                 <div>
-                    <h3 class="text-lg font-semibold leading-6 text-gray-900" id="receive-modal-title">Receive Stock</h3>
+                    {* Three ways out — this X, the footer Close, and clicking outside — all call
+                       closeModal(), so the ledger refresh can never be skipped by picking a
+                       different exit. The refresh is what posts the received quantities into
+                       the Addt'l column behind the modal. *}
+                    <div class="flex items-start justify-between gap-3">
+                        <h3 class="text-lg font-semibold leading-6 text-gray-900" id="receive-modal-title">Receive Stock</h3>
+                        <button type="button"
+                                class="-mr-1 -mt-1 rounded-md p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                @click="closeModal()"
+                                aria-label="Close receive stock">
+                            <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                <path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" />
+                            </svg>
+                        </button>
+                    </div>
                     <p class="text-sm text-gray-500 mb-4">Use this when stock is arriving into this branch. Receiving adds the accepted quantity to today's <span class="font-semibold">Addt'l</span> column.</p>
                     <div class="mb-4 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-700">
                         Two simple options live here: <span class="font-semibold">receive an already encoded transfer</span>, or if the truck arrived first, <span class="font-semibold">enter the paper DR and receive it now</span>. Use the second option only when no pending system record exists yet.
@@ -358,6 +372,7 @@ function receiveModal() {
         paperOpen: false,
         paperSaving: false,
         receivingShift: (window.SHIFT || ''),
+        receivedAny: false,
         products: [],
         paperForm: {
             origin_type: 'commissary',
@@ -397,7 +412,19 @@ function receiveModal() {
             this.load();
         },
 
-        closeModal() { this.isOpen = false; },
+        closeModal() {
+            this.isOpen = false;
+            // The page behind the modal (Addt'l column, incoming badge) is refreshed here
+            // and NOT on each receipt: refreshMainContent() swaps the whole main region, so
+            // calling it mid-session would tear the open modal down and defeat receiving
+            // several DRs in a row.
+            if (this.receivedAny) {
+                this.receivedAny = false;
+                if (typeof window.refreshMainContent === 'function') {
+                    window.refreshMainContent();
+                }
+            }
+        },
 
         resetPaperForm() {
             this.paperForm = {
@@ -781,11 +808,11 @@ function receiveModal() {
                 this.busyKey = '';
                 if (data && data.ok) {
                     showToast('Delivery received (' + (data.received_count || 0) + ' items)', 'success');
-                    // Remove this group from the list
+                    // Drop ONLY the received row and stay open: one truck often carries
+                    // several DRs, and closing after each one made the cashier reopen the
+                    // modal and re-find their place for every delivery.
                     this.deliveries = this.deliveries.filter(function(x) { return x.group_key !== g.group_key; });
-                    this.closeModal();
-                    // Refresh ledger rows so Addt'l column updates
-                    window.refreshMainContent();
+                    this.receivedAny = true;
                 } else {
                     this.errorMsg = (data && data.error) || 'Failed to receive delivery.';
                 }
