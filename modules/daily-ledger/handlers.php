@@ -23866,15 +23866,20 @@ function apiCommissaryDispatch(): void
                 $commissaryNames[$cid] = $comm['name'];
             }
 
-            // Check cumulative stock
-            $cumulativeStmt = $db->prepare(
-                'SELECT SUM(produced_qty - dispatched_qty) AS cumulative_remaining
+            // Available stock is the CURRENT ledger balance, not net production surplus.
+            // SUM(produced - dispatched) ignores carried beginnings and wastage, so a
+            // commissary that holds stock as a beginning could never dispatch it: product 22
+            // held 3 (beg 5, dispatched 2) while this check reported "Available: 0" and
+            // refused, which blocked a legitimate dispatch outright.
+            $balanceStmt = $db->prepare(
+                'SELECT (beg_qty + produced_qty - dispatched_qty - wastage_qty) AS balance
                    FROM dl_commissary_product_ledger
                   WHERE commissary_branch_id = :cb AND product_id = :pid
-                  HAVING cumulative_remaining > 0'
+                  ORDER BY ledger_date DESC, shift DESC
+                  LIMIT 1'
             );
-            $cumulativeStmt->execute([':cb' => $cid, ':pid' => $pid]);
-            $cumulativeRemaining = (int)($cumulativeStmt->fetchColumn() ?: 0);
+            $balanceStmt->execute([':cb' => $cid, ':pid' => $pid]);
+            $cumulativeRemaining = (int)($balanceStmt->fetchColumn() ?: 0);
             if ($cumulativeRemaining < $qty) {
                 throw new RuntimeException('Insufficient commissary stock for product #' . $pid . '. Available: ' . $cumulativeRemaining . ', requested: ' . $qty . '.');
             }

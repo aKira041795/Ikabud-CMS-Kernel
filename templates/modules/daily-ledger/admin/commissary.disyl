@@ -3097,6 +3097,12 @@
         var selected = select && select.options[select.selectedIndex];
         var destinationId = parseInt((selected || {}).value || '0', 10) || 0;
         var destinationType = (selected && selected.getAttribute('data-type')) || 'branch';
+        // Injected rows describe ONE destination's sheet, so they are cleared FIRST - before
+        // the row list is captured. Capturing first left stale references to rows that had
+        // just been removed, and they were counted twice in the status line.
+        Array.prototype.slice.call(document.querySelectorAll('tr.dispatch-injected-row')).forEach(function(tr) {
+            tr.remove();
+        });
         var rows = Array.prototype.slice.call(document.querySelectorAll('.dispatch-qty-input')).map(function(input) {
             return { input: input, row: input.closest('tr') };
         });
@@ -3104,11 +3110,6 @@
         rows.forEach(function(entry) {
             entry.input.value = '';
             if (entry.row) entry.row.style.display = '';
-        });
-        // Injected rows describe ONE destination's sheet, so they must not survive a
-        // destination change and leak into the next one.
-        Array.prototype.slice.call(document.querySelectorAll('tr.dispatch-injected-row')).forEach(function(tr) {
-            tr.remove();
         });
         if (destinationId <= 0) {
             if (statusEl) statusEl.textContent = '';
