@@ -101,7 +101,7 @@
                         <label class="block text-xs font-medium text-gray-600 mb-1">Find by Paper DR Number</label>
                         <input type="text"
                                x-model="drFilter"
-                               placeholder="Enter the paper DR number"
+                               placeholder="DR number of an already-encoded transfer (no paper DR)">
                                class="w-full rounded-md border-2 border-indigo-300 bg-indigo-50 px-3 py-2.5 font-mono text-base font-semibold uppercase tracking-[0.18em] text-indigo-950 placeholder:text-sm placeholder:font-medium placeholder:normal-case placeholder:tracking-normal placeholder-indigo-400 focus:border-indigo-500 focus:ring-indigo-500"
                                autocomplete="off">
                         <template x-if="drFilter.trim() && filteredDeliveries.length === 0 && !loading">
