@@ -693,10 +693,22 @@
                 "tenant_scoped": true
             },
             "effects": [
-                {"step": "http.request", "category": "http"},
-                {"step": "authorization.checked", "category": "capability"},
-                {"step": "state.changed-or-rejected", "category": "service"},
-                {"step": "http.response", "category": "http"}
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
             ]
         },
         {

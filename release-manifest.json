@@ -1,7 +1,7 @@
 {
     "schema": "ikabud-release-manifest/1",
-    "generated_at": "2026-09-28T07:30:30+00:00",
-    "commit": "40fc62664d664b5d5f48c29a60ec72c720f06d8d",
+    "generated_at": "2026-10-22T07:17:37+00:00",
+    "commit": "3374ae09312833106bdfbdbe8447afbe1b6da045",
     "kernel_version": "6.1.0",
     "disyl_version": "4.8.0",
     "php_version": "^8.2",
@@ -11,8 +11,8 @@
     ],
     "modules": 36,
     "routes": 141,
-    "migrations": 369,
-    "templates": 555,
-    "tests": 524,
-    "assertions": 6617
+    "migrations": 404,
+    "templates": 558,
+    "tests": 661,
+    "assertions": 2767
 }
