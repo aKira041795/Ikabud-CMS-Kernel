@@ -164,38 +164,47 @@
 
 <div class="settings-section" id="settings-branch-switches">
     <h3>Branch operating switches</h3>
-    <p>Per-branch only. Paper DR controls whether cashiers at that branch may dispatch, receive and correct deliveries by DR. Whole-day shift makes the branch use one AM ledger row for the entire business day and auto-close it.</p>
-    <div class="card">
-        <div class="card-header">
-            <h3 class="text-sm font-semibold text-slate-900">Paper DR and shift mode</h3>
-            <p class="text-xs text-slate-500 mt-1">Admin and supervisor always keep paper DR regardless of the switch. Shift mode can only change before the branch's first ledger row of the business day.</p>
+    <p>Paper DR controls whether cashiers at a branch may dispatch, receive and correct deliveries by DR. Whole-day shift makes a branch use one AM ledger row for the entire business day and auto-close it. Both apply per branch.</p>
+    <button type="button" class="btn btn-outline" onclick="openBranchSwitches()">Manage branch switches</button>
+</div>
+
+<div class="modal-overlay" id="branch-switches-modal" onclick="if (event.target === this) { closeBranchSwitches(); }">
+    <div class="modal branch-modal">
+        <div class="branch-modal__header">
+            <h3 class="mb-1">Branch operating switches</h3>
+            <p class="text-sm text-gray-500">Per branch only. Admin and supervisor always keep paper DR regardless of the switch. Shift mode can only change before the branch's first ledger row of the business day.</p>
         </div>
-        <div class="table-responsive">
-            <table class="table">
-                <thead>
-                    <tr>
-                        <th>Branch</th>
-                        <th>Paper DR</th>
-                        <th>Single cashier shift (whole day)</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {foreach branch_switches as b}
-                    <tr>
-                        <td>
-                            {b.name}
-                            {if b.is_commissary}<span class="badge badge-neutral ml-2">Commissary</span>{/if}
-                        </td>
-                        <td>
-                            <input type="checkbox" class="toggle" data-branch-id="{b.id}" data-branch-flag="paper_dr_enabled" onchange="dlToggleBranchFlag(this)" {if b.paper_dr_enabled}checked{/if}>
-                        </td>
-                        <td>
-                            <input type="checkbox" class="toggle" data-branch-id="{b.id}" data-branch-flag="single_shift_mode" onchange="dlToggleBranchFlag(this)" {if b.single_shift_mode}checked{/if}>
-                        </td>
-                    </tr>
-                    {/foreach}
-                </tbody>
-            </table>
+        <div class="branch-modal__body" style="max-height: 70vh; overflow-y: auto;">
+            <div class="table-responsive">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Branch</th>
+                            <th>Paper DR</th>
+                            <th>Single cashier shift (whole day)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {foreach branch_switches as b}
+                        <tr>
+                            <td>
+                                {b.name}
+                                {if b.is_commissary}<span class="badge badge-neutral ml-2">Commissary</span>{/if}
+                            </td>
+                            <td>
+                                <input type="checkbox" class="toggle" data-branch-id="{b.id}" data-branch-flag="paper_dr_enabled" onchange="dlToggleBranchFlag(this)" {if b.paper_dr_enabled}checked{/if}>
+                            </td>
+                            <td>
+                                <input type="checkbox" class="toggle" data-branch-id="{b.id}" data-branch-flag="single_shift_mode" onchange="dlToggleBranchFlag(this)" {if b.single_shift_mode}checked{/if}>
+                            </td>
+                        </tr>
+                        {/foreach}
+                    </tbody>
+                </table>
+            </div>
+            <div class="flex justify-end mt-4">
+                <button type="button" class="btn btn-outline" onclick="closeBranchSwitches()">Close</button>
+            </div>
         </div>
     </div>
 </div>
@@ -1026,6 +1035,14 @@
             btn.disabled = false;
             btn.textContent = 'Generate Backup Now';
         });
+    }
+
+    function openBranchSwitches() {
+        document.getElementById('branch-switches-modal').classList.add('show');
+    }
+
+    function closeBranchSwitches() {
+        document.getElementById('branch-switches-modal').classList.remove('show');
     }
 
     // Per-branch operating switches (Paper DR / whole-day shift). Flags-only endpoint:
