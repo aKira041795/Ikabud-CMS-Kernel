@@ -164,7 +164,7 @@
 
 <div class="settings-section" id="settings-branch-switches">
     <h3>Branch operating switches</h3>
-    <p>Paper DR controls whether cashiers at a branch may dispatch, receive and correct deliveries by DR. Whole-day shift makes a branch use one AM ledger row for the entire business day and auto-close it. Both apply per branch.</p>
+    <p>No paper DR controls whether cashiers at a branch may add stock (Add Stock / own production) without encoding a paper DR number. When off, stock must be received against a paper DR. Whole-day shift makes a branch use one AM ledger row for the entire business day and auto-close it. Both apply per branch.</p>
     <button type="button" class="btn btn-outline" onclick="openBranchSwitches()">Manage branch switches</button>
 </div>
 
@@ -172,7 +172,7 @@
     <div class="modal branch-modal" style="max-width: 1100px; width: 95%;">
         <div class="branch-modal__header">
             <h3 class="mb-1">Branch operating switches</h3>
-            <p class="text-sm text-gray-500">Per branch only. Admin and supervisor always keep paper DR regardless of the switch. Shift mode can only change before the branch's first ledger row of the business day.</p>
+            <p class="text-sm text-gray-500">Per branch only. Paper DR itself is always available. Admin and supervisor can always add stock without a paper DR. Shift mode can only change before the branch's first ledger row of the business day.</p>
         </div>
         <div class="branch-modal__body" style="max-height: 70vh; overflow-y: auto;">
             <div class="flex flex-wrap items-center gap-3 mb-3">
@@ -191,7 +191,7 @@
                         <tr>
                             <th>Select</th>
                             <th>Branch</th>
-                            <th>Paper DR</th>
+                            <th>No paper DR (add stock)</th>
                             <th>Single cashier shift (whole day)</th>
                         </tr>
                     </thead>
