@@ -42,6 +42,10 @@
         .form-input { margin-top: .25rem; height: 2.5rem; display: block; width: 100%; border-radius: 3px; border: 1px solid rgb(203 213 225); background: #fff; padding: .5rem .75rem; font-size: .75rem; color: rgb(15 23 42); box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
         /* Keep in step with layouts/app.disyl: one control height across every view. */
         textarea.form-input { height: auto; }
+        /* The dispatch submit sits in a column of .form-input controls. .btn has neither the
+           4px top margin nor the 40px height of an input, so on its own it renders 4px high
+           and 3px short and the row reads as a staircase. Match the input's metrics exactly. */
+        #dispatch-panel #submit-dispatch { margin-top: .25rem; height: 2.5rem; }
         /* Keep in step with layouts/app.disyl: one radius, 3px, across every view. Universal because
            this page's own rules below set 999px, so a utility list would not be enough. */
         * { border-radius: 3px !important; }
@@ -2287,7 +2291,7 @@
         </div>
         {/if}
         {if cumulative_stock | count > 0}
-        <div class="grid grid-cols-1 gap-3 md:grid-cols-4 items-end mb-4">
+        <div class="grid grid-cols-1 gap-3 md:grid-cols-4 items-start mb-2">
             <div class="form-group mb-0">
                 <label class="form-label">Destination Branch</label>
                 <select id="dispatch-dest-branch-id" class="form-input" onchange="dispatchPrefillForBranch()">
@@ -2317,11 +2321,15 @@
                 </select>
                 <p class="mt-1 text-xs text-gray-500">The receiver sees this shift and your name against the DR.</p>
             </div>
-            <div class="flex items-center gap-2">
+            <div class="form-group mb-0">
+                {* The button column gets an invisible label so its top edge matches the
+                   labelled inputs beside it. Without it the button floats at the top of
+                   the row while every input starts one label-height lower. *}
+                <label class="form-label invisible" aria-hidden="true">&nbsp;</label>
                 <button type="button" class="btn btn-primary" id="submit-dispatch" onclick="submitDispatch()">Dispatch to Branch</button>
-                <span id="dispatch-status" class="text-sm text-muted"></span>
             </div>
         </div>
+        <div id="dispatch-status" class="text-sm text-muted mb-3" style="min-height: 1.25rem;"></div>
         <div class="border rounded-lg overflow-hidden">
             <table class="mb-0">
                 <thead class="bg-gray-50">
