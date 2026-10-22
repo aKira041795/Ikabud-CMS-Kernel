@@ -46,6 +46,12 @@
            4px top margin nor the 40px height of an input, so on its own it renders 4px high
            and 3px short and the row reads as a staircase. Match the input's metrics exactly. */
         #dispatch-panel #submit-dispatch { margin-top: .25rem; height: 2.5rem; }
+        /* The production action bar carries a date picker, a shift toggle and six buttons in a
+           column narrower than their combined width. Flex shrank them and wrapped their labels,
+           producing two button heights (26px and 44px) in a single row that read as
+           misalignment. Labels never wrap; the BAR wraps instead. */
+        #production-actions { flex-wrap: wrap; }
+        #production-actions .btn { white-space: nowrap; }
         /* Keep in step with layouts/app.disyl: one radius, 3px, across every view. Universal because
            this page's own rules below set 999px, so a utility list would not be enough. */
         * { border-radius: 3px !important; }
@@ -1763,7 +1769,7 @@
                 " id="production-day-status">{day_status}</span>
                 <div class="text-xs text-gray-500">BEG + ADDTL − TOTAL − WASTAGE = ACTUAL BAL</div>
             </div>
-            <div class="flex items-center gap-2 print-hidden">
+            <div id="production-actions" class="flex items-center gap-2 print-hidden">
                 {* The day + shift controls are ONE block, identical in both views. They used to be gated on
                    !can_view_production_management, which handed the operator the controls beside the cells while
                    the ADMIN — the role that edits beginnings — had only the filter form at the top of the page:
@@ -1786,7 +1792,14 @@
                 {if can_view_production_management && shift_status == 'finalized'}<button type="button" class="btn btn-accent btn-sm" onclick="reopenProductionShift()">Reopen Shift</button>{/if}
                 {if can_close_day && day_status != 'closed'}<button type="button" class="btn btn-accent btn-sm" id="production-close-day" onclick="closeProductionDay()">Close Day</button>{/if}
                 {if can_reopen_day && day_status == 'closed'}<button type="button" class="btn btn-accent btn-sm" id="production-reopen-day" onclick="reopenProductionDay()">Reopen Day</button>{/if}
-                <button type="button" class="btn btn-accent btn-sm" onclick="window.print()">Print Daily Sheet</button>
+                {* New Delivery sits beside Print Daily Sheet (owner 2026-10-22). The two are
+                   grouped as ONE flex item so a wrap can never separate them: the bar is
+                   narrower than its contents, and without the group the dispatch button
+                   stayed on row 1 while Print fell alone to row 2. *}
+                <span class="inline-flex items-center gap-2">
+                    {if can_view_production_management}<button type="button" class="btn btn-primary btn-sm" onclick="openDispatchEntry()" title="Records a delivery to a branch against a DR number">New Delivery (DR)</button>{/if}
+                    <button type="button" class="btn btn-accent btn-sm" onclick="window.print()">Print Daily Sheet</button>
+                </span>
             </div>
         </div>
         {* Settled-ending lifecycle (R1/R2). The three data-* counts are read by the acceptance
@@ -2270,12 +2283,8 @@
 </div>
 
 {if can_view_production_management}
-<!-- Dispatch to Branch -->
-<div class="print-hidden" style="margin-top: 1.5rem;">
-    <button type="button" class="btn btn-primary" onclick="openDispatchEntry()">New Delivery (DR)</button>
-    <span class="text-sm text-muted" style="margin-left: .75rem;">Records a delivery to a branch against a DR number.</span>
-</div>
-
+{* The trigger lives in the top action bar beside Print Daily Sheet (owner 2026-10-22);
+   only the backdrop and the panel stay here. *}
 <div id="dispatch-backdrop" class="fixed inset-0 z-40 bg-black/40 print-hidden" style="display: none;" onclick="closeDispatchEntry()"></div>
 
 <div class="card" id="dispatch-panel" style="display: none; position: fixed; z-index: 50; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(64rem, 95vw); max-height: 90vh; overflow: auto;">
