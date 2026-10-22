@@ -2215,6 +2215,14 @@ function dl_maybeAutoFinalizeCommissaryPmShift(int $branchId, string $date, ?int
         return $result;
     }
 
+    // The legacy name is retained for callers, but the configured last shift is
+    // AM for a whole-day branch and PM everywhere else. The predicate keeps the
+    // historical guarantee that PM rows remain closeable.
+    $shift = dl_branchSingleShiftMode($branchId) ? 'AM' : 'PM';
+    if (!dl_isLastShiftOfDay($shift, $branchId)) {
+        return $result;
+    }
+
     // Act only when the business date has already ended, matching the day
     // auto-close condition. The current business date is still live.
     if ($date >= dl_businessDate()) {
@@ -2251,13 +2259,13 @@ function dl_maybeAutoFinalizeCommissaryPmShift(int $branchId, string $date, ?int
                   ON cpl.product_id = p.id
                  AND cpl.commissary_branch_id = :bid2
                  AND cpl.ledger_date = :d
-                 AND cpl.shift = "PM"
+                 AND cpl.shift = :shift
           WHERE p.is_active = 1
             AND cpl.id IS NOT NULL
             AND cpl.actual_end_qty IS NULL
             AND (cpl.beg_qty <> 0 OR cpl.produced_qty <> 0 OR cpl.dispatched_qty <> 0 OR cpl.wastage_qty <> 0)'
     );
-    $missingStmt->execute([':bid' => $branchId, ':bid2' => $branchId, ':d' => $date]);
+    $missingStmt->execute([':bid' => $branchId, ':bid2' => $branchId, ':d' => $date, ':shift' => $shift]);
     $missing = (int)$missingStmt->fetchColumn();
     $result['missing'] = $missing;
 
@@ -2268,9 +2276,9 @@ function dl_maybeAutoFinalizeCommissaryPmShift(int $branchId, string $date, ?int
     try {
         // Shift-status row is the resource this evaluator owns; lock it before
         // reading its status or writing anything.
-        $shift = dl_lockShiftStatusRow($db, $branchId, $date, 'PM');
+        $shiftStatus = dl_lockShiftStatusRow($db, $branchId, $date, $shift);
 
-        if ((string)($shift['status'] ?? 'open') === 'finalized') {
+        if ((string)($shiftStatus['status'] ?? 'open') === 'finalized') {
             // A finalized shift is a signed-off record. Even an incomplete one
             // stays finalized: this evaluator must never lift the immutability
             // boundary. Return success with no write and no audit.
@@ -2282,16 +2290,16 @@ function dl_maybeAutoFinalizeCommissaryPmShift(int $branchId, string $date, ?int
             $db->prepare(
                 'UPDATE dl_ledger_shift_status
                     SET pending_notified_at = COALESCE(pending_notified_at, CURRENT_TIMESTAMP)
-                  WHERE branch_id = :bid AND ledger_date = :d AND shift = "PM"'
-            )->execute([':bid' => $branchId, ':d' => $date]);
+                  WHERE branch_id = :bid AND ledger_date = :d AND shift = :shift'
+            )->execute([':bid' => $branchId, ':d' => $date, ':shift' => $shift]);
 
             $auditStmt = $db->prepare(
                 'SELECT COUNT(*) FROM audit_logs
                   WHERE module = "daily-ledger" AND action = "auto_close_shift" AND entity_id = :eid'
             );
-            $auditStmt->execute([':eid' => "{$branchId}-{$date}-PM"]);
+            $auditStmt->execute([':eid' => "{$branchId}-{$date}-{$shift}"]);
             if ((int)$auditStmt->fetchColumn() === 0) {
-                dl_auditLog('auto_close_shift', $branchId, 'dl_ledger_shift_status', "{$branchId}-{$date}-PM", null, [
+                dl_auditLog('auto_close_shift', $branchId, 'dl_ledger_shift_status', "{$branchId}-{$date}-{$shift}", null, [
                     'status' => 'closed_without_pm_finalize',
                     'source' => 'auto_finalize_pm_commissary',
                     'missing' => $missing,
@@ -2305,28 +2313,29 @@ function dl_maybeAutoFinalizeCommissaryPmShift(int $branchId, string $date, ?int
             // who can reopen a closed day, so they must be the one told.
             dl_raiseIntegrityNotification(
                 $db,
-                'closed_without_pm_finalize-pm-' . $branchId . '-' . $date,
+                'closed_without_pm_finalize-' . strtolower($shift) . '-' . $branchId . '-' . $date,
                 'closed_without_pm_finalize',
                 $branchId,
                 'dl_ledger_shift_status',
                 null,
-                'PM shift not finalized',
-                'Commissary #' . $branchId . ' business date ' . $date . ' has ' . $missing . ' product(s) with movement but no PM ending count. The shift was NOT force-finalized; the day stays open so the counts can be completed. An admin must review.'
+                $shift . ' shift not finalized',
+                'Commissary #' . $branchId . ' business date ' . $date . ' has ' . $missing . ' product(s) with movement but no ' . $shift . ' ending count. The shift was NOT force-finalized; the day stays open so the counts can be completed. An admin must review.'
             );
             $result['flagged'] = true;
             $result['finalized'] = false;
         } else {
-            if ((string)($shift['status'] ?? 'open') !== 'finalized') {
+            if ((string)($shiftStatus['status'] ?? 'open') !== 'finalized') {
                 $db->prepare(
                     'UPDATE dl_ledger_shift_status
                         SET status = "finalized", finalized_by = :uid, finalized_at = CURRENT_TIMESTAMP
-                      WHERE branch_id = :bid AND ledger_date = :d AND shift = "PM"'
+                      WHERE branch_id = :bid AND ledger_date = :d AND shift = :shift'
                 )->execute([
                     ':uid' => ($actorId !== null && $actorId > 0) ? $actorId : null,
                     ':bid' => $branchId,
                     ':d' => $date,
+                    ':shift' => $shift,
                 ]);
-                dl_auditLog('finalize_production_shift', $branchId, 'dl_ledger_shift_status', "{$branchId}-{$date}-PM", ['status' => 'open'], ['status' => 'finalized']);
+                dl_auditLog('finalize_production_shift', $branchId, 'dl_ledger_shift_status', "{$branchId}-{$date}-{$shift}", ['status' => 'open'], ['status' => 'finalized']);
             }
             $result['finalized'] = true;
         }
@@ -2338,7 +2347,7 @@ function dl_maybeAutoFinalizeCommissaryPmShift(int $branchId, string $date, ?int
         if ($ownsTxn && $db->inTransaction()) {
             $db->rollBack();
         }
-        write_log('daily-ledger PM auto-finalize failed', 'error', [
+        write_log('daily-ledger last-shift auto-finalize failed', 'error', [
             'branch_id' => $branchId,
             'ledger_date' => $date,
             'error' => $e->getMessage(),
@@ -2571,6 +2580,41 @@ function dl_userShiftBound(array $user): bool
 }
 
 /**
+ * Whether a branch operates one whole-day cashier shift. Read failures are
+ * deliberately fail-open to the established two-shift behaviour.
+ */
+function dl_branchSingleShiftMode(int $branchId): bool
+{
+    if ($branchId <= 0) {
+        return false;
+    }
+
+    try {
+        $ctx = module();
+        if (!$ctx) {
+            return false;
+        }
+        $stmt = $ctx->db()->prepare('SELECT single_shift_mode FROM dl_branches WHERE id = :id LIMIT 1');
+        $stmt->execute([':id' => $branchId]);
+        return (int)$stmt->fetchColumn() === 1;
+    } catch (\Throwable $e) {
+        return false;
+    }
+}
+
+/** True only for the branch's configured day-ending shift. */
+function dl_isLastShiftOfDay(string $shift, int $branchId): bool
+{
+    if ($shift === 'PM') {
+        return true;
+    }
+    if ($shift === 'AM') {
+        return dl_branchSingleShiftMode($branchId);
+    }
+    return false;
+}
+
+/**
  * Resolve and enforce the ledger shift for the current actor.
  *
  * - A shift-bound cashier (dl_users.shift set) is FORCED to their assigned
@@ -2584,8 +2628,19 @@ function dl_userShiftBound(array $user): bool
  */
 function dl_resolveLedgerShift(array $user, array $input): array
 {
+    $branchId = (int)($input['branch_id'] ?? 0);
+    if ($branchId <= 0) {
+        $branchId = (int)(dl_getUserBranchId() ?? 0);
+    }
+
     $explicit = $input['shift'] ?? null;
     $explicit = in_array($explicit, ['AM', 'PM'], true) ? (string)$explicit : null;
+
+    // Whole-day branches always use the existing AM enum value. Assignment
+    // binding is reported unchanged; only the effective write shift collapses.
+    if ($branchId > 0 && dl_branchSingleShiftMode($branchId)) {
+        return ['shift' => 'AM', 'bound' => dl_userAssignedShift($user) !== null];
+    }
 
     // An explicit shift from the caller means the operator is looking at that
     // shift (the ledger drives this from the AM/PM tab + date it is showing),
@@ -8763,6 +8818,7 @@ function handleCashierLedger(array $params = []): void
         'ledger_date' => $ledgerDate,
         'shift'       => $shift,
         'shift_locked' => $shiftBound,
+        'single_shift_mode' => dl_branchSingleShiftMode((int)$branchId),
         'today'       => $today,
         'day_status'  => $dayStatus,
         'branches'    => $branches,
@@ -19707,6 +19763,15 @@ function apiCreateBranch(array $params = []): void
         return;
     }
     $paperDrEnabled = $paperDrEnabledBool ? 1 : 0;
+    $singleShiftRaw = $input['single_shift_mode'] ?? false;
+    $singleShiftBool = is_scalar($singleShiftRaw)
+        ? filter_var($singleShiftRaw, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE)
+        : null;
+    if ($singleShiftBool === null) {
+        $ctx->json(['ok' => false, 'error' => 'Single cashier shift mode must be enabled or disabled.'], 422);
+        return;
+    }
+    $singleShiftMode = $singleShiftBool ? 1 : 0;
 
     if ($code === '' || $name === '') {
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Code and name are required', 'type' => 'error']]));
@@ -19728,13 +19793,14 @@ function apiCreateBranch(array $params = []): void
 
     try {
         $ctx->db()->prepare(
-            'INSERT INTO dl_branches (code, name, address, area_id, area, default_supply_mode, assigned_commissary_id, price_group_id, is_commissary, paper_dr_enabled)
-             VALUES (:code, :name, :addr, :area_id, :area, :mode, :ac, :pg, :ic, :paper_dr)'
+            'INSERT INTO dl_branches (code, name, address, area_id, area, default_supply_mode, assigned_commissary_id, price_group_id, is_commissary, paper_dr_enabled, single_shift_mode)
+             VALUES (:code, :name, :addr, :area_id, :area, :mode, :ac, :pg, :ic, :paper_dr, :single_shift)'
         )->execute([
             ':code' => $code, ':name' => $name, ':addr' => $address,
             ':area_id' => $area['id'], ':area' => $area['name'],
             ':mode' => $supplyMode, ':ac' => $assignedCommissaryId, ':pg' => $priceGroupId, ':ic' => $isCommissary,
             ':paper_dr' => $paperDrEnabled,
+            ':single_shift' => $singleShiftMode,
         ]);
 
         $branchId = (int)$ctx->db()->lastInsertId();
@@ -19756,6 +19822,7 @@ function apiCreateBranch(array $params = []): void
             'price_group_id' => $priceGroupId,
             'is_commissary' => $isCommissary,
             'paper_dr_enabled' => $paperDrEnabled,
+            'single_shift_mode' => $singleShiftMode,
         ]);
 
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Branch created', 'type' => 'success']]));
@@ -19808,6 +19875,17 @@ function apiUpdateBranch(array $params = []): void
         }
         $paperDrEnabled = $paperDrEnabledBool ? 1 : 0;
     }
+    $singleShiftMode = null;
+    if (array_key_exists('single_shift_mode', $input)) {
+        $singleShiftBool = is_scalar($input['single_shift_mode'])
+            ? filter_var($input['single_shift_mode'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE)
+            : null;
+        if ($singleShiftBool === null) {
+            $ctx->json(['ok' => false, 'error' => 'Single cashier shift mode must be enabled or disabled.'], 422);
+            return;
+        }
+        $singleShiftMode = $singleShiftBool ? 1 : 0;
+    }
 
     if (!$branchId || $name === '') {
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Invalid input', 'type' => 'error']]));
@@ -19834,9 +19912,22 @@ function apiUpdateBranch(array $params = []): void
     }
 
     try {
-        $beforeStmt = $ctx->db()->prepare('SELECT default_supply_mode, assigned_commissary_id, price_group_id, is_commissary, paper_dr_enabled FROM dl_branches WHERE id = :id');
+        $beforeStmt = $ctx->db()->prepare('SELECT default_supply_mode, assigned_commissary_id, price_group_id, is_commissary, paper_dr_enabled, single_shift_mode FROM dl_branches WHERE id = :id');
         $beforeStmt->execute([':id' => $branchId]);
         $before = $beforeStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+
+        if ($singleShiftMode !== null && $singleShiftMode !== (int)($before['single_shift_mode'] ?? 0)) {
+            $todayRows = $ctx->db()->prepare(
+                'SELECT 1 FROM dl_daily_ledger WHERE branch_id = :id AND ledger_date = :ledger_date LIMIT 1'
+            );
+            $todayRows->execute([':id' => $branchId, ':ledger_date' => dl_businessDate()]);
+            if ($todayRows->fetchColumn() !== false) {
+                $message = 'Single cashier shift mode cannot be changed after ledger rows exist for the current business date.';
+                header('HX-Trigger: ' . json_encode(['showToast' => ['message' => $message, 'type' => 'error']]));
+                $ctx->json(['ok' => false, 'error' => $message], 422);
+                return;
+            }
+        }
 
         $sets = ['name = :name', 'address = :addr', 'area_id = :area_id', 'area = :area', 'is_active = :active', 'sort_order = :sort'];
         $bind = [':name' => $name, ':addr' => $address, ':area_id' => $area['id'], ':area' => $area['name'], ':active' => $isActive, ':sort' => $sortOrder, ':id' => $branchId];
@@ -19860,9 +19951,13 @@ function apiUpdateBranch(array $params = []): void
             $sets[] = 'paper_dr_enabled = :paper_dr';
             $bind[':paper_dr'] = $paperDrEnabled;
         }
+        if ($singleShiftMode !== null) {
+            $sets[] = 'single_shift_mode = :single_shift';
+            $bind[':single_shift'] = $singleShiftMode;
+        }
         $ctx->db()->prepare('UPDATE dl_branches SET ' . implode(', ', $sets) . ' WHERE id = :id')->execute($bind);
 
-        $afterStmt = $ctx->db()->prepare('SELECT default_supply_mode, assigned_commissary_id, price_group_id, is_commissary, paper_dr_enabled FROM dl_branches WHERE id = :id');
+        $afterStmt = $ctx->db()->prepare('SELECT default_supply_mode, assigned_commissary_id, price_group_id, is_commissary, paper_dr_enabled, single_shift_mode FROM dl_branches WHERE id = :id');
         $afterStmt->execute([':id' => $branchId]);
         $after = $afterStmt->fetch(PDO::FETCH_ASSOC) ?: [];
 
@@ -19870,6 +19965,9 @@ function apiUpdateBranch(array $params = []): void
             || ($before['assigned_commissary_id'] ?? null) !== ($after['assigned_commissary_id'] ?? null)
             || ($before['price_group_id'] ?? null) !== ($after['price_group_id'] ?? null)) {
             dl_auditLog('branch_supply_mode_changed', $branchId, 'dl_branches', (string)$branchId, $before, $after);
+        }
+        if ((int)($before['single_shift_mode'] ?? 0) !== (int)($after['single_shift_mode'] ?? 0)) {
+            dl_auditLog('branch_single_shift_mode_changed', $branchId, 'dl_branches', (string)$branchId, $before, $after);
         }
         dl_auditLog('update_branch', $branchId, 'branch', (string)$branchId);
 

@@ -192,11 +192,9 @@ function dl_reportFilterProducts(ModuleDB $db, array $filters): array
  *
  * A MISSING shift-status row is AMBIGUOUS: it can mean "never finalized" OR "this
  * shift was never tracked at all". Because it proves nothing either way, the no-row
- * case is deliberately bucketed the OLD way (AM official, PM provisional) to PRESERVE
- * history rather than restate it. Measured on tenant 207: 3,149 AM rows / 20,680 units
- * hang on this, versus 46 PM rows. Do NOT "correct" the backwards-looking `=== 'PM'`
- * below into `!== 'finalized'` — that would move 20,680 units of AM sales out of the
- * official total on the strength of an ambiguity, i.e. restate history.
+ * case is deliberately bucketed by the branch's day-ending shift: PM under the historical
+ * two-shift default, and AM only for a branch explicitly using whole-day mode. That preserves
+ * historical two-shift totals while allowing a single-shift AM row to reconcile as day-end.
  */
 function dl_rowIsProvisional(array $row): bool
 {
@@ -213,10 +211,12 @@ function dl_rowIsProvisional(array $row): bool
 
     $status = $row['shift_status'] ?? null;
     if ($status === null) {
-        // No shift row is AMBIGUOUS: "never finalized" or "never tracked". Preserve the
-        // historical bucketing exactly - PM was provisional, AM was official. Measured:
-        // 3,149 AM rows / 20,680 units hang on this, versus 46 PM rows.
-        return (string)($row['shift'] ?? '') === 'PM';
+        // No shift row is AMBIGUOUS: "never finalized" or "never tracked". Preserve PM as
+        // the historical fallback, adding AM only when this branch explicitly uses it as day-end.
+        return dl_isLastShiftOfDay(
+            (string)($row['shift'] ?? ''),
+            (int)($row['branch_id'] ?? 0)
+        );
     }
 
     // A shift row that EXISTS and is not finalized is unambiguous, and the shift does not
@@ -236,8 +236,8 @@ function dl_rowIsProvisional(array $row): bool
  *     included (R5) — this is the clause the hand-written dashboard/sales copies were
  *     missing, gating it on `shift = 'PM'` and silently counting an unfinalized AM as
  *     official;
- *   - a MISSING shift row is AMBIGUOUS and keeps the historical bucketing (AM official,
- *     PM provisional), so history is preserved rather than restated.
+ *   - a MISSING shift row is AMBIGUOUS and follows the branch's day-ending shift (PM for
+ *     every default two-shift branch; AM only in explicit whole-day mode).
  *
  * Keep this and dl_rowIsProvisional() in lockstep: change one, change the other in the
  * same commit. Do NOT re-hand-write the rule in a query — that duplication is the defect
@@ -254,7 +254,14 @@ function dl_provisionalSqlExpr(string $ledgerAlias, string $shiftAlias): string
     return '('
         . "{$ledger}.end_source IN ('derived-from-movements','zero-forced')"
         . " OR {$ledger}.bal_end IS NULL"
-        . " OR ({$shift}.status IS NULL AND {$ledger}.shift = 'PM')"
+        . " OR ({$shift}.status IS NULL AND ("
+        . "{$ledger}.shift = 'PM'"
+        . " OR ({$ledger}.shift = 'AM' AND EXISTS ("
+        . "SELECT 1 FROM dl_branches dl_last_shift_branch"
+        . " WHERE dl_last_shift_branch.id = {$ledger}.branch_id"
+        . " AND dl_last_shift_branch.single_shift_mode = 1"
+        . '))'
+        . '))'
         . " OR ({$shift}.status IS NOT NULL AND {$shift}.status <> 'finalized')"
         . ')';
 }

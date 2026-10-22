@@ -202,6 +202,9 @@ function dl_offlineBootstrapPayload(array $user, int $branchId, string $shift, b
     $today = dl_businessDate();
     $clock = dl_operatingClockLabel();
     $dayStatus = $branchId > 0 ? dl_getDayStatus($branchId, $today) : 'open';
+    $singleShiftMode = dl_branchSingleShiftMode($branchId);
+    $resolvedShift = dl_resolveLedgerShift($user, ['branch_id' => $branchId, 'shift' => $shift]);
+    $shift = $resolvedShift['shift'];
 
     $products = [];
     $ledgerRows = [];
@@ -275,7 +278,8 @@ function dl_offlineBootstrapPayload(array $user, int $branchId, string $shift, b
         'am_shift_cutoff' => dl_amShiftCutoff(),
         'day_status' => $dayStatus,
         'shift' => $shift,
-        'shift_locked' => $shiftBound,
+        'shift_locked' => $shiftBound || $singleShiftMode,
+        'single_shift_mode' => $singleShiftMode,
         'reference_only' => ($role === 'cashier' && false),
         'products' => $products,
         'ledger_rows' => $ledgerRows,
@@ -1429,7 +1433,9 @@ function apiOfflineBootstrap(array $params = []): void
         return;
     }
 
-    $shiftResolved = dl_resolveLedgerShift($user, $input);
+    $shiftInput = $input;
+    $shiftInput['branch_id'] = (int)$row['branch_id'];
+    $shiftResolved = dl_resolveLedgerShift($user, $shiftInput);
     dlJson([
         'ok' => true,
         'enrollment' => dl_offlineEnrollmentDescriptor($row),
