@@ -766,6 +766,24 @@ if (!function_exists('kernelHandleApiSuperadminUpdateModuleSettings')) {
             echo json_encode(['ok' => false, 'error' => 'Could not verify tenant']);
             exit;
         }
+
+        // Fail loudly when the tenant database cannot be reached. Without this guard the
+        // read below silently falls back to manifest defaults and the save returns false,
+        // while the handler still answers ok:true -- a superadmin sees "Settings saved"
+        // and nothing was persisted (live tenant 203, app.log 2026-10-21 14:06).
+        if (app()->dbForTenant($saTenantId) === null) {
+            write_log('Superadmin module settings update refused: tenant database unavailable', 'error', [
+                'tenant_id' => $saTenantId,
+                'module' => $modId,
+                'request_id' => request_id(),
+            ]);
+            http_response_code(500);
+            echo json_encode([
+                'ok' => false,
+                'error' => 'Tenant database is not available for tenant ' . $saTenantId . '; nothing was saved.',
+            ]);
+            exit;
+        }
     }
 
     $allMods = discoverModules();
@@ -825,7 +843,19 @@ if (!function_exists('kernelHandleApiSuperadminUpdateModuleSettings')) {
     }
 
     if ($saMultiTenant && $saTenantId !== null) {
-        saveTenantModuleSettingsForTenant($modId, $saTenantId, $newSettings);
+        // An empty payload is a legitimate no-op; any other false return is a real write
+        // failure (unreachable DB, refused cross-tenant write, unwritable table) and must
+        // never be reported as success.
+        if ($newSettings !== [] && !saveTenantModuleSettingsForTenant($modId, $saTenantId, $newSettings)) {
+            write_log('Superadmin module settings update failed to persist', 'error', [
+                'tenant_id' => $saTenantId,
+                'module' => $modId,
+                'request_id' => request_id(),
+            ]);
+            http_response_code(500);
+            echo json_encode(['ok' => false, 'error' => 'Feature settings were not saved.']);
+            exit;
+        }
     } else {
         saveModuleSettings($modId, $newSettings);
     }
