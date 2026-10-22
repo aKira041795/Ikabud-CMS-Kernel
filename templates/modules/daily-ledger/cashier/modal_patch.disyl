@@ -201,6 +201,7 @@ function withdrawalModal() {
     return {
         isOpen: false,
         saving: false,
+        savedAny: false,
         errorMsg: '',
         editId: null,
         header: { withdrawal_type: 'charge', reason_code: 'manual_adjustment', liable_user_id: '', custom_reason: '', shift: '' },
@@ -260,6 +261,14 @@ function withdrawalModal() {
             // A genuinely new adjustment on the next open, so a fresh intent is not
             // swallowed as a replay of this one.
             this.idempotencyKey = null;
+            // The ledger behind the modal is refreshed on close, never on each save: the
+            // page swap would tear down the open modal and defeat recording several in a row.
+            if (this.savedAny) {
+                this.savedAny = false;
+                if (typeof window.refreshMainContent === 'function') {
+                    window.refreshMainContent();
+                }
+            }
         },
 
         // The withdrawal type the SERVER sees. "Correction — Additional" is not a
@@ -564,7 +573,18 @@ function withdrawalModal() {
                         msg = 'Pullout recorded and returned to commissary';
                     }
                     showToast(msg, 'success');
-                    this.closeModal();
+                    // Stay open so several adjustments can be recorded in one sitting, but
+                    // RE-ARM the form for a genuinely new record. Minting a new idempotency
+                    // key is mandatory: reusing the old one makes the next save a replay of
+                    // this one - reported as success, never written. closeModal() nulls the
+                    // key for the same reason; staying open must do it too.
+                    this.savedAny = true;
+                    if (!isEdit) {
+                        this.lines = [{ product_id: '', quantity: '', unit: 'pcs' }];
+                        this.header.liable_user_id = '';
+                        this.header.custom_reason = '';
+                        this.idempotencyKey = window.generateOperationId ? window.generateOperationId() : String(Date.now());
+                    }
                 } else if (!isEdit && window.shouldQueueServerFailure && window.shouldQueueServerFailure(data)) {
                     // ONLINE-ONLY: a retryable server error is reported, not buffered.
                     this.errorMsg = 'NOT saved — the server is not accepting changes right now ('

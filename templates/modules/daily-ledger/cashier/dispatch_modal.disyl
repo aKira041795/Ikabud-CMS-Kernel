@@ -140,6 +140,7 @@ function dispatchModal() {
     return {
         isOpen: false,
         saving: false,
+        savedAny: false,
         errorMsg: '',
         form: { delivery_date: '', dr_number: '', destination_type: 'branch', destination_key: '', destination_id: '', consignee_id: '', receiving_shift: (window.SHIFT || '') },
         lines: [],
@@ -153,7 +154,17 @@ function dispatchModal() {
             this.isOpen = true;
         },
 
-        closeModal() { this.isOpen = false; },
+        closeModal() {
+            this.isOpen = false;
+            // Refresh only if something was actually sent, and only here: the page swap
+            // cannot run while the modal is open.
+            if (this.savedAny) {
+                this.savedAny = false;
+                if (typeof window.refreshMainContent === 'function') {
+                    window.refreshMainContent();
+                }
+            }
+        },
 
         addEmptyLine() { this.lines.push({ product_id: '', quantity: '' }); },
         onDestinationChange(event) {
@@ -257,11 +268,11 @@ function dispatchModal() {
                 this.saving = false;
                 if (data && data.ok) {
                     showToast('Transfer out saved', 'success');
-                    this.closeModal();
-                    var body = document.getElementById('ledger-body');
-                    if (body && window.htmx) {
-                        window.refreshMainContent();
-                    }
+                    // Stay open: one trip can cover several DRs, and closing after each send
+                    // made the cashier reopen and re-find their place. The ledger refresh is
+                    // deferred to closeModal() because refreshMainContent() swaps the whole
+                    // main region and would tear this modal down mid-session.
+                    this.savedAny = true;
                 } else {
                     this.errorMsg = (data && data.error) || 'Failed to save dispatch.';
                 }
