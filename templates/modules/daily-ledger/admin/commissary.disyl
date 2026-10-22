@@ -2291,10 +2291,17 @@
             <div class="form-group mb-0">
                 <label class="form-label">Destination Branch</label>
                 <select id="dispatch-dest-branch-id" class="form-input" onchange="dispatchPrefillForBranch()">
-                    <option value="">-- Select Branch --</option>
+                    <option value="">-- Select Branch or Consignee --</option>
                     {foreach branches as br}
-                    <option value="{br.id}"{if br.is_commissary} data-is-commissary="1"{/if}>{br.name}{if br.is_commissary} (commissary){/if}</option>
+                    <option value="{br.id}" data-type="branch"{if br.is_commissary} data-is-commissary="1"{/if}>{br.name}{if br.is_commissary} (commissary){/if}</option>
                     {/foreach}
+                    {if consignee_enabled && consignee_sheet_columns | count > 0}
+                    <optgroup label="Consignees">
+                        {foreach consignee_sheet_columns as cc}
+                        <option value="{cc.id}" data-type="consignee">{cc.name}</option>
+                        {/foreach}
+                    </optgroup>
+                    {/if}
                 </select>
                 <p class="mt-1 text-xs text-gray-500">Do not dispatch from a commissary to itself. Co-located branches use the Usage page for an <span class="font-semibold">Internal release (same location)</span>.</p>
             </div>
@@ -3050,26 +3057,31 @@
         }).finally(function() { button.disabled = false; });
     }
 
-    // Seed the modal from the COMMISSARY's own records only.
-    //
-    // Owner rule (2026-10-22): the branch's encoded daily sheet is the cashier's record of
-    // what ARRIVED. Seeding a dispatch out of it would let one side silently rewrite the
-    // other, so this reads today's production dispatch matrix and nothing else. A product
-    // with no dispatch today is simply left blank.
+    // Destination decides the source (owner spec 2026-10-22):
+    //   1. the branch/consignee resolves to its assigned commissary, server-side;
+    //   2. no sheet entries yet  -> mode 'available', list every item that commissary carries;
+    //   3. sheet already carries qty -> mode 'sheet', show ONLY those items at those qty.
+    // (2) and (3) read the same rows, so switching between them is a filter, not a copy.
     function dispatchPrefillForBranch() {
         var select = document.getElementById('dispatch-dest-branch-id');
         var statusEl = document.getElementById('dispatch-status');
-        var branchId = parseInt((select || {}).value || '0', 10) || 0;
-
-        document.querySelectorAll('.dispatch-qty-input').forEach(function(input) {
-            input.value = '';
+        var selected = select && select.options[select.selectedIndex];
+        var destinationId = parseInt((selected || {}).value || '0', 10) || 0;
+        var destinationType = (selected && selected.getAttribute('data-type')) || 'branch';
+        var rows = Array.prototype.slice.call(document.querySelectorAll('.dispatch-qty-input')).map(function(input) {
+            return { input: input, row: input.closest('tr') };
         });
-        if (branchId <= 0) {
+
+        rows.forEach(function(entry) {
+            entry.input.value = '';
+            if (entry.row) entry.row.style.display = '';
+        });
+        if (destinationId <= 0) {
             if (statusEl) statusEl.textContent = '';
             return;
         }
 
-        if (statusEl) statusEl.textContent = 'Reading today\'s production sheet…';
+        if (statusEl) statusEl.textContent = 'Resolving the assigned commissary…';
 
         fetch('{base_url}/api/v1/commissary/dispatch-prefill', {
             method: 'POST',
@@ -3079,7 +3091,11 @@
                 'X-CSRF-Token': (window.DL_CSRF || ''),
                 'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
             },
-            body: JSON.stringify({ destination_branch_id: branchId, ledger_date: '{date}' })
+            body: JSON.stringify({
+                destination_type: destinationType,
+                destination_id: destinationId,
+                ledger_date: '{date}'
+            })
         })
         .then(function(r) { return r.json(); })
         .then(function(res) {
@@ -3087,22 +3103,59 @@
                 if (statusEl) statusEl.textContent = (res && res.error) ? res.error : 'Prefill unavailable';
                 return;
             }
-            var filled = 0;
-            var lines = res.lines || {};
-            Object.keys(lines).forEach(function(pid) {
-                var input = document.querySelector('.dispatch-qty-input[data-product-id="' + pid + '"]');
-                if (!input) return;
-                var already = parseInt(lines[pid], 10) || 0;
-                var remaining = parseInt(input.getAttribute('data-remaining') || '0', 10) || 0;
-                if (already <= 0 || remaining <= 0) return;
-                // Never seed above on-hand: the dispatch endpoint rejects that anyway.
-                input.value = String(Math.min(already, remaining));
-                filled++;
-            });
+
+            var source = res.commissary_name ? (' from ' + res.commissary_name) : '';
+
+            if (res.mode === 'sheet') {
+                // Sheet-first: keep only the items already carrying a quantity.
+                var lines = res.lines || {};
+                var shown = 0;
+                rows.forEach(function(entry) {
+                    var pid = entry.input.getAttribute('data-product-id');
+                    var qty = parseInt(lines[pid] || '0', 10) || 0;
+                    if (qty <= 0) {
+                        if (entry.row) entry.row.style.display = 'none';
+                        return;
+                    }
+                    var remaining = parseInt(entry.input.getAttribute('data-remaining') || '0', 10) || 0;
+                    var sourceMatches = !res.commissary_id
+                        || String(entry.input.getAttribute('data-commissary-id')) === String(res.commissary_id);
+                    if (!sourceMatches) {
+                        if (entry.row) entry.row.style.display = 'none';
+                        return;
+                    }
+                    entry.input.value = String(remaining > 0 ? Math.min(qty, remaining) : qty);
+                    shown++;
+                });
+                if (statusEl) {
+                    var sheetCount = res.line_count || 0;
+                    if (shown > 0) {
+                        var msg = 'Sheet already set for ' + res.destination_name + source
+                            + ' — showing ' + shown + ' of ' + sheetCount + ' item(s). Adjust to correct.';
+                        // A sheet line whose product is no longer on this commissary's
+                        // on-hand list has no row to render. Say so rather than letting
+                        // the count quietly understate what the sheet holds.
+                        if (shown < sheetCount) {
+                            msg += ' ' + (sheetCount - shown) + ' line(s) are not on this commissary\'s on-hand list.';
+                        }
+                        statusEl.textContent = msg;
+                    } else {
+                        statusEl.textContent = 'The sheet has ' + sheetCount
+                            + ' item(s) for this destination, but none are on this commissary\'s on-hand list.';
+                    }
+                }
+                return;
+            }
+
+            // Dispatch-first: nothing on the sheet, so offer everything this commissary carries.
+            if (res.commissary_id) {
+                rows.forEach(function(entry) {
+                    var sourceMatches = String(entry.input.getAttribute('data-commissary-id')) === String(res.commissary_id);
+                    if (!sourceMatches && entry.row) entry.row.style.display = 'none';
+                });
+            }
             if (statusEl) {
-                statusEl.textContent = filled > 0
-                    ? 'Prefilled ' + filled + ' line(s) already dispatched to this branch today — adjust and send the balance.'
-                    : 'No dispatch recorded for this branch today. Enter the quantities to send.';
+                statusEl.textContent = 'Nothing on the sheet yet' + source + ' — enter quantities to send.';
             }
         })
         .catch(function() {

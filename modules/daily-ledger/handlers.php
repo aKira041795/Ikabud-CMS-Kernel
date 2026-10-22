@@ -23542,16 +23542,22 @@ function apiSaveProductionRun(): void
 }
 
 /**
- * Seed the Dispatch-to-Branch modal from the COMMISSARY's own records.
+ * Seed the Dispatch-to-Branch modal from the DESTINATION's assigned commissary.
  *
- * Owner rule (2026-10-22): the modal may only be seeded from commissary (production)
- * truth, never from the branch's encoded daily sheet. The branch sheet is the cashier's
- * record of what ARRIVED; seeding a dispatch out of it would let one side silently rewrite
- * the other's numbers. So this reads dl_fetchProductionSheetDispatchMatrix and nothing else.
+ * Owner spec (2026-10-22), three rules this endpoint implements:
  *
- * Returns the quantity already dispatched to the chosen branch for the business date, so a
- * second dispatch starts from the encoded state instead of a blank row. Products with no
- * dispatch today are simply absent - the modal leaves them empty.
+ *  1. The destination decides the source. A branch or a consignee is resolved to its
+ *     assigned_commissary_id HERE, never taken from the client, so the items listed and
+ *     every quantity shown belong to that commissary.
+ *  2. Dispatch-first: nothing on the sheet yet -> mode=available, and the modal lists
+ *     every product that commissary carries. Entering a quantity emits a sheet entry.
+ *  3. Sheet-first: the sheet already carries quantities -> mode=sheet, and the modal
+ *     shows ONLY those items, at those quantities.
+ *
+ * (2) and (3) are the same rows - dl_delivery_items for this date/destination/product -
+ * read once. The sheet is a VIEW of the dispatch, not a second document to copy from,
+ * which is why showing it back is a filter over this matrix rather than a second source
+ * of truth.
  */
 function apiCommissaryDispatchPrefill(array $params = []): void
 {
@@ -23563,31 +23569,96 @@ function apiCommissaryDispatchPrefill(array $params = []): void
 
     dlCurrentUser(['admin', 'supervisor', 'production_in_charge']);
     $input = $ctx->input();
+    $db = $ctx->db();
 
-    $destinationBranchId = (int)($input['destination_branch_id'] ?? 0);
-    if ($destinationBranchId <= 0) {
-        $ctx->json(['ok' => false, 'error' => 'destination_branch_id is required.'], 422);
+    $destinationType = (string)($input['destination_type'] ?? 'branch');
+    if (!in_array($destinationType, ['branch', 'consignee'], true)) {
+        $ctx->json(['ok' => false, 'error' => 'destination_type must be branch or consignee.'], 422);
+        return;
+    }
+    $destinationId = (int)($input['destination_id'] ?? $input['destination_branch_id'] ?? 0);
+    if ($destinationId <= 0) {
+        $ctx->json(['ok' => false, 'error' => 'destination_id is required.'], 422);
+        return;
+    }
+
+    // Rule 1: resolve the assignment, in the destination's own table, against an
+    // active commissary. An unassigned destination has no defensible source.
+    if ($destinationType === 'consignee') {
+        $stmt = $db->prepare(
+            'SELECT d.id, d.name, d.assigned_commissary_id, c.name AS commissary_name
+               FROM dl_consignees d
+               INNER JOIN dl_branches c ON c.id = d.assigned_commissary_id AND c.is_commissary = 1 AND c.is_active = 1
+              WHERE d.id = :id AND d.is_active = 1
+              LIMIT 1'
+        );
+    } else {
+        $stmt = $db->prepare(
+            'SELECT d.id, d.name, d.assigned_commissary_id, c.name AS commissary_name
+               FROM dl_branches d
+               INNER JOIN dl_branches c ON c.id = d.assigned_commissary_id AND c.is_commissary = 1 AND c.is_active = 1
+              WHERE d.id = :id AND d.is_active = 1
+              LIMIT 1'
+        );
+    }
+    $stmt->execute([':id' => $destinationId]);
+    $resolved = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    if (!$resolved) {
+        $ctx->json([
+            'ok' => false,
+            'error' => 'That destination has no active assigned commissary, so there is no source to list items from.',
+        ], 422);
+        return;
+    }
+
+    $commissaryId = (int)$resolved['assigned_commissary_id'];
+    if ($destinationType === 'branch' && $commissaryId === $destinationId) {
+        $ctx->json(['ok' => false, 'error' => 'A commissary cannot dispatch to itself.'], 422);
         return;
     }
 
     $ledgerDate = (string)($input['ledger_date'] ?? dl_businessDate());
-    $matrix = dl_fetchProductionSheetDispatchMatrix($ctx->db(), $ledgerDate);
+
+    // Rules 2 and 3: one read of the destination's posted dispatches, scoped to the
+    // resolved commissary as the origin. Empty => nothing on the sheet yet.
+    $linesStmt = $db->prepare(
+        "SELECT di.product_id, SUM(di.quantity) AS quantity
+           FROM dl_deliveries d
+           INNER JOIN dl_delivery_items di ON di.delivery_id = d.id
+          WHERE d.delivery_date = :ledger_date
+            AND d.destination_type = :destination_type
+            AND d.destination_id = :destination_id
+            AND d.status = 'posted'
+            AND COALESCE(d.resolved_origin_id, d.origin_id) = :commissary_id
+          GROUP BY di.product_id"
+    );
+    $linesStmt->execute([
+        ':ledger_date' => $ledgerDate,
+        ':destination_type' => $destinationType,
+        ':destination_id' => $destinationId,
+        ':commissary_id' => $commissaryId,
+    ]);
 
     $lines = [];
     $total = 0;
-    foreach ($matrix as $productId => $byBranch) {
-        $qty = (int)($byBranch[$destinationBranchId] ?? 0);
+    foreach ($linesStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $line) {
+        $qty = (int)$line['quantity'];
         if ($qty <= 0) {
             continue;
         }
-        $lines[(string)$productId] = $qty;
+        $lines[(string)(int)$line['product_id']] = $qty;
         $total += $qty;
     }
 
     $ctx->json([
         'ok' => true,
-        'destination_branch_id' => $destinationBranchId,
+        'destination_type' => $destinationType,
+        'destination_id' => $destinationId,
+        'destination_name' => (string)$resolved['name'],
+        'commissary_id' => $commissaryId,
+        'commissary_name' => (string)$resolved['commissary_name'],
         'ledger_date' => $ledgerDate,
+        'mode' => $lines === [] ? 'available' : 'sheet',
         'lines' => $lines,
         'line_count' => count($lines),
         'total_quantity' => $total,

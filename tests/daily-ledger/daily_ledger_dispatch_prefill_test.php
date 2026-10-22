@@ -3,17 +3,20 @@
 declare(strict_types=1);
 
 /**
- * Daily Ledger — Dispatch-to-Branch modal prefill (client request 2, 2026-10-22).
+ * Daily Ledger — Dispatch-to-Branch modal: the destination resolves the commissary.
  *
- * OWNER RULE (2026-10-22): the modal may only be seeded from COMMISSARY (production)
- * truth, never from the branch's encoded daily sheet. The branch sheet records what
- * ARRIVED; seeding a dispatch out of it would let one side rewrite the other's numbers.
+ * OWNER SPEC (2026-10-22):
+ *   1. A selected branch OR consignee must resolve to its assigned commissary; the items
+ *      listed and every quantity shown come from THAT commissary.
+ *   2. Modal used first: all available items are listed; entering qty emits a sheet entry.
+ *   3. Sheet set first: the modal shows only the items already carrying a quantity.
  *
  * Each assertion names what breaks if it regresses:
- * - an unregistered route means the modal silently prefills nothing (no error, no seed);
- * - a missing handler means the fetch 404s while the status line claims success;
- * - a matrix that is not [product][branch] => int means quantities land in the wrong cell;
- * - coupling the prefill to the branch sheet would reopen the double-entry hazard.
+ * - an unregistered route: the modal silently prefills nothing (no error, no seed);
+ * - a missing handler: the fetch 404s while the status line still renders;
+ * - trusting a client-supplied commissary: the wrong source's stock gets listed;
+ * - no consignee destination: half of rule 1 is unreachable from the UI;
+ * - no mode field: the modal cannot tell "show everything" from "show only the sheet".
  */
 
 ob_start();
@@ -56,62 +59,84 @@ $h->test(
 
 $template = (string)file_get_contents($base . '/templates/modules/daily-ledger/admin/commissary.disyl');
 $h->test(
-    'the modal calls the prefill on branch selection',
+    'the modal calls the prefill on destination change',
     str_contains($template, 'dispatchPrefillForBranch()'),
-    'choosing a branch would leave every quantity blank'
+    'choosing a destination would leave every quantity blank'
 );
 $h->test(
-    'the prefill never reads a branch sheet',
-    !preg_match('/dispatchPrefillForBranch[\\s\\S]{0,4000}?(dl_daily_ledger|branch_receiving)/', $template),
-    'seeding from the branch sheet would let one side rewrite the other'
+    'the destination selector offers consignees too',
+    str_contains($template, 'data-type="consignee"') && str_contains($template, '<optgroup label="Consignees">'),
+    'rule 1 is only half reachable: a consignee could never be chosen'
+);
+$h->test(
+    'the modal branches on the sheet mode',
+    str_contains($template, "res.mode === 'sheet'"),
+    'sheet-first and dispatch-first would render identically'
+);
+$h->test(
+    'the modal reports sheet lines it could not render',
+    str_contains($template, 'are not on this commissary'),
+    'a sheet holding items with no on-hand row would understate itself silently'
 );
 
-$h->section('matrix contract');
+$h->section('source resolution');
 
-$matrix = dl_fetchProductionSheetDispatchMatrix($db, '2026-10-21');
-$h->test('the production matrix is non-empty for a dispatched day', $matrix !== [], 'nothing to prefill from');
+$handlerFile = (string)file_get_contents($base . '/modules/daily-ledger/handlers.php');
+$start = strpos($handlerFile, 'function apiCommissaryDispatchPrefill');
+$body = $start === false ? '' : substr($handlerFile, $start, 4200);
 
-$shapeOk = true;
-$valueOk = true;
-foreach ($matrix as $productId => $byBranch) {
-    if (!is_int($productId) || !is_array($byBranch)) {
-        $shapeOk = false;
-        break;
-    }
-    foreach ($byBranch as $branchId => $qty) {
-        if (!is_int($branchId) || !is_int($qty)) {
-            $valueOk = false;
-        }
-    }
-}
-$h->test('it is keyed [product_id][branch_id]', $shapeOk, 'the modal would seed the wrong cell');
-$h->test('every quantity is an int', $valueOk, 'string quantities would seed the wrong value');
+$h->test('the handler body was found', $body !== '' && strlen($body) > 500);
+$h->test(
+    'it resolves both branch and consignee assignments',
+    str_contains($body, 'FROM dl_consignees') && str_contains($body, 'FROM dl_branches'),
+    'one of the two destination kinds would have no source'
+);
+$h->test(
+    'the commissary comes from the assignment, not the request',
+    str_contains($body, 'assigned_commissary_id')
+        && !preg_match('/\$input\[.commissary_(id|branch_id).\]/', $body),
+    'a client could name any source and the wrong stock would be listed'
+);
+$h->test(
+    'it reports the mode the modal switches on',
+    str_contains($body, "'mode' =>") && str_contains($body, "'sheet'") && str_contains($body, "'available'"),
+    'the modal could not tell show-all from show-sheet'
+);
+$h->test(
+    'both directions read the same posted-dispatch rows',
+    str_contains($body, "d.status = 'posted'")
+        && str_contains($body, 'd.destination_type = :destination_type')
+        && str_contains($body, 'd.destination_id = :destination_id'),
+    'the modal and the sheet would be describing different things'
+);
 
-// Destinations that received a dispatch on the probe date must be readable back as
-// a per-branch line set - the exact shape the modal consumes.
-$dest = null;
-foreach ($matrix as $byBranch) {
-    foreach ($byBranch as $branchId => $qty) {
-        if ($qty > 0) {
-            $dest = (int)$branchId;
-            break 2;
-        }
-    }
-}
-$h->test('a dispatched destination is present', $dest !== null);
+$h->section('fixture preconditions');
 
-if ($dest !== null) {
-    $lines = 0;
-    foreach ($matrix as $byBranch) {
-        if ((int)($byBranch[$dest] ?? 0) > 0) {
-            $lines++;
-        }
-    }
-    $h->test(
-        'that destination reads back as a line set',
-        $lines > 0,
-        'the prefill response would be empty for a branch that was dispatched to'
-    );
-}
+$consignee = $db->query(
+    'SELECT c.id, c.assigned_commissary_id
+       FROM dl_consignees c
+       INNER JOIN dl_branches b ON b.id = c.assigned_commissary_id AND b.is_commissary = 1 AND b.is_active = 1
+      WHERE c.is_active = 1 LIMIT 1'
+);
+$consigneeRow = $consignee ? $consignee->fetch(PDO::FETCH_ASSOC) : false;
+$h->test(
+    'at least one active consignee resolves to an active commissary',
+    is_array($consigneeRow),
+    'the consignee half of rule 1 would be unexercisable'
+);
+
+$assignedBranch = $db->query(
+    'SELECT d.id
+       FROM dl_branches d
+       INNER JOIN dl_branches c ON c.id = d.assigned_commissary_id AND c.is_commissary = 1 AND c.is_active = 1
+      WHERE d.is_active = 1 AND d.is_commissary = 0 LIMIT 1'
+);
+$assignedBranchRow = $assignedBranch ? $assignedBranch->fetch(PDO::FETCH_ASSOC) : false;
+$h->test(
+    'at least one active branch resolves to an active commissary',
+    is_array($assignedBranchRow),
+    'the branch half of rule 1 would be unexercisable'
+);
 
 $h->done();
+
