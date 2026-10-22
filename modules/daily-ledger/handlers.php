@@ -10423,7 +10423,15 @@ function apiGetIncomingDeliveries(array $params = []): void
         $formalStmt = $ctx->db()->prepare($formalSql);
         $formalStmt->execute($formalBind);
         foreach ($formalStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
-            $key = 'delivery:' . (int)$row['delivery_id'];
+            // Group by DR IDENTITY, not by delivery id. A sheet entry writes one dl_deliveries
+            // row per product, so keying on delivery_id turned a single DR into one table row
+            // per line - the same DR number repeated down the list, each needing its own click.
+            // The incoming counter already groups this way (COALESCE(dr_number, origin+date)),
+            // so this also makes the row count agree with the number on the badge.
+            $drKey = trim((string)($row['dr_number'] ?? ''));
+            $key = $drKey !== ''
+                ? 'dr:' . strtoupper($drKey) . ':' . (string)$row['delivery_date'] . ':' . (int)$row['origin_branch_id']
+                : 'nodr:' . (int)$row['origin_branch_id'] . ':' . (string)$row['delivery_date'];
             if (!isset($groups[$key])) {
                 $groups[$key] = [
                     'group_key' => $key,
@@ -10438,8 +10446,12 @@ function apiGetIncomingDeliveries(array $params = []): void
                     'dispatching_cashier_name' => $row['dispatching_cashier_name'] !== '' ? $row['dispatching_cashier_name'] : null,
                     'items' => [],
                     'ids' => [],
-                    'delivery_ids' => [(int)$row['delivery_id']],
+                    'delivery_ids' => [],
                 ];
+            }
+            // Every delivery in the group is collected so one Receive covers all of them.
+            if (!in_array((int)$row['delivery_id'], $groups[$key]['delivery_ids'], true)) {
+                $groups[$key]['delivery_ids'][] = (int)$row['delivery_id'];
             }
             $groups[$key]['items'][] = [
                 'id' => (int)$row['delivery_item_id'],

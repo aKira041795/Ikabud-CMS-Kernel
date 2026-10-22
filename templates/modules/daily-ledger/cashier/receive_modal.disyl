@@ -143,8 +143,12 @@
                                         </td>
                                         <td class="px-2 py-2 text-gray-800" x-text="g.origin_branch_name"></td>
                                         <td class="px-2 py-2">
+                                            {* Each item line and its qty input share the same 28px row
+                                               pitch, so line N of the names lies level with input N. Without
+                                               a fixed pitch the input's own height and padding made the two
+                                               columns drift apart down a long DR. *}
                                             <template x-for="it in g.items" :key="'n' + it.id">
-                                                <div class="text-xs text-gray-800" x-text="it.product_name"></div>
+                                                <div class="flex h-7 items-center text-xs text-gray-800" x-text="it.product_name"></div>
                                             </template>
                                             <template x-if="isPartial(g)">
                                                 <span class="mt-1 inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700 ring-1 ring-inset ring-amber-200">Partial</span>
@@ -152,14 +156,18 @@
                                         </td>
                                         <td class="px-2 py-2">
                                             <template x-for="it in g.items" :key="'q' + it.id">
-                                                <div class="flex items-center justify-end gap-1">
+                                                <div class="flex h-7 items-center justify-end gap-1">
                                                     <input type="number"
-                                                           class="w-16 rounded border border-gray-300 px-1.5 py-0.5 text-right text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                                           class="h-6 w-16 rounded border border-gray-300 px-1.5 py-0 text-right text-sm tabular-nums focus:border-indigo-500 focus:ring-indigo-500"
                                                            :min="0"
                                                            :value="receivedQty(g, it)"
                                                            placeholder="Count"
                                                            @input="setReceivedQty(g, it, $event.target.value)">
-                                                    <span class="text-[11px] text-gray-400" x-text="'of ' + it.quantity"></span>
+                                                    {* The "of N" suffix has a FIXED width. While it sized to its own
+                                                       text ("of 5" vs "of 300"), the right-aligned input was pushed
+                                                       left or right by a different amount on every line, so the qty
+                                                       fields never formed a straight vertical column. *}
+                                                    <span class="inline-block w-10 shrink-0 text-left text-[11px] tabular-nums text-gray-400" x-text="'of ' + it.quantity"></span>
                                                 </div>
                                             </template>
                                         </td>
