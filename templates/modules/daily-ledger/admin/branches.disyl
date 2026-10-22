@@ -146,7 +146,7 @@
                     <td>
                         <div class="flex items-center gap-1">
                             <a class="btn btn-sm btn-accent" href="{base_url}/admin/products?tab=assignment&branch_id={b.id}" data-branch-products="{b.id}">Products</a>
-                            <button class="btn btn-sm btn-accent" onclick='openEditBranch({b.id}, {b.name | json}, {b.address | json}, {b.area_id | default:"null"}, {b.is_active}, {b.default_supply_mode | json}, {b.assigned_commissary_id | default:"null"}, {b.price_group_id | default:"null"}, {b.is_commissary}, {b.sort_order | default:0})'>Edit</button>
+                            <button class="btn btn-sm btn-accent" onclick='openEditBranch({b.id}, {b.name | json}, {b.address | json}, {b.area_id | default:"null"}, {b.is_active}, {b.default_supply_mode | json}, {b.assigned_commissary_id | default:"null"}, {b.price_group_id | default:"null"}, {b.is_commissary}, {b.sort_order | default:0}, {b.paper_dr_enabled | default:1})'>Edit</button>
                         </div>
                     </td>
                 </tr>
@@ -229,6 +229,13 @@
                             This branch acts as a commissary (supplies other branches)
                         </label>
                         <p class="mt-2 text-xs text-gray-500">Turn this on for branches that dispatch stock to other branches. Once saved, this branch becomes selectable in Assigned Commissary.</p>
+                    </div>
+                    <div class="form-group">
+                        <label class="inline-flex items-center gap-2 text-sm text-gray-700">
+                            <input type="checkbox" id="add-paper-dr-enabled" checked>
+                            Paper DR
+                        </label>
+                        <p class="mt-2 text-xs text-gray-500">Allow cashiers at this branch to dispatch, receive, and correct deliveries using paper DR numbers.</p>
                     </div>
                 </div>
             </div>
@@ -322,6 +329,13 @@
                             This branch acts as a commissary (supplies other branches)
                         </label>
                         <p class="mt-2 text-xs text-gray-500">Turn this on for branches that dispatch stock to other branches. Once saved, this branch becomes selectable in Assigned Commissary.</p>
+                    </div>
+                    <div class="form-group">
+                        <label class="inline-flex items-center gap-2 text-sm text-gray-700">
+                            <input type="checkbox" id="edit-paper-dr-enabled">
+                            Paper DR
+                        </label>
+                        <p class="mt-2 text-xs text-gray-500">Allow cashiers at this branch to dispatch, receive, and correct deliveries using paper DR numbers.</p>
                     </div>
                 </div>
             </div>
@@ -490,7 +504,7 @@
         }).catch(function(e) { showToast(e.message || 'Failed'); btn.disabled = false; });
     }
 
-    function openEditBranch(id, name, address, areaId, active, supplyMode, commissaryId, priceGroupId, isCommissary, sortOrder) {
+    function openEditBranch(id, name, address, areaId, active, supplyMode, commissaryId, priceGroupId, isCommissary, sortOrder, paperDrEnabled) {
         document.getElementById('edit-id').value = id;
         document.getElementById('edit-name').value = name || '';
         document.getElementById('edit-address').value = address || '';
@@ -505,6 +519,7 @@
         commissarySelect.value = commissaryId == null || commissaryId === id ? '' : String(commissaryId);
         document.getElementById('edit-price-group').value = priceGroupId == null ? '' : String(priceGroupId);
         document.getElementById('edit-is-commissary').checked = !!isCommissary;
+        document.getElementById('edit-paper-dr-enabled').checked = paperDrEnabled == null ? true : !!paperDrEnabled;
         document.getElementById('edit-modal').classList.add('show');
     }
 
@@ -524,7 +539,8 @@
                 default_supply_mode: document.getElementById('add-supply-mode').value,
                 assigned_commissary_id: commissaryVal === '' ? null : parseInt(commissaryVal, 10),
                 price_group_id: priceGroupVal === '' ? null : parseInt(priceGroupVal, 10),
-                is_commissary: document.getElementById('add-is-commissary').checked ? 1 : 0
+                is_commissary: document.getElementById('add-is-commissary').checked ? 1 : 0,
+                paper_dr_enabled: document.getElementById('add-paper-dr-enabled').checked
             })
         })
         .then(function(r) { return r.json(); })
@@ -557,7 +573,8 @@
                 default_supply_mode: document.getElementById('edit-supply-mode').value,
                 assigned_commissary_id: commissaryVal === '' ? null : parseInt(commissaryVal, 10),
                 price_group_id: priceGroupVal === '' ? null : parseInt(priceGroupVal, 10),
-                is_commissary: document.getElementById('edit-is-commissary').checked ? 1 : 0
+                is_commissary: document.getElementById('edit-is-commissary').checked ? 1 : 0,
+                paper_dr_enabled: document.getElementById('edit-paper-dr-enabled').checked
             })
         })
         .then(function(r) { return r.json(); })

@@ -177,7 +177,8 @@
     "database/migrations/090_correct_hybrid_supply_modes.sql",
     "database/migrations/091_canonical_areas.sql",
     "database/migrations/092_production_movement_signed_quantity.sql",
-    "database/migrations/093_self_production_reason.sql"
+    "database/migrations/093_self_production_reason.sql",
+    "database/migrations/094_branch_paper_dr_and_shift_mode.sql"
   ],
   "capabilities": {
     "exposes": [

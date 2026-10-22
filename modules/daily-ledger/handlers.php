@@ -8793,6 +8793,7 @@ function handleCashierLedger(array $params = []): void
         'consignee_enabled' => dl_isConsigneeEnabled(),
         'incoming_count' => $incomingCount,
         'formal_delivery_enabled' => dl_isFormalDeliveryEnabled(),
+        'paper_dr_enabled' => dl_branchPaperDrEnabled($branchId),
         'commissary_branch_id' => $commissaryBranchId,
         'commissary_branch_name' => $commissaryBranchName,
         'liable_persons' => $liablePersons,
@@ -10001,7 +10002,11 @@ function apiCreateCashierDispatch(array $params = []): void
         $ctx->json(['ok' => false, 'error' => 'Branch not authorized'], 403);
         return;
     }
-    $originBranchId = $authResult['branch_id'];
+    $originBranchId = (int)$authResult['branch_id'];
+    if (!dl_canUsePaperDr($user, $originBranchId)) {
+        $ctx->json(['ok' => false, 'error' => 'Paper DR is disabled for this branch.', 'code' => 'PAPER_DR_DISABLED'], 403);
+        return;
+    }
     $shiftResolved = dl_resolveLedgerShift($user, $input);
     $shift = $shiftResolved['shift'];
     $requestedReceivingShift = $input['receiving_shift'] ?? null;
@@ -10804,6 +10809,16 @@ function apiReceivePaperDelivery(array $params = []): void
     $user = dlCurrentUser();
     $input = (array)json_decode(file_get_contents('php://input'), true);
     $idempotencyKey = trim((string)($input['idempotency_key'] ?? ''));
+    $authResult = dl_authorizeBranch($user, $input);
+    if ($authResult['branch_id'] < 0) {
+        $ctx->json(['ok' => false, 'error' => 'Branch not authorized'], 403);
+        return;
+    }
+    $destinationBranchId = (int)$authResult['branch_id'];
+    if (!dl_canUsePaperDr($user, $destinationBranchId)) {
+        $ctx->json(['ok' => false, 'error' => 'Paper DR is disabled for this branch.', 'code' => 'PAPER_DR_DISABLED'], 403);
+        return;
+    }
     if ($idempotencyKey !== '') {
         $cached = dl_loadIdempotentResponse('receive_paper_dr', $idempotencyKey);
         if ($cached !== null) {
@@ -10811,12 +10826,6 @@ function apiReceivePaperDelivery(array $params = []): void
             return;
         }
     }
-    $authResult = dl_authorizeBranch($user, $input);
-    if ($authResult['branch_id'] < 0) {
-        $ctx->json(['ok' => false, 'error' => 'Branch not authorized'], 403);
-        return;
-    }
-    $destinationBranchId = $authResult['branch_id'];
     $shiftResolved = dl_resolveLedgerShift($user, $input);
     $shift = $shiftResolved['shift'];
     // New clients must send the paper-DR choice. For pre-071 queued/client
@@ -19689,6 +19698,15 @@ function apiCreateBranch(array $params = []): void
     $priceGroupId = isset($input['price_group_id']) && $input['price_group_id'] !== ''
         ? (int)$input['price_group_id'] : null;
     $isCommissary = !empty($input['is_commissary']) ? 1 : 0;
+    $paperDrEnabledRaw = $input['paper_dr_enabled'] ?? true;
+    $paperDrEnabledBool = is_scalar($paperDrEnabledRaw)
+        ? filter_var($paperDrEnabledRaw, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE)
+        : null;
+    if ($paperDrEnabledBool === null) {
+        $ctx->json(['ok' => false, 'error' => 'Paper DR must be enabled or disabled.'], 422);
+        return;
+    }
+    $paperDrEnabled = $paperDrEnabledBool ? 1 : 0;
 
     if ($code === '' || $name === '') {
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Code and name are required', 'type' => 'error']]));
@@ -19710,12 +19728,13 @@ function apiCreateBranch(array $params = []): void
 
     try {
         $ctx->db()->prepare(
-            'INSERT INTO dl_branches (code, name, address, area_id, area, default_supply_mode, assigned_commissary_id, price_group_id, is_commissary)
-             VALUES (:code, :name, :addr, :area_id, :area, :mode, :ac, :pg, :ic)'
+            'INSERT INTO dl_branches (code, name, address, area_id, area, default_supply_mode, assigned_commissary_id, price_group_id, is_commissary, paper_dr_enabled)
+             VALUES (:code, :name, :addr, :area_id, :area, :mode, :ac, :pg, :ic, :paper_dr)'
         )->execute([
             ':code' => $code, ':name' => $name, ':addr' => $address,
             ':area_id' => $area['id'], ':area' => $area['name'],
             ':mode' => $supplyMode, ':ac' => $assignedCommissaryId, ':pg' => $priceGroupId, ':ic' => $isCommissary,
+            ':paper_dr' => $paperDrEnabled,
         ]);
 
         $branchId = (int)$ctx->db()->lastInsertId();
@@ -19736,6 +19755,7 @@ function apiCreateBranch(array $params = []): void
             'assigned_commissary_id' => $assignedCommissaryId,
             'price_group_id' => $priceGroupId,
             'is_commissary' => $isCommissary,
+            'paper_dr_enabled' => $paperDrEnabled,
         ]);
 
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Branch created', 'type' => 'success']]));
@@ -19777,6 +19797,17 @@ function apiUpdateBranch(array $params = []): void
     $isCommissary = array_key_exists('is_commissary', $input)
         ? (!empty($input['is_commissary']) ? 1 : 0)
         : null;
+    $paperDrEnabled = null;
+    if (array_key_exists('paper_dr_enabled', $input)) {
+        $paperDrEnabledBool = is_scalar($input['paper_dr_enabled'])
+            ? filter_var($input['paper_dr_enabled'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE)
+            : null;
+        if ($paperDrEnabledBool === null) {
+            $ctx->json(['ok' => false, 'error' => 'Paper DR must be enabled or disabled.'], 422);
+            return;
+        }
+        $paperDrEnabled = $paperDrEnabledBool ? 1 : 0;
+    }
 
     if (!$branchId || $name === '') {
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Invalid input', 'type' => 'error']]));
@@ -19803,7 +19834,7 @@ function apiUpdateBranch(array $params = []): void
     }
 
     try {
-        $beforeStmt = $ctx->db()->prepare('SELECT default_supply_mode, assigned_commissary_id, price_group_id, is_commissary FROM dl_branches WHERE id = :id');
+        $beforeStmt = $ctx->db()->prepare('SELECT default_supply_mode, assigned_commissary_id, price_group_id, is_commissary, paper_dr_enabled FROM dl_branches WHERE id = :id');
         $beforeStmt->execute([':id' => $branchId]);
         $before = $beforeStmt->fetch(PDO::FETCH_ASSOC) ?: [];
 
@@ -19825,9 +19856,13 @@ function apiUpdateBranch(array $params = []): void
             $sets[] = 'is_commissary = :ic';
             $bind[':ic'] = $isCommissary;
         }
+        if ($paperDrEnabled !== null) {
+            $sets[] = 'paper_dr_enabled = :paper_dr';
+            $bind[':paper_dr'] = $paperDrEnabled;
+        }
         $ctx->db()->prepare('UPDATE dl_branches SET ' . implode(', ', $sets) . ' WHERE id = :id')->execute($bind);
 
-        $afterStmt = $ctx->db()->prepare('SELECT default_supply_mode, assigned_commissary_id, price_group_id, is_commissary FROM dl_branches WHERE id = :id');
+        $afterStmt = $ctx->db()->prepare('SELECT default_supply_mode, assigned_commissary_id, price_group_id, is_commissary, paper_dr_enabled FROM dl_branches WHERE id = :id');
         $afterStmt->execute([':id' => $branchId]);
         $after = $afterStmt->fetch(PDO::FETCH_ASSOC) ?: [];
 
