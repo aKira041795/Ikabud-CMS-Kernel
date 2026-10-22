@@ -169,16 +169,27 @@
 </div>
 
 <div class="modal-overlay" id="branch-switches-modal" onclick="if (event.target === this) { closeBranchSwitches(); }">
-    <div class="modal branch-modal">
+    <div class="modal branch-modal" style="max-width: 1100px; width: 95%;">
         <div class="branch-modal__header">
             <h3 class="mb-1">Branch operating switches</h3>
             <p class="text-sm text-gray-500">Per branch only. Admin and supervisor always keep paper DR regardless of the switch. Shift mode can only change before the branch's first ledger row of the business day.</p>
         </div>
         <div class="branch-modal__body" style="max-height: 70vh; overflow-y: auto;">
+            <div class="flex flex-wrap items-center gap-3 mb-3">
+                <label class="text-sm text-gray-600" for="branch-bulk-scope">Apply to</label>
+                <select id="branch-bulk-scope" class="form-input" style="max-width: 16rem;">
+                    <option value="all">All branches</option>
+                    <option value="selected">Selected branches only</option>
+                </select>
+                <button type="button" class="btn btn-outline" onclick="dlBulkTurnOff('paper_dr_enabled')">Turn off Paper DR</button>
+                <button type="button" class="btn btn-outline" onclick="dlBulkTurnOff('single_shift_mode')">Turn off whole-day shift</button>
+                <span id="branch-bulk-status" class="text-sm text-muted"></span>
+            </div>
             <div class="table-responsive">
                 <table class="table">
                     <thead>
                         <tr>
+                            <th>Select</th>
                             <th>Branch</th>
                             <th>Paper DR</th>
                             <th>Single cashier shift (whole day)</th>
@@ -187,6 +198,7 @@
                     <tbody>
                         {foreach branch_switches as b}
                         <tr>
+                            <td><input type="checkbox" data-branch-select="{b.id}"></td>
                             <td>
                                 {b.name}
                                 {if b.is_commissary}<span class="badge badge-neutral ml-2">Commissary</span>{/if}
@@ -1034,6 +1046,64 @@
         .finally(function() {
             btn.disabled = false;
             btn.textContent = 'Generate Backup Now';
+        });
+    }
+
+    // Bulk "turn off" over either every branch or only the ticked ones.
+    function dlBulkTurnOff(flag) {
+        var scopeEl = document.getElementById('branch-bulk-scope');
+        var scope = scopeEl ? scopeEl.value : 'all';
+        var ids = [];
+        if (scope === 'selected') {
+            var picked = document.querySelectorAll('input[data-branch-select]');
+            for (var i = 0; i < picked.length; i++) {
+                if (picked[i].checked) {
+                    ids.push(parseInt(picked[i].getAttribute('data-branch-select'), 10));
+                }
+            }
+            if (ids.length === 0) {
+                showToast('Select at least one branch, or choose All branches.', 'error');
+                return;
+            }
+        } else {
+            var all = document.querySelectorAll('input[data-branch-flag="' + flag + '"]');
+            for (var j = 0; j < all.length; j++) {
+                ids.push(parseInt(all[j].getAttribute('data-branch-id'), 10));
+            }
+        }
+
+        var payload = { branch_ids: ids };
+        payload[flag] = 0;
+        var status = document.getElementById('branch-bulk-status');
+        if (status) { status.textContent = 'Saving...'; }
+
+        fetch('{base_url}/api/v1/admin/branches/flags', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': (window.DL_CSRF || ''),
+                'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
+            },
+            body: JSON.stringify(payload)
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            if (!res.ok) { throw new Error(res.error || 'Could not apply the change'); }
+            var changed = res.changed || [];
+            for (var k = 0; k < changed.length; k++) {
+                var cb = document.querySelector('input[data-branch-flag="' + flag + '"][data-branch-id="' + changed[k] + '"]');
+                if (cb) { cb.checked = false; }
+            }
+            var msg = 'Turned off for ' + (res.changed_count || 0) + ' branch(es).';
+            if (res.unchanged_count) { msg += ' ' + res.unchanged_count + ' already off.'; }
+            if (res.refused_count) { msg += ' ' + res.refused_count + ' refused.'; }
+            if (status) { status.textContent = msg; }
+            showToast(msg, res.refused_count ? 'error' : 'success');
+        })
+        .catch(function(err) {
+            if (status) { status.textContent = ''; }
+            showToast(err.message || 'Could not apply the change', 'error');
         });
     }
 

@@ -19885,6 +19885,61 @@ function dlBranchOperatingSwitches(\Ikabud\Kernel\Contracts\ModuleDB $db): array
 }
 
 /**
+ * Apply the operating switches to ONE branch. Shared by the single and bulk paths.
+ *
+ * @param array<string, int> $flags
+ * @return array{ok: bool, error?: string, after?: array<string, mixed>}
+ */
+function dl_applyBranchFlags(\Ikabud\Kernel\Contracts\ModuleDB $db, int $branchId, array $flags): array
+{
+    $stmt = $db->prepare('SELECT id, name, paper_dr_enabled, single_shift_mode FROM dl_branches WHERE id = :id LIMIT 1');
+    $stmt->execute([':id' => $branchId]);
+    $before = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    if (!$before) {
+        return ['ok' => false, 'error' => 'Branch not found.'];
+    }
+
+    if (array_key_exists('single_shift_mode', $flags) && $flags['single_shift_mode'] !== (int)$before['single_shift_mode']) {
+        $today = dl_businessDate();
+        $rowStmt = $db->prepare('SELECT COUNT(*) FROM dl_daily_ledger WHERE branch_id = :bid AND ledger_date = :d');
+        $rowStmt->execute([':bid' => $branchId, ':d' => $today]);
+        if ((int)$rowStmt->fetchColumn() > 0) {
+            return [
+                'ok' => false,
+                'error' => 'Single cashier shift can only be changed before the first ledger row of the business day (' . $today . ' already has rows).',
+            ];
+        }
+    }
+
+    $sets = [];
+    $bind = [':id' => $branchId];
+    $differs = false;
+    foreach ($flags as $key => $value) {
+        if ((int)$before[$key] !== (int)$value) {
+            $differs = true;
+        }
+        $sets[] = $key . ' = :' . $key;
+        $bind[':' . $key] = $value;
+    }
+    $db->prepare('UPDATE dl_branches SET ' . implode(', ', $sets) . ' WHERE id = :id')->execute($bind);
+
+    $after = $before;
+    foreach ($flags as $key => $value) {
+        $after[$key] = $value;
+    }
+    dl_auditLog(
+        'branch_flags_update',
+        $branchId,
+        'dl_branches',
+        (string)$branchId,
+        ['paper_dr_enabled' => (int)$before['paper_dr_enabled'], 'single_shift_mode' => (int)$before['single_shift_mode']],
+        ['paper_dr_enabled' => (int)$after['paper_dr_enabled'], 'single_shift_mode' => (int)$after['single_shift_mode']]
+    );
+
+    return ['ok' => true, 'changed' => $differs, 'after' => $after];
+}
+
+/**
  * Toggle the per-branch operating switches without rewriting the branch row.
  *
  * The full update endpoint (apiUpdateBranch) requires a non-empty name and writes every
@@ -19902,7 +19957,8 @@ function apiUpdateBranchFlags(array $params = []): void
     $db = $ctx->db();
 
     $branchId = (int)($input['branch_id'] ?? 0);
-    if ($branchId <= 0) {
+    $hasBulkScope = isset($input['branch_ids']) && is_array($input['branch_ids']) && $input['branch_ids'] !== [];
+    if ($branchId <= 0 && !$hasBulkScope) {
         $ctx->json(['ok' => false, 'error' => 'A branch is required.'], 422);
         return;
     }
@@ -19928,53 +19984,52 @@ function apiUpdateBranchFlags(array $params = []): void
         return;
     }
 
-    $stmt = $db->prepare('SELECT id, name, paper_dr_enabled, single_shift_mode FROM dl_branches WHERE id = :id LIMIT 1');
-    $stmt->execute([':id' => $branchId]);
-    $before = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
-    if (!$before) {
-        $ctx->json(['ok' => false, 'error' => 'Branch not found.'], 404);
+    // Scope: `branch_ids[]` applies the same flags to every listed branch (bulk "turn off");
+    // a bare `branch_id` keeps the original single-branch behaviour.
+    $branchIds = [];
+    if (isset($input['branch_ids']) && is_array($input['branch_ids'])) {
+        foreach ($input['branch_ids'] as $candidate) {
+            $id = (int)$candidate;
+            if ($id > 0) {
+                $branchIds[$id] = $id;
+            }
+        }
+        $branchIds = array_values($branchIds);
+    }
+    if ($branchIds === []) {
+        $branchIds = [$branchId];
+    }
+
+    $changed = [];
+    $unchanged = [];
+    $refused = [];
+    foreach ($branchIds as $id) {
+        $result = dl_applyBranchFlags($db, $id, $flags);
+        if (empty($result['ok'])) {
+            $refused[] = ['branch_id' => $id, 'error' => (string)($result['error'] ?? 'Refused.')];
+            continue;
+        }
+        if (empty($result['changed'])) {
+            $unchanged[] = $id;
+            continue;
+        }
+        $changed[] = $id;
+    }
+
+    // Single-branch callers keep the original contract: a refusal is a 422 with the reason.
+    if (count($branchIds) === 1 && $refused !== []) {
+        $ctx->json(['ok' => false, 'error' => $refused[0]['error']], 422);
         return;
     }
 
-    if (array_key_exists('single_shift_mode', $flags) && $flags['single_shift_mode'] !== (int)$before['single_shift_mode']) {
-        $today = dl_businessDate();
-        $rowStmt = $db->prepare('SELECT COUNT(*) FROM dl_daily_ledger WHERE branch_id = :bid AND ledger_date = :d');
-        $rowStmt->execute([':bid' => $branchId, ':d' => $today]);
-        if ((int)$rowStmt->fetchColumn() > 0) {
-            $ctx->json([
-                'ok' => false,
-                'error' => 'Single cashier shift can only be changed before the first ledger row of the business day (' . $today . ' already has rows).',
-            ], 422);
-            return;
-        }
-    }
-
-    $sets = [];
-    $bind = [':id' => $branchId];
-    foreach ($flags as $key => $value) {
-        $sets[] = $key . ' = :' . $key;
-        $bind[':' . $key] = $value;
-    }
-    $db->prepare('UPDATE dl_branches SET ' . implode(', ', $sets) . ' WHERE id = :id')->execute($bind);
-
-    $after = $before;
-    foreach ($flags as $key => $value) {
-        $after[$key] = $value;
-    }
-    dl_auditLog(
-        'branch_flags_update',
-        $branchId,
-        'dl_branches',
-        (string)$branchId,
-        ['paper_dr_enabled' => (int)$before['paper_dr_enabled'], 'single_shift_mode' => (int)$before['single_shift_mode']],
-        ['paper_dr_enabled' => (int)$after['paper_dr_enabled'], 'single_shift_mode' => (int)$after['single_shift_mode']]
-    );
-
     $ctx->json([
         'ok' => true,
-        'branch_id' => $branchId,
-        'paper_dr_enabled' => (int)$after['paper_dr_enabled'],
-        'single_shift_mode' => (int)$after['single_shift_mode'],
+        'changed' => $changed,
+        'unchanged' => $unchanged,
+        'refused' => $refused,
+        'changed_count' => count($changed),
+        'unchanged_count' => count($unchanged),
+        'refused_count' => count($refused),
     ]);
 }
 
