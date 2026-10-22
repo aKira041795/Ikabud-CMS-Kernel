@@ -233,9 +233,9 @@
                     <div class="form-group">
                         <label class="inline-flex items-center gap-2 text-sm text-gray-700">
                             <input type="checkbox" id="add-paper-dr-enabled" checked>
-                            Paper DR
+                            No paper DR (add stock)
                         </label>
-                        <p class="mt-2 text-xs text-gray-500">Allow cashiers at this branch to dispatch, receive, and correct deliveries using paper DR numbers.</p>
+                        <p class="mt-2 text-xs text-gray-500">Allow cashiers at this branch to add stock (Add Stock / own production) without encoding a paper DR number. When off, stock must be received against a paper DR. Paper DR itself is always available, and admin and supervisor keep this regardless.</p>
                     </div>
                     <div class="form-group">
                         <label class="inline-flex items-center gap-2 text-sm text-gray-700">
@@ -340,9 +340,9 @@
                     <div class="form-group">
                         <label class="inline-flex items-center gap-2 text-sm text-gray-700">
                             <input type="checkbox" id="edit-paper-dr-enabled">
-                            Paper DR
+                            No paper DR (add stock)
                         </label>
-                        <p class="mt-2 text-xs text-gray-500">Allow cashiers at this branch to dispatch, receive, and correct deliveries using paper DR numbers.</p>
+                        <p class="mt-2 text-xs text-gray-500">Allow cashiers at this branch to add stock (Add Stock / own production) without encoding a paper DR number. When off, stock must be received against a paper DR. Paper DR itself is always available, and admin and supervisor keep this regardless.</p>
                     </div>
                     <div class="form-group">
                         <label class="inline-flex items-center gap-2 text-sm text-gray-700">
