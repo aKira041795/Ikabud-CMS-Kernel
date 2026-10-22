@@ -44,10 +44,10 @@ $db = $ctx->db();
 
 $h->section('schema');
 
-$colStmt = $db->query("SHOW COLUMNS FROM dl_branches LIKE 'paper_dr_enabled'");
+$colStmt = $db->query("SHOW COLUMNS FROM dl_branches LIKE 'paperless_dr_enabled'");
 $col = $colStmt ? $colStmt->fetch(PDO::FETCH_ASSOC) : false;
 $h->test(
-    'dl_branches.paper_dr_enabled exists (legacy name, means "paperless allowed")',
+    'dl_branches.paperless_dr_enabled exists',
     is_array($col),
     'the per-branch switch cannot be configured'
 );
@@ -55,6 +55,16 @@ $h->test(
     'it defaults to 1 so every existing branch keeps today\'s behaviour',
     is_array($col) && (string)($col['Default'] ?? '') === '1',
     is_array($col) ? 'default=' . var_export($col['Default'] ?? null, true) : 'column missing'
+);
+
+// The old name said the OPPOSITE of what the switch does and cost one inverted
+// implementation. A stale migration re-adding it would invite the same mistake.
+$legacyColStmt = $db->query("SHOW COLUMNS FROM dl_branches LIKE 'paper_dr_enabled'");
+$legacyCol = $legacyColStmt ? $legacyColStmt->fetch(PDO::FETCH_ASSOC) : false;
+$h->test(
+    'the legacy paper_dr_enabled column is gone',
+    $legacyCol === false,
+    'two columns with opposite meanings would be reintroduced'
 );
 
 $h->section('seam');
@@ -68,16 +78,16 @@ $original = null;
 if (is_array($col) && $hasFlag && $hasGate) {
     $h->section('behaviour');
 
-    $snap = $db->prepare('SELECT paper_dr_enabled FROM dl_branches WHERE id = :id');
+    $snap = $db->prepare('SELECT paperless_dr_enabled FROM dl_branches WHERE id = :id');
     $snap->execute([':id' => $branchId]);
     $original = $snap->fetchColumn();
 
     try {
-        $db->prepare('UPDATE dl_branches SET paper_dr_enabled = 1 WHERE id = :id')->execute([':id' => $branchId]);
+        $db->prepare('UPDATE dl_branches SET paperless_dr_enabled = 1 WHERE id = :id')->execute([':id' => $branchId]);
         $h->test('switch ON: branch allows paperless stock-in', dl_branchPaperlessDrEnabled($branchId) === true);
         $h->test('switch ON: cashier may add stock without a paper DR', dl_canAddStockWithoutPaperDr(['role' => 'cashier'], $branchId) === true);
 
-        $db->prepare('UPDATE dl_branches SET paper_dr_enabled = 0 WHERE id = :id')->execute([':id' => $branchId]);
+        $db->prepare('UPDATE dl_branches SET paperless_dr_enabled = 0 WHERE id = :id')->execute([':id' => $branchId]);
         $h->test('switch OFF: branch blocks paperless stock-in', dl_branchPaperlessDrEnabled($branchId) === false);
         $h->test(
             'switch OFF: cashier is blocked (the DR-number bypass is closed)',
@@ -88,7 +98,7 @@ if (is_array($col) && $hasFlag && $hasGate) {
         $h->test('switch OFF: supervisor bypasses', dl_canAddStockWithoutPaperDr(['role' => 'supervisor'], $branchId) === true);
     } finally {
         if ($original !== false && $original !== null) {
-            $db->prepare('UPDATE dl_branches SET paper_dr_enabled = :v WHERE id = :id')
+            $db->prepare('UPDATE dl_branches SET paperless_dr_enabled = :v WHERE id = :id')
                 ->execute([':v' => (int)$original, ':id' => $branchId]);
         }
     }

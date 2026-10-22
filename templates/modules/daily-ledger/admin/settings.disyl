@@ -181,7 +181,7 @@
                     <option value="all">All branches</option>
                     <option value="selected">Selected branches only</option>
                 </select>
-                <button type="button" class="btn btn-outline" onclick="dlBulkTurnOff('paper_dr_enabled')">Turn off Paper DR</button>
+                <button type="button" class="btn btn-outline" onclick="dlBulkTurnOff('paperless_dr_enabled')">Turn off no-paper DR</button>
                 <button type="button" class="btn btn-outline" onclick="dlBulkTurnOff('single_shift_mode')">Turn off whole-day shift</button>
                 <span id="branch-bulk-status" class="text-sm text-muted"></span>
             </div>
@@ -204,7 +204,7 @@
                                 {if b.is_commissary}<span class="badge badge-neutral ml-2">Commissary</span>{/if}
                             </td>
                             <td>
-                                <input type="checkbox" class="toggle" data-branch-id="{b.id}" data-branch-flag="paper_dr_enabled" onchange="dlToggleBranchFlag(this)" {if b.paper_dr_enabled}checked{/if}>
+                                <input type="checkbox" class="toggle" data-branch-id="{b.id}" data-branch-flag="paperless_dr_enabled" onchange="dlToggleBranchFlag(this)" {if b.paperless_dr_enabled}checked{/if}>
                             </td>
                             <td>
                                 <input type="checkbox" class="toggle" data-branch-id="{b.id}" data-branch-flag="single_shift_mode" onchange="dlToggleBranchFlag(this)" {if b.single_shift_mode}checked{/if}>

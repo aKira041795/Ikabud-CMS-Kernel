@@ -285,7 +285,7 @@ function dl_offlineBootstrapPayload(array $user, int $branchId, string $shift, b
         'ledger_rows' => $ledgerRows,
         'liable_persons' => $liablePersons,
         'formal_delivery_enabled' => dl_isFormalDeliveryEnabled(),
-        'paper_dr_enabled' => dl_branchPaperDrEnabled($branchId),
+        'paperless_dr_enabled' => dl_branchPaperlessDrEnabled($branchId),
         'pos_enabled' => dl_isPosEnabled(),
         'can_pos_sell' => dl_isPosEnabled() && dl_pos_userCan($user, 'pos.sell'),
         'can_edit_delivery' => (function () use ($user) {

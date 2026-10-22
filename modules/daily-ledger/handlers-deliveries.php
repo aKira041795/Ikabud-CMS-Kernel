@@ -19,35 +19,12 @@ declare(strict_types=1);
 
 // ─── Phase A: Supply-source resolution ────────────────────────────────────
 
-if (!function_exists('dl_branchPaperDrEnabled')) {
-    /**
-     * Paper DR is additive, so an unavailable context, row, or column fails open.
-     * Deliberately uncached: branch admins may change the switch during a request.
-     */
-    function dl_branchPaperDrEnabled(int $branchId): bool
-    {
-        try {
-            $ctx = module();
-            if (!$ctx || $branchId <= 0) {
-                return true;
-            }
-            $stmt = $ctx->db()->prepare(
-                'SELECT paper_dr_enabled FROM dl_branches WHERE id = :id LIMIT 1'
-            );
-            $stmt->execute([':id' => $branchId]);
-            $enabled = $stmt->fetchColumn();
-            return $enabled === false ? true : (int)$enabled === 1;
-        } catch (\Throwable $e) {
-            return true;
-        }
-    }
-}
-
 if (!function_exists('dl_branchPaperlessDrEnabled')) {
     /**
      * Whether cashiers at this branch may add stock WITHOUT a paper DR (Stock Adjustment →
-     * Add Stock / own production). Reads dl_branches.paper_dr_enabled, which keeps its legacy
-     * column name but means "paperless allowed" - 1 (the default) is today's behaviour.
+     * Add Stock / own production). Reads dl_branches.paperless_dr_enabled - 1 (the default)
+     * is today's behaviour. Paper DR itself is always available; this switch only governs
+     * the paperless shortcut, never the paper path.
      *
      * Fail-open TRUE: an unreadable flag must never block a path that works today.
      * Never memoised - the acceptance test flips it inside a single request.
@@ -62,7 +39,7 @@ if (!function_exists('dl_branchPaperlessDrEnabled')) {
             if (!$ctx) {
                 return true;
             }
-            $stmt = $ctx->db()->prepare('SELECT paper_dr_enabled FROM dl_branches WHERE id = :id LIMIT 1');
+            $stmt = $ctx->db()->prepare('SELECT paperless_dr_enabled FROM dl_branches WHERE id = :id LIMIT 1');
             $stmt->execute([':id' => $branchId]);
             $value = $stmt->fetchColumn();
             if ($value === false) {
@@ -83,16 +60,6 @@ if (!function_exists('dl_canAddStockWithoutPaperDr')) {
             return true;
         }
         return dl_branchPaperlessDrEnabled($branchId);
-    }
-}
-
-if (!function_exists('dl_canUsePaperDr')) {
-    function dl_canUsePaperDr(array $user, int $branchId): bool
-    {
-        if (in_array((string)($user['role'] ?? ''), ['admin', 'supervisor'], true)) {
-            return true;
-        }
-        return dl_branchPaperDrEnabled($branchId);
     }
 }
 

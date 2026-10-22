@@ -193,6 +193,7 @@ return [
         '/daily-ledger/api/v1/commissary/material'        => 'daily-ledger:apiSaveCommissaryMaterial',
         '/daily-ledger/api/v1/commissary/carry-beginnings' => 'daily-ledger:apiCarryCommissaryBeginnings',
         '/daily-ledger/api/v1/commissary/dispatch'        => 'daily-ledger:apiCommissaryDispatch',
+        '/daily-ledger/api/v1/commissary/dispatch-prefill' => 'daily-ledger:apiCommissaryDispatchPrefill',
         '/daily-ledger/api/v1/commissary/finalize-pm'     => 'daily-ledger:apiFinalizeProductionPmShift',
         // Explicit ending settlement: settle -> admin verify -> admin revert
         '/daily-ledger/api/v1/commissary/settle-endings'  => 'daily-ledger:apiSettleCommissaryEndings',

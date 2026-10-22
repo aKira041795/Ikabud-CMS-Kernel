@@ -2290,7 +2290,7 @@
         <div class="grid grid-cols-1 gap-3 md:grid-cols-3 items-end mb-4">
             <div class="form-group mb-0">
                 <label class="form-label">Destination Branch</label>
-                <select id="dispatch-dest-branch-id" class="form-input">
+                <select id="dispatch-dest-branch-id" class="form-input" onchange="dispatchPrefillForBranch()">
                     <option value="">-- Select Branch --</option>
                     {foreach branches as br}
                     <option value="{br.id}"{if br.is_commissary} data-is-commissary="1"{/if}>{br.name}{if br.is_commissary} (commissary){/if}</option>
@@ -3048,6 +3048,66 @@
         }).catch(function(err) {
             showToast(err.message || 'Save failed', 'error');
         }).finally(function() { button.disabled = false; });
+    }
+
+    // Seed the modal from the COMMISSARY's own records only.
+    //
+    // Owner rule (2026-10-22): the branch's encoded daily sheet is the cashier's record of
+    // what ARRIVED. Seeding a dispatch out of it would let one side silently rewrite the
+    // other, so this reads today's production dispatch matrix and nothing else. A product
+    // with no dispatch today is simply left blank.
+    function dispatchPrefillForBranch() {
+        var select = document.getElementById('dispatch-dest-branch-id');
+        var statusEl = document.getElementById('dispatch-status');
+        var branchId = parseInt((select || {}).value || '0', 10) || 0;
+
+        document.querySelectorAll('.dispatch-qty-input').forEach(function(input) {
+            input.value = '';
+        });
+        if (branchId <= 0) {
+            if (statusEl) statusEl.textContent = '';
+            return;
+        }
+
+        if (statusEl) statusEl.textContent = 'Reading today\'s production sheet…';
+
+        fetch('{base_url}/api/v1/commissary/dispatch-prefill', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': (window.DL_CSRF || ''),
+                'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
+            },
+            body: JSON.stringify({ destination_branch_id: branchId, ledger_date: '{date}' })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            if (!res || !res.ok) {
+                if (statusEl) statusEl.textContent = (res && res.error) ? res.error : 'Prefill unavailable';
+                return;
+            }
+            var filled = 0;
+            var lines = res.lines || {};
+            Object.keys(lines).forEach(function(pid) {
+                var input = document.querySelector('.dispatch-qty-input[data-product-id="' + pid + '"]');
+                if (!input) return;
+                var already = parseInt(lines[pid], 10) || 0;
+                var remaining = parseInt(input.getAttribute('data-remaining') || '0', 10) || 0;
+                if (already <= 0 || remaining <= 0) return;
+                // Never seed above on-hand: the dispatch endpoint rejects that anyway.
+                input.value = String(Math.min(already, remaining));
+                filled++;
+            });
+            if (statusEl) {
+                statusEl.textContent = filled > 0
+                    ? 'Prefilled ' + filled + ' line(s) already dispatched to this branch today — adjust and send the balance.'
+                    : 'No dispatch recorded for this branch today. Enter the quantities to send.';
+            }
+        })
+        .catch(function() {
+            if (statusEl) statusEl.textContent = 'Prefill unavailable';
+        });
     }
 
     function openDispatchEntry() {

@@ -8867,7 +8867,7 @@ function handleCashierLedger(array $params = []): void
         'consignee_enabled' => dl_isConsigneeEnabled(),
         'incoming_count' => $incomingCount,
         'formal_delivery_enabled' => dl_isFormalDeliveryEnabled(),
-        'paper_dr_enabled' => dl_branchPaperDrEnabled($branchId),
+        'paperless_dr_enabled' => dl_branchPaperlessDrEnabled($branchId),
         'commissary_branch_id' => $commissaryBranchId,
         'commissary_branch_name' => $commissaryBranchName,
         'liable_persons' => $liablePersons,
@@ -19779,15 +19779,15 @@ function apiCreateBranch(array $params = []): void
     $priceGroupId = isset($input['price_group_id']) && $input['price_group_id'] !== ''
         ? (int)$input['price_group_id'] : null;
     $isCommissary = !empty($input['is_commissary']) ? 1 : 0;
-    $paperDrEnabledRaw = $input['paper_dr_enabled'] ?? true;
-    $paperDrEnabledBool = is_scalar($paperDrEnabledRaw)
-        ? filter_var($paperDrEnabledRaw, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE)
+    $paperlessDrRaw = $input['paperless_dr_enabled'] ?? true;
+    $paperlessDrBool = is_scalar($paperlessDrRaw)
+        ? filter_var($paperlessDrRaw, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE)
         : null;
-    if ($paperDrEnabledBool === null) {
-        $ctx->json(['ok' => false, 'error' => 'Paper DR must be enabled or disabled.'], 422);
+    if ($paperlessDrBool === null) {
+        $ctx->json(['ok' => false, 'error' => 'No-paper-DR must be enabled or disabled.'], 422);
         return;
     }
-    $paperDrEnabled = $paperDrEnabledBool ? 1 : 0;
+    $paperlessDrEnabled = $paperlessDrBool ? 1 : 0;
     $singleShiftRaw = $input['single_shift_mode'] ?? false;
     $singleShiftBool = is_scalar($singleShiftRaw)
         ? filter_var($singleShiftRaw, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE)
@@ -19818,13 +19818,13 @@ function apiCreateBranch(array $params = []): void
 
     try {
         $ctx->db()->prepare(
-            'INSERT INTO dl_branches (code, name, address, area_id, area, default_supply_mode, assigned_commissary_id, price_group_id, is_commissary, paper_dr_enabled, single_shift_mode)
-             VALUES (:code, :name, :addr, :area_id, :area, :mode, :ac, :pg, :ic, :paper_dr, :single_shift)'
+            'INSERT INTO dl_branches (code, name, address, area_id, area, default_supply_mode, assigned_commissary_id, price_group_id, is_commissary, paperless_dr_enabled, single_shift_mode)
+             VALUES (:code, :name, :addr, :area_id, :area, :mode, :ac, :pg, :ic, :paperless_dr, :single_shift)'
         )->execute([
             ':code' => $code, ':name' => $name, ':addr' => $address,
             ':area_id' => $area['id'], ':area' => $area['name'],
             ':mode' => $supplyMode, ':ac' => $assignedCommissaryId, ':pg' => $priceGroupId, ':ic' => $isCommissary,
-            ':paper_dr' => $paperDrEnabled,
+            ':paperless_dr' => $paperlessDrEnabled,
             ':single_shift' => $singleShiftMode,
         ]);
 
@@ -19846,7 +19846,7 @@ function apiCreateBranch(array $params = []): void
             'assigned_commissary_id' => $assignedCommissaryId,
             'price_group_id' => $priceGroupId,
             'is_commissary' => $isCommissary,
-            'paper_dr_enabled' => $paperDrEnabled,
+            'paperless_dr_enabled' => $paperlessDrEnabled,
             'single_shift_mode' => $singleShiftMode,
         ]);
 
@@ -19867,7 +19867,7 @@ function dlBranchOperatingSwitches(\Ikabud\Kernel\Contracts\ModuleDB $db): array
 {
     try {
         $rows = $db->query(
-            'SELECT id, name, is_commissary, paper_dr_enabled, single_shift_mode '
+            'SELECT id, name, is_commissary, paperless_dr_enabled, single_shift_mode '
             . 'FROM dl_branches WHERE is_active = 1 ORDER BY sort_order ASC, name ASC'
         )->fetchAll(PDO::FETCH_ASSOC);
     } catch (\Throwable $e) {
@@ -19883,7 +19883,7 @@ function dlBranchOperatingSwitches(\Ikabud\Kernel\Contracts\ModuleDB $db): array
             'id' => (int)$row['id'],
             'name' => (string)$row['name'],
             'is_commissary' => (int)($row['is_commissary'] ?? 0),
-            'paper_dr_enabled' => (int)($row['paper_dr_enabled'] ?? 1),
+            'paperless_dr_enabled' => (int)($row['paperless_dr_enabled'] ?? 1),
             'single_shift_mode' => (int)($row['single_shift_mode'] ?? 0),
         ];
     }
@@ -19898,7 +19898,7 @@ function dlBranchOperatingSwitches(\Ikabud\Kernel\Contracts\ModuleDB $db): array
  */
 function dl_applyBranchFlags(\Ikabud\Kernel\Contracts\ModuleDB $db, int $branchId, array $flags): array
 {
-    $stmt = $db->prepare('SELECT id, name, paper_dr_enabled, single_shift_mode FROM dl_branches WHERE id = :id LIMIT 1');
+    $stmt = $db->prepare('SELECT id, name, paperless_dr_enabled, single_shift_mode FROM dl_branches WHERE id = :id LIMIT 1');
     $stmt->execute([':id' => $branchId]);
     $before = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
     if (!$before) {
@@ -19938,8 +19938,8 @@ function dl_applyBranchFlags(\Ikabud\Kernel\Contracts\ModuleDB $db, int $branchI
         $branchId,
         'dl_branches',
         (string)$branchId,
-        ['paper_dr_enabled' => (int)$before['paper_dr_enabled'], 'single_shift_mode' => (int)$before['single_shift_mode']],
-        ['paper_dr_enabled' => (int)$after['paper_dr_enabled'], 'single_shift_mode' => (int)$after['single_shift_mode']]
+        ['paperless_dr_enabled' => (int)$before['paperless_dr_enabled'], 'single_shift_mode' => (int)$before['single_shift_mode']],
+        ['paperless_dr_enabled' => (int)$after['paperless_dr_enabled'], 'single_shift_mode' => (int)$after['single_shift_mode']]
     );
 
     return ['ok' => true, 'changed' => $differs, 'after' => $after];
@@ -19970,7 +19970,7 @@ function apiUpdateBranchFlags(array $params = []): void
     }
 
     $flags = [];
-    foreach (['paper_dr_enabled', 'single_shift_mode'] as $key) {
+    foreach (['paperless_dr_enabled', 'single_shift_mode'] as $key) {
         if (!array_key_exists($key, $input)) {
             continue;
         }
@@ -20070,16 +20070,16 @@ function apiUpdateBranch(array $params = []): void
     $isCommissary = array_key_exists('is_commissary', $input)
         ? (!empty($input['is_commissary']) ? 1 : 0)
         : null;
-    $paperDrEnabled = null;
-    if (array_key_exists('paper_dr_enabled', $input)) {
-        $paperDrEnabledBool = is_scalar($input['paper_dr_enabled'])
-            ? filter_var($input['paper_dr_enabled'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE)
+    $paperlessDrEnabled = null;
+    if (array_key_exists('paperless_dr_enabled', $input)) {
+        $paperlessDrBool = is_scalar($input['paperless_dr_enabled'])
+            ? filter_var($input['paperless_dr_enabled'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE)
             : null;
-        if ($paperDrEnabledBool === null) {
-            $ctx->json(['ok' => false, 'error' => 'Paper DR must be enabled or disabled.'], 422);
+        if ($paperlessDrBool === null) {
+            $ctx->json(['ok' => false, 'error' => 'No-paper-DR must be enabled or disabled.'], 422);
             return;
         }
-        $paperDrEnabled = $paperDrEnabledBool ? 1 : 0;
+        $paperlessDrEnabled = $paperlessDrBool ? 1 : 0;
     }
     $singleShiftMode = null;
     if (array_key_exists('single_shift_mode', $input)) {
@@ -20118,7 +20118,7 @@ function apiUpdateBranch(array $params = []): void
     }
 
     try {
-        $beforeStmt = $ctx->db()->prepare('SELECT default_supply_mode, assigned_commissary_id, price_group_id, is_commissary, paper_dr_enabled, single_shift_mode FROM dl_branches WHERE id = :id');
+        $beforeStmt = $ctx->db()->prepare('SELECT default_supply_mode, assigned_commissary_id, price_group_id, is_commissary, paperless_dr_enabled, single_shift_mode FROM dl_branches WHERE id = :id');
         $beforeStmt->execute([':id' => $branchId]);
         $before = $beforeStmt->fetch(PDO::FETCH_ASSOC) ?: [];
 
@@ -20153,9 +20153,9 @@ function apiUpdateBranch(array $params = []): void
             $sets[] = 'is_commissary = :ic';
             $bind[':ic'] = $isCommissary;
         }
-        if ($paperDrEnabled !== null) {
-            $sets[] = 'paper_dr_enabled = :paper_dr';
-            $bind[':paper_dr'] = $paperDrEnabled;
+        if ($paperlessDrEnabled !== null) {
+            $sets[] = 'paperless_dr_enabled = :paperless_dr';
+            $bind[':paperless_dr'] = $paperlessDrEnabled;
         }
         if ($singleShiftMode !== null) {
             $sets[] = 'single_shift_mode = :single_shift';
@@ -20163,7 +20163,7 @@ function apiUpdateBranch(array $params = []): void
         }
         $ctx->db()->prepare('UPDATE dl_branches SET ' . implode(', ', $sets) . ' WHERE id = :id')->execute($bind);
 
-        $afterStmt = $ctx->db()->prepare('SELECT default_supply_mode, assigned_commissary_id, price_group_id, is_commissary, paper_dr_enabled, single_shift_mode FROM dl_branches WHERE id = :id');
+        $afterStmt = $ctx->db()->prepare('SELECT default_supply_mode, assigned_commissary_id, price_group_id, is_commissary, paperless_dr_enabled, single_shift_mode FROM dl_branches WHERE id = :id');
         $afterStmt->execute([':id' => $branchId]);
         $after = $afterStmt->fetch(PDO::FETCH_ASSOC) ?: [];
 
@@ -23539,6 +23539,59 @@ function apiSaveProductionRun(): void
         write_log("apiSaveProductionRun error: " . $e->getMessage(), 'error');
         $ctx->json(['ok' => false, 'error' => 'Database error executing transaction'], 500);
     }
+}
+
+/**
+ * Seed the Dispatch-to-Branch modal from the COMMISSARY's own records.
+ *
+ * Owner rule (2026-10-22): the modal may only be seeded from commissary (production)
+ * truth, never from the branch's encoded daily sheet. The branch sheet is the cashier's
+ * record of what ARRIVED; seeding a dispatch out of it would let one side silently rewrite
+ * the other's numbers. So this reads dl_fetchProductionSheetDispatchMatrix and nothing else.
+ *
+ * Returns the quantity already dispatched to the chosen branch for the business date, so a
+ * second dispatch starts from the encoded state instead of a blank row. Products with no
+ * dispatch today are simply absent - the modal leaves them empty.
+ */
+function apiCommissaryDispatchPrefill(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) {
+        http_response_code(500);
+        return;
+    }
+
+    dlCurrentUser(['admin', 'supervisor', 'production_in_charge']);
+    $input = $ctx->input();
+
+    $destinationBranchId = (int)($input['destination_branch_id'] ?? 0);
+    if ($destinationBranchId <= 0) {
+        $ctx->json(['ok' => false, 'error' => 'destination_branch_id is required.'], 422);
+        return;
+    }
+
+    $ledgerDate = (string)($input['ledger_date'] ?? dl_businessDate());
+    $matrix = dl_fetchProductionSheetDispatchMatrix($ctx->db(), $ledgerDate);
+
+    $lines = [];
+    $total = 0;
+    foreach ($matrix as $productId => $byBranch) {
+        $qty = (int)($byBranch[$destinationBranchId] ?? 0);
+        if ($qty <= 0) {
+            continue;
+        }
+        $lines[(string)$productId] = $qty;
+        $total += $qty;
+    }
+
+    $ctx->json([
+        'ok' => true,
+        'destination_branch_id' => $destinationBranchId,
+        'ledger_date' => $ledgerDate,
+        'lines' => $lines,
+        'line_count' => count($lines),
+        'total_quantity' => $total,
+    ]);
 }
 
 function apiCommissaryDispatch(): void
