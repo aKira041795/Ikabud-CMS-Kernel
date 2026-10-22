@@ -23712,6 +23712,14 @@ function apiCommissaryDispatch(): void
     $ledgerDate = (string)($input['ledger_date'] ?? dl_businessDate());
     $actorId = dl_getActorUserId($user);
 
+    // The receiver must be able to see WHICH shift sent the stock and WHO sent it. A paper
+    // DR carries both on the document; an electronic dispatch recorded neither, so the
+    // cashier's receive modal fell back to "not recorded (historical)". Default to the
+    // running shift when the caller names none - never a silent NULL.
+    $shiftInput = strtoupper(trim((string)($input['production_shift'] ?? '')));
+    $dispatchShift = in_array($shiftInput, ['AM', 'PM'], true) ? $shiftInput : dl_currentShift();
+    $dispatcherName = trim((string)($user['full_name'] ?? $user['name'] ?? $user['username'] ?? ''));
+
     if (!is_array($items) || count($items) === 0) {
         $ctx->json(['ok' => false, 'error' => 'items[] array is required with at least one item.'], 422);
         return;
@@ -23811,9 +23819,11 @@ function apiCommissaryDispatch(): void
         $delStmt = $db->prepare(
             'INSERT INTO dl_deliveries
                 (origin_type, origin_id, destination_type, destination_id, dr_number,
-                 delivery_date, status, created_by, posted_by, posted_at, remarks)
+                 delivery_date, production_shift, status, created_by, created_by_name_snapshot,
+                 posted_by, posted_at, remarks)
              VALUES (:origin_type, :origin_id, :destination_type, :destination_id, :dr_number,
-                     :delivery_date, "posted", :created_by, :posted_by, NOW(), :remarks)'
+                     :delivery_date, :dispatch_shift, "posted", :created_by, :created_by_name_snapshot,
+                      :posted_by, NOW(), :remarks)'
         );
         $delStmt->execute([
             ':origin_type' => 'commissary',
@@ -23822,7 +23832,9 @@ function apiCommissaryDispatch(): void
             ':destination_id' => $destinationBranchId,
             ':dr_number' => $drNumber,
             ':delivery_date' => $ledgerDate,
+            ':dispatch_shift' => $dispatchShift,
             ':created_by' => $actorId > 0 ? $actorId : null,
+            ':created_by_name_snapshot' => $dispatcherName !== '' ? $dispatcherName : null,
             ':posted_by' => $actorId > 0 ? $actorId : null,
             ':remarks' => '[commissary-dispatch]',
         ]);

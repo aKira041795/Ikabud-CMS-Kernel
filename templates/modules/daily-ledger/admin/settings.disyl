@@ -215,7 +215,7 @@
                 </table>
             </div>
             <div class="flex justify-end mt-4">
-                <button type="button" class="btn btn-outline" onclick="closeBranchSwitches()">Close</button>
+                <button type="button" class="btn btn-accent" onclick="closeBranchSwitches()">Close</button>
             </div>
         </div>
     </div>

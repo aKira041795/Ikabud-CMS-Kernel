@@ -110,8 +110,46 @@ $h->test(
     'the modal and the sheet would be describing different things'
 );
 
-$h->section('fixture preconditions');
+$h->section('dispatcher attribution');
 
+// The receiver must know WHO sent the stock and WHICH shift. A paper DR carries both on
+// the document; an electronic dispatch used to record neither, so the cashier's receive
+// modal showed "not recorded (historical)".
+$dispatchStart = strpos($handlerFile, 'function apiCommissaryDispatch(');
+$dispatchBody = $dispatchStart === false ? '' : substr($handlerFile, $dispatchStart, 9000);
+$h->test('the dispatch handler body was found', $dispatchBody !== '' && strlen($dispatchBody) > 2000);
+$h->test(
+    'the dispatch records the production shift',
+    str_contains($dispatchBody, ':dispatch_shift')
+        && str_contains($dispatchBody, 'production_shift'),
+    'the receiver would not know which shift sent the stock'
+);
+$h->test(
+    'the dispatch records who sent it',
+    str_contains($dispatchBody, 'created_by_name_snapshot'),
+    'the receiver would see "not recorded" instead of a name'
+);
+$h->test(
+    'an unnamed shift falls back to the running shift, never NULL',
+    str_contains($dispatchBody, 'dl_currentShift()'),
+    'a dispatch with no shift chosen would leave the field empty'
+);
+
+$commissaryTpl = (string)file_get_contents($base . '/templates/modules/daily-ledger/admin/commissary.disyl');
+$h->test(
+    'the modal offers an AM/PM shift',
+    str_contains($commissaryTpl, 'id="dispatch-shift"') && str_contains($commissaryTpl, 'production_shift: dispatchShift'),
+    'the sender could not state the shift'
+);
+
+$receiveTpl = (string)file_get_contents($base . '/templates/modules/daily-ledger/cashier/receive_modal.disyl');
+$h->test(
+    'the receiver renders the dispatcher and the shift',
+    str_contains($receiveTpl, 'dispatching_cashier_name') && str_contains($receiveTpl, 'g.production_shift'),
+    'the information would be stored but never shown, so the change buys nothing'
+);
+
+$h->section('fixture preconditions');
 $consignee = $db->query(
     'SELECT c.id, c.assigned_commissary_id
        FROM dl_consignees c

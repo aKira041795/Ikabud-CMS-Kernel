@@ -2277,8 +2277,8 @@
 <div class="card" id="dispatch-panel" style="display: none; position: fixed; z-index: 50; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(64rem, 95vw); max-height: 90vh; overflow: auto;">
     <div class="card-header">
         <span>Dispatch to Branch</span>
-        <span class="text-sm text-muted">Select a destination branch, enter DR number, fill quantities for products on hand</span>
-        <button type="button" class="btn btn-outline btn-sm print-hidden" style="margin-left: auto;" onclick="closeDispatchEntry()">Close</button>
+        <span class="text-sm text-muted">Pick the destination and the shift that is sending, then fill quantities for products on hand</span>
+        <button type="button" class="btn btn-accent btn-sm print-hidden" style="margin-left: auto;" onclick="closeDispatchEntry()">Close</button>
     </div>
     <div class="card-body">
         {if cumulative_stock | count == 0}
@@ -2287,7 +2287,7 @@
         </div>
         {/if}
         {if cumulative_stock | count > 0}
-        <div class="grid grid-cols-1 gap-3 md:grid-cols-3 items-end mb-4">
+        <div class="grid grid-cols-1 gap-3 md:grid-cols-4 items-end mb-4">
             <div class="form-group mb-0">
                 <label class="form-label">Destination Branch</label>
                 <select id="dispatch-dest-branch-id" class="form-input" onchange="dispatchPrefillForBranch()">
@@ -2308,6 +2308,14 @@
             <div class="form-group mb-0">
                 <label class="form-label">DR Number</label>
                 <input type="text" id="dispatch-dr-number" class="form-input" placeholder="e.g. DR-2026-001">
+            </div>
+            <div class="form-group mb-0">
+                <label class="form-label" for="dispatch-shift">Dispatch Shift</label>
+                <select id="dispatch-shift" class="form-input">
+                    <option value="AM"{if shift != 'PM'} selected{/if}>AM &mdash; morning</option>
+                    <option value="PM"{if shift == 'PM'} selected{/if}>PM &mdash; afternoon</option>
+                </select>
+                <p class="mt-1 text-xs text-gray-500">The receiver sees this shift and your name against the DR.</p>
             </div>
             <div class="flex items-center gap-2">
                 <button type="button" class="btn btn-primary" id="submit-dispatch" onclick="submitDispatch()">Dispatch to Branch</button>
@@ -3184,6 +3192,7 @@
 
         var destBranchId = parseInt((document.getElementById('dispatch-dest-branch-id') || {}).value || '0', 10) || 0;
         var drNumber = ((document.getElementById('dispatch-dr-number') || {}).value || '').trim();
+        var dispatchShift = ((document.getElementById('dispatch-shift') || {}).value || '').trim();
 
         if (!destBranchId) { showToast('Select a destination branch', 'error'); return; }
         if (!drNumber) { showToast('DR number is required', 'error'); return; }
@@ -3237,6 +3246,7 @@
             body: JSON.stringify({
                 destination_branch_id: destBranchId,
                 dr_number: drNumber,
+                production_shift: dispatchShift,
                 ledger_date: '{date}',
                 items: items
             })
