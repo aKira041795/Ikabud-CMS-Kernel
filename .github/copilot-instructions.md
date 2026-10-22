@@ -187,6 +187,9 @@ When a user reports a runtime issue ("data not saved", "form doesn't work", "but
 - Keep public rendering deterministic: changes to builder animation/style attrs must not create duplicate/conflicting HTML attributes.
 - For Disyl control-flow leaks or parsing regressions, treat them as a Disyl language or validation problem first: improve Disyl instructions, validation, or tests at the root when the issue is systemic, instead of relying on repeated one-off template patches.
 
+## UI/UX conventions (owner principles — binding)
+UI work must satisfy [.github/instructions/ui-ux-conventions.instructions.md](instructions/ui-ux-conventions.instructions.md). In short: alignment is a measured grid (labels, fields, dropdowns **and buttons** on one line; repeated columns on one edge) — never eyeballed; one visual row per real record with its lines nested; compact **but never** incomplete; actions beside the work, top of the surface; no bulk stock/money actions, each record completes on its own click; colour comes from the existing design system (fix the doc rather than invent a token); labels state what turning them ON actually does; and no record may be silently hidden by a derived filter. Verify every UI change by `getBoundingClientRect()` measurement and by rendering it in the role that uses the screen.
+
 ## Integration points
 - Capability contracts and module dependencies are validated at module load time in [src/helpers/module-manager.php](../src/helpers/module-manager.php).
 - Tenant/domain rewrite and maintenance behavior are enforced in [public/index.php](../public/index.php); avoid introducing module logic that bypasses this.
