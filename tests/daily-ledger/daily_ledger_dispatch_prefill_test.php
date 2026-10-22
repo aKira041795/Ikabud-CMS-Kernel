@@ -83,7 +83,7 @@ $h->section('source resolution');
 
 $handlerFile = (string)file_get_contents($base . '/modules/daily-ledger/handlers.php');
 $start = strpos($handlerFile, 'function apiCommissaryDispatchPrefill');
-$body = $start === false ? '' : substr($handlerFile, $start, 4200);
+$body = $start === false ? '' : substr($handlerFile, $start, 7200);
 
 $h->test('the handler body was found', $body !== '' && strlen($body) > 500);
 $h->test(
@@ -174,6 +174,33 @@ $h->test(
     'at least one active branch resolves to an active commissary',
     is_array($assignedBranchRow),
     'the branch half of rule 1 would be unexercisable'
+);
+
+$h->section('sheet-only products');
+
+// OWNER REPORT (2026-10-22): a quantity entered on the daily sheet for Miputak did not
+// appear in the dispatch modal. The on-hand table keeps only products whose CUMULATIVE
+// historical remaining is positive, so one negative day hides a product that still has
+// stock today - and the sheet line then has no row to land in.
+$h->test(
+    'the prefill returns product details for sheet lines',
+    str_contains($body, "'items' => \$items,") && str_contains($body, "'on_hand' => 0"),
+    'a sheet line whose product has no on-hand row would render nothing'
+);
+$h->test(
+    'on-hand is the day\'s physical balance, not the cumulative sum',
+    str_contains($body, 'SUM(beg_qty + produced_qty - dispatched_qty - wastage_qty)'),
+    'a negative historical day would report a stocked product as unusable'
+);
+$h->test(
+    'the modal renders sheet-only products as rows',
+    str_contains($template, 'dispatch-injected-row'),
+    'the reported symptom: the sheet quantity exists but nothing appears'
+);
+$h->test(
+    'injected rows are cleared before the next destination',
+    str_contains($template, "querySelectorAll('tr.dispatch-injected-row')"),
+    'one destination\'s sheet would leak into the next one\'s list'
 );
 
 $h->done();

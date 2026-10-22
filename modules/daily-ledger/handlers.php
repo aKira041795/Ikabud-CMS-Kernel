@@ -21915,9 +21915,16 @@ function handleAdminCommissary(): void
     // The delivery query below now attributes those rows through the destination
     // branch, so landing on a specific commissary no longer drops them.
     if ($hasCommissaryChoice) {
-        $selectedCommissaryId = in_array($requestedCommissaryId, $availableCommissaryIds, true)
-            ? $requestedCommissaryId
-            : 0;
+        if (in_array($requestedCommissaryId, $availableCommissaryIds, true)) {
+            $selectedCommissaryId = $requestedCommissaryId;
+        } elseif ($narrowCommissarySelector && $availableCommissaryIds !== []) {
+            // An operator bound to a hub cannot fall back to All. Falling to 0 dropped a
+            // production-in-charge user into the network view, whose dispatch modal then
+            // offered branches their commissary is not assigned to supply.
+            $selectedCommissaryId = $availableCommissaryIds[0];
+        } else {
+            $selectedCommissaryId = 0;
+        }
     } elseif ($requestedBranchId > 0) {
         // An explicit branch selection keeps the network landing: a branch link
         // must never hide the branch it names (that is the output-bound contract
@@ -21954,6 +21961,27 @@ function handleAdminCommissary(): void
     $selectedBranchId = $requestedBranchId > 0 && in_array($requestedBranchId, $availableBranchIds, true)
         ? $requestedBranchId
         : 0;
+
+    // Dispatch destinations are OWNERSHIP, not history. $branches above deliberately unions in
+    // branches that merely RECEIVED a DR from this commissary - correct for filtering the sheet,
+    // wrong for the dispatch modal, which would then offer destinations this commissary is not
+    // assigned to supply. The modal gets its own list: active non-commissary branches whose
+    // assigned commissary IS the selected one. This is what makes the modal follow the selector,
+    // and what keeps a production-in-charge user inside their own hub.
+    $dispatchBranches = [];
+    $dispatchBranchSql = 'SELECT b.id, b.name FROM dl_branches b WHERE b.is_active = 1 AND b.is_commissary = 0';
+    $dispatchBranchBind = [];
+    if ($selectedCommissaryId > 0) {
+        $dispatchBranchSql .= ' AND b.assigned_commissary_id = :cid';
+        $dispatchBranchBind[':cid'] = $selectedCommissaryId;
+    }
+    if ($applyViewBranchFilter) {
+        $dispatchBranchSql .= " AND b.id IN ({$viewBranchSql})";
+    }
+    $dispatchBranchSql .= ' ORDER BY ' . dl_entityOrderBySql('b.');
+    $dispatchBranchStmt = $db->prepare($dispatchBranchSql);
+    $dispatchBranchStmt->execute($dispatchBranchBind);
+    $dispatchBranches = $dispatchBranchStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
     // ── Tab 1: Inventory (commissary product ledger) ──
     $inventorySql = "SELECT cpl.commissary_branch_id,
@@ -22770,6 +22798,7 @@ function handleAdminCommissary(): void
         'can_reopen_day' => $canReopenDay,
         'can_view_production_variance' => $role === 'admin',
         'branches' => $branches,
+        'dispatch_branches' => $dispatchBranches,
         'commissaries' => $commissaries,
         'branch_id' => $selectedBranchId,
         'commissary_id' => $selectedCommissaryId,
@@ -23650,6 +23679,47 @@ function apiCommissaryDispatchPrefill(array $params = []): void
         $total += $qty;
     }
 
+    // Sheet-first entries can name a product the modal's on-hand table does not carry: that
+    // table keeps only products whose CUMULATIVE historical remaining is positive, so one
+    // negative day hides a product that still has stock today (measured: BDAY CAKE 1 LAYER
+    // at RIZAL-COMMIS summed to -7 while this shift held 3). Without these details the modal
+    // receives a quantity for a row that does not exist and silently shows nothing.
+    $items = [];
+    foreach (array_keys($lines) as $productIdKey) {
+        $productId = (int)$productIdKey;
+        $items[(string)$productId] = ['name' => '', 'sku' => '', 'on_hand' => 0];
+    }
+    if ($items !== []) {
+        $inList = implode(',', array_map('intval', array_keys($items)));
+        $prodStmt = $db->query("SELECT id, name, sku FROM dl_products WHERE id IN ({$inList})");
+        foreach ($prodStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $prod) {
+            $key = (string)(int)$prod['id'];
+            if (isset($items[$key])) {
+                $items[$key]['name'] = (string)$prod['name'];
+                $items[$key]['sku'] = (string)($prod['sku'] ?? '');
+            }
+        }
+        // Physical on-hand for THIS business date: beg + produced - dispatched - wastage,
+        // summed across shifts. This is what an operator can still send today, and it is a
+        // different number from the cumulative historical sum that gates the on-hand table.
+        $onHandStmt = $db->prepare(
+            "SELECT product_id,
+                    SUM(beg_qty + produced_qty - dispatched_qty - wastage_qty) AS on_hand
+               FROM dl_commissary_product_ledger
+              WHERE ledger_date = :ledger_date
+                AND commissary_branch_id = :commissary_id
+                AND product_id IN ({$inList})
+              GROUP BY product_id"
+        );
+        $onHandStmt->execute([':ledger_date' => $ledgerDate, ':commissary_id' => $commissaryId]);
+        foreach ($onHandStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+            $key = (string)(int)$row['product_id'];
+            if (isset($items[$key])) {
+                $items[$key]['on_hand'] = (int)$row['on_hand'];
+            }
+        }
+    }
+
     $ctx->json([
         'ok' => true,
         'destination_type' => $destinationType,
@@ -23660,6 +23730,7 @@ function apiCommissaryDispatchPrefill(array $params = []): void
         'ledger_date' => $ledgerDate,
         'mode' => $lines === [] ? 'available' : 'sheet',
         'lines' => $lines,
+        'items' => $items,
         'line_count' => count($lines),
         'total_quantity' => $total,
     ]);

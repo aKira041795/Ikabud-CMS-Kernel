@@ -1292,7 +1292,8 @@
                      network view: landing on a named commissary never drops rows because origin-less
                      deliveries are attributed through the destination branch. Options are
                      name-ordered (handler ORDER BY name ASC), so the list reads alphabetically. -->
-                <select class="form-input" name="commissary_id">
+                <select class="form-input" name="commissary_id"
+                        onchange="this.form.elements['branch_id'].value = ''; this.form.submit();">
                     <option value="">All Commissaries</option>
                     {foreach commissaries as c}
                     <option value="{c.id}" {if c.id == commissary_id}selected{/if}>{c.name}</option>
@@ -2305,8 +2306,11 @@
                 <label class="form-label">Destination Branch</label>
                 <select id="dispatch-dest-branch-id" class="form-input" onchange="dispatchPrefillForBranch()">
                     <option value="">-- Select Branch or Consignee --</option>
-                    {foreach branches as br}
-                    <option value="{br.id}" data-type="branch"{if br.is_commissary} data-is-commissary="1"{/if}>{br.name}{if br.is_commissary} (commissary){/if}</option>
+                    {* dispatch_branches is the SELECTED commissary's assigned branches only. The
+                       filter list above is a different set on purpose: it unions in branches that
+                       merely received a DR, which must not become dispatch destinations. *}
+                    {foreach dispatch_branches as br}
+                    <option value="{br.id}" data-type="branch">{br.name}</option>
                     {/foreach}
                     {if consignee_enabled && consignee_sheet_columns | count > 0}
                     <optgroup label="Consignees">
@@ -3101,6 +3105,11 @@
             entry.input.value = '';
             if (entry.row) entry.row.style.display = '';
         });
+        // Injected rows describe ONE destination's sheet, so they must not survive a
+        // destination change and leak into the next one.
+        Array.prototype.slice.call(document.querySelectorAll('tr.dispatch-injected-row')).forEach(function(tr) {
+            tr.remove();
+        });
         if (destinationId <= 0) {
             if (statusEl) statusEl.textContent = '';
             return;
@@ -3152,6 +3161,71 @@
                     entry.input.value = String(remaining > 0 ? Math.min(qty, remaining) : qty);
                     shown++;
                 });
+
+                // The on-hand table only keeps products with a POSITIVE CUMULATIVE balance, so
+                // one negative historical day hides a product that still has stock today. A
+                // sheet-first entry can therefore name a product the table has no row for, and
+                // the admin sees nothing at all. Render those rows here, at the sheet's own
+                // quantity, marked as already recorded: showing the sheet back is the point.
+                var tbody = document.querySelector('#dispatch-panel table tbody');
+                var injected = 0;
+                Object.keys(lines).forEach(function(pid) {
+                    if (document.querySelector('.dispatch-qty-input[data-product-id="' + pid + '"]')) return;
+                    var lineQty = parseInt(lines[pid], 10) || 0;
+                    if (lineQty <= 0 || !tbody) return;
+                    var meta = (res.items || {})[pid] || {};
+                    var onHand = parseInt(meta.on_hand || '0', 10) || 0;
+                    var label = meta.name || ('Product #' + pid);
+
+                    var tr = document.createElement('tr');
+                    tr.className = 'hover:bg-gray-50 dispatch-injected-row';
+
+                    var tdName = document.createElement('td');
+                    tdName.className = 'font-medium';
+                    tdName.textContent = label;
+                    var badge = document.createElement('span');
+                    badge.className = 'ml-2 text-xs font-semibold text-emerald-700';
+                    badge.textContent = 'already on sheet';
+                    tdName.appendChild(badge);
+
+                    var tdSku = document.createElement('td');
+                    tdSku.className = 'font-mono text-sm text-muted';
+                    tdSku.textContent = meta.sku || '';
+
+                    var tdComm = document.createElement('td');
+                    tdComm.className = 'text-sm text-muted';
+                    tdComm.textContent = res.commissary_name || '';
+
+                    var tdOnHand = document.createElement('td');
+                    tdOnHand.className = 'text-right';
+                    var pill = document.createElement('span');
+                    pill.className = 'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-slate-100 text-slate-700 ring-1 ring-slate-200';
+                    pill.textContent = String(onHand);
+                    tdOnHand.appendChild(pill);
+
+                    var tdQty = document.createElement('td');
+                    tdQty.className = 'text-right';
+                    var input = document.createElement('input');
+                    input.type = 'number';
+                    input.min = '0';
+                    input.step = '1';
+                    input.className = 'form-input text-right w-24 dispatch-qty-input';
+                    input.value = String(lineQty);
+                    input.setAttribute('data-commissary-id', res.commissary_id || '');
+                    input.setAttribute('data-product-id', pid);
+                    input.setAttribute('data-product-name', label);
+                    input.setAttribute('data-remaining', String(onHand));
+                    tdQty.appendChild(input);
+
+                    tr.appendChild(tdName);
+                    tr.appendChild(tdSku);
+                    tr.appendChild(tdComm);
+                    tr.appendChild(tdOnHand);
+                    tr.appendChild(tdQty);
+                    tbody.appendChild(tr);
+                    injected++;
+                    shown++;
+                });
                 if (statusEl) {
                     var sheetCount = res.line_count || 0;
                     if (shown > 0) {
@@ -3162,6 +3236,9 @@
                         // the count quietly understate what the sheet holds.
                         if (shown < sheetCount) {
                             msg += ' ' + (sheetCount - shown) + ' line(s) are not on this commissary\'s on-hand list.';
+                        }
+                        if (injected > 0) {
+                            msg += ' ' + injected + ' already-on-sheet item(s) were added to the list below.';
                         }
                         statusEl.textContent = msg;
                     } else {
