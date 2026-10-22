@@ -162,6 +162,44 @@
     </div>
 </div>
 
+<div class="settings-section" id="settings-branch-switches">
+    <h3>Branch operating switches</h3>
+    <p>Per-branch only. Paper DR controls whether cashiers at that branch may dispatch, receive and correct deliveries by DR. Whole-day shift makes the branch use one AM ledger row for the entire business day and auto-close it.</p>
+    <div class="card">
+        <div class="card-header">
+            <h3 class="text-sm font-semibold text-slate-900">Paper DR and shift mode</h3>
+            <p class="text-xs text-slate-500 mt-1">Admin and supervisor always keep paper DR regardless of the switch. Shift mode can only change before the branch's first ledger row of the business day.</p>
+        </div>
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Branch</th>
+                        <th>Paper DR</th>
+                        <th>Single cashier shift (whole day)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {foreach branch_switches as b}
+                    <tr>
+                        <td>
+                            {b.name}
+                            {if b.is_commissary}<span class="badge badge-neutral ml-2">Commissary</span>{/if}
+                        </td>
+                        <td>
+                            <input type="checkbox" class="toggle" data-branch-id="{b.id}" data-branch-flag="paper_dr_enabled" onchange="dlToggleBranchFlag(this)" {if b.paper_dr_enabled}checked{/if}>
+                        </td>
+                        <td>
+                            <input type="checkbox" class="toggle" data-branch-id="{b.id}" data-branch-flag="single_shift_mode" onchange="dlToggleBranchFlag(this)" {if b.single_shift_mode}checked{/if}>
+                        </td>
+                    </tr>
+                    {/foreach}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
 <div class="settings-section" id="settings-consignees">
     <h3>Consignees</h3>
     <p>How consignee sales are treated in the ledger.</p>
@@ -988,6 +1026,42 @@
             btn.disabled = false;
             btn.textContent = 'Generate Backup Now';
         });
+    }
+
+    // Per-branch operating switches (Paper DR / whole-day shift). Flags-only endpoint:
+    // the full branch update requires a name and rewrites every column.
+    function dlToggleBranchFlag(el) {
+        var branchId = parseInt(el.getAttribute('data-branch-id'), 10) || 0;
+        var flag = el.getAttribute('data-branch-flag') || '';
+        if (!branchId || !flag) return;
+        var desired = el.checked;
+        var payload = { branch_id: branchId };
+        payload[flag] = desired ? 1 : 0;
+        el.disabled = true;
+        fetch('{base_url}/api/v1/admin/branches/flags', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': (window.DL_CSRF || ''),
+                'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
+            },
+            body: JSON.stringify(payload)
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            if (!res.ok) {
+                el.checked = !desired;
+                showToast(res.error || 'Could not save the branch switch', 'error');
+                return;
+            }
+            showToast('Branch switch saved.', 'success');
+        })
+        .catch(function() {
+            el.checked = !desired;
+            showToast('Could not save the branch switch', 'error');
+        })
+        .finally(function() { el.disabled = false; });
     }
 
     function runDeploymentReset(forceDryRun) {

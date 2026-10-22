@@ -14734,6 +14734,7 @@ function handleAdminSettings(array $params = []): void
         'auto_close_enabled' => $closeOfDaySettings['auto_close_enabled'],
         'close_of_day_time' => $closeOfDaySettings['close_of_day_time'],
         'am_shift_cutoff' => dl_amShiftCutoff(),
+        'branch_switches' => dlBranchOperatingSwitches($ctx->db()),
         'official_data_start' => dl_officialDataStart() ?? '',
         'operating_timezone' => $closeOfDaySettings['operating_timezone'],
         'operating_region' => $closeOfDaySettings['operating_region'],
@@ -19849,6 +19850,132 @@ function apiCreateBranch(array $params = []): void
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Failed to create branch', 'type' => 'error']]));
         $ctx->json(['ok' => false, 'error' => 'Failed to create branch'], 500);
     }
+}
+
+/**
+ * Active branches with their operating switches, for the Settings quick-toggle panel.
+ *
+ * @return array<int, array<string, mixed>>
+ */
+function dlBranchOperatingSwitches(\Ikabud\Kernel\Contracts\ModuleDB $db): array
+{
+    try {
+        $rows = $db->query(
+            'SELECT id, name, is_commissary, paper_dr_enabled, single_shift_mode '
+            . 'FROM dl_branches WHERE is_active = 1 ORDER BY sort_order ASC, name ASC'
+        )->fetchAll(PDO::FETCH_ASSOC);
+    } catch (\Throwable $e) {
+        return [];
+    }
+
+    $out = [];
+    foreach ($rows ?: [] as $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+        $out[] = [
+            'id' => (int)$row['id'],
+            'name' => (string)$row['name'],
+            'is_commissary' => (int)($row['is_commissary'] ?? 0),
+            'paper_dr_enabled' => (int)($row['paper_dr_enabled'] ?? 1),
+            'single_shift_mode' => (int)($row['single_shift_mode'] ?? 0),
+        ];
+    }
+    return $out;
+}
+
+/**
+ * Toggle the per-branch operating switches without rewriting the branch row.
+ *
+ * The full update endpoint (apiUpdateBranch) requires a non-empty name and writes every
+ * column, so it must never be reused for a quick toggle from Settings.
+ *
+ * R7: single_shift_mode may only change BEFORE the branch's first ledger row for the current
+ * business date. Flipping mid-day orphans the carry-forward chain (PM bal_end -> next AM beg_bal).
+ */
+function apiUpdateBranchFlags(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) { http_response_code(500); return; }
+    $user = dlCurrentUser(['admin']);
+    $input = $ctx->input();
+    $db = $ctx->db();
+
+    $branchId = (int)($input['branch_id'] ?? 0);
+    if ($branchId <= 0) {
+        $ctx->json(['ok' => false, 'error' => 'A branch is required.'], 422);
+        return;
+    }
+
+    $flags = [];
+    foreach (['paper_dr_enabled', 'single_shift_mode'] as $key) {
+        if (!array_key_exists($key, $input)) {
+            continue;
+        }
+        if (!is_scalar($input[$key])) {
+            $ctx->json(['ok' => false, 'error' => $key . ' must be enabled or disabled.'], 422);
+            return;
+        }
+        $parsed = filter_var($input[$key], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+        if ($parsed === null) {
+            $ctx->json(['ok' => false, 'error' => $key . ' must be enabled or disabled.'], 422);
+            return;
+        }
+        $flags[$key] = $parsed ? 1 : 0;
+    }
+    if ($flags === []) {
+        $ctx->json(['ok' => false, 'error' => 'No branch switch was supplied.'], 422);
+        return;
+    }
+
+    $stmt = $db->prepare('SELECT id, name, paper_dr_enabled, single_shift_mode FROM dl_branches WHERE id = :id LIMIT 1');
+    $stmt->execute([':id' => $branchId]);
+    $before = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    if (!$before) {
+        $ctx->json(['ok' => false, 'error' => 'Branch not found.'], 404);
+        return;
+    }
+
+    if (array_key_exists('single_shift_mode', $flags) && $flags['single_shift_mode'] !== (int)$before['single_shift_mode']) {
+        $today = dl_businessDate();
+        $rowStmt = $db->prepare('SELECT COUNT(*) FROM dl_daily_ledger WHERE branch_id = :bid AND ledger_date = :d');
+        $rowStmt->execute([':bid' => $branchId, ':d' => $today]);
+        if ((int)$rowStmt->fetchColumn() > 0) {
+            $ctx->json([
+                'ok' => false,
+                'error' => 'Single cashier shift can only be changed before the first ledger row of the business day (' . $today . ' already has rows).',
+            ], 422);
+            return;
+        }
+    }
+
+    $sets = [];
+    $bind = [':id' => $branchId];
+    foreach ($flags as $key => $value) {
+        $sets[] = $key . ' = :' . $key;
+        $bind[':' . $key] = $value;
+    }
+    $db->prepare('UPDATE dl_branches SET ' . implode(', ', $sets) . ' WHERE id = :id')->execute($bind);
+
+    $after = $before;
+    foreach ($flags as $key => $value) {
+        $after[$key] = $value;
+    }
+    dl_auditLog(
+        'branch_flags_update',
+        $branchId,
+        'dl_branches',
+        (string)$branchId,
+        ['paper_dr_enabled' => (int)$before['paper_dr_enabled'], 'single_shift_mode' => (int)$before['single_shift_mode']],
+        ['paper_dr_enabled' => (int)$after['paper_dr_enabled'], 'single_shift_mode' => (int)$after['single_shift_mode']]
+    );
+
+    $ctx->json([
+        'ok' => true,
+        'branch_id' => $branchId,
+        'paper_dr_enabled' => (int)$after['paper_dr_enabled'],
+        'single_shift_mode' => (int)$after['single_shift_mode'],
+    ]);
 }
 
 function apiUpdateBranch(array $params = []): void
