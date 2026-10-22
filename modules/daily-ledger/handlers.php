@@ -4927,10 +4927,16 @@ function dl_recordDailySheetBranchEntry(array $user, array $input): array
         $types = dl_dailySheetAdjustmentTypes();
         $reasons = dl_dailySheetAdjustmentReasons();
         if ($type === '' || !isset($types[$type])) {
-            throw new \RuntimeException('Type is required to change a recorded entry.');
+            throw new DlAdjustmentRequiredException(
+                'Type is required to change a recorded entry.',
+                ['field' => 'type', 'types' => array_keys($types), 'reasons' => array_keys($reasons)]
+            );
         }
         if ($reasonCode === '' || !isset($reasons[$reasonCode])) {
-            throw new \RuntimeException('Reason code is required to change a recorded entry.');
+            throw new DlAdjustmentRequiredException(
+                'Reason code is required to change a recorded entry.',
+                ['field' => 'reason_code', 'types' => array_keys($types), 'reasons' => array_keys($reasons)]
+            );
         }
         if ($reasonCode === 'other' && $customReason === '') {
             throw new \RuntimeException('A custom reason is required when Reason is Other.');
@@ -5234,8 +5240,20 @@ function dl_recordDailySheetConsigneeEntry(array $user, array $input): array
     $reasonCode = trim((string)($input['reason_code'] ?? ''));
     $customReason = trim((string)($input['custom_reason'] ?? ''));
     if ($hasEntry) {
-        if (!isset(dl_dailySheetAdjustmentTypes()[$type])) throw new \RuntimeException('Type is required to change a recorded entry.');
-        if (!isset(dl_dailySheetAdjustmentReasons()[$reasonCode])) throw new \RuntimeException('Reason code is required to change a recorded entry.');
+        $adjTypes = dl_dailySheetAdjustmentTypes();
+        $adjReasons = dl_dailySheetAdjustmentReasons();
+        if (!isset($adjTypes[$type])) {
+            throw new DlAdjustmentRequiredException(
+                'Type is required to change a recorded entry.',
+                ['field' => 'type', 'types' => array_keys($adjTypes), 'reasons' => array_keys($adjReasons)]
+            );
+        }
+        if (!isset($adjReasons[$reasonCode])) {
+            throw new DlAdjustmentRequiredException(
+                'Reason code is required to change a recorded entry.',
+                ['field' => 'reason_code', 'types' => array_keys($adjTypes), 'reasons' => array_keys($adjReasons)]
+            );
+        }
         if ($reasonCode === 'other' && $customReason === '') throw new \RuntimeException('A custom reason is required when Reason is Other.');
     }
 
@@ -23360,6 +23378,10 @@ function apiCommissaryDispatch(): void
             $payload = ['ok' => false, 'error' => $e->getMessage()];
             if ($e instanceof DlProductNotAssignedException) {
                 $payload['code'] = $e->errorCode();
+            }
+            if ($e instanceof DlAdjustmentRequiredException) {
+                $payload['code'] = $e->errorCode();
+                $payload['adjustment'] = $e->details();
             }
             $ctx->json($payload, $e->getCode() === 403 ? 403 : 422);
         }

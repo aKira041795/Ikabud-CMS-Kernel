@@ -42,6 +42,48 @@ class DlProductNotAssignedException extends \RuntimeException
 }
 
 /**
+ * Raised when a daily-sheet dispatch targets a cell that ALREADY has an entry and the
+ * caller supplied no adjustment type/reason.
+ *
+ * Owner decision 2026-10-22 (option A): the adjustment contract is NOT relaxed - every
+ * change to a recorded cell still carries a type, a reason and an accountable person.
+ * What changes is the refusal: it is now machine-readable and carries the allowed types
+ * and reasons, so the dispatch modal can ask for them instead of showing a dead end.
+ *
+ * Before this existed, a second delivery of the same product to the same branch in the
+ * same shift failed with a bare "Type is required to change a recorded entry." and the
+ * live site logged it as `apiCommissaryDispatch sheet entry error`
+ * (app.log 2026-10-21), because the inline form had no way to supply a type.
+ */
+class DlAdjustmentRequiredException extends \RuntimeException
+{
+    public const ERROR_CODE = 'ADJUSTMENT_REQUIRED';
+
+    /** @var array<string, mixed> */
+    private array $details;
+
+    /**
+     * @param array<string, mixed> $details Allowed types/reasons for the modal to render.
+     */
+    public function __construct(string $message, array $details = [])
+    {
+        parent::__construct($message, 422);
+        $this->details = $details;
+    }
+
+    public function errorCode(): string
+    {
+        return self::ERROR_CODE;
+    }
+
+    /** @return array<string, mixed> */
+    public function details(): array
+    {
+        return $this->details;
+    }
+}
+
+/**
  * True when a PDOException is a duplicate-entry (unique key) violation.
  * SQLSTATE 23000 with driver code 1062 (InnoDB).
  */
