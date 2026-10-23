@@ -237,7 +237,7 @@
                                     </select>
                                 </div>
                                 <div x-show="paperForm.origin_type === 'branch'">
-                                    <label class="block text-xs font-medium text-indigo-900 mb-1">Sending branch</label>
+                                    <label class="block text-xs font-medium text-indigo-900 mb-1">Sending branch <span class="text-rose-500">*</span></label>
                                     <select x-model="paperForm.origin_id" class="form-input mt-0 w-full">
                                         <option value="">-- Select branch --</option>
                                         {foreach all_branches as b}
@@ -259,7 +259,7 @@
                                     </select>
                                 </div>
                                 <div>
-                                    <label class="block text-xs font-medium text-indigo-900 mb-1">Production shift (from paper DR) *</label>
+                                    <label class="block text-xs font-medium text-indigo-900 mb-1">Production shift (from paper DR) <span class="text-rose-500">*</span></label>
                                     <select x-model="paperForm.production_shift" class="form-input mt-0 w-full border-amber-300 bg-amber-50">
                                         <option value="">-- Select shift --</option>
                                         <option value="AM">AM</option>
@@ -267,15 +267,15 @@
                                     </select>
                                 </div>
                                 <div>
-                                    <label class="block text-xs font-medium text-indigo-900 mb-1">Date sent</label>
+                                    <label class="block text-xs font-medium text-indigo-900 mb-1">Date sent <span class="text-rose-500">*</span></label>
                                     <input type="date" x-model="paperForm.delivery_date" class="form-input mt-0 w-full">
                                 </div>
                                 <div>
-                                    <label class="block text-xs font-medium text-indigo-900 mb-1">Date received</label>
+                                    <label class="block text-xs font-medium text-indigo-900 mb-1">Date received <span class="text-rose-500">*</span></label>
                                     <input type="date" x-model="paperForm.receive_date" class="form-input mt-0 w-full">
                                 </div>
                                 <div x-show="!paperForm.auto_dr">
-                                    <label class="block text-xs font-medium text-indigo-900 mb-1">Paper DR Number</label>
+                                    <label class="block text-xs font-medium text-indigo-900 mb-1">Paper DR Number <span class="text-rose-500">*</span></label>
                                     <input type="text" x-model="paperForm.dr_number" placeholder="Enter paper DR number" class="form-input mt-0 w-full border-indigo-300 bg-white font-mono font-semibold uppercase tracking-[0.18em]">
                                 </div>
                                 {* The branch switch governs stock taken in WITHOUT a paper DR, and
@@ -347,6 +347,29 @@
                                     </tbody>
                                 </table>
                                 <button type="button" class="btn btn-accent w-full justify-center mt-3" @click="addPaperItem()">+ Add Item</button>
+                            </div>
+
+                            {* The button is disabled until the form is complete, so the form has to
+                               say what is missing. Before this, activation depended on the two
+                               shifts alone and pressing it still failed on a missing DR number,
+                               a missing date or an empty line - the cashier had to guess which.
+                               Owner report 2026-10-23. *}
+                            <div class="rounded-md border px-3 py-2 text-xs"
+                                 x-bind:class="paperMissing().length ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-emerald-200 bg-emerald-50 text-emerald-800'"
+                                 role="status" aria-live="polite">
+                                <template x-if="paperMissing().length">
+                                    <div>
+                                        <span class="font-semibold">Still needed before you can save:</span>
+                                        <ul class="mt-1 list-disc pl-5 space-y-0.5">
+                                            <template x-for="need in paperMissing()" :key="need">
+                                                <li x-text="need"></li>
+                                            </template>
+                                        </ul>
+                                    </div>
+                                </template>
+                                <template x-if="paperMissing().length === 0">
+                                    <span class="font-semibold">Everything required is filled in — ready to save.</span>
+                                </template>
                             </div>
 
                             <div class="flex justify-end">
@@ -557,8 +580,44 @@ function receiveModal() {
             return this.paperForm.production_shift || '';
         },
 
+        paperMissing() {
+            // One list, used for BOTH the on-screen checklist and the disabled
+            // state, so "the button is enabled" and "this will save" can never
+            // disagree. It mirrors validatePaperDelivery() field for field.
+            var missing = [];
+            if (!this.validShift(this.receivingShift)) {
+                missing.push('Receiving shift');
+            }
+            if (!this.validShift(this.paperProductionShift())) {
+                missing.push('Production shift (from paper DR)');
+            }
+            if (this.paperForm.origin_type === 'branch' && !this.paperForm.origin_id) {
+                missing.push('Sending branch');
+            }
+            if (this.paperForm.auto_dr) {
+                if (this.paperForm.origin_type !== 'commissary') {
+                    missing.push('Auto-DR needs the source set to Commissary');
+                }
+            } else if (!this.paperForm.dr_number || !String(this.paperForm.dr_number).trim()) {
+                missing.push('Paper DR number');
+            }
+            if (!this.paperForm.delivery_date) {
+                missing.push('Date sent');
+            }
+            if (!this.paperForm.receive_date) {
+                missing.push('Date received');
+            }
+            var usable = this.paperForm.items.filter(function(item) {
+                return item.product_id && parseInt(item.quantity, 10) > 0;
+            });
+            if (usable.length === 0) {
+                missing.push('At least one item with a product and a quantity');
+            }
+            return missing;
+        },
+
         canSubmitPaper() {
-            return this.validShift(this.receivingShift) && this.validShift(this.paperProductionShift());
+            return this.paperMissing().length === 0;
         },
 
         validatePaperDelivery() {
