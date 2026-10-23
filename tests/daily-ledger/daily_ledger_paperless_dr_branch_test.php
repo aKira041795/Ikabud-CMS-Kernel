@@ -134,17 +134,75 @@ $h->test(
     str_contains($withdrawals, 'PAPERLESS_DR_DISABLED')
 );
 
-foreach (['apiCreateCashierDispatch', 'apiReceivePaperDelivery'] as $fn) {
-    $h->test(
-        $fn . '() is NOT gated (paper DR stays always available)',
-        !str_contains($fnBody($handlers, $fn), 'dl_canAddStockWithoutPaperDr')
-    );
-}
+// The withdraw/own-production path is not the only way to create stock with no paper
+// trail. Step 2 of the receive modal offers "No paper DR - auto-generate", which is the
+// same thing: the system mints the number and no paper exists. Owner report 2026-10-23:
+// "turned off no Paper DR at admin, branch switch, cashier can still use the no paper DR."
+// So that door must be closed too - but ONLY that door. The paper-DR path in the same
+// handler has to stay open, and a dispatch always carries a DR so it is never gated.
+$receiveBody = $fnBody($handlers, 'apiReceivePaperDelivery');
+$h->test(
+    'apiReceivePaperDelivery() gates the AUTO-DR path',
+    str_contains($receiveBody, '$autoDr && !dl_canAddStockWithoutPaperDr('),
+    'a branch with the switch off could still take stock in via "No paper DR - auto-generate"'
+);
+$h->test(
+    'the paper-DR path in the same handler stays open',
+    substr_count($receiveBody, 'dl_canAddStockWithoutPaperDr') === 1,
+    'gating the whole handler would also block genuinely paper-backed receipts'
+);
+$h->test(
+    'apiCreateCashierDispatch() is NOT gated (a dispatch always carries a DR)',
+    !str_contains($fnBody($handlers, 'apiCreateCashierDispatch'), 'dl_canAddStockWithoutPaperDr'),
+    'a paper dispatch would be refused at a branch that turned paperless receiving off'
+);
 foreach (['apiGetDeliveryByDrForEdit', 'apiEditDeliveryByDr'] as $fn) {
     $h->test(
         $fn . '() is NOT gated (paper DR stays always available)',
         !str_contains($fnBody($deliveries, $fn), 'dl_canAddStockWithoutPaperDr')
     );
 }
+
+// The refusal must be visible before the cashier fills the form in, not only when
+// Save fails. receive_modal is included by ledger.disyl, whose handler publishes
+// paperless_dr_enabled, so the flag is in scope there.
+$receiveTpl = (string) file_get_contents($base . '/templates/modules/daily-ledger/cashier/receive_modal.disyl');
+$h->test(
+    'the cashier modal offers auto-DR only when the branch allows it',
+    str_contains($receiveTpl, '{if paperless_dr_enabled}')
+        && str_contains($receiveTpl, 'No paper DR — auto-generate'),
+    'a branch with the switch off would still show the paperless control'
+);
+$h->test(
+    'the modal explains why when it does not',
+    str_contains($receiveTpl, 'A paper DR number is required at this branch.'),
+    'the control would simply vanish with no reason, which reads as a bug'
+);
+
+// Admin branch switches: bulk actions and row selection.
+$settingsTpl = (string) file_get_contents($base . '/templates/modules/daily-ledger/admin/settings.disyl');
+$h->test(
+    'bulk branch-switch actions use the action colour, not the tertiary one',
+    str_contains($settingsTpl, 'btn btn-accent" onclick="dlBulkSet(')
+        && !str_contains($settingsTpl, 'btn btn-outline" onclick="dlBulkTurnOff('),
+    'a bulk action styled as a tertiary control is the inconsistency the owner flagged'
+);
+$h->test(
+    'bulk actions can turn a switch on as well as off',
+    str_contains($settingsTpl, "dlBulkSet('paperless_dr_enabled', 1)")
+        && str_contains($settingsTpl, "dlBulkSet('paperless_dr_enabled', 0)"),
+    'selecting branches would only ever be usable to switch things off'
+);
+$h->test(
+    'the branch selection column has a select-all',
+    str_contains($settingsTpl, 'id="branch-select-all"')
+        && str_contains($settingsTpl, 'function dlBranchSelectAll('),
+    'bulk-editing a subset would need nineteen individual clicks'
+);
+$h->test(
+    'ticking a row switches Apply-to to Selected',
+    str_contains($settingsTpl, "scopeEl.value = 'selected';"),
+    'the selection column looks inert, which is what makes it read as redundant'
+);
 
 $h->done();

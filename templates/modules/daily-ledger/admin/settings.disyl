@@ -181,15 +181,23 @@
                     <option value="all">All branches</option>
                     <option value="selected">Selected branches only</option>
                 </select>
-                <button type="button" class="btn btn-outline" onclick="dlBulkTurnOff('paperless_dr_enabled')">Turn off no-paper DR</button>
-                <button type="button" class="btn btn-outline" onclick="dlBulkTurnOff('single_shift_mode')">Turn off whole-day shift</button>
+                <button type="button" class="btn btn-accent" onclick="dlBulkSet('paperless_dr_enabled', 1)">Turn on no-paper DR</button>
+                <button type="button" class="btn btn-accent" onclick="dlBulkSet('paperless_dr_enabled', 0)">Turn off no-paper DR</button>
+                <button type="button" class="btn btn-accent" onclick="dlBulkSet('single_shift_mode', 1)">Turn on whole-day shift</button>
+                <button type="button" class="btn btn-accent" onclick="dlBulkSet('single_shift_mode', 0)">Turn off whole-day shift</button>
                 <span id="branch-bulk-status" class="text-sm text-muted"></span>
             </div>
             <div class="table-responsive">
                 <table class="table">
                     <thead>
                         <tr>
-                            <th>Select</th>
+                            <th>
+                                <label class="inline-flex items-center gap-2" for="branch-select-all">
+                                    <input type="checkbox" id="branch-select-all" onchange="dlBranchSelectAll(this)"
+                                           aria-label="Select every branch" title="Select every branch">
+                                    <span>Select</span>
+                                </label>
+                            </th>
                             <th>Branch</th>
                             <th>No paper DR (add stock)</th>
                             <th>Single cashier shift (whole day)</th>
@@ -198,7 +206,8 @@
                     <tbody>
                         {foreach branch_switches as b}
                         <tr>
-                            <td><input type="checkbox" data-branch-select="{b.id}"></td>
+                            <td><input type="checkbox" data-branch-select="{b.id}" onchange="dlSyncBranchSelectAll()"
+                                       aria-label="Select {b.name}"></td>
                             <td>
                                 {b.name}
                                 {if b.is_commissary}<span class="badge badge-neutral ml-2">Commissary</span>{/if}
@@ -1050,7 +1059,39 @@
     }
 
     // Bulk "turn off" over either every branch or only the ticked ones.
-    function dlBulkTurnOff(flag) {
+    // Select-all for the branch switch table. The header box mirrors the rows: a
+    // partial selection shows the browser's indeterminate dash rather than a
+    // misleading "all off", because "Apply to: Selected branches only" acts on
+    // exactly what is ticked.
+    function dlBranchSelectAll(box) {
+        var rows = document.querySelectorAll('input[data-branch-select]');
+        for (var i = 0; i < rows.length; i++) {
+            rows[i].checked = !!box.checked;
+        }
+        dlSyncBranchSelectAll();
+    }
+
+    function dlSyncBranchSelectAll() {
+        var all = document.getElementById('branch-select-all');
+        if (!all) { return; }
+        var rows = document.querySelectorAll('input[data-branch-select]');
+        var picked = 0;
+        for (var i = 0; i < rows.length; i++) {
+            if (rows[i].checked) { picked++; }
+        }
+        all.checked = rows.length > 0 && picked === rows.length;
+        all.indeterminate = picked > 0 && picked < rows.length;
+
+        // Ticking a row IS the "selected" scope. Without this the column looks
+        // inert until the admin also changes "Apply to", which is why it reads as
+        // a second set of checkboxes rather than a selection control.
+        var scopeEl = document.getElementById('branch-bulk-scope');
+        if (scopeEl && picked > 0) {
+            scopeEl.value = 'selected';
+        }
+    }
+
+    function dlBulkSet(flag, value) {
         var scopeEl = document.getElementById('branch-bulk-scope');
         var scope = scopeEl ? scopeEl.value : 'all';
         var ids = [];
@@ -1072,8 +1113,9 @@
             }
         }
 
+        var on = value ? 1 : 0;
         var payload = { branch_ids: ids };
-        payload[flag] = 0;
+        payload[flag] = on;
         var status = document.getElementById('branch-bulk-status');
         if (status) { status.textContent = 'Saving...'; }
 
@@ -1093,10 +1135,11 @@
             var changed = res.changed || [];
             for (var k = 0; k < changed.length; k++) {
                 var cb = document.querySelector('input[data-branch-flag="' + flag + '"][data-branch-id="' + changed[k] + '"]');
-                if (cb) { cb.checked = false; }
+                if (cb) { cb.checked = on === 1; }
             }
-            var msg = 'Turned off for ' + (res.changed_count || 0) + ' branch(es).';
-            if (res.unchanged_count) { msg += ' ' + res.unchanged_count + ' already off.'; }
+            var word = on === 1 ? 'on' : 'off';
+            var msg = 'Turned ' + word + ' for ' + (res.changed_count || 0) + ' branch(es).';
+            if (res.unchanged_count) { msg += ' ' + res.unchanged_count + ' already ' + word + '.'; }
             if (res.refused_count) { msg += ' ' + res.refused_count + ' refused.'; }
             if (status) { status.textContent = msg; }
             showToast(msg, res.refused_count ? 'error' : 'success');
@@ -1105,6 +1148,11 @@
             if (status) { status.textContent = ''; }
             showToast(err.message || 'Could not apply the change', 'error');
         });
+    }
+
+    // Kept for any older markup or bookmark that still calls it.
+    function dlBulkTurnOff(flag) {
+        dlBulkSet(flag, 0);
     }
 
     function openBranchSwitches() {

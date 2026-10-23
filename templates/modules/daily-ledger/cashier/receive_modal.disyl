@@ -278,6 +278,12 @@
                                     <label class="block text-xs font-medium text-indigo-900 mb-1">Paper DR Number</label>
                                     <input type="text" x-model="paperForm.dr_number" placeholder="Enter paper DR number" class="form-input mt-0 w-full border-indigo-300 bg-white font-mono font-semibold uppercase tracking-[0.18em]">
                                 </div>
+                                {* The branch switch governs stock taken in WITHOUT a paper DR, and
+                                   auto-DR is precisely that. Owner report 2026-10-23: with the
+                                   switch off at admin, the cashier could still tick this. The
+                                   server refuses it too (PAPERLESS_DR_DISABLED), so this is the
+                                   visible half of one rule, not the only guard. *}
+                                {if paperless_dr_enabled}
                                 <div class="flex items-start gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2" x-show="paperForm.origin_type === 'commissary'">
                                     <input type="checkbox" x-model="paperForm.auto_dr" id="auto-dr-toggle" class="mt-0.5 h-4 w-4 rounded border-emerald-300 text-emerald-600 focus:ring-emerald-500">
                                     <label for="auto-dr-toggle" class="text-xs leading-5 text-emerald-900">
@@ -285,6 +291,14 @@
                                         <span class="block text-[11px] text-emerald-700">Goods from the commissary (production) arrived without a DR. The system creates one (dd/mm/yyyy-n) and logs it.</span>
                                     </label>
                                 </div>
+                                {else}
+                                <div class="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2" x-show="paperForm.origin_type === 'commissary'">
+                                    <span class="text-xs leading-5 text-amber-900">
+                                        <span class="font-semibold">A paper DR number is required at this branch.</span>
+                                        <span class="block text-[11px] text-amber-800">Auto-generating a DR is switched off, so enter the number printed on the delivery's paper DR.</span>
+                                    </span>
+                                </div>
+                                {/if}
                                 {* Delayed producer entry (066): filled from the paper sheet later, not
                                    inferred from whoever is encoding. Optional; blank = not recorded. *}
                                 <div>

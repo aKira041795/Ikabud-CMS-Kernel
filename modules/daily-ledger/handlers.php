@@ -11043,6 +11043,23 @@ function apiReceivePaperDelivery(array $params = []): void
             return;
         }
     }
+
+    // The per-branch switch governs stock created WITHOUT a paper DR, and auto-DR is
+    // exactly that: the system mints the number, so no paper exists. It was only
+    // enforced on the withdrawal path (Add Stock / own production), which left this
+    // a second paperless door: a branch with the switch OFF could still take stock in
+    // here by ticking "No paper DR - auto-generate" in Step 2 of the receive modal.
+    // Owner report 2026-10-23: "turned off no Paper DR at admin, branch switch,
+    // cashier can still use the no paper DR."
+    if ($autoDr && !dl_canAddStockWithoutPaperDr($user, $destinationBranchId)) {
+        $ctx->json([
+            'ok' => false,
+            'error' => 'Adding stock without a paper DR is disabled for this branch. Enter the paper DR number from the delivery instead.',
+            'code' => 'PAPERLESS_DR_DISABLED',
+        ], 403);
+        return;
+    }
+
     if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $deliveryDate) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $receiveDate)) {
         $ctx->json(['ok' => false, 'error' => 'Invalid date.'], 422);
         return;
