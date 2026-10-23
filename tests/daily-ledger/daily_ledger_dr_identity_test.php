@@ -272,4 +272,31 @@ $h->test(
     'a pending receipt would stay pending forever — how DR 434 lingered from 18/10'
 );
 
+// ---------------------------------------------------------------- no silent money
+
+$h->section('verifying never moves stock');
+
+// Owner decision 2026-10-23: "leave it until an admin resolves it." The debit
+// stays where the capture put it; resolving the paper trail is not a financial
+// correction. This assertion exists so nobody adds the move as a side effect of
+// ticking a record as verified.
+$reviewStart = strpos($deliveryFile, 'function apiReviewDeliveryProvenance(');
+$reviewEnd = $reviewStart === false ? false : strpos($deliveryFile, "\nfunction ", $reviewStart + 1);
+$reviewBody = $reviewStart === false
+    ? ''
+    : substr($deliveryFile, $reviewStart, ($reviewEnd === false ? strlen($deliveryFile) : $reviewEnd) - $reviewStart);
+
+$h->test('the verification handler was found', $reviewBody !== '' && strlen($reviewBody) > 1500);
+foreach ([
+    'dl_applyPostedDeliveryCommissaryLedger',
+    'dl_reversePostedDeliveryCommissaryLedger',
+    'dl_applyCommissaryProductLedgerDelta',
+] as $ledgerCall) {
+    $h->test(
+        'verification does not call ' . $ledgerCall,
+        !str_contains($reviewBody, $ledgerCall),
+        'ticking a record as verified would silently move the commissary debit'
+    );
+}
+
 $h->done();

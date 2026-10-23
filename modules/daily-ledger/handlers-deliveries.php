@@ -1496,6 +1496,19 @@ function apiVoidDelivery(array $params = []): void
 
 function apiReviewDeliveryProvenance(array $params = []): void
 {
+    // OWNER DECISION 2026-10-23: verifying a paper DR must NOT move stock.
+    //
+    // When the cashier's capture claimed a different sender than the dispatcher
+    // did, the tempting "fix" is to reverse the commissary debit and re-apply it
+    // to the true origin here. The owner ruled against that: "leave it until an
+    // admin resolves it". The debit therefore stays wherever the capture put it,
+    // and this handler only records what a human decided about the paper trail
+    // (provenance_status / review note / consignee discrepancy lines).
+    //
+    // Moving a posted effect is a financial correction with rollback cost, so it
+    // stays a deliberate, separate act - never a side effect of ticking a record
+    // as verified. If you are here to add one: add it as its own guarded action,
+    // not in this update.
     $ctx = module();
     if (!$ctx) { http_response_code(500); return; }
 
