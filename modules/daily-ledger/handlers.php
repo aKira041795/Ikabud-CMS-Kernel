@@ -10204,6 +10204,20 @@ function apiCreateCashierDispatch(array $params = []): void
         return;
     }
 
+    // The check above is scoped to THIS source branch. A load is often recorded
+    // by both ends, and the two ends disagree about who the sender was
+    // (measured: DR 434 at branch 24 arrived as both "commissary:21 -> branch
+    // 24" and "branch:20 -> branch 24"). Ask the destination as well, so the
+    // dispatch cannot create a second delivery for a DR it already holds.
+    if ($destType === 'branch' && dl_findDeliveryByDrAtDestination($ctx->db(), (int)$destId, $deliveryDate, $drNumber)) {
+        $ctx->json([
+            'ok' => false,
+            'error' => 'DR "' . $drNumber . '" is already recorded at the destination branch for ' . $deliveryDate
+                . '. One DR is one delivery - open that record instead of dispatching it again.',
+        ], 422);
+        return;
+    }
+
     $priceGroupId = dl_defaultPriceGroupId();
 
     $ctx->db()->beginTransaction();
@@ -10213,6 +10227,26 @@ function apiCreateCashierDispatch(array $params = []): void
         // lock is what makes simultaneous retries exactly-once.
         $sourceLock = $ctx->db()->prepare('SELECT id FROM dl_branches WHERE id = :id FOR UPDATE');
         $sourceLock->execute([':id' => $originBranchId]);
+
+        // The dispatch and the cashier's paper capture must contend on the SAME
+        // row or the race stays open: locking only the source lets a dispatch
+        // and a receipt pass their checks simultaneously. The destination is
+        // the shared value, so lock it too and re-check in dependency-free
+        // order (destination before source is not required here because the
+        // source lock is already held and both paths take them in this order).
+        if ($destType === 'branch' && (int)$destId !== (int)$originBranchId) {
+            $destLock = $ctx->db()->prepare('SELECT id FROM dl_branches WHERE id = :id FOR UPDATE');
+            $destLock->execute([':id' => $destId]);
+            if (dl_findDeliveryByDrAtDestination($ctx->db(), (int)$destId, $deliveryDate, $drNumber)) {
+                $ctx->db()->commit();
+                $ctx->json([
+                    'ok' => false,
+                    'error' => 'DR "' . $drNumber . '" is already recorded at the destination branch for ' . $deliveryDate
+                        . '. One DR is one delivery - open that record instead of dispatching it again.',
+                ], 422);
+                return;
+            }
+        }
         $dupStmt->execute([
             ':origin_type' => 'branch',
             ':origin_id' => $originBranchId,
@@ -11066,33 +11100,30 @@ function apiReceivePaperDelivery(array $params = []): void
 
     $existing = null;
     if (!$autoDr) {
-        // Date-scoped deliberately: a paper capture is a document for one
-        // delivery_date. Matching the DR alone would let a capture update a
-        // different day's dispatch (and now write a producer onto it), which is
-        // an evidence-integrity hazard. See dl_findPaperCapturedCommissaryDelivery
-        // for the date+remark-scoped helper this mirrors (date scoping only here).
-        $findStmt = $ctx->db()->prepare(
-            'SELECT id, status, produced_by, produced_at, production_shift
-               FROM dl_deliveries
-              WHERE destination_type = :destination_type
-                AND destination_id = :destination_id
-                AND delivery_date = :delivery_date
-                AND dr_number = :dr_number
-                AND status <> "voided"
-              ORDER BY id DESC
-              LIMIT 1'
-        );
-        $findStmt->execute([
-            ':destination_type' => 'branch',
-            ':destination_id' => $destinationBranchId,
-            ':delivery_date' => $deliveryDate,
-            ':dr_number' => $drNumber,
-        ]);
-        $existing = $findStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+        // Identity is (destination, delivery_date, DR) and deliberately NOT the
+        // sender. The receiving cashier and the dispatching encoder disagree
+        // about who sent a load (measured 2026-10-22: DR 434 arrived as both
+        // "commissary:21 -> branch 24" and "branch:20 -> branch 24"), and every
+        // guard that keyed on the sender was blind to the other row, which is
+        // how one load became two deliveries. Date stays in the key: a paper
+        // capture is a document for one delivery_date, and matching the DR
+        // alone would let a capture mutate a different day's dispatch.
+        $existing = dl_findDeliveryByDrAtDestination($ctx->db(), $destinationBranchId, $deliveryDate, $drNumber);
     }
 
     $ctx->db()->beginTransaction();
     try {
+        // Re-resolve the DR under a destination lock. The lookup above ran
+        // outside the transaction, so two cashiers (or a cashier racing the
+        // encoder) can both see "no existing capture" and both insert; that is
+        // the same race on the receive side that produced a 290 pcs double
+        // receipt on DR 7871. The dispatch paths lock the destination branch
+        // for the same reason, so both sides now contend on one row.
+        $receiveDestLock = $ctx->db()->prepare('SELECT id FROM dl_branches WHERE id = :id FOR UPDATE');
+        $receiveDestLock->execute([':id' => $destinationBranchId]);
+        if (!$autoDr) {
+            $existing = dl_findDeliveryByDrAtDestination($ctx->db(), $destinationBranchId, $deliveryDate, $drNumber);
+        }
         // Auto-DR production receive: mint the label while holding the
         // destination day-status lock so per-branch/date sequence numbers
         // cannot collide under concurrency.
@@ -23850,6 +23881,16 @@ function apiCommissaryDispatch(): void
             throw new RuntimeException('Destination branch is not active.');
         }
 
+        // Serialize dispatches INTO this destination for the duration of the
+        // transaction. Without this the DR checks below are check-then-insert:
+        // two encoders (or a cashier receiving while the encoder dispatches)
+        // both pass the check and both insert. The lock target is the
+        // DESTINATION, not the source, because the destination is the only
+        // value both sides of the desk agree on - see
+        // dl_findDeliveryByDrAtDestination().
+        $destLock = $db->prepare('SELECT id FROM dl_branches WHERE id = :id FOR UPDATE');
+        $destLock->execute([':id' => $destinationBranchId]);
+
         // Verify DR not already used
         $existingDelivery = dl_findAutoCommissaryDelivery($db, $destinationBranchId, $ledgerDate, $drNumber);
         if ($existingDelivery) {
@@ -23858,6 +23899,20 @@ function apiCommissaryDispatch(): void
         $existingPaper = dl_findPaperCapturedCommissaryDelivery($db, $destinationBranchId, $ledgerDate, $drNumber);
         if ($existingPaper) {
             throw new RuntimeException('A paper DR capture with DR "' . $drNumber . '" already exists for this branch on ' . $ledgerDate . '.');
+        }
+
+        // The two checks above key on the SENDER, and the sender is exactly what
+        // the two sides disagree about: measured 2026-10-22, DR 434 reached
+        // branch 24 as both "commissary:21 -> branch 24" and "branch:20 ->
+        // branch 24", so neither check could see the other row and one load
+        // became two deliveries. Ask the destination instead.
+        $sameDrAtDestination = dl_findDeliveryByDrAtDestination($db, $destinationBranchId, $ledgerDate, $drNumber);
+        if ($sameDrAtDestination) {
+            throw new RuntimeException(
+                'DR "' . $drNumber . '" is already recorded at this branch for ' . $ledgerDate
+                . ' (recorded as ' . (string) $sameDrAtDestination['origin_type'] . ').'
+                . ' One DR is one delivery - open that record instead of sending it again.'
+            );
         }
 
         // Validate cumulative stock for each item

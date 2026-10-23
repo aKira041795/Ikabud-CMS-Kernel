@@ -477,6 +477,72 @@ function dl_findAutoCommissaryDelivery(\Ikabud\Kernel\Contracts\DatabaseContract
     return $row ?: null;
 }
 
+/**
+ * Comparison form of a hand-typed paper DR number.
+ *
+ * The number is copied off a paper document, so the same DR can be typed with
+ * different case or stray spaces by two different people. Case-insensitivity
+ * comes free from the utf8mb4 collation; spaces do not, so both sides of the
+ * comparison strip them.
+ */
+function dl_normalizeDrKey(string $drNumber): string
+{
+    return strtoupper(str_replace(' ', '', trim($drNumber)));
+}
+
+/**
+ * Find the delivery that already owns this paper DR *at this destination*.
+ *
+ * Identity is (destination, delivery date, DR number) and deliberately NOT the
+ * sender. Measured 2026-10-22 on the live ledger: DR 434 reached branch 24 and
+ * was recorded twice, once as commissary:21 -> branch 24 by the receiving
+ * cashier and once as branch:20 -> branch 24 by the dispatching encoder. Both
+ * the number and the destination agreed; the sender did not. Every duplicate
+ * guard keyed on the sender, so each side was blind to the other's row and one
+ * load became two deliveries.
+ *
+ * The destination is the right scope because it is the only party that ever
+ * sees the physical goods. A split shipment still works: the same DR going to
+ * branches 14 and 17 is two different destinations, so neither is a duplicate.
+ */
+function dl_findDeliveryByDrAtDestination(
+    \Ikabud\Kernel\Contracts\DatabaseContract $db,
+    int $destinationBranchId,
+    string $deliveryDate,
+    string $drNumber
+): ?array {
+    $drKey = dl_normalizeDrKey($drNumber);
+    if ($destinationBranchId <= 0 || $deliveryDate === '' || $drKey === '') {
+        return null;
+    }
+
+    // The comparison strips spaces in SQL too, so a stored "DR 123" and a typed
+    // "dr123" resolve to the same delivery. There is deliberately no dr_key
+    // column: a stored key must be written by every insert path, and the one
+    // path that forgets silently disables the guard. An expression cannot be
+    // forgotten. It costs a scan of the destination's day, which is small.
+    $stmt = $db->prepare(
+        'SELECT id, status, dr_number, delivery_date, origin_type, origin_id, remarks, receipt_required,
+                produced_by, produced_at, production_shift
+           FROM dl_deliveries
+          WHERE destination_type = "branch"
+            AND destination_id = :destination_id
+            AND delivery_date = :delivery_date
+            AND REPLACE(UPPER(TRIM(dr_number)), " ", "") = :dr_key
+            AND status <> "voided"
+          ORDER BY id DESC
+          LIMIT 1'
+    );
+    $stmt->execute([
+        ':destination_id' => $destinationBranchId,
+        ':delivery_date' => $deliveryDate,
+        ':dr_key' => $drKey,
+    ]);
+
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    return $row ?: null;
+}
+
 function dl_deliveryHasActiveReceivings(\Ikabud\Kernel\Contracts\DatabaseContract $db, int $deliveryId): bool
 {
     $stmt = $db->prepare(

@@ -116,7 +116,16 @@ $h->section('dispatcher attribution');
 // the document; an electronic dispatch used to record neither, so the cashier's receive
 // modal showed "not recorded (historical)".
 $dispatchStart = strpos($handlerFile, 'function apiCommissaryDispatch(');
-$dispatchBody = $dispatchStart === false ? '' : substr($handlerFile, $dispatchStart, 9000);
+// Bound the body by the NEXT top-level function, not by a byte count. A fixed
+// window (9000) silently truncated the handler the moment the duplicate-DR
+// guard added comments above the INSERT, and these assertions failed while the
+// behaviour they describe was untouched. The intent is "this function does X",
+// so measure the function, not its length.
+$dispatchEnd = $dispatchStart === false ? false : strpos($handlerFile, "\nfunction ", $dispatchStart + 1);
+$dispatchLength = $dispatchStart === false
+    ? 0
+    : (($dispatchEnd === false ? strlen($handlerFile) : $dispatchEnd) - $dispatchStart);
+$dispatchBody = $dispatchStart === false ? '' : substr($handlerFile, $dispatchStart, $dispatchLength);
 $h->test('the dispatch handler body was found', $dispatchBody !== '' && strlen($dispatchBody) > 2000);
 $h->test(
     'the dispatch records the production shift',
