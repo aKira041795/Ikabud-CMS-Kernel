@@ -198,4 +198,78 @@ $h->test(
     'two cashiers could both see "no existing capture" and both insert'
 );
 
+// ---------------------------------------------------------------- variance
+
+$h->section('a quantity disagreement becomes a variance');
+
+$h->test(
+    'identical lines produce no variance',
+    dl_describeDrLineDifference([22 => 5, 23 => 2], [23 => 2, 22 => 5]) === '',
+    'every re-submitted dispatch would be flagged as a disagreement'
+);
+$h->test(
+    'a quantity difference names both numbers',
+    ($d = dl_describeDrLineDifference([22 => 5], [22 => 3])) !== ''
+        && str_contains($d, 'recorded 5')
+        && str_contains($d, 'says 3'),
+    'the admin would be told there is a difference but not what it is'
+);
+$h->test(
+    'a product only on the dispatch is reported',
+    str_contains(dl_describeDrLineDifference([22 => 5], [22 => 5, 99 => 1]), 'product 99'),
+    'goods claimed by the dispatch but not received would vanish into a bare refusal'
+);
+$h->test(
+    'a product only on the record is reported',
+    ($d = dl_describeDrLineDifference([22 => 5, 77 => 4], [22 => 5])) !== ''
+        && str_contains($d, 'product 77'),
+    'goods received but not dispatched would vanish into a bare refusal'
+);
+
+// Anything NOT awaiting review must stay untouched. The fixture happens to hold
+// no 'accepted' row, so probe whatever settled state it does hold.
+$verifiedProbe = $db->query(
+    'SELECT id, provenance_status FROM dl_deliveries
+      WHERE COALESCE(provenance_status, "") <> "paper_dr_pending" AND status <> "voided" LIMIT 1'
+)->fetch(PDO::FETCH_ASSOC);
+if (is_array($verifiedProbe)) {
+    $before = (string) ($verifiedProbe['provenance_status'] ?? '');
+    dl_flagDrDiscrepancy($db, $verifiedProbe, [22 => 5], [22 => 3], 'probe');
+    $after = (string) $db->query('SELECT COALESCE(provenance_status, "") FROM dl_deliveries WHERE id = ' . (int) $verifiedProbe['id'])->fetchColumn();
+    $h->test(
+        'a settled delivery is not silently re-opened',
+        $after === $before,
+        'someone else typing the wrong quantity would un-settle reviewed records'
+    );
+} else {
+    $h->test('a settled delivery exists to probe', false, 'fixture has no settled delivery');
+}
+
+// ---------------------------------------------------------------- day close
+
+$h->section('a closed day settles provenance');
+
+$autoStart = strpos($deliveryFile, 'function dl_autoAcceptPendingProvenance(');
+$autoEnd = $autoStart === false ? false : strpos($deliveryFile, "\nfunction ", $autoStart + 1);
+$autoBody = $autoStart === false
+    ? ''
+    : substr($deliveryFile, $autoStart, ($autoEnd === false ? strlen($deliveryFile) : $autoEnd) - $autoStart);
+
+$h->test('the sweep exists', $autoBody !== '' && strlen($autoBody) > 300);
+$h->test(
+    'it only moves awaiting-review deliveries',
+    str_contains($autoBody, '"paper_dr_pending"'),
+    'a sweep would accept records nobody ever looked at'
+);
+$h->test(
+    'it never sweeps a disagreement',
+    !str_contains($autoBody, 'discrepant'),
+    'closing the day would bury the variance the admin was asked to investigate'
+);
+$h->test(
+    'closing a day runs it',
+    str_contains($handlerFile, 'dl_autoAcceptPendingProvenance($ctx->db(), $branchId, $date, $userId)'),
+    'a pending receipt would stay pending forever — how DR 434 lingered from 18/10'
+);
+
 $h->done();

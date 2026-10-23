@@ -10209,13 +10209,37 @@ function apiCreateCashierDispatch(array $params = []): void
     // (measured: DR 434 at branch 24 arrived as both "commissary:21 -> branch
     // 24" and "branch:20 -> branch 24"). Ask the destination as well, so the
     // dispatch cannot create a second delivery for a DR it already holds.
-    if ($destType === 'branch' && dl_findDeliveryByDrAtDestination($ctx->db(), (int)$destId, $deliveryDate, $drNumber)) {
-        $ctx->json([
-            'ok' => false,
-            'error' => 'DR "' . $drNumber . '" is already recorded at the destination branch for ' . $deliveryDate
-                . '. One DR is one delivery - open that record instead of dispatching it again.',
-        ], 422);
-        return;
+    if ($destType === 'branch') {
+        $sameDrHere = dl_findDeliveryByDrAtDestination($ctx->db(), (int)$destId, $deliveryDate, $drNumber);
+        if ($sameDrHere) {
+            // The destination already owns this DR. If this dispatch claims
+            // different stock than the record holds, that disagreement is the
+            // variance an admin has to see - so name the numbers instead of
+            // just refusing. Owner decision 2026-10-23.
+            $attempted = [];
+            foreach ($items as $item) {
+                $pid = (int)($item['product_id'] ?? 0);
+                if ($pid > 0) {
+                    $attempted[$pid] = ($attempted[$pid] ?? 0) + (int)($item['quantity'] ?? 0);
+                }
+            }
+            $diff = dl_flagDrDiscrepancy(
+                $ctx->db(),
+                $sameDrHere,
+                dl_deliveryItemQuantities($ctx->db(), (int)$sameDrHere['id']),
+                $attempted,
+                (string)($user['full_name'] ?? ($user['username'] ?? ''))
+            );
+            $ctx->json([
+                'ok' => false,
+                'error' => 'DR "' . $drNumber . '" is already recorded at the destination branch for ' . $deliveryDate
+                    . '. One DR is one delivery - open that record instead of dispatching it again.'
+                    . ($diff !== '' ? ' This dispatch does not match it: ' . $diff . '. An admin will review the difference.' : ''),
+                'dr_conflict' => true,
+                'dr_conflict_difference' => $diff,
+            ], 422);
+            return;
+        }
     }
 
     $priceGroupId = dl_defaultPriceGroupId();
@@ -12507,6 +12531,13 @@ function apiCloseDay(array $params = []): void
         );
         $stmt->execute([':bid' => $branchId, ':d' => $date, ':uid' => $userId, ':uid2' => $userId]);
 
+        // Owner decision 2026-10-23: "Auto-accept after a window. if a day closes,
+        // then it's auto-accepted." A paper capture waits for the production
+        // in-charge; without this sweep an unacknowledged one stays pending
+        // forever. `discrepant` is not swept - a disagreement is what the admin
+        // is being asked to investigate, and closing must not bury it.
+        $autoAcceptedProvenance = dl_autoAcceptPendingProvenance($ctx->db(), $branchId, $date, $userId);
+
         dl_pos_markModeClosed($ctx->db(), $branchId, $date, $userId);
 
         dl_auditLog('close_day', $branchId, 'dl_ledger_day_status', "{$branchId}-{$date}", null, ['status' => 'closed']);
@@ -12514,7 +12545,7 @@ function apiCloseDay(array $params = []): void
         $ctx->db()->commit();
 
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Day closed', 'type' => 'success']]));
-        $ctx->json(['ok' => true, 'day_status' => 'closed']);
+        $ctx->json(['ok' => true, 'day_status' => 'closed', 'provenance_auto_accepted' => $autoAcceptedProvenance]);
     } catch (\Throwable $e) {
         try {
             if ($ctx->db()->inTransaction()) {
@@ -23908,10 +23939,25 @@ function apiCommissaryDispatch(): void
         // became two deliveries. Ask the destination instead.
         $sameDrAtDestination = dl_findDeliveryByDrAtDestination($db, $destinationBranchId, $ledgerDate, $drNumber);
         if ($sameDrAtDestination) {
+            $attempted = [];
+            foreach ($cleanItems as $item) {
+                $pid = (int)($item['product_id'] ?? 0);
+                if ($pid > 0) {
+                    $attempted[$pid] = ($attempted[$pid] ?? 0) + (int)($item['quantity'] ?? 0);
+                }
+            }
+            $diff = dl_flagDrDiscrepancy(
+                $db,
+                $sameDrAtDestination,
+                dl_deliveryItemQuantities($db, (int)$sameDrAtDestination['id']),
+                $attempted,
+                (string)($user['full_name'] ?? ($user['username'] ?? ''))
+            );
             throw new RuntimeException(
                 'DR "' . $drNumber . '" is already recorded at this branch for ' . $ledgerDate
                 . ' (recorded as ' . (string) $sameDrAtDestination['origin_type'] . ').'
                 . ' One DR is one delivery - open that record instead of sending it again.'
+                . ($diff !== '' ? ' This dispatch does not match it: ' . $diff . '. An admin will review the difference.' : '')
             );
         }
 

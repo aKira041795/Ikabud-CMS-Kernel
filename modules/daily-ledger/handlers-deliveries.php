@@ -523,7 +523,7 @@ function dl_findDeliveryByDrAtDestination(
     // forgotten. It costs a scan of the destination's day, which is small.
     $stmt = $db->prepare(
         'SELECT id, status, dr_number, delivery_date, origin_type, origin_id, remarks, receipt_required,
-                produced_by, produced_at, production_shift
+                produced_by, produced_at, production_shift, provenance_status
            FROM dl_deliveries
           WHERE destination_type = "branch"
             AND destination_id = :destination_id
@@ -541,6 +541,139 @@ function dl_findDeliveryByDrAtDestination(
 
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
     return $row ?: null;
+}
+
+/** Product => total quantity for one delivery. */
+function dl_deliveryItemQuantities(\Ikabud\Kernel\Contracts\DatabaseContract $db, int $deliveryId): array
+{
+    $stmt = $db->prepare(
+        'SELECT product_id, SUM(quantity) AS qty
+           FROM dl_delivery_items
+          WHERE delivery_id = :id
+          GROUP BY product_id'
+    );
+    $stmt->execute([':id' => $deliveryId]);
+
+    $out = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        $out[(int) $row['product_id']] = (int) $row['qty'];
+    }
+    return $out;
+}
+
+/**
+ * Describe how an attempted dispatch differs from the delivery that already owns
+ * the DR. Returns '' when the two describe the same stock movement.
+ *
+ * Owner decision 2026-10-23: "if qty disagree, then becomes a variance an admin
+ * can investigate." The record already holds what the receiving branch counted;
+ * a dispatch claiming different lines is the disagreement, so the message has to
+ * carry the actual numbers rather than just refusing.
+ */
+function dl_describeDrLineDifference(array $recorded, array $attempted): string
+{
+    $parts = [];
+    foreach ($attempted as $pid => $qty) {
+        if (!array_key_exists($pid, $recorded)) {
+            $parts[] = 'product ' . $pid . ' is not on the recorded delivery';
+        } elseif ((int) $recorded[$pid] !== (int) $qty) {
+            $parts[] = 'product ' . $pid . ': recorded ' . (int) $recorded[$pid] . ', this dispatch says ' . (int) $qty;
+        }
+    }
+    foreach ($recorded as $pid => $qty) {
+        if (!array_key_exists($pid, $attempted)) {
+            $parts[] = 'product ' . $pid . ' (' . (int) $qty . ' pcs) is missing from this dispatch';
+        }
+    }
+    if ($parts === []) {
+        return '';
+    }
+    $shown = array_slice($parts, 0, 4);
+    $more = count($parts) - count($shown);
+    return implode('; ', $shown) . ($more > 0 ? '; and ' . $more . ' more' : '');
+}
+
+/**
+ * Record a DR disagreement for an admin to investigate.
+ *
+ * Only a delivery still awaiting provenance review is marked. An already-verified
+ * delivery must not be re-opened by somebody else's dispatch - if the two really
+ * disagree after verification, that is a correction, not a discrepancy, and it has
+ * its own path. Returns the difference text either way so the caller can report it.
+ */
+function dl_flagDrDiscrepancy(
+    \Ikabud\Kernel\Contracts\DatabaseContract $db,
+    array $existingDelivery,
+    array $recordedQuantities,
+    array $attemptedQuantities,
+    string $actorLabel
+): string {
+    $diff = dl_describeDrLineDifference($recordedQuantities, $attemptedQuantities);
+    if ($diff === '') {
+        return '';
+    }
+
+    if ((string) ($existingDelivery['provenance_status'] ?? '') !== 'paper_dr_pending') {
+        return $diff;
+    }
+
+    $note = 'Dispatch by ' . ($actorLabel !== '' ? $actorLabel : 'another user')
+        . ' disagrees with this record: ' . $diff;
+
+    $db->prepare(
+        'UPDATE dl_deliveries
+            SET provenance_status = "discrepant",
+                provenance_review_note = :note
+          WHERE id = :id
+            AND provenance_status = "paper_dr_pending"
+            AND status <> "voided"'
+    )->execute([':note' => $note, ':id' => (int) $existingDelivery['id']]);
+
+    return $diff;
+}
+
+/**
+ * A closed day settles provenance review.
+ *
+ * Owner decision 2026-10-23: "Auto-accept after a window. if a day closes, then
+ * it's auto-accepted." A paper capture enters as paper_dr_pending ("Needs Check")
+ * and waits for the production in-charge. Without this sweep an unacknowledged
+ * capture stays pending forever - which is how the fixture accumulated a phantom
+ * delivery on DR 434 from 18/10 that nothing would ever have closed.
+ *
+ * `discrepant` is deliberately NOT swept: a disagreement is the thing an admin is
+ * being asked to investigate, and closing the day must not bury it.
+ */
+function dl_autoAcceptPendingProvenance(
+    \Ikabud\Kernel\Contracts\DatabaseContract $db,
+    int $branchId,
+    string $ledgerDate,
+    int $actorId
+): int {
+    if ($branchId <= 0 || $ledgerDate === '') {
+        return 0;
+    }
+
+    $stmt = $db->prepare(
+        'UPDATE dl_deliveries
+            SET provenance_status = "accepted",
+                provenance_reviewed_by = :uid,
+                provenance_reviewed_at = CURRENT_TIMESTAMP,
+                provenance_review_note = :note
+          WHERE destination_type = "branch"
+            AND destination_id = :bid
+            AND delivery_date = :d
+            AND provenance_status = "paper_dr_pending"
+            AND status <> "voided"'
+    );
+    $stmt->execute([
+        ':uid' => $actorId > 0 ? $actorId : null,
+        ':note' => 'Auto-accepted when the day was closed.',
+        ':bid' => $branchId,
+        ':d' => $ledgerDate,
+    ]);
+
+    return $stmt->rowCount();
 }
 
 function dl_deliveryHasActiveReceivings(\Ikabud\Kernel\Contracts\DatabaseContract $db, int $deliveryId): bool
