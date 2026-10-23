@@ -179,30 +179,33 @@ $h->test(
     'the control would simply vanish with no reason, which reads as a bug'
 );
 
-// Admin branch switches: bulk actions and row selection.
+// Admin branch switches: one scope dropdown, and the switches are the only checkboxes.
 $settingsTpl = (string) file_get_contents($base . '/templates/modules/daily-ledger/admin/settings.disyl');
 $h->test(
-    'bulk branch-switch actions use the action colour, not the tertiary one',
-    str_contains($settingsTpl, 'btn btn-accent" onclick="dlBulkSet(')
-        && !str_contains($settingsTpl, 'btn btn-outline" onclick="dlBulkTurnOff('),
-    'a bulk action styled as a tertiary control is the inconsistency the owner flagged'
+    'the scope dropdown offers all branches and selected branches',
+    str_contains($settingsTpl, '<option value="all">All branches</option>')
+        && str_contains($settingsTpl, 'Selected branches only'),
+    'the admin could not choose how far a switch change reaches'
 );
 $h->test(
-    'bulk actions can turn a switch on as well as off',
-    str_contains($settingsTpl, "dlBulkSet('paperless_dr_enabled', 1)")
-        && str_contains($settingsTpl, "dlBulkSet('paperless_dr_enabled', 0)"),
-    'selecting branches would only ever be usable to switch things off'
+    'there is no second column of selection checkboxes',
+    !str_contains($settingsTpl, 'data-branch-select'),
+    'a box before the branch name duplicates the switch after it, which is what made the table confusing'
 );
 $h->test(
-    'the branch selection column has a select-all',
-    str_contains($settingsTpl, 'id="branch-select-all"')
-        && str_contains($settingsTpl, 'function dlBranchSelectAll('),
-    'bulk-editing a subset would need nineteen individual clicks'
+    'the separate bulk buttons are gone',
+    !str_contains($settingsTpl, 'dlBulkSet(') && !str_contains($settingsTpl, 'dlBulkTurnOff('),
+    'four bulk buttons plus a selection column is the complexity the owner asked to remove'
 );
 $h->test(
-    'ticking a row switches Apply-to to Selected',
-    str_contains($settingsTpl, "scopeEl.value = 'selected';"),
-    'the selection column looks inert, which is what makes it read as redundant'
+    'a switch click honours the scope',
+    str_contains($settingsTpl, "scopeEl.value === 'all'") && str_contains($settingsTpl, 'branch_ids: ids'),
+    '"All branches" would only ever change the row that was clicked'
+);
+$h->test(
+    'both switch columns use the same handler',
+    substr_count($settingsTpl, 'onchange="dlToggleBranchFlag(this)"') === 2,
+    'whole-day shift would behave differently from no-paper DR'
 );
 
 $h->done();

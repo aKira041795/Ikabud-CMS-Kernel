@@ -176,28 +176,20 @@
         </div>
         <div class="branch-modal__body" style="max-height: 70vh; overflow-y: auto;">
             <div class="flex flex-wrap items-center gap-3 mb-3">
-                <label class="text-sm text-gray-600" for="branch-bulk-scope">Apply to</label>
+                {* One control decides how far a switch change reaches. The switch columns are
+                   the only checkboxes: a tick is both the value and the selection, so there is
+                   no second column of boxes that looks like a duplicate. *}
+                <label class="text-sm text-gray-600" for="branch-bulk-scope">Apply changes to</label>
                 <select id="branch-bulk-scope" class="form-input" style="max-width: 16rem;">
                     <option value="all">All branches</option>
-                    <option value="selected">Selected branches only</option>
+                    <option value="selected" selected>Selected branches only</option>
                 </select>
-                <button type="button" class="btn btn-accent" onclick="dlBulkSet('paperless_dr_enabled', 1)">Turn on no-paper DR</button>
-                <button type="button" class="btn btn-accent" onclick="dlBulkSet('paperless_dr_enabled', 0)">Turn off no-paper DR</button>
-                <button type="button" class="btn btn-accent" onclick="dlBulkSet('single_shift_mode', 1)">Turn on whole-day shift</button>
-                <button type="button" class="btn btn-accent" onclick="dlBulkSet('single_shift_mode', 0)">Turn off whole-day shift</button>
                 <span id="branch-bulk-status" class="text-sm text-muted"></span>
             </div>
             <div class="table-responsive">
                 <table class="table">
                     <thead>
                         <tr>
-                            <th>
-                                <label class="inline-flex items-center gap-2" for="branch-select-all">
-                                    <input type="checkbox" id="branch-select-all" onchange="dlBranchSelectAll(this)"
-                                           aria-label="Select every branch" title="Select every branch">
-                                    <span>Select</span>
-                                </label>
-                            </th>
                             <th>Branch</th>
                             <th>No paper DR (add stock)</th>
                             <th>Single cashier shift (whole day)</th>
@@ -206,8 +198,6 @@
                     <tbody>
                         {foreach branch_switches as b}
                         <tr>
-                            <td><input type="checkbox" data-branch-select="{b.id}" onchange="dlSyncBranchSelectAll()"
-                                       aria-label="Select {b.name}"></td>
                             <td>
                                 {b.name}
                                 {if b.is_commissary}<span class="badge badge-neutral ml-2">Commissary</span>{/if}
@@ -1059,102 +1049,6 @@
     }
 
     // Bulk "turn off" over either every branch or only the ticked ones.
-    // Select-all for the branch switch table. The header box mirrors the rows: a
-    // partial selection shows the browser's indeterminate dash rather than a
-    // misleading "all off", because "Apply to: Selected branches only" acts on
-    // exactly what is ticked.
-    function dlBranchSelectAll(box) {
-        var rows = document.querySelectorAll('input[data-branch-select]');
-        for (var i = 0; i < rows.length; i++) {
-            rows[i].checked = !!box.checked;
-        }
-        dlSyncBranchSelectAll();
-    }
-
-    function dlSyncBranchSelectAll() {
-        var all = document.getElementById('branch-select-all');
-        if (!all) { return; }
-        var rows = document.querySelectorAll('input[data-branch-select]');
-        var picked = 0;
-        for (var i = 0; i < rows.length; i++) {
-            if (rows[i].checked) { picked++; }
-        }
-        all.checked = rows.length > 0 && picked === rows.length;
-        all.indeterminate = picked > 0 && picked < rows.length;
-
-        // Ticking a row IS the "selected" scope. Without this the column looks
-        // inert until the admin also changes "Apply to", which is why it reads as
-        // a second set of checkboxes rather than a selection control.
-        var scopeEl = document.getElementById('branch-bulk-scope');
-        if (scopeEl && picked > 0) {
-            scopeEl.value = 'selected';
-        }
-    }
-
-    function dlBulkSet(flag, value) {
-        var scopeEl = document.getElementById('branch-bulk-scope');
-        var scope = scopeEl ? scopeEl.value : 'all';
-        var ids = [];
-        if (scope === 'selected') {
-            var picked = document.querySelectorAll('input[data-branch-select]');
-            for (var i = 0; i < picked.length; i++) {
-                if (picked[i].checked) {
-                    ids.push(parseInt(picked[i].getAttribute('data-branch-select'), 10));
-                }
-            }
-            if (ids.length === 0) {
-                showToast('Select at least one branch, or choose All branches.', 'error');
-                return;
-            }
-        } else {
-            var all = document.querySelectorAll('input[data-branch-flag="' + flag + '"]');
-            for (var j = 0; j < all.length; j++) {
-                ids.push(parseInt(all[j].getAttribute('data-branch-id'), 10));
-            }
-        }
-
-        var on = value ? 1 : 0;
-        var payload = { branch_ids: ids };
-        payload[flag] = on;
-        var status = document.getElementById('branch-bulk-status');
-        if (status) { status.textContent = 'Saving...'; }
-
-        fetch('{base_url}/api/v1/admin/branches/flags', {
-            method: 'POST',
-            credentials: 'same-origin',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-Token': (window.DL_CSRF || ''),
-                'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
-            },
-            body: JSON.stringify(payload)
-        })
-        .then(function(r) { return r.json(); })
-        .then(function(res) {
-            if (!res.ok) { throw new Error(res.error || 'Could not apply the change'); }
-            var changed = res.changed || [];
-            for (var k = 0; k < changed.length; k++) {
-                var cb = document.querySelector('input[data-branch-flag="' + flag + '"][data-branch-id="' + changed[k] + '"]');
-                if (cb) { cb.checked = on === 1; }
-            }
-            var word = on === 1 ? 'on' : 'off';
-            var msg = 'Turned ' + word + ' for ' + (res.changed_count || 0) + ' branch(es).';
-            if (res.unchanged_count) { msg += ' ' + res.unchanged_count + ' already ' + word + '.'; }
-            if (res.refused_count) { msg += ' ' + res.refused_count + ' refused.'; }
-            if (status) { status.textContent = msg; }
-            showToast(msg, res.refused_count ? 'error' : 'success');
-        })
-        .catch(function(err) {
-            if (status) { status.textContent = ''; }
-            showToast(err.message || 'Could not apply the change', 'error');
-        });
-    }
-
-    // Kept for any older markup or bookmark that still calls it.
-    function dlBulkTurnOff(flag) {
-        dlBulkSet(flag, 0);
-    }
-
     function openBranchSwitches() {
         document.getElementById('branch-switches-modal').classList.add('show');
     }
@@ -1165,14 +1059,44 @@
 
     // Per-branch operating switches (Paper DR / whole-day shift). Flags-only endpoint:
     // the full branch update requires a name and rewrites every column.
+    //
+    // The switch IS the selection. "Apply changes to" decides how far THIS click
+    // reaches: one branch, or every branch. That is why there is no second column
+    // of selection checkboxes - ticking a switch already says which branch and
+    // what value, so a separate box could only ever duplicate it.
     function dlToggleBranchFlag(el) {
         var branchId = parseInt(el.getAttribute('data-branch-id'), 10) || 0;
         var flag = el.getAttribute('data-branch-flag') || '';
         if (!branchId || !flag) return;
+
         var desired = el.checked;
-        var payload = { branch_id: branchId };
+        var scopeEl = document.getElementById('branch-bulk-scope');
+        var allBranches = !!scopeEl && scopeEl.value === 'all';
+        var peers = document.querySelectorAll('input[data-branch-flag="' + flag + '"]');
+
+        var ids = [];
+        var prior = [];
+        for (var i = 0; i < peers.length; i++) {
+            prior.push(peers[i].checked);
+            peers[i].disabled = true;
+            if (allBranches) {
+                ids.push(parseInt(peers[i].getAttribute('data-branch-id'), 10));
+            }
+        }
+        if (!allBranches) {
+            ids = [branchId];
+        }
+
+        var payload = { branch_ids: ids };
         payload[flag] = desired ? 1 : 0;
-        el.disabled = true;
+
+        var status = document.getElementById('branch-bulk-status');
+        if (status) { status.textContent = 'Saving...'; }
+
+        var restore = function() {
+            for (var j = 0; j < peers.length; j++) { peers[j].checked = prior[j]; }
+        };
+
         fetch('{base_url}/api/v1/admin/branches/flags', {
             method: 'POST',
             credentials: 'same-origin',
@@ -1186,17 +1110,32 @@
         .then(function(r) { return r.json(); })
         .then(function(res) {
             if (!res.ok) {
-                el.checked = !desired;
+                restore();
+                if (status) { status.textContent = ''; }
                 showToast(res.error || 'Could not save the branch switch', 'error');
                 return;
             }
-            showToast('Branch switch saved.', 'success');
+            // Echo what the server accepted; a refused branch keeps its old value.
+            var changed = res.changed || [];
+            for (var k = 0; k < changed.length; k++) {
+                var cb = document.querySelector('input[data-branch-flag="' + flag + '"][data-branch-id="' + changed[k] + '"]');
+                if (cb) { cb.checked = desired; }
+            }
+            var msg = allBranches
+                ? 'Applied to ' + (res.changed_count || 0) + ' branch(es).'
+                : 'Branch switch saved.';
+            if (res.refused_count) { msg += ' ' + res.refused_count + ' refused.'; }
+            if (status) { status.textContent = msg; }
+            showToast(msg, res.refused_count ? 'error' : 'success');
         })
         .catch(function() {
-            el.checked = !desired;
+            restore();
+            if (status) { status.textContent = ''; }
             showToast('Could not save the branch switch', 'error');
         })
-        .finally(function() { el.disabled = false; });
+        .finally(function() {
+            for (var m = 0; m < peers.length; m++) { peers[m].disabled = false; }
+        });
     }
 
     function runDeploymentReset(forceDryRun) {
