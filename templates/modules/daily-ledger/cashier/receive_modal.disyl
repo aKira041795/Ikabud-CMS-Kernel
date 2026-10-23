@@ -228,6 +228,19 @@
                         </div>
 
                         <div class="mt-3 space-y-3" x-show="paperOpen" x-cloak>
+                            {* The guidance lives at the TOP of the form, not beside the Save button:
+                               the cashier reads the form downwards and the bottom of a long form is
+                               below the fold. Owner report 2026-10-23 - "still no visual
+                               instruction what to do". *}
+                            <div class="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900"
+                                 x-show="paperMissing().length > 0" role="status" aria-live="polite">
+                                <span class="font-semibold">Still needed before you can save:</span>
+                                <ul class="mt-1 list-disc pl-5 space-y-0.5">
+                                    <template x-for="need in paperMissing()" :key="need">
+                                        <li x-text="need"></li>
+                                    </template>
+                                </ul>
+                            </div>
                             <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
                                 <div>
                                     <label class="block text-xs font-medium text-indigo-900 mb-1">Where stock came from</label>
@@ -313,6 +326,7 @@
                                 <div>
                                     <label class="block text-xs font-medium text-indigo-900 mb-1">Produced at <span class="font-normal text-indigo-700">(optional — from the paper sheet)</span></label>
                                     <input type="datetime-local" x-model="paperForm.produced_at" class="form-input mt-0 w-full">
+                                    <span class="mt-1 block text-[11px] text-indigo-700">Leave this blank if the paper sheet does not show it — it never stops you saving.</span>
                                 </div>
                             </div>
 
@@ -329,7 +343,9 @@
                                         <template x-for="(line, idx) in paperForm.items" :key="idx">
                                             <tr class="border-b border-gray-100">
                                                 <td class="py-2 pr-2">
-                                                    <select x-model="line.product_id" class="form-input mt-0 w-full">
+                                                    <select x-model="line.product_id"
+                                                            class="form-input mt-0 w-full"
+                                                            x-bind:class="rowProductMissing(line) ? 'border-amber-400 ring-1 ring-amber-300' : ''">
                                                         <option value="">-- Select Product --</option>
                                                         <template x-for="p in products" :key="p.id">
                                                             <option :value="p.id" x-text="p.name"></option>
@@ -337,7 +353,9 @@
                                                     </select>
                                                 </td>
                                                 <td class="py-2 pr-2">
-                                                    <input type="number" x-model="line.quantity" min="0" class="form-input mt-0 text-right w-full">
+                                                    <input type="number" x-model="line.quantity" min="0"
+                                                           class="form-input mt-0 text-right w-full"
+                                                           x-bind:class="rowQuantityMissing(line) ? 'border-amber-400 ring-1 ring-amber-300' : ''">
                                                 </td>
                                                 <td class="py-2 text-right">
                                                     <button type="button" @click="paperForm.items.splice(idx, 1)" class="text-rose-500 hover:text-rose-700 p-1 rounded hover:bg-rose-50" x-show="paperForm.items.length > 1">×</button>
@@ -353,19 +371,13 @@
                                say what is missing. Before this, activation depended on the two
                                shifts alone and pressing it still failed on a missing DR number,
                                a missing date or an empty line - the cashier had to guess which.
-                               Owner report 2026-10-23. *}
+                               The list itself sits at the top of this form; here we only confirm
+                               completion, so the cashier is not told the same thing twice. *}
                             <div class="rounded-md border px-3 py-2 text-xs"
-                                 x-bind:class="paperMissing().length ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-emerald-200 bg-emerald-50 text-emerald-800'"
+                                 x-bind:class="paperMissing().length ? 'border-slate-200 bg-slate-50 text-slate-600' : 'border-emerald-200 bg-emerald-50 text-emerald-800'"
                                  role="status" aria-live="polite">
                                 <template x-if="paperMissing().length">
-                                    <div>
-                                        <span class="font-semibold">Still needed before you can save:</span>
-                                        <ul class="mt-1 list-disc pl-5 space-y-0.5">
-                                            <template x-for="need in paperMissing()" :key="need">
-                                                <li x-text="need"></li>
-                                            </template>
-                                        </ul>
-                                    </div>
+                                    <span>Fill in the highlighted items above to enable saving.</span>
                                 </template>
                                 <template x-if="paperMissing().length === 0">
                                     <span class="font-semibold">Everything required is filled in — ready to save.</span>
@@ -607,13 +619,45 @@ function receiveModal() {
             if (!this.paperForm.receive_date) {
                 missing.push('Date received');
             }
-            var usable = this.paperForm.items.filter(function(item) {
-                return item.product_id && parseInt(item.quantity, 10) > 0;
+
+            // Item lines are named separately: "add a product" and "set a quantity"
+            // are different actions in different cells, so one combined sentence sent
+            // the cashier hunting. Owner report 2026-10-23.
+            var picked = this.paperForm.items.filter(function (item) {
+                return !!item.product_id;
             });
-            if (usable.length === 0) {
-                missing.push('At least one item with a product and a quantity');
+            var self = this;
+            if (picked.length === 0) {
+                missing.push('Add a product line - use "+ Add Item" and choose the product');
+            } else {
+                picked.forEach(function (line) {
+                    if (!(parseInt(line.quantity, 10) > 0)) {
+                        missing.push('Set the quantity (Pcs) for ' + (self.productName(line.product_id) || 'the selected product'));
+                    }
+                });
+                var qtyOnly = this.paperForm.items.filter(function (item) {
+                    return !item.product_id && parseInt(item.quantity, 10) > 0;
+                });
+                if (qtyOnly.length > 0) {
+                    missing.push('Choose the product on every line that already has a quantity');
+                }
             }
             return missing;
+        },
+
+        productName(productId) {
+            var match = (this.products || []).find(function (p) {
+                return String(p.id) === String(productId);
+            });
+            return match ? match.name : '';
+        },
+
+        rowProductMissing(line) {
+            return !line.product_id;
+        },
+
+        rowQuantityMissing(line) {
+            return !!line.product_id && !(parseInt(line.quantity, 10) > 0);
         },
 
         canSubmitPaper() {

@@ -63,14 +63,27 @@ foreach ([
     'paper DR number' => "missing.push('Paper DR number')",
     'date sent' => "missing.push('Date sent')",
     'date received' => "missing.push('Date received')",
-    'at least one usable item' => 'At least one item with a product and a quantity',
+    'a missing product line' => 'Add a product line',
+    'a missing quantity' => 'Set the quantity (Pcs) for ',
+    'a quantity with no product' => 'Choose the product on every line that already has a quantity',
 ] as $rule => $needle) {
     $h->test(
-        'it names the ' . $rule,
+        'it names ' . $rule,
         str_contains($tpl, $needle),
         'the cashier would be told to save, then refused for something never mentioned'
     );
 }
+
+$h->test(
+    'the quantity message names the product',
+    str_contains($tpl, 'productName(line.product_id)'),
+    '"set the quantity" with no product name leaves the cashier hunting down the list'
+);
+$h->test(
+    'an incomplete line is highlighted in place',
+    str_contains($tpl, 'rowProductMissing(line)') && str_contains($tpl, 'rowQuantityMissing(line)'),
+    'the warning would be a sentence far from the cell that needs fixing'
+);
 
 $h->section('the message is visible and announced');
 
@@ -84,6 +97,26 @@ $h->test(
     str_contains($tpl, 'Still needed before you can save:')
         && str_contains($tpl, 'ready to save'),
     'the cashier could not tell the form is now complete'
+);
+$h->test(
+    'the list sits at the top of the form, not beside the Save button',
+    strpos($tpl, 'Still needed before you can save:') < strpos($tpl, 'Save and Receive Paper DR'),
+    'a long form pushes the bottom of itself below the fold, which is what the owner saw'
+);
+
+// "Produced at says optional but is required" - it is NOT required. The column is
+// nullable, dl_normalizeProducedAt() accepts the browser's datetime-local value, and
+// the field is not in paperMissing(). The label now says so out loud instead of
+// leaving the cashier to infer it from a refusal.
+$h->test(
+    'Produced at states plainly that it never blocks saving',
+    str_contains($tpl, 'never stops you saving'),
+    'an optional field that looks mandatory makes the cashier hunt for a requirement that does not exist'
+);
+$h->test(
+    'Produced at is not in the requirement list',
+    !str_contains($tpl, "missing.push('Produced at"), 
+    'the form would demand a field the server treats as optional'
 );
 
 $h->section('required fields are marked');
