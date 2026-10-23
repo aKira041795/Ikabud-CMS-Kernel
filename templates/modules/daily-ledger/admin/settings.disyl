@@ -195,7 +195,10 @@
                                 No paper DR (add stock)
                                 <span class="block text-[11px] font-normal text-gray-500">unclick to hide</span>
                             </th>
-                            <th>Single cashier shift (whole day)</th>
+                            <th>
+                                Single cashier shift (whole day)
+                                <span class="block text-[11px] font-normal text-gray-500">unclick to turn off</span>
+                            </th>
                         </tr>
                     </thead>
                     <tbody>
