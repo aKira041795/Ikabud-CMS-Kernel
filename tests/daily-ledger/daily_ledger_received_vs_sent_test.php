@@ -225,8 +225,11 @@ $fixtureCell = static function (string $html, int $branchId): string {
 try {
     $db->prepare('INSERT INTO dl_branches (id, code, name, default_supply_mode, is_commissary, is_active) VALUES (?, ?, ?, ?, ?, 1)')
         ->execute([$commissaryId, 'S12-COMM', 'S12 Commissary', 'self_managed', 1]);
-    $db->prepare('INSERT INTO dl_branches (id, code, name, default_supply_mode, is_commissary, is_active) VALUES (?, ?, ?, ?, ?, 1)')
-        ->execute([$branchId, 'S12-BR', 'S12 Branch', 'commissary_supplied', 0]);
+    // The sheet renders one column per branch ASSIGNED to the selected commissary, so a
+    // fixture destination must carry that assignment or it has no column at all and every
+    // rendered-cell assertion downstream fails against markup that does not exist.
+    $db->prepare('INSERT INTO dl_branches (id, code, name, default_supply_mode, is_commissary, assigned_commissary_id, is_active) VALUES (?, ?, ?, ?, ?, ?, 1)')
+        ->execute([$branchId, 'S12-BR', 'S12 Branch', 'commissary_supplied', 0, $commissaryId]);
     $db->prepare('INSERT INTO dl_products (id, sku, name, product_category, sort_order, is_active) VALUES (?, ?, ?, ?, ?, 1)')
         ->execute([$productId, 'S12-PROD', 'S12 Received Product', 'cake', 1]);
     $db->prepare('INSERT INTO dl_branch_products (branch_id, product_id, is_active) VALUES (?, ?, 1)')
@@ -285,15 +288,23 @@ try {
         'source' => 'daily-ledger',
     ]);
     $_COOKIE[dlCookieName()] = $productionTokens['token'];
-    $productionHtml = $renderSheet($date, $commissaryId);
-    $productionCellHtml = $fixtureCell($productionHtml, $branchId);
+    // A production_in_charge actor's commissary selector is NARROWED to their own hub, so
+    // an explicit fixture commissary_id is not available to them and the handler lands on
+    // their own sheet. Asserting the restriction against the fixture sheet therefore
+    // asserted nothing about the role. Assert it on the sheet the role actually reaches.
+    $productionHtml = $renderSheet($date, 0);
+    // The page stylesheet DEFINES .production-branch-receipt / .production-variance, so a
+    // plain str_contains matched CSS and reported the detail as visible to every role. Strip
+    // style blocks and look for the markup the cashier's figures are actually rendered as.
+    $productionMarkup = preg_replace('/<style\b.*?<\/style>/si', '', $productionHtml) ?? $productionHtml;
     $h->test(
         'production_in_charge sees sent quantity but not receiving or variance detail (restricted surface requirement)',
-        $productionCellHtml !== ''
-        && str_contains($productionCellHtml, '>10</span>')
-        && !str_contains($productionCellHtml, 'production-branch-receipt')
-        && !str_contains($productionHtml, 'class="text-right production-variance"'),
-        $productionCellHtml
+        str_contains($productionMarkup, 'daily-sheet-branch-column')
+        && !str_contains($productionMarkup, 'data-receipt-state=')
+        && !str_contains($productionMarkup, 'class="text-right production-variance"'),
+        'markup=' . strlen($productionMarkup)
+        . ' receipt_state=' . (str_contains($productionMarkup, 'data-receipt-state=') ? 'present' : 'absent')
+        . ' variance=' . (str_contains($productionMarkup, 'class="text-right production-variance"') ? 'present' : 'absent')
     );
     $_COOKIE[dlCookieName()] = $adminTokens['token'];
 

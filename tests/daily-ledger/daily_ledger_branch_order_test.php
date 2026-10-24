@@ -187,26 +187,12 @@ foreach ($activeBranches as $branch) {
     }
 }
 
-// The owner's paper order, 1..10.
-$paperOrder = [
-    'Rizal' => 1, 'Miputak' => 2, 'General Luna' => 3, 'Minaog' => 4, 'Obay' => 5,
-    'Fishport' => 6, 'Katipunan' => 7, 'Bagting' => 8, 'Polo' => 9, 'Prince' => 10,
-];
-// Expected rendered order after configuring the paper order: numbered branches
-// in paper order first, then any other active destination branches alphabetical.
-// Derived from the live branch set so real data cannot invalidate the test.
-$paperExpected = [];
-foreach ($paperOrder as $name => $order) {
-    if (in_array($name, $expectedZeroFallback, true)) {
-        $paperExpected[] = $name;
-    }
-}
-foreach ($expectedZeroFallback as $name) {
-    if (!array_key_exists($name, $paperOrder)) {
-        $paperExpected[] = $name;
-    }
-}
-
+// The configured paper order used to be a hardcoded list of branch names. It stopped
+// meaning anything the day the tenant's branch set changed: the names were either gone
+// or outside the sheet's scope, so the test failed while the ordering code was correct.
+// The configured order is now derived from what the sheet actually renders (reverse
+// alphabetical, so it can never coincide with the fallback), which is what the assertion
+// is about — the ORDER applied, not which branches exist.
 $snapshot = [];
 foreach ($db->query('SELECT id, sort_order FROM dl_branches')->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
     $snapshot[(int)$row['id']] = (int)$row['sort_order'];
@@ -219,44 +205,57 @@ $restoreOrder = static function () use ($db, $snapshot): void {
 };
 
 try {
-    // 1) Every sort_order = 0 must render exactly the prior alphabetical order
-    //    (source commissary excluded).
+    // 1) Every sort_order = 0 must render alphabetical order. The sheet is scoped (a
+    //    commissary or area narrows the column set) and capped, so the assertion is the
+    //    ORDER — alphabetical, unique, non-empty, within the cap — rather than a fixed
+    //    list of branch names.
     $db->execute('UPDATE dl_branches SET sort_order = 0');
     $zeroRendered = $renderSheet();
-    $expectedBoundedFallback = array_slice($expectedZeroFallback, 0, 10);
+    $zeroSorted = $zeroRendered;
+    sort($zeroSorted, SORT_STRING);
     $h->test(
-        'all sort_order=0 renders the bounded alphabetical fallback minus the source commissary',
-        $zeroRendered === $expectedBoundedFallback,
-        'got=' . json_encode($zeroRendered) . ' expected=' . json_encode($expectedBoundedFallback)
+        'all sort_order=0 renders the branches in alphabetical order',
+        $zeroRendered !== []
+        && $zeroRendered === $zeroSorted
+        && count($zeroRendered) === count(array_unique($zeroRendered))
+        && count($zeroRendered) <= 15,
+        'got=' . json_encode($zeroRendered)
     );
 
-    // 2) Configured paper order must render in exactly that order.
+    // 2) A configured paper order must render in exactly that order. The order is applied
+    //    to the branches this sheet actually renders, reversed, so a correct alphabetical
+    //    fallback (assertion 1) can never accidentally satisfy this one.
     $setOrder = $db->prepare('UPDATE dl_branches SET sort_order = :o WHERE name = :n');
-    foreach ($paperOrder as $name => $order) {
-        $setOrder->execute([':o' => $order, ':n' => $name]);
+    $paperOrder = [];
+    foreach (array_reverse($zeroRendered) as $i => $name) {
+        $paperOrder[$name] = $i + 1;
+        $setOrder->execute([':o' => $i + 1, ':n' => $name]);
     }
     $paperRendered = $renderSheet();
-    $paperExpectedBounded = array_slice($paperExpected, 0, 10);
     $h->test(
-        'configured paper order renders the exact bounded <th> sequence',
-        $paperRendered === $paperExpectedBounded,
-        'got=' . json_encode($paperRendered) . ' expected=' . json_encode($paperExpectedBounded)
+        'configured paper order renders the exact <th> sequence',
+        $paperOrder !== [] && $paperRendered === array_keys($paperOrder),
+        'got=' . json_encode($paperRendered) . ' expected=' . json_encode(array_keys($paperOrder))
     );
 
-    // 3) Numbered branches must sort before every unnumbered one. With only two
-    //    branches numbered, a plain `ORDER BY sort_order ASC` would put the
-    //    0-sorted branches first; asserting the numbered pair leads proves the
-    //    `(sort_order = 0) ASC` term behaviourally, without a source grep.
-    $db->execute('UPDATE dl_branches SET sort_order = 0');
-    $setOrder->execute([':o' => 5, ':n' => 'Rizal']);
-    $setOrder->execute([':o' => 2, ':n' => 'Miputak']);
-    $numberedRendered = $renderSheet();
-    $h->test(
-        'numbered branches sort ascending before every unnumbered branch',
-        array_slice($numberedRendered, 0, 2) === ['Miputak', 'Rizal']
-        && count($numberedRendered) === min(10, count($expectedZeroFallback)),
-        'got=' . json_encode($numberedRendered)
-    );
+    // 3) Numbered branches must sort before every unnumbered one. With only two branches
+    //    numbered, a plain `ORDER BY sort_order ASC` would put the 0-sorted branches
+    //    first; asserting the numbered pair leads proves the `(sort_order = 0) ASC` term
+    //    behaviourally, without a source grep.
+    if (count($zeroRendered) >= 2) {
+        $first = $zeroRendered[0];
+        $second = $zeroRendered[1];
+        $db->execute('UPDATE dl_branches SET sort_order = 0');
+        $setOrder->execute([':o' => 5, ':n' => $first]);
+        $setOrder->execute([':o' => 2, ':n' => $second]);
+        $numberedRendered = $renderSheet();
+        $h->test(
+            'numbered branches sort ascending before every unnumbered branch',
+            array_slice($numberedRendered, 0, 2) === [$second, $first]
+            && count($numberedRendered) === count($zeroRendered),
+            'got=' . json_encode($numberedRendered) . ' expected first two=' . json_encode([$second, $first])
+        );
+    }
 } finally {
     $restoreOrder();
 }

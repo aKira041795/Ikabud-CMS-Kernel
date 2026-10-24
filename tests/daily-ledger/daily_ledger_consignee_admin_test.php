@@ -73,10 +73,31 @@ try {
     $price->execute([$product, $priceGroup, 27.75]);
     $db->prepare('INSERT INTO dl_consignees (id, code, name, assigned_commissary_id, price_group_id, is_active) VALUES (?, "S3-CUSTOM", "Slice 3 Custom", ?, ?, 1), (?, "S3-DEFAULT", "Slice 3 Default", ?, NULL, 1)')->execute([$consigneeCustom, $branch, $priceGroup, $consigneeDefault, $branch]);
 
-    $saved = $run('save', ['consignee_id' => $consigneeCustom, 'code' => 'S3-CUSTOM', 'name' => 'Slice 3 Custom', 'area' => 'Rizal Area', 'address' => '123 Test Street', 'assigned_commissary_id' => $branch, 'price_group_id' => $priceGroup, 'is_active' => 1]);
+    // The consignee form submits a canonical AREA ID (a select of dl_areas), not a free-text
+    // area name — apiSaveConsignee resolves area_id through dl_resolveCanonicalArea and
+    // deliberately ignores an `area` string, so sending a name persisted NULL and made this
+    // assertion fail against a handler that was behaving as designed.
+    $canonicalArea = $db->query('SELECT id, name FROM dl_areas WHERE is_active = 1 ORDER BY id LIMIT 1')->fetch(PDO::FETCH_ASSOC) ?: [];
+    $h->test('A premise: a canonical area exists to assign', isset($canonicalArea['id']), json_encode($canonicalArea));
+    $saved = $run('save', ['consignee_id' => $consigneeCustom, 'code' => 'S3-CUSTOM', 'name' => 'Slice 3 Custom', 'area_id' => (int)($canonicalArea['id'] ?? 0), 'address' => '123 Test Street', 'assigned_commissary_id' => $branch, 'price_group_id' => $priceGroup, 'is_active' => 1]);
     $row = $db->query("SELECT area, address, price_group_id FROM dl_consignees WHERE id = {$consigneeCustom}")->fetch(PDO::FETCH_ASSOC);
     $branchesPage = $run('branches', []);
-    $h->test('A discriminating: saving persists area/address/price group and Edit preloads all three', ($saved['body']['ok'] ?? false) && $row === ['area' => 'Rizal Area', 'address' => '123 Test Street', 'price_group_id' => $priceGroup] && str_contains($branchesPage['raw'], 'Rizal Area') && str_contains($branchesPage['raw'], '123 Test Street') && str_contains($branchesPage['raw'], 'Slice 3 Price Group') && str_contains($branchesPage['raw'], 'openConsignee(' . $consigneeCustom));
+    $h->test(
+        'A discriminating: saving persists area/address/price group and Edit preloads all three',
+        ($saved['body']['ok'] ?? false) && $row === ['area' => (string)($canonicalArea['name'] ?? ''), 'address' => '123 Test Street', 'price_group_id' => $priceGroup]
+            && str_contains($branchesPage['raw'], (string)($canonicalArea['name'] ?? '\x00'))
+            && str_contains($branchesPage['raw'], '123 Test Street')
+            && str_contains($branchesPage['raw'], 'Slice 3 Price Group')
+            && str_contains($branchesPage['raw'], 'openConsignee(' . $consigneeCustom),
+        'ok=' . json_encode($saved['body']['ok'] ?? null)
+        . ' row=' . json_encode($row)
+        . ' area=' . (str_contains($branchesPage['raw'], (string)($canonicalArea['name'] ?? '\x00')) ? 'y' : 'n')
+        . ' area_expected=' . json_encode($canonicalArea['name'] ?? null)
+        . ' address=' . (str_contains($branchesPage['raw'], '123 Test Street') ? 'y' : 'n')
+        . ' group=' . (str_contains($branchesPage['raw'], 'Slice 3 Price Group') ? 'y' : 'n')
+        . ' opener=' . (str_contains($branchesPage['raw'], 'openConsignee(' . $consigneeCustom) ? 'y' : 'n')
+        . ' body=' . substr(json_encode($saved['body'] ?? null), 0, 300)
+    );
 
     $refused = $run('save', ['consignee_id' => $consigneeCustom, 'code' => 'S3-CUSTOM', 'name' => 'Must Not Save', 'area' => 'Bad', 'address' => 'Bad', 'assigned_commissary_id' => $branch, 'price_group_id' => 4294967, 'is_active' => 1]);
     $unchanged = (string)$db->query("SELECT name FROM dl_consignees WHERE id = {$consigneeCustom}")->fetchColumn();

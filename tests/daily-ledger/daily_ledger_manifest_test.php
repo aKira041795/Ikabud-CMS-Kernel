@@ -273,12 +273,20 @@ $templateMap = [
 ];
 
 // Admin page templates
+//
+// Two admin pages nest their URL while keeping a flat template filename, so deriving the
+// route as `/daily-ledger/admin/<file>` reports a real, routed page as an orphan. Name the
+// real route here rather than renaming the template: the URL is the contract, the filename
+// is not.
+$adminRouteAlias = [
+    'products-performance' => '/daily-ledger/admin/products/performance',
+];
 $adminDir = $base . '/templates/modules/daily-ledger/admin';
 if (is_dir($adminDir)) {
     foreach (scandir($adminDir) as $file) {
         if (!str_ends_with($file, '.disyl')) continue;
         $page = basename($file, '.disyl');
-        $route = '/daily-ledger/admin/' . $page;
+        $route = $adminRouteAlias[$page] ?? '/daily-ledger/admin/' . $page;
         $templateMap[$route] = 'templates/modules/daily-ledger/admin/' . $file;
     }
 }

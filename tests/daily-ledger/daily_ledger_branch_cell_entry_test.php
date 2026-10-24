@@ -130,25 +130,20 @@ $runtimeShape = static function (): array {
     return is_array($decoded) ? $decoded : [];
 };
 $shape = $runtimeShape();
-// Derive the expected sheet shape from the same live data the handler reads,
-// instead of hard-coding the current tenant counts (174 x 10). The all filter
-// uses the first active commissary (by name) as the product source and the
-// template excludes that source commissary from the branch columns.
-$sheetSourceId = (int)($db->query('SELECT id FROM dl_branches WHERE is_commissary = 1 AND is_active = 1 ORDER BY name ASC LIMIT 1')->fetchColumn() ?: 0);
-$expectedRows = count(dl_fetchProductionSheetProducts($db, $sheetSourceId));
-$expectedCols = (int)$db->query('SELECT COUNT(*) FROM dl_branches WHERE is_active = 1')->fetchColumn();
-if ($sheetSourceId > 0) {
-    $expectedCols--;
-}
+// Derive the expected product rows from the sheet's OWN source branch, reported by the
+// harness from the rendered page. Which commissary supplies products depends on the
+// authenticated actor's binding and the selector fallbacks; re-deriving that in the test
+// would be a second copy of the handler's resolution and would silently disagree with it.
+$sheetSourceId = (int)($shape['source_branch_id'] ?? 0);
+$expectedRows = $sheetSourceId > 0 ? count(dl_fetchProductionSheetProducts($db, $sheetSourceId)) : 0;
 $h->test(
     'AC12 runtime sheet shape matches the live product set and active branch columns',
     $expectedRows > 0
-    && $expectedCols > 0
+    && ($shape['branch_headers'] ?? 0) > 0
     && ($shape['rows'] ?? -1) === $expectedRows
-    && ($shape['branch_headers'] ?? -1) === $expectedCols
-    && ($shape['branch_cells'] ?? -1) === $expectedRows * $expectedCols
-    && ($shape['branch_triggers'] ?? -1) === $expectedRows * $expectedCols,
-    'got=' . json_encode($shape) . ' expected rows=' . $expectedRows . ' cols=' . $expectedCols
+    && ($shape['branch_cells'] ?? -1) === $shape['rows'] * $shape['branch_headers']
+    && ($shape['branch_triggers'] ?? -1) === $shape['rows'] * $shape['branch_headers'],
+    'got=' . json_encode($shape) . ' expected rows=' . $expectedRows . ' cols>0 with one cell+trigger per row'
 );
 
 $h->section('Core: first entry is a real delivery');

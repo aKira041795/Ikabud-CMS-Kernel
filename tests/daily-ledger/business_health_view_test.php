@@ -18,6 +18,9 @@ modulePushContext('daily-ledger');
 $h = new TestHarness('daily-ledger-business-health-view', TestHarness::MODE_PURE, 'baronledger.test');
 $h->allowLogLines('disyl.compile.phases');
 $h->allowLogLines('disyl.render.breakdown');
+// The render path probes for an optional table and the module DB refuses DDL by design;
+// the refusal is the expected outcome, not a defect in this view.
+$h->allowLogLines("ModuleDB DENIED: DDL/DCL statement 'CREATE' is forbidden for modules");
 $h->fingerprint('modules/daily-ledger/handlers.php');
 $h->fingerprint('modules/daily-ledger/helpers/reporting.php');
 $h->fingerprint('templates/modules/daily-ledger/admin/overview.disyl');
@@ -83,8 +86,16 @@ $pendingHtml = $pendingPeriod === null ? '' : $render(['scope' => 'ALL', 'period
 
 $h->section('Owner contract');
 $html = $render(['scope' => 'ALL']);
-$formEnd = strpos($html, '</form>');
-$beforeFirstFormEnd = $formEnd === false ? '' : substr($html, 0, $formEnd);
+// Measure the primary bar ITSELF. Counting every control before the first </form> also
+// counted controls outside the bar: the sidebar toggle became a real <button> (the correct
+// element for a control that does not navigate) and the crude count rose to 6 while the bar
+// was still Area, Branch, From, To, Apply.
+$barStart = strpos($html, 'id="overview-date-from"');
+$barStart = $barStart === false ? false : strrpos(substr($html, 0, (int)$barStart), '<form');
+$barEnd = $barStart === false ? false : strpos($html, '</form>', (int)$barStart);
+$beforeFirstFormEnd = ($barStart === false || $barEnd === false)
+    ? ''
+    : substr($html, (int)$barStart, (int)$barEnd - (int)$barStart);
 preg_match_all('/<(select|input|button)\b/i', $beforeFirstFormEnd, $controls);
 // Re-anchored 2026-10-11: the owner asked for a date RANGE and the chair's criterion
 // P4 allows Area + Branch + 2 dates + Apply. The pre-range exact count of 4 (added in

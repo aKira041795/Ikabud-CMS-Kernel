@@ -252,6 +252,13 @@ if ($db) {
             && count(dl_reportSalesData($db, $reportFilters)['rows']) === 3
     );
 
+    // The deduction assertion below used to run BEFORE the setting was configured, so it
+    // measured whatever the tenant happened to have stored. Configure it here, then put the
+    // operator's real value back, so the test states the rule and cannot drift with the data.
+    $originalCategoryDeduction = (string)(dlModuleSettings()['net_sales_deduction_percent'] ?? '0');
+    saveModuleSettings('daily-ledger', ['net_sales_deduction_percent' => '10']);
+    // dlModuleSettings() memoises per request, so a save is invisible until it is refreshed.
+    dlModuleSettings(true);
     $category = dl_reportCategorySalesData($db, $exFilters);
     $h->test(
         'category sales group the period by product category, heaviest first',
@@ -270,12 +277,15 @@ if ($db) {
         'category net sales follow the configured deduction',
         round((float)$category['rows'][0]['net_amount'], 2)
             === round((float)$category['rows'][0]['total_amount'] * (100 - (float)$category['rows'][0]['deduction_pct']) / 100, 2)
-            && round((float)$category['rows'][0]['deduction_pct'], 2) === 10.0
+            && round((float)$category['rows'][0]['deduction_pct'], 2) === 10.0,
+        'row=' . json_encode($category['rows'][0] ?? null) . ' setting=' . json_encode(dlModuleSettings()['net_sales_deduction_percent'] ?? 'missing')
     );
     $h->test(
         'category sales report the same grand totals as the sales report',
         $category['totals'] === dl_reportSalesData($db, $exFilters)['totals']
     );
+    saveModuleSettings('daily-ledger', ['net_sales_deduction_percent' => $originalCategoryDeduction]);
+    dlModuleSettings(true);
 
     $h->section('Data Quality Warning');
     $reportTemplate = (string)file_get_contents($h->basePath() . '/templates/modules/daily-ledger/admin/reports.disyl');

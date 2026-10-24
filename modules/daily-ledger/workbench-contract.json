@@ -79,7 +79,10 @@
                 "/daily-ledger/reset-password",
                 "/daily-ledger/api/v1/cashier/ledger/delivery-detail",
                 "/daily-ledger/api/v1/offline/status",
-                "/daily-ledger/api/v1/offline/bootstrap"
+                "/daily-ledger/api/v1/offline/bootstrap",
+                "/daily-ledger/admin/reports/archive-download",
+                "/daily-ledger/admin/products/performance",
+                "/daily-ledger/admin/production-efficiency"
             ],
             "POST": [
                 "/daily-ledger/api/v1/admin/branch-supply-rules",
@@ -156,7 +159,9 @@
                 "/daily-ledger/api/v1/commissary/settle-endings",
                 "/daily-ledger/api/v1/commissary/verify-endings",
                 "/daily-ledger/api/v1/commissary/revert-endings",
-                "/daily-ledger/api/v1/deliveries/consignee-return"
+                "/daily-ledger/api/v1/deliveries/consignee-return",
+                "/daily-ledger/api/v1/admin/branches/flags",
+                "/daily-ledger/api/v1/commissary/dispatch-prefill"
             ],
             "PUT": [],
             "PATCH": [],

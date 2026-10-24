@@ -543,12 +543,12 @@
                     {/if}
                 </div>
                 <span class="font-semibold text-base tracking-tight" x-show="sidebarOpen" x-cloak>{app_name}</span>
-		<a href="#" role="button" class="ml-auto p-1.5 rounded-lg hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/30"
+		<button type="button" class="ml-auto p-1.5 rounded-lg hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/30"
 			@click.prevent="sidebarOpen = !sidebarOpen"
 			:aria-label="sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'"
 			:aria-expanded="sidebarOpen ? 'true' : 'false'">
 		    <i class="fas fa-bars" aria-hidden="true"></i>
-		</a>
+		</button>
             </div>
 
             {* Collapsed sidebar is icon-only, so each menu item needs a visible hint. The label is

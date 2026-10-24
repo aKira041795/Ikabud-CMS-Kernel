@@ -56,4 +56,9 @@ echo json_encode([
     'branch_headers' => preg_match_all('/<th class="text-right daily-sheet-branch-column"/', $html),
     'branch_cells' => preg_match_all('/<td class="text-right production-branch-cell"/', $html),
     'branch_triggers' => preg_match_all('/class="ledger-trigger ledger-trigger-add production-branch-trigger"/', $html),
+    // The sheet's own source branch, read back from the rendered page. The source is
+    // decided by the actor's commissary binding and the selector fallbacks, so a test
+    // cannot re-derive it without duplicating that resolution; reporting it keeps the
+    // product-set assertion exact instead of approximating it.
+    'source_branch_id' => preg_match('/commissary_branch_id:\s*(\d+)/', $html, $m) ? (int)$m[1] : 0,
 ]);
