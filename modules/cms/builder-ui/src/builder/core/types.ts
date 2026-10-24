@@ -68,6 +68,11 @@ export type CMSComponentType =
   | 'image_box'
   | 'logo_grid'
   | 'blockquote'
+  // `quote` is the type the palette and the PHP renderer actually use; `blockquote` is the
+  // older name this UI was written against. Stored documents contain either one, so both are
+  // valid node types (measured 2026-10-24: a Quote block rendered on the page and came out
+  // blank in the preview because only `blockquote` was modelled here).
+  | 'quote'
   | 'toggle'
   | 'search_box'
   | 'nav_menu'
@@ -85,6 +90,9 @@ export type CMSComponentType =
   | 'contact_card'
   | 'audio'
   | 'html_embed'
+  // Same reasoning as `quote` above: the palette ships `html` (Advanced > HTML) and the PHP
+  // renderer renders it, while this UI only modelled `html_embed`.
+  | 'html'
   | 'ai_block';
 
 // Admin Theme Builder additional components (template-focused)
