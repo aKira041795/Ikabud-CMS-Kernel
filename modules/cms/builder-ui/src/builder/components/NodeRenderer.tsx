@@ -5069,6 +5069,12 @@ const NodeRenderer: React.FC<NodeRendererProps> = memo(({
       case 'logo_grid':
         return <LogoGridRenderer node={node} style={style} viewport={viewport} />;
       case 'blockquote':
+      // The insert palette ships `quote` (that is the type the PHP renderer knows),
+      // while this renderer was written against `blockquote`. Measured 2026-10-24: a
+      // Quote block rendered correctly on the published page and appeared BLANK in the
+      // editor preview - the owner's "preview does not render". Both names must work
+      // here, because existing documents contain either one.
+      case 'quote':
         return <BlockquoteRenderer node={node} style={style} />;
       case 'toggle':
         return <ToggleRenderer node={node} style={style} />;
@@ -5103,6 +5109,10 @@ const NodeRenderer: React.FC<NodeRendererProps> = memo(({
       case 'audio':
         return <AudioRenderer node={node} style={style} />;
       case 'html_embed':
+      // Same split as quote/blockquote: the palette inserts `html`, the PHP renderer
+      // honours both, and this renderer only knew `html_embed` - so an HTML block was
+      // invisible in the preview while rendering fine on the live page.
+      case 'html':
         return <HtmlEmbedRenderer node={node} style={style} />;
       case 'ai_block':
         return <AIBlockRenderer node={node} style={style} />;

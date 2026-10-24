@@ -2392,10 +2392,11 @@ function cmsBuilderWidgetRegistry(): array
         ['type' => 'spacer',        'label' => 'Spacer',        'kind' => 'widget',  'category' => 'layout',   'supports_children' => false, 'description' => 'Vertical spacing',          'icon' => 'spacer'],
         // Media
         ['type' => 'gallery',       'label' => 'Gallery',       'kind' => 'widget',  'category' => 'media',    'supports_children' => false, 'description' => 'Image gallery grid',        'icon' => 'gallery'],
-        ['type' => 'embed',         'label' => 'Embed',         'kind' => 'widget',  'category' => 'media',    'supports_children' => false, 'description' => 'YouTube, Vimeo, etc.',      'icon' => 'embed'],
-        // Dynamic
-        ['type' => 'dynamic_field', 'label' => 'Dynamic Field', 'kind' => 'widget',  'category' => 'dynamic',  'supports_children' => false, 'description' => 'Data-bound content',        'icon' => 'dynamic'],
-        ['type' => 'posts_list',    'label' => 'Posts List',     'kind' => 'widget',  'category' => 'dynamic',  'supports_children' => false, 'description' => 'Recent posts feed',         'icon' => 'posts'],
+        // `embed`, `dynamic_field` and `posts_list` were removed from the palette on
+        // 2026-10-24: rendered through cmsBuilderRenderDocument each produced an empty
+        // shell (measured: ~700 bytes of wrapper, no content), so placing one made the
+        // page save cleanly and publish with the block silently missing. The editor must
+        // not offer what no renderer can produce.
         // Advanced
         ['type' => 'html',          'label' => 'HTML',          'kind' => 'widget',  'category' => 'advanced', 'supports_children' => false, 'description' => 'Custom HTML code',          'icon' => 'html'],
     ];
