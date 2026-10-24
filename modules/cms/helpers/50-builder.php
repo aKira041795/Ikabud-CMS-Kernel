@@ -296,6 +296,20 @@ function cmsBuilderValidateDocument(mixed $document): array
         }
     }
 
+    // And every widget the PALETTE offers. These two lists had drifted: the registry below
+    // offers quote, nav_menu, recent_posts, social_links, contact_info, categories, tag_cloud,
+    // archives, opening_hours, embed, dynamic_field, posts_list and html, while this validator
+    // rejected all of them - so a page using any of those widgets failed to save and publish
+    // with "Document validation failed", even though the builder let the user place the widget.
+    // A widget the palette offers must always be storable; whether PHP can render it is a
+    // separate question answered by cmsBuilderWidgetRenderers().
+    foreach (cmsBuilderWidgetRegistry() as $widget) {
+        $wType = is_array($widget) ? (string)($widget['type'] ?? '') : (string)$widget;
+        if ($wType !== '' && !in_array($wType, $allowedTypes, true)) {
+            $allowedTypes[] = $wType;
+        }
+    }
+
     $walk = function (array $node, string $path, ?string $parentType = null) use (&$walk, &$issues, $allowedTypes, $nestingConstraints): void {
         $type = (string)($node['type'] ?? '');
         if ($path !== 'document') {

@@ -294,10 +294,21 @@ function cmsApiBuilderDocumentPublish(array $params = []): void
     $document = cmsBuilderNormalizeDocument((string)$draft['document_json']);
 
     // Publish-time validation — re-validate before promoting draft to published
-    $validationErrors = cmsBuilderValidateDocument($document);
-    if ($validationErrors !== []) {
+    //
+    // cmsBuilderValidateDocument() returns ['ok' => bool, 'document' => .., 'issues' => [...]].
+    // This used to assign that array to $validationErrors and test `$validationErrors !== []`,
+    // which is true for EVERY result including a perfect one - so publishing always failed with
+    // "Document validation failed" and no page could ever be published. The three sibling call
+    // sites (draft save, preview, save-and-publish) all read ['ok'] correctly; only this one did
+    // not. Owner report 2026-10-24: "validation failed when saving".
+    $validation = cmsBuilderValidateDocument($document);
+    if (empty($validation['ok'])) {
         http_response_code(422);
-        echo json_encode(['ok' => false, 'error' => 'Document validation failed', 'errors' => $validationErrors]);
+        echo json_encode([
+            'ok' => false,
+            'error' => 'Document validation failed',
+            'issues' => $validation['issues'],
+        ]);
         exit;
     }
 
