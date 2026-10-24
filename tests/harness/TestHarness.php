@@ -72,12 +72,25 @@ class TestHarness
     private array $logBaseline = [];
 
     /**
-     * Substrings identifying log lines this suite legitimately produces. Empty by
-     * default, so no existing suite changes behaviour. See allowLogLines().
+     * Substrings identifying log lines this suite legitimately produces.
+     *
+     * The engine's own render-timing line is seeded here rather than in each suite.
+     * It is emitted once per rendered template whenever the compile cache is cold or has
+     * been invalidated by a template edit, so suites that render a page failed their
+     * "app.log was written during the run" check for reasons unrelated to what they
+     * assert. That happened three times in one session (c1_derived_ending,
+     * login_name_and_withdrawal_filter, pending_not_monetised), each time on
+     * disyl.render.breakdown for admin/sales.disyl, after the cache was cleared by an
+     * unrelated template change.
+     *
+     * It cannot mask a real problem: this needle only permits a line that already exists,
+     * and a suite that wants to prove "nothing rendered" asserts on a rendered artefact,
+     * not on the absence of an allowlisted line. Suites may still add their own needles
+     * through allowLogLines().
      *
      * @var array<int, string>
      */
-    private array $allowedLogNeedles = [];
+    private array $allowedLogNeedles = ['disyl.render.breakdown'];
 
     /**
      * @param string $suiteName Unique test suite identifier (used for filename)
