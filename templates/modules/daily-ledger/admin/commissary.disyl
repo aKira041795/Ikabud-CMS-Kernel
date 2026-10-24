@@ -2285,7 +2285,10 @@
 
 {if can_view_production_management}
 {* The trigger lives in the top action bar beside Print Daily Sheet (owner 2026-10-22);
-   only the backdrop and the panel stay here. *}
+   only the backdrop and the panel stay here.
+   This marker is also the end anchor for the Daily Sheet slice in
+   daily_ledger_production_sheet_test.php - keep it above the dispatch panel. *}
+<!-- Dispatch to Branch -->
 <div id="dispatch-backdrop" class="fixed inset-0 z-40 bg-black/40 print-hidden" style="display: none;" onclick="closeDispatchEntry()"></div>
 
 <div class="card" id="dispatch-panel" style="display: none; position: fixed; z-index: 50; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(64rem, 95vw); max-height: 90vh; overflow: auto;">

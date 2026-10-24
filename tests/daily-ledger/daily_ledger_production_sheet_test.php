@@ -250,7 +250,11 @@ try {
     // commissary so the operator sees a sheet immediately.
     $h->test('S13 landing: explicit choice wins, invalid keeps All, no choice lands on the first commissary',
         str_contains($handlers, "\$hasCommissaryChoice = array_key_exists('commissary_id', \$input);")
-        && preg_match('/if \(\$hasCommissaryChoice\) \{\s*\$selectedCommissaryId = in_array\(\$requestedCommissaryId, \$availableCommissaryIds, true\)\s*\?\s*\$requestedCommissaryId\s*:\s*0;/', $handlers) === 1
+        // Valid explicit choice is honoured.
+        && preg_match('/if \(in_array\(\$requestedCommissaryId, \$availableCommissaryIds, true\)\) \{\s*\$selectedCommissaryId = \$requestedCommissaryId;/', $handlers) === 1
+        // An invalid choice falls back to All (0) - except for an operator bound to a hub, who
+        // must not be dropped into the network view; that exception is its own branch.
+        && preg_match('/\} else \{\s*\$selectedCommissaryId = 0;\s*\}/', $handlers) === 1
         && preg_match('/elseif \(\$requestedBranchId > 0\) \{/', $handlers) === 1
         && preg_match('/\$selectedCommissaryId = \$availableCommissaryIds\[0\] \?\? 0;/', $handlers) === 1);
     $h->test('daily sheet has own production columns', str_contains($template, '>BEG<') && str_contains($template, '>ADDTL<') && str_contains($template, '>ACTUAL BAL<') && str_contains($template, '>VARIANCE<'));

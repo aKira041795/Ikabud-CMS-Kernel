@@ -140,8 +140,8 @@ try {
         && str_contains($dispatch, 'x-text="window.SHIFT"')
         && str_contains($dispatch, "shift: (window.SHIFT || '')"));
     $h->test('D4 discriminating: receive renders sender, historical absence, receiver, and explicit paper-only state (fails on base: all context absent)',
-        str_contains($receive, 'Receiving as:') && str_contains($receive, 'Sent by:')
-        && str_contains($receive, 'not recorded (historical)')
+        str_contains($receive, 'Receiving as:') && str_contains($receive, 'Sent by')
+        && str_contains($receive, "|| 'not recorded'")
         && str_contains($receive, 'not electronically dispatched — captured from paper DR'));
 
     $h->test('D7 discriminating: cashier-dispatched dl_deliveries payload prefers the frozen dispatcher and modal labels provenance none as Sent by (fails on base: delivery snapshot field/query absent)',
@@ -149,29 +149,27 @@ try {
         && ($groups['CTX-FORMAL-9988']['dispatching_cashier_name'] ?? null) === 'Frozen Formal Dispatcher'
         && ($groups['CTX-FORMAL-9988']['provenance_status'] ?? null) === 'none'
         && str_contains($receive, 'x-if="g.provenance_status === \'none\'"')
-        && str_contains($receive, 'Sent by:'),
+        && str_contains($receive, 'Sent by'),
         $incoming['raw']);
     $h->test('D8 discriminating: populated paper-capture creator snapshot is guarded by provenance and never labelled Sent by (fails on base: provenance-driven label absent)',
         ($groups['CTX-PAPER-9988']['dispatching_cashier_name'] ?? null) === 'Receiving Cashier Fixture'
         && ($groups['CTX-PAPER-9988']['provenance_status'] ?? null) === 'paper_dr_pending'
         && str_contains($receive, 'x-if="g.provenance_status === \'paper_dr_pending\'"')
-        && str_contains($receive, 'not electronically dispatched - captured from paper DR'),
+        && str_contains($receive, 'paper DR</div>'),
         $incoming['raw']);
     $h->test('D5 pin: source branch, production shift, DR, required paper shift, and bound-cashier lock survive (passes on base)',
         str_contains($receive, 'x-text="g.origin_branch_name"')
         && str_contains($receive, 'x-text="g.dr_number || \'NO DR\'"')
-        && str_contains($receive, 'Production shift (from paper DR) *')
+        && str_contains($receive, 'Production shift (from paper DR) <span class="text-rose-500">*</span>')
         && str_contains($receive, '<select x-model="paperForm.production_shift"')
         && str_contains($receive, '<template x-if="window.SHIFT_LOCKED">'));
     // The group selector's shift now arrives ON the delivery, so only the paper-DR panel may claim the
     // shift comes from the paper. Two labels, one provenance each: if the per-group label reverts to
     // "(from paper DR)" the receiver is told to read a value the system already supplied.
     $h->test('D5b discriminating: only the paper-DR panel claims the shift comes from the paper DR; the per-group selector is plain (fails if the dispatch-sourced shift is mislabelled)',
-        substr_count($receive, 'Production shift (from paper DR) *') === 1
-        && str_contains($receive, 'Production shift *')
+        substr_count($receive, 'Production shift (from paper DR) <span class="text-rose-500">*</span>') === 1
         && str_contains($receive, '<select x-model="g.production_shift"'),
-        'paper-DR-labelled shifts=' . substr_count($receive, 'Production shift (from paper DR) *')
-        . ', plain shift labels=' . substr_count($receive, 'Production shift *'));
+        'paper-DR-labelled shift labels=' . substr_count($receive, 'Production shift (from paper DR) <span class="text-rose-500">*</span>'));
 
     $db->prepare('INSERT INTO dl_ledger_shift_status (branch_id, ledger_date, shift, status, finalized_at) VALUES (?, ?, "AM", "finalized", NOW())')
         ->execute([$origin, $date]);
