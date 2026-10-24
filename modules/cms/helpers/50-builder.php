@@ -316,7 +316,12 @@ function cmsBuilderValidateDocument(mixed $document): array
             if ($type === '') {
                 $issues[] = ['path' => $path . '.type', 'message' => 'Node type is required'];
             } elseif (!in_array($type, $allowedTypes, true)) {
-                $issues[] = ['path' => $path . '.type', 'message' => 'Unsupported widget type: ' . $type];
+                // The message is the whole remedy: a page saved by an older editor can
+                // still contain a widget that is no longer offered (measured 2026-10-24:
+                // two stored documents hold `dynamic_field`/`posts_list`, which render
+                // nothing anywhere). Naming only the type leaves the publisher unable to
+                // save and unable to tell why, so the message states the action.
+                $issues[] = ['path' => $path . '.type', 'message' => 'Unsupported widget type: ' . $type . ' — this block renders nothing; delete it to save'];
             }
         }
 
@@ -342,7 +347,8 @@ function cmsBuilderValidateDocument(mixed $document): array
         if ($parentType !== null && $parentType !== '') {
             $parentRule = $nestingConstraints[$parentType]['allowed_children'] ?? null;
             if (is_array($parentRule) && $type !== '' && !in_array($type, $parentRule, true)) {
-                $issues[] = ['path' => $path . '.type', 'message' => "Node type '{$type}' is not allowed inside '{$parentType}'"];
+                $issues[] = ['path' => $path . '.type', 'message' => "Node type '{$type}' is not allowed inside '{$parentType}'"
+                    . ($parentType === 'document' ? ' — only sections may sit directly on the document; move this block into one' : '')];
             } elseif (!is_array($parentRule)) {
                 $childRule = $nestingConstraints[$type]['allowed_parents'] ?? null;
                 if (is_array($childRule) && $type !== '' && !in_array($parentType, $childRule, true)) {
