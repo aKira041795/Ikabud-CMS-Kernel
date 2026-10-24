@@ -124,6 +124,12 @@
                         <p class="mt-2 text-[11px] leading-5 text-gray-500">If the correct DR shows up below, use <span class="font-semibold text-gray-700">Receive Now</span>. Only use the Paper DR entry when nothing appears here.</p>
                     </div>
 
+                    {* The Qty column is editable per line. This sentence is the only thing that
+                       tells the receiver what a number there means; the DR-table redesign dropped
+                       it and daily_ledger_receipt_count_test caught the loss. Keep it beside the
+                       table it describes. *}
+                    <p class="mb-2 text-xs font-medium text-slate-600">Confirm as sent, or correct the received qty if it differs.</p>
+
                     <div class="max-h-[60vh] overflow-y-auto rounded-lg border border-gray-200 bg-white">
                         <table class="w-full text-sm">
                             <thead class="sticky top-0 z-10 bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
