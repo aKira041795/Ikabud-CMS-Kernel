@@ -189,6 +189,8 @@
 
 {/ikb_section}
 
+{/block}
+
 {block scripts}
 <script>
     // Called from an inline onclick, so it must be reachable on window.
@@ -253,6 +255,4 @@
         }
     });
 </script>
-{/block}
-
 {/block}

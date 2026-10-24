@@ -49,7 +49,7 @@
         <p class="text-xs text-gray-500">No weekly dues generated yet.</p>
         {/if}
     </div>
-    {else}
+    {forelse}
     <div class="wb-empty-state wb-empty-state--bordered text-gray-600 text-sm">
         No fabrication projects assigned to you.
     </div>

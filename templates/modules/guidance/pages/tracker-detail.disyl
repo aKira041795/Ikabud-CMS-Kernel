@@ -224,6 +224,8 @@
     </div>
 </div>
 
+{/block}
+
 {block scripts}
 <script>
 function trackerDetail() {
@@ -275,6 +277,5 @@ function csvUploader() {
     };
 }
 </script>
-{/block}
 {/block}
 
