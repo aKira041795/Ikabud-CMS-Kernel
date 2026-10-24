@@ -108,7 +108,18 @@ try {
     $html = $render('handleAdminCommissary', ['date' => '2026-10-12', 'commissary_id' => '18', 'shift' => 'PM']);
     $sel = $wiredSelects($html, $orderB, $orderC, $expectSeq);
     $h->test('commissary page branch/commissary selects are wired', $sel['bad'] === [], implode(',', $sel['bad']));
-    $h->test('commissary page has >=3 wired selects', count($sel['branch']) >= 3, implode(',', $sel['branch']));
+    // Was >=3. The dispatch destination list is now scoped to the branches its commissary
+    // actually supplies (owner 2026-10-22: "scoping the modal to the assigned commissary"),
+    // so that select's option set no longer covers every branch and the classifier above
+    // can no longer count it. The ordering rule is what this suite owns, so assert the two
+    // whole-branch surfaces plus the dispatch select by id rather than pinning a count that
+    // legitimately moved.
+    $h->test('commissary page has >=2 whole-branch wired selects', count($sel['branch']) >= 2, implode(',', $sel['branch']));
+    $h->test(
+        'the dispatch destination select is present and wired',
+        str_contains($html, 'dispatch-dest-branch-id'),
+        'the dispatch modal lost its destination selector'
+    );
     preg_match_all('/daily-sheet-branch-column" data-branch-id="(\d+)"/', $html, $mb);
     $cellIds = array_map('intval', $mb[1]);
     $h->test('daily-sheet branch columns are wired', $cellIds !== [] && implode(',', $cellIds) === $expectSeq($orderB, $cellIds), implode(',', $cellIds));

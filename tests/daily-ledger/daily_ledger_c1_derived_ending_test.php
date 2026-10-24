@@ -33,7 +33,12 @@ ob_start();
 require_once __DIR__ . '/../harness/TestHarness.php';
 $h = new TestHarness('daily-ledger-c1-derived-ending', TestHarness::MODE_INTEGRATION, 'baronledger.test');
 ob_end_clean();
-$h->allowLogLines('disyl.compile.phases');
+// This suite renders admin/sales.disyl, and the engine emits one
+// `disyl.render.breakdown` timing line per rendered template. That is routine
+// instrumentation, not a defect - 18 other daily-ledger suites already allow it.
+// Without it here, the suite failed on the timing line alone while the derived
+// ending it actually checks was correct.
+$h->allowLogLines('disyl.compile.phases', 'disyl.render.breakdown');
 
 $base = $h->basePath();
 require_once $base . '/src/helpers/module-manager.php';
