@@ -267,7 +267,11 @@ function dispatchModal() {
             .then(function(data) {
                 this.saving = false;
                 if (data && data.ok) {
-                    showToast('Transfer out saved', 'success');
+                    // One DR is one delivery: a repeat is reported as done, never re-sent.
+                    showToast(data.replayed ? 'Already recorded — nothing added' : 'Transfer out saved', 'success');
+                    if (data.replayed && data.dr_conflict_difference) {
+                        showToast('Flagged for admin: ' + data.dr_conflict_difference, 'warning');
+                    }
                     // Stay open: one trip can cover several DRs, and closing after each send
                     // made the cashier reopen and re-find their place. The ledger refresh is
                     // deferred to closeModal() because refreshMainContent() swaps the whole

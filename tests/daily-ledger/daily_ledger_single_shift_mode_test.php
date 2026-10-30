@@ -121,6 +121,56 @@ if ($hasMode && $hasLast) {
     }
 }
 
+$h->section('report rows carry the flag instead of re-querying it');
+
+// The report queries already join dl_branches, so they select single_shift_mode and the row
+// predicate reads it. Measured before this seam: dl_rowIsProvisional() issued its own SELECT
+// for every rendered row, because dl_isLastShiftOfDay() had no way to accept a value it was
+// already holding.
+//
+// Discriminating: the DATABASE says whole-day, the ROW says two-shift. If the predicate still
+// queried, the row value could not win.
+$db->prepare('UPDATE dl_branches SET single_shift_mode = 1 WHERE id = :id')->execute([':id' => $branchId]);
+try {
+    $rowFromJoin = [
+        'shift' => 'AM',
+        'branch_id' => $branchId,
+        'shift_status' => null,
+        'bal_end' => 5,
+        'end_source' => 'counted',
+        'branch_single_shift_mode' => 0,
+    ];
+    $h->test(
+        'a joined branch flag wins over a live read',
+        dl_rowIsProvisional($rowFromJoin) === false,
+        'the report still queries per row, or ignores the value it already joined'
+    );
+
+    $rowWithoutFlag = $rowFromJoin;
+    unset($rowWithoutFlag['branch_single_shift_mode']);
+    $h->test(
+        'without the column the live read still applies',
+        dl_rowIsProvisional($rowWithoutFlag) === true,
+        'a caller whose query does not join the branch must keep today\'s behaviour'
+    );
+
+    // Mirror case: the DATABASE now says two-shift while the ROW says whole-day. The two
+    // directions together are the proof that the row value is what the predicate uses - and a
+    // value is only usable without a query if the query is skipped. (A row count per report
+    // cannot be sampled here: the module DB contract forbids SHOW/performance_schema.)
+    $db->prepare('UPDATE dl_branches SET single_shift_mode = 0 WHERE id = :id')->execute([':id' => $branchId]);
+    $rowWholeDay = $rowFromJoin;
+    $rowWholeDay['branch_single_shift_mode'] = 1;
+    $h->test(
+        'the row flag is honoured in both directions',
+        dl_rowIsProvisional($rowWholeDay) === true,
+        'the predicate ignores the joined value, so each report row queries the branch again'
+    );
+} finally {
+    $db->prepare('UPDATE dl_branches SET single_shift_mode = :v WHERE id = :id')
+        ->execute([':v' => (int)($original ?? 0), ':id' => $branchId]);
+}
+
 $h->section('enforcement wiring');
 
 $sources = [];
@@ -157,6 +207,18 @@ $h->test(
     'shift reconciliation uses the last-shift predicate',
     str_contains($sources['helpers/reporting.php'], 'dl_isLastShiftOfDay'),
     'reports would assume PM is day-end on single-shift branches'
+);
+$h->test(
+    'both report queries select the branch flag they already join',
+    str_contains($sources['helpers/reporting.php'], 'b.single_shift_mode AS branch_single_shift_mode')
+        && str_contains($sources['handlers.php'], 'b.single_shift_mode AS branch_single_shift_mode'),
+    'a report would silently fall back to reading the branch once per row'
+);
+$h->test(
+    'the row predicate reads the joined flag and passes it through',
+    $callsInside('dl_rowIsProvisional', 'branch_single_shift_mode')
+        && str_contains($sources['handlers.php'], 'function dl_isLastShiftOfDay(string $shift, int $branchId, ?bool $singleShiftMode = null)'),
+    'there is no seam a report can pass the value through, so the cost comes back'
 );
 
 $h->done();

@@ -213,9 +213,16 @@ function dl_rowIsProvisional(array $row): bool
     if ($status === null) {
         // No shift row is AMBIGUOUS: "never finalized" or "never tracked". Preserve PM as
         // the historical fallback, adding AM only when this branch explicitly uses it as day-end.
+        //
+        // The branch flag travels WITH the row when the caller's query joined dl_branches
+        // (branch_single_shift_mode). Without this, every rendered report row issued its own
+        // SELECT just to learn a per-branch constant. A missing column still falls back to the
+        // live read, so no caller is forced to change and none can go stale.
+        $rowFlag = $row['branch_single_shift_mode'] ?? null;
         return dl_isLastShiftOfDay(
             (string)($row['shift'] ?? ''),
-            (int)($row['branch_id'] ?? 0)
+            (int)($row['branch_id'] ?? 0),
+            $rowFlag === null ? null : (int) $rowFlag === 1
         );
     }
 
@@ -312,6 +319,7 @@ function dl_reportSalesData(ModuleDB $db, array $filters): array
     // the viewed branch/date/shift and carries its own product-driven query. Product-driving this
     // report would turn a three-row exceptions export into thousands of synthetic rows.
     $sql = "SELECT dl.ledger_date, dl.shift, dl.branch_id, b.code AS branch_code, b.name AS branch_name,
+                   b.single_shift_mode AS branch_single_shift_mode,
                    dl.product_id, p.sku, p.name AS product_name, p.product_category, dl.beg_bal, dl.addtl, dl.withdraw,
                    dl.bal_end, dl.end_source, {$qty} AS sales, dl.price_snapshot, {$amount} AS amount,
                    ss.status AS shift_status

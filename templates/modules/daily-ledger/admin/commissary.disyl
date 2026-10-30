@@ -3250,7 +3250,7 @@
                     var sheetCount = res.line_count || 0;
                     if (shown > 0) {
                         var msg = 'Sheet already set for ' + res.destination_name + source
-                            + ' — showing ' + shown + ' of ' + sheetCount + ' item(s). Adjust to correct.';
+                            + ' — showing ' + shown + ' of ' + sheetCount + ' item(s). Enter the DR to seal this load; sealing does not send the stock again.';
                         // A sheet line whose product is no longer on this commissary's
                         // on-hand list has no row to render. Say so rather than letting
                         // the count quietly understate what the sheet holds.
@@ -3370,6 +3370,29 @@
             if (!res.ok) {
                 showToast(res.error || 'Dispatch failed', 'error');
                 if (statusEl) statusEl.textContent = res.error || '';
+                return;
+            }
+            if (res.replayed) {
+                // One DR is one delivery: the send was already recorded, so nothing
+                // was added a second time. A disagreement is named, not hidden.
+                var replayMsg = 'DR ' + res.dr_number + ' is already recorded for this branch — nothing was sent again.';
+                if (res.difference) {
+                    replayMsg += ' The numbers differ (' + res.difference + '); flagged for an admin to resolve.';
+                }
+                showToast(replayMsg, res.difference ? 'warning' : 'success');
+                setTimeout(function() { window.refreshMainContent(); }, 800);
+                return;
+            }
+            if (res.adopted) {
+                // The paper DR seals the load the sheet already posted. This is the
+                // normal order of work: encode the branch cells, then type the DR.
+                var sealMsg = 'DR ' + res.dr_number + ' sealed onto the load already on the sheet'
+                    + ' (' + (res.expected_items || 0) + ' product(s)) — no second stock movement.';
+                if (res.difference) {
+                    sealMsg += ' The numbers differ (' + res.difference + '); flagged for an admin to resolve.';
+                }
+                showToast(sealMsg, res.difference ? 'warning' : 'success');
+                setTimeout(function() { window.refreshMainContent(); }, 800);
                 return;
             }
             var totalQty = 0;

@@ -414,7 +414,29 @@ function dl_isPaperDrCapturedDelivery(array $delivery): bool
 function dl_isProvenanceReviewEligible(array $delivery): bool
 {
     return dl_isPaperDrCapturedDelivery($delivery)
+        || dl_isDailySheetSealedDelivery($delivery)
         || (string)($delivery['destination_type'] ?? '') === 'consignee';
+}
+
+/** The remark prefix every Daily Sheet delivery carries (see dl_recordDailySheetBranchEntry). */
+function dl_dailySheetEntryRemarkPrefix(): string
+{
+    return '[daily-sheet-entry]';
+}
+
+/**
+ * A Daily Sheet load that a dispatch later sealed with a paper DR.
+ *
+ * The Production in-charge encodes the branch cells first and receives the paper DR
+ * afterwards, so the DR is stamped onto the load that already exists instead of being
+ * sent a second time. That makes the row a paper-DR record for review purposes: "Needs
+ * Check" until the day closes, and "Discrepancy" when a later dispatch or receipt
+ * disagrees with it. Nothing else about the delivery changes.
+ */
+function dl_isDailySheetSealedDelivery(array $delivery): bool
+{
+    return trim((string) ($delivery['dr_number'] ?? '')) !== ''
+        && str_starts_with((string) ($delivery['remarks'] ?? ''), dl_dailySheetEntryRemarkPrefix());
 }
 
 function dl_findPaperCapturedCommissaryDelivery(
@@ -559,6 +581,183 @@ function dl_deliveryItemQuantities(\Ikabud\Kernel\Contracts\DatabaseContract $db
         $out[(int) $row['product_id']] = (int) $row['qty'];
     }
     return $out;
+}
+
+/**
+ * Recorded product => quantity for every delivery sharing one DR at one destination.
+ *
+ * A Daily-Sheet load is several cell deliveries, so one paper DR can sit on more than
+ * one row. Comparing a repeated dispatch against only the newest row would report the
+ * other products as missing and invent a variance that does not exist.
+ */
+function dl_deliveryItemQuantitiesAtDr(
+    \Ikabud\Kernel\Contracts\DatabaseContract $db,
+    int $destinationBranchId,
+    string $deliveryDate,
+    string $drNumber
+): array {
+    $drKey = dl_normalizeDrKey($drNumber);
+    if ($destinationBranchId <= 0 || $deliveryDate === '' || $drKey === '') {
+        return [];
+    }
+
+    $stmt = $db->prepare(
+        'SELECT di.product_id, SUM(di.quantity) AS qty
+           FROM dl_deliveries d
+           INNER JOIN dl_delivery_items di ON di.delivery_id = d.id
+          WHERE d.destination_type = "branch"
+            AND d.destination_id = :destination_id
+            AND d.delivery_date = :delivery_date
+            AND REPLACE(UPPER(TRIM(d.dr_number)), " ", "") = :dr_key
+            AND d.status <> "voided"
+          GROUP BY di.product_id'
+    );
+    $stmt->execute([
+        ':destination_id' => $destinationBranchId,
+        ':delivery_date' => $deliveryDate,
+        ':dr_key' => $drKey,
+    ]);
+
+    $out = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+        $out[(int) $row['product_id']] = (int) $row['qty'];
+    }
+    return $out;
+}
+
+/**
+ * The Daily Sheet load already posted for one destination-day, if any.
+ *
+ * Measured 2026-10-30: the Production in-charge encodes the sheet per branch FIRST and
+ * types the paper DR afterwards. Every sheet cell is already a posted delivery with its
+ * commissary debit (dl_recordDailySheetBranchEntry), so the dispatch that followed
+ * created a SECOND delivery for the same goods: two rows in Receive Stock, two
+ * dispatched_qty debits, and a sheet cell that summed both. The DR therefore seals the
+ * load that exists rather than sending the goods again.
+ *
+ * Only the head rows are stampable. A correction row is a signed delta with
+ * receipt_required = 0, part of the same cell but not a receivable delivery.
+ *
+ * @return array{head_ids:int[], quantities:array<int,int>} `quantities` is the load's NET
+ *         per product (heads plus corrections) - exactly what the sheet cell shows.
+ */
+function dl_findDailySheetLoadForSeal(
+    \Ikabud\Kernel\Contracts\DatabaseContract $db,
+    int $commissaryBranchId,
+    int $destinationBranchId,
+    string $deliveryDate
+): array {
+    $empty = ['head_ids' => [], 'quantities' => []];
+    if ($commissaryBranchId <= 0 || $destinationBranchId <= 0 || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $deliveryDate)) {
+        return $empty;
+    }
+
+    $qtyStmt = $db->prepare(
+        'SELECT di.product_id, SUM(di.quantity) AS qty
+           FROM dl_deliveries d
+           INNER JOIN dl_delivery_items di ON di.delivery_id = d.id
+          WHERE d.delivery_date = :delivery_date
+            AND d.origin_type = "commissary"
+            AND d.origin_id = :commissary_id
+            AND d.destination_type = "branch"
+            AND d.destination_id = :destination_id
+            AND d.status <> "voided"
+            AND d.remarks LIKE :remark_prefix
+          GROUP BY di.product_id'
+    );
+    $bind = [
+        ':delivery_date' => $deliveryDate,
+        ':commissary_id' => $commissaryBranchId,
+        ':destination_id' => $destinationBranchId,
+    ];
+    $qtyStmt->execute($bind + [':remark_prefix' => dl_dailySheetEntryRemarkPrefix() . '%']);
+    $quantities = [];
+    foreach ($qtyStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+        $quantities[(int) $row['product_id']] = (int) $row['qty'];
+    }
+
+    $headStmt = $db->prepare(
+        'SELECT id
+           FROM dl_deliveries
+          WHERE delivery_date = :delivery_date
+            AND origin_type = "commissary"
+            AND origin_id = :commissary_id
+            AND destination_type = "branch"
+            AND destination_id = :destination_id
+            AND status <> "voided"
+            AND remarks = :head_remark
+            AND dr_number IS NULL
+          ORDER BY id ASC'
+    );
+    $headStmt->execute($bind + [':head_remark' => dl_dailySheetEntryRemarkPrefix() . ' new']);
+    $headIds = [];
+    foreach ($headStmt->fetchAll(PDO::FETCH_COLUMN) ?: [] as $id) {
+        $headIds[] = (int) $id;
+    }
+
+    return ['head_ids' => $headIds, 'quantities' => $quantities];
+}
+
+/**
+ * Stamp a paper DR onto the Daily Sheet load it belongs to.
+ *
+ * Writes ONLY the document: the DR number, the sending shift when the cell had none,
+ * and who sent it. No delivery is added and no commissary quantity moves, because the
+ * sheet already moved it. Idempotent by construction: a row that already carries a DR
+ * is skipped, so a repeated seal can never reassign a load to a different document.
+ *
+ * @param int[] $headIds
+ * @return int[] the delivery ids that were stamped
+ */
+function dl_sealDailySheetLoadWithDr(
+    \Ikabud\Kernel\Contracts\DatabaseContract $db,
+    array $headIds,
+    string $drNumber,
+    ?string $shift,
+    string $senderName,
+    int $auditBranchId = 0,
+    int $actorId = 0
+): array {
+    $stamped = [];
+    $drNumber = trim($drNumber);
+    if ($headIds === [] || $drNumber === '') {
+        return $stamped;
+    }
+
+    $update = $db->prepare(
+        'UPDATE dl_deliveries
+            SET dr_number = :dr_number,
+                production_shift = COALESCE(production_shift, :shift),
+                created_by_name_snapshot = COALESCE(created_by_name_snapshot, :sender),
+                provenance_status = CASE WHEN provenance_status = "none" THEN "paper_dr_pending" ELSE provenance_status END
+          WHERE id = :id
+            AND status <> "voided"
+            AND dr_number IS NULL'
+    );
+    foreach ($headIds as $candidate) {
+        $deliveryId = (int) $candidate;
+        if ($deliveryId <= 0) {
+            continue;
+        }
+        $update->execute([
+            ':dr_number' => $drNumber,
+            ':shift' => $shift !== null && $shift !== '' ? $shift : null,
+            ':sender' => $senderName !== '' ? $senderName : null,
+            ':id' => $deliveryId,
+        ]);
+        if ($update->rowCount() <= 0) {
+            continue;
+        }
+        $stamped[] = $deliveryId;
+        dl_auditLog('delivery_dr_sealed', $auditBranchId > 0 ? $auditBranchId : null, 'dl_deliveries', (string) $deliveryId, null, [
+            'dr_number' => $drNumber,
+            'production_shift' => $shift,
+            'source' => 'dispatch_seal',
+            'sealed_by' => $actorId > 0 ? $actorId : null,
+        ]);
+    }
+
+    return $stamped;
 }
 
 /**
@@ -1815,7 +2014,10 @@ function apiListDeliveries(array $params = []): void
                    d.remarks, d.provenance_status, d.provenance_reviewed_at, d.provenance_review_note,
                    (SELECT COALESCE(SUM(di_total.quantity), 0) FROM dl_delivery_items di_total WHERE di_total.delivery_id = d.id) AS sent_quantity,
                    CASE WHEN d.remarks = :paper_dr_remark THEN 1 ELSE 0 END AS is_paper_dr_exception,
-                   CASE WHEN d.remarks = :paper_dr_remark2 OR d.destination_type = "consignee" THEN 1 ELSE 0 END AS is_provenance_reviewable,
+                   CASE WHEN d.remarks = :paper_dr_remark2
+                             OR d.destination_type = "consignee"
+                             OR (d.remarks LIKE :sheet_sealed_prefix AND d.dr_number IS NOT NULL AND TRIM(d.dr_number) <> "")
+                        THEN 1 ELSE 0 END AS is_provenance_reviewable,
                    ru.username AS provenance_reviewer_name,
                    CASE
                        WHEN d.origin_type = "commissary" THEN "Commissary"
@@ -1839,6 +2041,10 @@ function apiListDeliveries(array $params = []): void
     $stmt = $ctx->db()->prepare($sql);
     $bind[':paper_dr_remark'] = dl_paperDrCaptureRemark();
     $bind[':paper_dr_remark2'] = dl_paperDrCaptureRemark();
+    // A sheet load sealed with a paper DR is reviewable exactly like a paper capture:
+    // "Needs Check" until the day closes, "Discrepancy" when a later dispatch or
+    // receipt disagrees. The predicate here must match dl_isProvenanceReviewEligible().
+    $bind[':sheet_sealed_prefix'] = dl_dailySheetEntryRemarkPrefix() . '%';
     $stmt->execute($bind);
     $deliveries = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     // Fetch one row PAST the display bound so an over-long result is reported instead of silently

@@ -2594,6 +2594,10 @@ function dl_branchSingleShiftMode(int $branchId): bool
         if (!$ctx) {
             return false;
         }
+        // Deliberately NOT cached: this reads live so a toggle takes effect at once
+        // (daily_ledger_single_shift_mode_test asserts the change is visible in the
+        // same request). Report rows do not call it per row - they pass the flag they
+        // already joined into dl_isLastShiftOfDay()/dl_rowIsProvisional().
         $stmt = $ctx->db()->prepare('SELECT single_shift_mode FROM dl_branches WHERE id = :id LIMIT 1');
         $stmt->execute([':id' => $branchId]);
         return (int)$stmt->fetchColumn() === 1;
@@ -2602,14 +2606,21 @@ function dl_branchSingleShiftMode(int $branchId): bool
     }
 }
 
-/** True only for the branch's configured day-ending shift. */
-function dl_isLastShiftOfDay(string $shift, int $branchId): bool
+/**
+ * True only for the branch's configured day-ending shift.
+ *
+ * `$singleShiftMode` lets a caller that ALREADY holds the branch flag supply it. Report
+ * rows do: they join dl_branches, so re-reading it per row was one SELECT per rendered
+ * row through dl_rowIsProvisional(). Passing null keeps the live read, which is what the
+ * write paths and the toggle tests need.
+ */
+function dl_isLastShiftOfDay(string $shift, int $branchId, ?bool $singleShiftMode = null): bool
 {
     if ($shift === 'PM') {
         return true;
     }
     if ($shift === 'AM') {
-        return dl_branchSingleShiftMode($branchId);
+        return $singleShiftMode ?? dl_branchSingleShiftMode($branchId);
     }
     return false;
 }
@@ -10181,6 +10192,7 @@ function apiCreateCashierDispatch(array $params = []): void
             AND destination_type = :destination_type
             AND destination_id <=> :destination_id
             AND consignee_id <=> :consignee_id
+            AND delivery_date = :delivery_date
             AND dr_number = :dr_number
             AND status <> "voided"
           ORDER BY id DESC
@@ -10192,30 +10204,30 @@ function apiCreateCashierDispatch(array $params = []): void
         ':destination_type' => $destType,
         ':destination_id' => $destType === 'branch' ? $destId : null,
         ':consignee_id' => $destType === 'consignee' ? $consigneeId : null,
+        ':delivery_date' => $deliveryDate,
         ':dr_number' => $drNumber,
     ]);
     $dup = $dupStmt->fetch(PDO::FETCH_ASSOC) ?: null;
     if ($dup) {
-        if ($destType === 'consignee') {
-            $ctx->json(['ok' => true, 'delivery_id' => (int)$dup['id'], 'replayed' => true]);
-            return;
-        }
-        $ctx->json(['ok' => false, 'error' => 'This paper DR already exists in the system. Use Receive Stock on the destination branch.'], 422);
+        // One DR is one delivery on one date. This source already recorded it, so the
+        // send IS done - report the existing delivery instead of refusing a repeat
+        // (owner decision 2026-10-30: an existing DR is done, not a blocker).
+        $ctx->json(['ok' => true, 'delivery_id' => (int)$dup['id'], 'replayed' => true]);
         return;
     }
 
-    // The check above is scoped to THIS source branch. A load is often recorded
-    // by both ends, and the two ends disagree about who the sender was
+    // The check above is scoped to THIS source branch AND this delivery date. A load is
+    // often recorded by both ends, and the two ends disagree about who the sender was
     // (measured: DR 434 at branch 24 arrived as both "commissary:21 -> branch
     // 24" and "branch:20 -> branch 24"). Ask the destination as well, so the
     // dispatch cannot create a second delivery for a DR it already holds.
     if ($destType === 'branch') {
         $sameDrHere = dl_findDeliveryByDrAtDestination($ctx->db(), (int)$destId, $deliveryDate, $drNumber);
         if ($sameDrHere) {
-            // The destination already owns this DR. If this dispatch claims
-            // different stock than the record holds, that disagreement is the
-            // variance an admin has to see - so name the numbers instead of
-            // just refusing. Owner decision 2026-10-23.
+            // The destination already owns this DR, so this send is DONE. If the lines
+            // disagree, the numbers become a variance an admin investigates and
+            // resolves - never a refusal that leaves the operator stuck (owner
+            // decision 2026-10-30).
             $attempted = [];
             foreach ($items as $item) {
                 $pid = (int)($item['product_id'] ?? 0);
@@ -10226,18 +10238,18 @@ function apiCreateCashierDispatch(array $params = []): void
             $diff = dl_flagDrDiscrepancy(
                 $ctx->db(),
                 $sameDrHere,
-                dl_deliveryItemQuantities($ctx->db(), (int)$sameDrHere['id']),
+                dl_deliveryItemQuantitiesAtDr($ctx->db(), (int)$destId, $deliveryDate, $drNumber),
                 $attempted,
                 (string)($user['full_name'] ?? ($user['username'] ?? ''))
             );
             $ctx->json([
-                'ok' => false,
-                'error' => 'DR "' . $drNumber . '" is already recorded at the destination branch for ' . $deliveryDate
-                    . '. One DR is one delivery - open that record instead of dispatching it again.'
-                    . ($diff !== '' ? ' This dispatch does not match it: ' . $diff . '. An admin will review the difference.' : ''),
-                'dr_conflict' => true,
+                'ok' => true,
+                'replayed' => true,
+                'delivery_id' => (int)$sameDrHere['id'],
+                'dr_number' => $drNumber,
+                'dr_conflict' => $diff !== '',
                 'dr_conflict_difference' => $diff,
-            ], 422);
+            ]);
             return;
         }
     }
@@ -10261,13 +10273,33 @@ function apiCreateCashierDispatch(array $params = []): void
         if ($destType === 'branch' && (int)$destId !== (int)$originBranchId) {
             $destLock = $ctx->db()->prepare('SELECT id FROM dl_branches WHERE id = :id FOR UPDATE');
             $destLock->execute([':id' => $destId]);
-            if (dl_findDeliveryByDrAtDestination($ctx->db(), (int)$destId, $deliveryDate, $drNumber)) {
+            $lockedDr = dl_findDeliveryByDrAtDestination($ctx->db(), (int)$destId, $deliveryDate, $drNumber);
+            if ($lockedDr) {
+                // Lost the race to another writer for the same DR: the send is done.
+                // Report it, and still record any disagreement for the admin.
+                $attemptedLocked = [];
+                foreach ($items as $item) {
+                    $pid = (int)($item['product_id'] ?? 0);
+                    if ($pid > 0) {
+                        $attemptedLocked[$pid] = ($attemptedLocked[$pid] ?? 0) + (int)($item['quantity'] ?? 0);
+                    }
+                }
+                $diffLocked = dl_flagDrDiscrepancy(
+                    $ctx->db(),
+                    $lockedDr,
+                    dl_deliveryItemQuantitiesAtDr($ctx->db(), (int)$destId, $deliveryDate, $drNumber),
+                    $attemptedLocked,
+                    (string)($user['full_name'] ?? ($user['username'] ?? ''))
+                );
                 $ctx->db()->commit();
                 $ctx->json([
-                    'ok' => false,
-                    'error' => 'DR "' . $drNumber . '" is already recorded at the destination branch for ' . $deliveryDate
-                        . '. One DR is one delivery - open that record instead of dispatching it again.',
-                ], 422);
+                    'ok' => true,
+                    'replayed' => true,
+                    'delivery_id' => (int)$lockedDr['id'],
+                    'dr_number' => $drNumber,
+                    'dr_conflict' => $diffLocked !== '',
+                    'dr_conflict_difference' => $diffLocked,
+                ]);
                 return;
             }
         }
@@ -10277,16 +10309,14 @@ function apiCreateCashierDispatch(array $params = []): void
             ':destination_type' => $destType,
             ':destination_id' => $destType === 'branch' ? $destId : null,
             ':consignee_id' => $destType === 'consignee' ? $consigneeId : null,
+            ':delivery_date' => $deliveryDate,
             ':dr_number' => $drNumber,
         ]);
         $lockedDup = $dupStmt->fetch(PDO::FETCH_ASSOC) ?: null;
         if ($lockedDup) {
+            // Same DR, same source, same date: already done.
             $ctx->db()->commit();
-            if ($destType === 'consignee') {
-                $ctx->json(['ok' => true, 'delivery_id' => (int)$lockedDup['id'], 'replayed' => true]);
-            } else {
-                $ctx->json(['ok' => false, 'error' => 'This paper DR already exists in the system. Use Receive Stock on the destination branch.'], 422);
-            }
+            $ctx->json(['ok' => true, 'delivery_id' => (int)$lockedDup['id'], 'replayed' => true]);
             return;
         }
         $ins = $ctx->db()->prepare(
@@ -14478,7 +14508,8 @@ function handleAdminSales(array $params = []): void
     // dl_salesRowStatusLabel()): without it the row badge is blind to a derived, unverified
     // ending. Do not drop this column from the SELECT.
     $listStmt = $ctx->db()->prepare(
-        'SELECT dl.ledger_date, dl.shift, p.name AS product_name, p.sku, b.name AS branch_name,
+        'SELECT dl.ledger_date, dl.shift, b.id AS branch_id, b.single_shift_mode AS branch_single_shift_mode,
+                   p.name AS product_name, p.sku, b.name AS branch_name,
                    dl.beg_bal, dl.addtl, dl.withdraw, dl.bal_end, dl.end_source,
                    ' . $salesExpr . ' AS sales,
                    dl.price_snapshot,
@@ -19989,6 +20020,15 @@ function dlBranchOperatingSwitches(\Ikabud\Kernel\Contracts\ModuleDB $db): array
  */
 function dl_applyBranchFlags(\Ikabud\Kernel\Contracts\ModuleDB $db, int $branchId, array $flags): array
 {
+    $allowed = ['paperless_dr_enabled', 'single_shift_mode'];
+    $unknown = array_diff(array_keys($flags), $allowed);
+    if ($unknown !== []) {
+        return ['ok' => false, 'error' => 'Unknown branch switch: ' . implode(', ', $unknown) . '.'];
+    }
+    if ($flags === []) {
+        return ['ok' => false, 'error' => 'No branch switch was supplied.'];
+    }
+
     $stmt = $db->prepare('SELECT id, name, paperless_dr_enabled, single_shift_mode FROM dl_branches WHERE id = :id LIMIT 1');
     $stmt->execute([':id' => $branchId]);
     $before = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
@@ -19996,34 +20036,56 @@ function dl_applyBranchFlags(\Ikabud\Kernel\Contracts\ModuleDB $db, int $branchI
         return ['ok' => false, 'error' => 'Branch not found.'];
     }
 
-    if (array_key_exists('single_shift_mode', $flags) && $flags['single_shift_mode'] !== (int)$before['single_shift_mode']) {
-        $today = dl_businessDate();
-        $rowStmt = $db->prepare('SELECT COUNT(*) FROM dl_daily_ledger WHERE branch_id = :bid AND ledger_date = :d');
-        $rowStmt->execute([':bid' => $branchId, ':d' => $today]);
-        if ((int)$rowStmt->fetchColumn() > 0) {
-            return [
-                'ok' => false,
-                'error' => 'Single cashier shift can only be changed before the first ledger row of the business day (' . $today . ' already has rows).',
-            ];
+    $changedKeys = [];
+    foreach ($flags as $key => $value) {
+        if ((int)$before[$key] !== (int)$value) {
+            $changedKeys[] = $key;
         }
+    }
+    // A toggle that lands on the value the branch already holds is not a change: write
+    // nothing and mint no audit row. The old path always UPDATEed and always audited, so
+    // the log filled with entries whose before and after were identical.
+    if ($changedKeys === []) {
+        return ['ok' => true, 'changed' => false, 'after' => $before];
     }
 
     $sets = [];
     $bind = [':id' => $branchId];
-    $differs = false;
     foreach ($flags as $key => $value) {
-        if ((int)$before[$key] !== (int)$value) {
-            $differs = true;
-        }
         $sets[] = $key . ' = :' . $key;
         $bind[':' . $key] = $value;
     }
-    $db->prepare('UPDATE dl_branches SET ' . implode(', ', $sets) . ' WHERE id = :id')->execute($bind);
+
+    // R7 as ONE statement. The guard and the write must not be separable: a
+    // SELECT-then-UPDATE let the first ledger row of the business day commit between
+    // the check and the write, which is the exact state the rule forbids (flipping the
+    // mode mid-day orphans the carry-forward chain PM bal_end -> next AM beg_bal).
+    // NOT EXISTS on another table is MySQL 5.7-safe (error 1093 only applies when a
+    // subquery selects from the table being updated).
+    $guardSql = '';
+    $guardBind = [];
+    if (in_array('single_shift_mode', $changedKeys, true)) {
+        $guardSql = ' AND NOT EXISTS (SELECT 1 FROM dl_daily_ledger dl_gate'
+            . ' WHERE dl_gate.branch_id = :gate_branch AND dl_gate.ledger_date = :gate_date)';
+        $guardBind = [':gate_branch' => $branchId, ':gate_date' => dl_businessDate()];
+    }
+
+    $applied = $db->prepare('UPDATE dl_branches SET ' . implode(', ', $sets) . ' WHERE id = :id' . $guardSql);
+    $applied->execute($bind + $guardBind);
+    if ($guardSql !== '' && $applied->rowCount() === 0) {
+        return [
+            'ok' => false,
+            'error' => 'Single cashier shift can only be changed before the first ledger row of the business day ('
+                . dl_businessDate() . ' already has rows).',
+        ];
+    }
 
     $after = $before;
     foreach ($flags as $key => $value) {
         $after[$key] = $value;
     }
+    // audit_logs has no reason column (the kernel's audit() does not persist the argument),
+    // so the durable evidence is the before/after pair above - both switches, both sides.
     dl_auditLog(
         'branch_flags_update',
         $branchId,
@@ -20033,7 +20095,7 @@ function dl_applyBranchFlags(\Ikabud\Kernel\Contracts\ModuleDB $db, int $branchI
         ['paperless_dr_enabled' => (int)$after['paperless_dr_enabled'], 'single_shift_mode' => (int)$after['single_shift_mode']]
     );
 
-    return ['ok' => true, 'changed' => $differs, 'after' => $after];
+    return ['ok' => true, 'changed' => true, 'after' => $after];
 }
 
 /**
@@ -20213,13 +20275,21 @@ function apiUpdateBranch(array $params = []): void
         $beforeStmt->execute([':id' => $branchId]);
         $before = $beforeStmt->fetch(PDO::FETCH_ASSOC) ?: [];
 
-        if ($singleShiftMode !== null && $singleShiftMode !== (int)($before['single_shift_mode'] ?? 0)) {
-            $todayRows = $ctx->db()->prepare(
-                'SELECT 1 FROM dl_daily_ledger WHERE branch_id = :id AND ledger_date = :ledger_date LIMIT 1'
-            );
-            $todayRows->execute([':id' => $branchId, ':ledger_date' => dl_businessDate()]);
-            if ($todayRows->fetchColumn() !== false) {
-                $message = 'Single cashier shift mode cannot be changed after ledger rows exist for the current business date.';
+        // The two operating switches go through the ONE shared applier. This handler used to
+        // carry its own copy of the R7 guard and its own UPDATE, which meant the Edit form
+        // could drift from the Settings toggle - and it audited only the shift mode, so a
+        // paperless_dr_enabled change through this form left no before/after evidence.
+        $switchInputs = [];
+        if ($paperlessDrEnabled !== null) {
+            $switchInputs['paperless_dr_enabled'] = (int)$paperlessDrEnabled;
+        }
+        if ($singleShiftMode !== null) {
+            $switchInputs['single_shift_mode'] = (int)$singleShiftMode;
+        }
+        if ($switchInputs !== []) {
+            $switchResult = dl_applyBranchFlags($ctx->db(), $branchId, $switchInputs);
+            if (empty($switchResult['ok'])) {
+                $message = (string)($switchResult['error'] ?? 'The branch switch could not be changed.');
                 header('HX-Trigger: ' . json_encode(['showToast' => ['message' => $message, 'type' => 'error']]));
                 $ctx->json(['ok' => false, 'error' => $message], 422);
                 return;
@@ -20244,14 +20314,7 @@ function apiUpdateBranch(array $params = []): void
             $sets[] = 'is_commissary = :ic';
             $bind[':ic'] = $isCommissary;
         }
-        if ($paperlessDrEnabled !== null) {
-            $sets[] = 'paperless_dr_enabled = :paperless_dr';
-            $bind[':paperless_dr'] = $paperlessDrEnabled;
-        }
-        if ($singleShiftMode !== null) {
-            $sets[] = 'single_shift_mode = :single_shift';
-            $bind[':single_shift'] = $singleShiftMode;
-        }
+        // paperless_dr_enabled / single_shift_mode were applied above by dl_applyBranchFlags().
         $ctx->db()->prepare('UPDATE dl_branches SET ' . implode(', ', $sets) . ' WHERE id = :id')->execute($bind);
 
         $afterStmt = $ctx->db()->prepare('SELECT default_supply_mode, assigned_commissary_id, price_group_id, is_commissary, paperless_dr_enabled, single_shift_mode FROM dl_branches WHERE id = :id');
@@ -20263,9 +20326,9 @@ function apiUpdateBranch(array $params = []): void
             || ($before['price_group_id'] ?? null) !== ($after['price_group_id'] ?? null)) {
             dl_auditLog('branch_supply_mode_changed', $branchId, 'dl_branches', (string)$branchId, $before, $after);
         }
-        if ((int)($before['single_shift_mode'] ?? 0) !== (int)($after['single_shift_mode'] ?? 0)) {
-            dl_auditLog('branch_single_shift_mode_changed', $branchId, 'dl_branches', (string)$branchId, $before, $after);
-        }
+        // The switch changes are audited by dl_applyBranchFlags() as branch_flags_update
+        // (before AND after, both switches), so this handler no longer writes a second,
+        // narrower audit row that only ever mentioned the shift mode.
         dl_auditLog('update_branch', $branchId, 'branch', (string)$branchId);
 
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Branch updated', 'type' => 'success']]));
@@ -23939,43 +24002,92 @@ function apiCommissaryDispatch(): void
         $destLock = $db->prepare('SELECT id FROM dl_branches WHERE id = :id FOR UPDATE');
         $destLock->execute([':id' => $destinationBranchId]);
 
-        // Verify DR not already used
-        $existingDelivery = dl_findAutoCommissaryDelivery($db, $destinationBranchId, $ledgerDate, $drNumber);
-        if ($existingDelivery) {
-            throw new RuntimeException('A delivery with DR "' . $drNumber . '" already exists for this branch on ' . $ledgerDate . '.');
+        // An existing DR is DONE, never a refusal (owner decision 2026-10-30).
+        // Identity is (destination, delivery date, DR) and deliberately NOT the
+        // sender: measured 2026-10-22, DR 434 reached branch 24 as both
+        // "commissary:21 -> branch 24" and "branch:20 -> branch 24", so every
+        // sender-keyed guard was blind to the other row. A disagreement in the
+        // numbers is a variance an admin investigates and resolves; it must not
+        // block the operator standing at the desk.
+        $attemptedQuantities = [];
+        foreach ($cleanItems as $item) {
+            $pid = (int)($item['product_id'] ?? 0);
+            if ($pid > 0) {
+                $attemptedQuantities[$pid] = ($attemptedQuantities[$pid] ?? 0) + (int)($item['quantity'] ?? 0);
+            }
         }
-        $existingPaper = dl_findPaperCapturedCommissaryDelivery($db, $destinationBranchId, $ledgerDate, $drNumber);
-        if ($existingPaper) {
-            throw new RuntimeException('A paper DR capture with DR "' . $drNumber . '" already exists for this branch on ' . $ledgerDate . '.');
-        }
-
-        // The two checks above key on the SENDER, and the sender is exactly what
-        // the two sides disagree about: measured 2026-10-22, DR 434 reached
-        // branch 24 as both "commissary:21 -> branch 24" and "branch:20 ->
-        // branch 24", so neither check could see the other row and one load
-        // became two deliveries. Ask the destination instead.
         $sameDrAtDestination = dl_findDeliveryByDrAtDestination($db, $destinationBranchId, $ledgerDate, $drNumber);
         if ($sameDrAtDestination) {
-            $attempted = [];
-            foreach ($cleanItems as $item) {
-                $pid = (int)($item['product_id'] ?? 0);
-                if ($pid > 0) {
-                    $attempted[$pid] = ($attempted[$pid] ?? 0) + (int)($item['quantity'] ?? 0);
-                }
-            }
+            // Compare against EVERY row that carries this DR: a sheet load is several
+            // cell deliveries, and only the newest row would report the rest as missing.
             $diff = dl_flagDrDiscrepancy(
                 $db,
                 $sameDrAtDestination,
-                dl_deliveryItemQuantities($db, (int)$sameDrAtDestination['id']),
-                $attempted,
-                (string)($user['full_name'] ?? ($user['username'] ?? ''))
+                dl_deliveryItemQuantitiesAtDr($db, $destinationBranchId, $ledgerDate, $drNumber),
+                $attemptedQuantities,
+                $dispatcherName
             );
-            throw new RuntimeException(
-                'DR "' . $drNumber . '" is already recorded at this branch for ' . $ledgerDate
-                . ' (recorded as ' . (string) $sameDrAtDestination['origin_type'] . ').'
-                . ' One DR is one delivery - open that record instead of sending it again.'
-                . ($diff !== '' ? ' This dispatch does not match it: ' . $diff . '. An admin will review the difference.' : '')
+            $db->commit();
+            $ctx->json([
+                'ok' => true,
+                'replayed' => true,
+                'delivery_id' => (int)$sameDrAtDestination['id'],
+                'dr_number' => $drNumber,
+                'destination_branch_id' => $destinationBranchId,
+                'production_shift' => (string)($sameDrAtDestination['production_shift'] ?? $dispatchShift),
+                'expected_items' => 0,
+                'actual_items' => 0,
+                'items' => [],
+                'difference' => $diff,
+            ]);
+            return;
+        }
+
+        // A delivery has one origin. Refuse mixed-commissary items rather than
+        // attributing some debits to a guessed primary origin. Checked before the
+        // seal below because a sheet load belongs to exactly one commissary.
+        $originIds = array_values(array_unique(array_map(static fn(array $item): int => (int)$item['commissary_branch_id'], $cleanItems)));
+        if (count($originIds) !== 1) {
+            throw new RuntimeException('Create a separate dispatch for each commissary origin.');
+        }
+        $primaryCommissaryId = $originIds[0];
+
+        // Sheet-first is the normal order of work: the Production in-charge encodes
+        // the branch cells and then types the paper DR. Those cells are ALREADY posted
+        // deliveries with their commissary debit, so this dispatch seals the load that
+        // exists instead of sending the same goods a second time. Sealing moves no
+        // stock: the stock check below would even refuse it once the sheet has spent it.
+        $sheetLoad = dl_findDailySheetLoadForSeal($db, $primaryCommissaryId, $destinationBranchId, $ledgerDate);
+        if ($sheetLoad['head_ids'] !== []) {
+            $sealedIds = dl_sealDailySheetLoadWithDr(
+                $db,
+                $sheetLoad['head_ids'],
+                $drNumber,
+                $dispatchShift,
+                $dispatcherName,
+                $destinationBranchId,
+                $actorId
             );
+            // Re-read through the shared identity so the flag lands on the row that now
+            // owns the DR, and so an already-verified load is never silently re-opened.
+            $sealedRecord = dl_findDeliveryByDrAtDestination($db, $destinationBranchId, $ledgerDate, $drNumber);
+            $diff = $sealedRecord
+                ? dl_flagDrDiscrepancy($db, $sealedRecord, $sheetLoad['quantities'], $attemptedQuantities, $dispatcherName)
+                : '';
+            $db->commit();
+            $ctx->json([
+                'ok' => true,
+                'adopted' => true,
+                'dr_number' => $drNumber,
+                'delivery_id' => $sealedRecord ? (int)$sealedRecord['id'] : (int)$sheetLoad['head_ids'][0],
+                'delivery_ids' => $sealedIds,
+                'destination_branch_id' => $destinationBranchId,
+                'expected_items' => count($sheetLoad['quantities']),
+                'actual_items' => count($sheetLoad['quantities']),
+                'items' => [],
+                'difference' => $diff,
+            ]);
+            return;
         }
 
         // Validate cumulative stock for each item
@@ -24015,13 +24127,8 @@ function apiCommissaryDispatch(): void
             }
         }
 
-        // A delivery has one origin. Refuse mixed-commissary items rather than
-        // attributing some debits to a guessed primary origin.
-        $originIds = array_values(array_unique(array_map(static fn(array $item): int => (int)$item['commissary_branch_id'], $cleanItems)));
-        if (count($originIds) !== 1) {
-            throw new RuntimeException('Create a separate dispatch for each commissary origin.');
-        }
-        $primaryCommissaryId = $originIds[0];
+        // The single origin was resolved above, before the sheet-load seal: mixed
+        // commissaries are refused there so a load can never be attributed to a guess.
         $delStmt = $db->prepare(
             'INSERT INTO dl_deliveries
                 (origin_type, origin_id, destination_type, destination_id, dr_number,

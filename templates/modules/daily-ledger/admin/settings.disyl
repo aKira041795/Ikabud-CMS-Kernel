@@ -1123,8 +1123,12 @@
                 showToast(res.error || 'Could not save the branch switch', 'error');
                 return;
             }
-            // Echo what the server accepted; a refused branch keeps its old value.
+            // Echo what the server accepted. Reset every peer to the value it held before
+            // the click, then show the accepted value only where it actually landed: a
+            // refused branch must not keep the optimistic state, or the panel reports a
+            // switch as on while the database still says off.
             var changed = res.changed || [];
+            for (var p = 0; p < peers.length; p++) { peers[p].checked = prior[p]; }
             for (var k = 0; k < changed.length; k++) {
                 var cb = document.querySelector('input[data-branch-flag="' + flag + '"][data-branch-id="' + changed[k] + '"]');
                 if (cb) { cb.checked = desired; }
