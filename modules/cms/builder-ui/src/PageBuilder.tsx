@@ -724,7 +724,25 @@ export default function PageBuilder() {
 
         const builderData = await builderResp.json();
         if (!builderData.ok && !builderData.success) {
-          console.warn('Builder document save returned:', builderData);
+          // The content row exists now, so the URL must move to it (or the next Save
+          // creates a second page), but the document did NOT save. Saying "Page created"
+          // here hid a validation failure behind a success toast - so name it, keep the
+          // editor on the new id, and let Save retry against the real record.
+          const issues = Array.isArray(builderData.issues) ? builderData.issues : [];
+          if (issues.length) {
+            console.warn('Builder validation issues', issues);
+          }
+          setInitialGlobalStylesStr(JSON.stringify(globalStyles));
+          setInitialSeoSettingsStr(JSON.stringify(seoSettings));
+          setPageData({ ...pageData, id: newId });
+          window.history.replaceState(null, '', `/cms/admin/react-builder/${newId}`);
+          setSaveMessage({
+            type: 'error',
+            text: 'Page created, but its content was NOT saved: '
+              + (builderData.message || builderData.error || 'save failed')
+              + ' Press Save to retry.',
+          });
+          return;
         }
 
         builder.markClean();
@@ -758,7 +776,14 @@ export default function PageBuilder() {
           setSaveMessage({ type: 'success', text: 'Saved successfully' });
           setTimeout(() => setSaveMessage(null), 3000);
         } else {
-          setSaveMessage({ type: 'error', text: data.error || 'Failed to save' });
+          // The API explains which node is rejected in `message`; `issues` carries every
+          // path. Showing only `error` ("validation_failed") left the operator with no
+          // remedy, which is what made this look like an unexplained save failure.
+          const issues = Array.isArray(data.issues) ? data.issues : [];
+          if (issues.length) {
+            console.warn('Builder validation issues', issues);
+          }
+          setSaveMessage({ type: 'error', text: data.message || data.error || 'Failed to save' });
         }
       }
     } catch (err) {

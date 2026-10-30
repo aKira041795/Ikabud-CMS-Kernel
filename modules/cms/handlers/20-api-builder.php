@@ -116,10 +116,15 @@ function cmsApiBuilderDocumentSave(array $params = []): void
     }
 
     $document = $input['document'] ?? $input;
+    // Legacy root-level blocks the active theme forbids are wrapped, not refused: a page
+    // must stay editable, and the block must survive (see cmsBuilderRepairTopLevelNodes).
+    if (is_array($document)) {
+        $document = cmsBuilderRepairTopLevelNodes($document);
+    }
     $validation = cmsBuilderValidateDocument($document);
     if (empty($validation['ok'])) {
         http_response_code(422);
-        echo json_encode(['ok' => false, 'error' => 'validation_failed', 'issues' => $validation['issues']]);
+        echo json_encode(cmsBuilderValidationFailure($validation));
         exit;
     }
 
@@ -292,6 +297,8 @@ function cmsApiBuilderDocumentPublish(array $params = []): void
     }
 
     $document = cmsBuilderNormalizeDocument((string)$draft['document_json']);
+    // A draft stored before the theme's root rules existed still has to be publishable.
+    $document = cmsBuilderRepairTopLevelNodes($document);
 
     // Publish-time validation — re-validate before promoting draft to published
     //
@@ -303,11 +310,13 @@ function cmsApiBuilderDocumentPublish(array $params = []): void
     // not. Owner report 2026-10-24: "validation failed when saving".
     $validation = cmsBuilderValidateDocument($document);
     if (empty($validation['ok'])) {
+        $failure = cmsBuilderValidationFailure($validation);
         http_response_code(422);
         echo json_encode([
             'ok' => false,
             'error' => 'Document validation failed',
-            'issues' => $validation['issues'],
+            'message' => $failure['message'],
+            'issues' => $failure['issues'],
         ]);
         exit;
     }
@@ -404,11 +413,16 @@ function cmsApiBuilderDocumentPreview(array $params = []): void
         $meta = cmsLoadContentMeta(cmsDb(), $id);
         $document = cmsBuilderLoadDraftDocument($id, $content, $meta);
     }
+    if (is_array($document)) {
+        // Preview what a save would actually store, so the operator sees the same page.
+        $document = cmsBuilderRepairTopLevelNodes($document);
+    }
     $validation = cmsBuilderValidateDocument($document);
     if (empty($validation['ok'])) {
+        $failure = cmsBuilderValidationFailure($validation);
         http_response_code(422);
         header('Content-Type: application/json');
-        echo json_encode(['ok' => false, 'error' => 'validation_failed', 'issues' => $validation['issues']]);
+        echo json_encode(['ok' => false, 'error' => 'validation_failed', 'message' => $failure['message'], 'issues' => $failure['issues']]);
         exit;
     }
 
@@ -832,11 +846,14 @@ function cmsApiBuilderAutosave(array $params = []): void
         echo json_encode(['ok' => false, 'error' => 'document is required']);
         exit;
     }
+    if (is_array($document)) {
+        $document = cmsBuilderRepairTopLevelNodes($document);
+    }
 
     $validation = cmsBuilderValidateDocument($document);
     if (empty($validation['ok'])) {
         http_response_code(422);
-        echo json_encode(['ok' => false, 'error' => 'validation_failed', 'issues' => $validation['issues']]);
+        echo json_encode(cmsBuilderValidationFailure($validation));
         exit;
     }
 

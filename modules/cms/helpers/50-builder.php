@@ -263,6 +263,106 @@ function _cmsBuilderMigrateContainerSemantics(array $node, array &$seenNodeIds, 
     return $node;
 }
 
+/**
+ * Shape a builder validation failure so the CALLER can act on it.
+ *
+ * The API used to answer `{"error":"validation_failed"}` with the reasons in a
+ * sibling `issues` array that no client read, so the builder showed the code and
+ * nothing else - measured 2026-10-30 on content 23 ("saving an edit: validation
+ * failed"). A code is not a remedy: name the path, quote the rule, and say how many
+ * other problems are waiting.
+ */
+function cmsBuilderValidationFailure(array $validation): array
+{
+    $issues = is_array($validation['issues'] ?? null) ? $validation['issues'] : [];
+    $first = $issues[0] ?? null;
+
+    $message = 'The page could not be saved because its document does not pass validation.';
+    if (is_array($first)) {
+        $path = trim((string)($first['path'] ?? ''));
+        $detail = trim((string)($first['message'] ?? ''));
+        $message = 'The page could not be saved'
+            . ($path !== '' ? ' at ' . $path : '')
+            . ': ' . ($detail !== '' ? $detail : 'validation failed') . '.';
+        $extra = count($issues) - 1;
+        if ($extra > 0) {
+            $message .= ' (' . $extra . ' more issue' . ($extra === 1 ? '' : 's') . '.)';
+        }
+    }
+
+    return [
+        'ok' => false,
+        'error' => 'validation_failed',
+        'message' => $message,
+        'issues' => $issues,
+    ];
+}
+
+/**
+ * Wrap root-level blocks the active theme does not allow there.
+ *
+ * Measured 2026-10-30 on content 23 (Frontpage, theme entity-commerce-poc): the stored
+ * document put `spacer` and `divider` directly on `document`, the theme's
+ * page-composition.schema.json allows only sections/containers/rows/columns/hero at the
+ * root, so EVERY save answered 422 validation_failed - the page could not be edited at
+ * all, and the operator had no way to see why.
+ *
+ * The validator's own remedy is "move this block into one [section]", so this does
+ * exactly that: the block is preserved, order is preserved, and a theme that permits the
+ * node at the root is left completely untouched. Deleting the block would destroy
+ * content; refusing the save leaves the page permanently un-editable; weakening the
+ * theme contract would silently change every page's composition rules.
+ *
+ * Applied where a document is WRITTEN (save/autosave/publish/preview), never in the
+ * render path: a stored document must keep rendering until the operator saves it.
+ *
+ * $constraints lets a caller (or a test) supply the rule set instead of reading the
+ * active theme, so the wrap can be exercised on a theme that ships no schema.
+ */
+function cmsBuilderRepairTopLevelNodes(array $document, ?array $constraints = null): array
+{
+    if (($document['type'] ?? '') !== 'document') {
+        return $document;
+    }
+
+    $constraints = $constraints ?? cmsBuilderLoadNestingConstraints();
+    $allowed = $constraints['document']['allowed_children'] ?? null;
+    if (!is_array($allowed) || $allowed === []) {
+        return $document;   // the theme governs nothing at the root: leave it alone
+    }
+
+    $children = is_array($document['children'] ?? null) ? $document['children'] : [];
+    $repaired = [];
+    $wrapped = 0;
+    foreach ($children as $index => $child) {
+        if (!is_array($child)) {
+            continue;
+        }
+        $type = (string)($child['type'] ?? '');
+        if ($type === '' || in_array($type, $allowed, true)) {
+            $repaired[] = $child;
+            continue;
+        }
+        $childId = (string)($child['id'] ?? '');
+        $repaired[] = [
+            'id' => 'wrap-' . ($childId !== '' ? $childId : (string)$index),
+            'type' => 'section',
+            'props' => [],
+            'style' => [],
+            'children' => [$child],
+            'meta' => [],
+        ];
+        $wrapped++;
+    }
+
+    if ($wrapped === 0) {
+        return $document;
+    }
+
+    $document['children'] = array_values($repaired);
+    return $document;
+}
+
 function cmsBuilderValidateDocument(mixed $document): array
 {
     $normalized = cmsBuilderNormalizeDocument($document);
