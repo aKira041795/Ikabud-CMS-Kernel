@@ -267,8 +267,12 @@ function dispatchModal() {
             .then(function(data) {
                 this.saving = false;
                 if (data && data.ok) {
-                    // One DR is one delivery: a repeat is reported as done, never re-sent.
-                    showToast(data.replayed ? 'Already recorded — nothing added' : 'Transfer out saved', 'success');
+                    // One DR is one delivery: a repeat is reported as done, never re-sent. The
+                    // server names the owning desk when the other desk recorded it first.
+                    showToast(
+                        data.replayed ? (data.note || 'Already recorded — nothing added') : 'Transfer out saved',
+                        (data.replayed && data.lane === 'production') ? 'warning' : 'success'
+                    );
                     if (data.replayed && data.dr_conflict_difference) {
                         showToast('Flagged for admin: ' + data.dr_conflict_difference, 'warning');
                     }

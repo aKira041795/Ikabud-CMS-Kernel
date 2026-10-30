@@ -10240,13 +10240,19 @@ function apiCreateCashierDispatch(array $params = []): void
                 $sameDrHere,
                 dl_deliveryItemQuantitiesAtDr($ctx->db(), (int)$destId, $deliveryDate, $drNumber),
                 $attempted,
-                (string)($user['full_name'] ?? ($user['username'] ?? ''))
+                (string)($user['full_name'] ?? ($user['username'] ?? '')),
+                dl_deliveryLane($sameDrHere) !== 'other'
             );
+            $existingLane = dl_deliveryLane($sameDrHere);
             $ctx->json([
                 'ok' => true,
                 'replayed' => true,
                 'delivery_id' => (int)$sameDrHere['id'],
                 'dr_number' => $drNumber,
+                'lane' => $existingLane,
+                'note' => $existingLane === 'production'
+                    ? 'The production desk recorded this DR first, so that record stands; this send was not applied.'
+                    : '',
                 'dr_conflict' => $diff !== '',
                 'dr_conflict_difference' => $diff,
             ]);
@@ -10289,14 +10295,20 @@ function apiCreateCashierDispatch(array $params = []): void
                     $lockedDr,
                     dl_deliveryItemQuantitiesAtDr($ctx->db(), (int)$destId, $deliveryDate, $drNumber),
                     $attemptedLocked,
-                    (string)($user['full_name'] ?? ($user['username'] ?? ''))
+                    (string)($user['full_name'] ?? ($user['username'] ?? '')),
+                    dl_deliveryLane($lockedDr) !== 'other'
                 );
+                $lockedLane = dl_deliveryLane($lockedDr);
                 $ctx->db()->commit();
                 $ctx->json([
                     'ok' => true,
                     'replayed' => true,
                     'delivery_id' => (int)$lockedDr['id'],
                     'dr_number' => $drNumber,
+                    'lane' => $lockedLane,
+                    'note' => $lockedLane === 'production'
+                        ? 'The production desk recorded this DR first, so that record stands; this send was not applied.'
+                        : '',
                     'dr_conflict' => $diffLocked !== '',
                     'dr_conflict_difference' => $diffLocked,
                 ]);
@@ -24009,6 +24021,11 @@ function apiCommissaryDispatch(): void
         // sender-keyed guard was blind to the other row. A disagreement in the
         // numbers is a variance an admin investigates and resolves; it must not
         // block the operator standing at the desk.
+        // Which commissary this dispatch claims. Resolved BEFORE the replay answer because a
+        // cashier-owned DR is judged against THAT commissary's Daily Sheet.
+        $originIds = array_values(array_unique(array_map(static fn(array $item): int => (int)$item['commissary_branch_id'], $cleanItems)));
+        $dispatchCommissaryId = count($originIds) === 1 ? (int)$originIds[0] : 0;
+
         $attemptedQuantities = [];
         foreach ($cleanItems as $item) {
             $pid = (int)($item['product_id'] ?? 0);
@@ -24020,13 +24037,74 @@ function apiCommissaryDispatch(): void
         if ($sameDrAtDestination) {
             // Compare against EVERY row that carries this DR: a sheet load is several
             // cell deliveries, and only the newest row would report the rest as missing.
+            //
+            // Which desk owns the record decides the outcome (owner contract 2026-10-30):
+            // "cashier lane can create the DR dispatch if none exists... if cashier DR is
+            // present, production dispatch is notified and discrepancy is preserved for
+            // admin." A cashier record STANDS; production is told; a disagreement is
+            // flagged rather than applied.
+            $existingLane = dl_deliveryLane($sameDrAtDestination);
+            $recordedQuantities = dl_deliveryItemQuantitiesAtDr($db, $destinationBranchId, $ledgerDate, $drNumber);
+
+            // Owner contract 2026-10-30: "production daily sheets data is respected and will
+            // be used to flag qty discrepancies". So when the cashier owns the DR and the sheet
+            // holds figures for this destination-day, the DAILY SHEET is the yardstick - not the
+            // numbers re-typed into this dispatch. Without a sheet, the dispatch is all we have.
+            $referenceLabel = 'this dispatch';
+            $referenceQuantities = $attemptedQuantities;
+            if ($existingLane === 'cashier' && $dispatchCommissaryId > 0) {
+                $sheetForCompare = dl_findDailySheetLoadForSeal($db, $dispatchCommissaryId, $destinationBranchId, $ledgerDate);
+                if ($sheetForCompare['quantities'] !== []) {
+                    $referenceLabel = 'the Daily Sheet';
+                    $referenceQuantities = $sheetForCompare['quantities'];
+                }
+            }
+
             $diff = dl_flagDrDiscrepancy(
                 $db,
                 $sameDrAtDestination,
-                dl_deliveryItemQuantitiesAtDr($db, $destinationBranchId, $ledgerDate, $drNumber),
-                $attemptedQuantities,
-                $dispatcherName
+                $recordedQuantities,
+                $referenceQuantities,
+                $dispatcherName,
+                $existingLane !== 'other',
+                $referenceLabel
             );
+            // If the sheet agrees with the record but this dispatch does not, name that too:
+            // a differing dispatch must never pass silently.
+            if ($diff === '' && $referenceLabel === 'the Daily Sheet') {
+                $diff = dl_flagDrDiscrepancy(
+                    $db,
+                    $sameDrAtDestination,
+                    $recordedQuantities,
+                    $attemptedQuantities,
+                    $dispatcherName,
+                    $existingLane !== 'other'
+                );
+            }
+
+            $laneNote = '';
+            if ($existingLane === 'cashier') {
+                $laneNote = 'The cashier desk recorded this DR first, so that record stands; this dispatch was not applied.'
+                    . ($diff !== '' ? ' The figures disagree: ' . $diff . '.' : ' The figures match.');
+                // Durable finding for the admin. finding_type 'variance' keeps it out of the
+                // prune worker (that only targets entity_type dl_variance_flags), and the
+                // aggregate key is per delivery, so a repeated attempt increments the count
+                // instead of appending a second finding.
+                dl_raiseIntegrityNotification(
+                    $db,
+                    'cashier-dr-first-' . (int)$sameDrAtDestination['id'],
+                    'variance',
+                    $destinationBranchId,
+                    'dl_deliveries',
+                    (int)$sameDrAtDestination['id'],
+                    'Cashier recorded this DR first',
+                    'DR "' . $drNumber . '" for this branch on ' . $ledgerDate
+                        . ' was already recorded by the cashier desk. Production dispatch by '
+                        . ($dispatcherName !== '' ? $dispatcherName : 'an operator') . ' was not applied.'
+                        . ' Comparison: ' . ($referenceLabel === 'the Daily Sheet' ? 'production Daily Sheet' : 'this dispatch') . '.'
+                        . ($diff !== '' ? ' The figures disagree: ' . $diff . '.' : ' The figures match.')
+                );
+            }
             $db->commit();
             $ctx->json([
                 'ok' => true,
@@ -24035,6 +24113,8 @@ function apiCommissaryDispatch(): void
                 'dr_number' => $drNumber,
                 'destination_branch_id' => $destinationBranchId,
                 'production_shift' => (string)($sameDrAtDestination['production_shift'] ?? $dispatchShift),
+                'lane' => $existingLane,
+                'note' => $laneNote,
                 'expected_items' => 0,
                 'actual_items' => 0,
                 'items' => [],
@@ -24046,7 +24126,6 @@ function apiCommissaryDispatch(): void
         // A delivery has one origin. Refuse mixed-commissary items rather than
         // attributing some debits to a guessed primary origin. Checked before the
         // seal below because a sheet load belongs to exactly one commissary.
-        $originIds = array_values(array_unique(array_map(static fn(array $item): int => (int)$item['commissary_branch_id'], $cleanItems)));
         if (count($originIds) !== 1) {
             throw new RuntimeException('Create a separate dispatch for each commissary origin.');
         }

@@ -3374,12 +3374,13 @@
             }
             if (res.replayed) {
                 // One DR is one delivery: the send was already recorded, so nothing
-                // was added a second time. A disagreement is named, not hidden.
-                var replayMsg = 'DR ' + res.dr_number + ' is already recorded for this branch — nothing was sent again.';
-                if (res.difference) {
+                // was added a second time. The server says which desk owns the record;
+                // a disagreement is named, not hidden.
+                var replayMsg = res.note || ('DR ' + res.dr_number + ' is already recorded for this branch — nothing was sent again.');
+                if (res.difference && !res.note) {
                     replayMsg += ' The numbers differ (' + res.difference + '); flagged for an admin to resolve.';
                 }
-                showToast(replayMsg, res.difference ? 'warning' : 'success');
+                showToast(replayMsg, (res.difference || res.lane === 'cashier') ? 'warning' : 'success');
                 setTimeout(function() { window.refreshMainContent(); }, 800);
                 return;
             }

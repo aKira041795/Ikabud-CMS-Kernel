@@ -73,6 +73,7 @@ $comm = 99801;
 $dest1 = 99802;
 $dest2 = 99803;
 $dest3 = 99804;
+$dest4 = 99805;
 $product = 99801;
 $encoder = 99801;
 $date = dl_businessDate();
@@ -142,10 +143,12 @@ $drRow = static function (string $drNumber) use ($db): array {
     return $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
 };
 
-$cleanup = static function () use ($db, $comm, $dest1, $dest2, $dest3, $product, $encoder, $date): void {
+$cleanup = static function () use ($db, $comm, $dest1, $dest2, $dest3, $dest4, $product, $encoder): void {
+    $branchIds = [$comm, $dest1, $dest2, $dest3, $dest4];
+    $in = implode(',', $branchIds);
     $ids = $db->query(
         "SELECT id FROM dl_deliveries
-          WHERE origin_id = {$comm} OR destination_id IN ({$dest1},{$dest2},{$dest3})"
+          WHERE origin_id IN ({$in}) OR destination_id IN ({$in})"
     )->fetchAll(PDO::FETCH_COLUMN) ?: [];
     if ($ids !== []) {
         $marks = implode(',', array_fill(0, count($ids), '?'));
@@ -153,22 +156,20 @@ $cleanup = static function () use ($db, $comm, $dest1, $dest2, $dest3, $product,
         $db->prepare("DELETE FROM dl_delivery_items WHERE delivery_id IN ($marks)")->execute($ids);
         $db->prepare("DELETE FROM dl_deliveries WHERE id IN ($marks)")->execute($ids);
     }
-    $db->prepare('DELETE FROM audit_logs WHERE module = "daily-ledger" AND branch_id IN (?, ?, ?, ?)')
-        ->execute([$comm, $dest1, $dest2, $dest3]);
+    $db->prepare("DELETE FROM dl_integrity_notification_recipients
+                   WHERE notification_id IN (SELECT id FROM dl_integrity_notifications WHERE branch_id IN ({$in}))")->execute();
+    $db->prepare("DELETE FROM dl_integrity_notifications WHERE branch_id IN ({$in})")->execute();
+    $db->prepare("DELETE FROM audit_logs WHERE module = 'daily-ledger' AND branch_id IN ({$in})")->execute();
     $db->prepare('DELETE FROM dl_commissary_product_ledger WHERE commissary_branch_id = ? OR product_id = ?')
         ->execute([$comm, $product]);
-    $db->prepare('DELETE FROM dl_daily_ledger WHERE branch_id IN (?, ?, ?, ?) OR product_id = ?')
-        ->execute([$comm, $dest1, $dest2, $dest3, $product]);
-    $db->prepare('DELETE FROM dl_ledger_shift_status WHERE branch_id IN (?, ?, ?, ?)')
-        ->execute([$comm, $dest1, $dest2, $dest3]);
-    $db->prepare('DELETE FROM dl_ledger_day_status WHERE branch_id IN (?, ?, ?, ?)')
-        ->execute([$comm, $dest1, $dest2, $dest3]);
-    $db->prepare('DELETE FROM dl_branch_products WHERE branch_id IN (?, ?, ?, ?) OR product_id = ?')
-        ->execute([$comm, $dest1, $dest2, $dest3, $product]);
+    $db->prepare("DELETE FROM dl_daily_ledger WHERE branch_id IN ({$in}) OR product_id = ?")->execute([$product]);
+    $db->prepare("DELETE FROM dl_ledger_shift_status WHERE branch_id IN ({$in})")->execute();
+    $db->prepare("DELETE FROM dl_ledger_day_status WHERE branch_id IN ({$in})")->execute();
+    $db->prepare("DELETE FROM dl_branch_products WHERE branch_id IN ({$in}) OR product_id = ?")->execute([$product]);
     $db->prepare('DELETE FROM dl_user_branches WHERE user_id = ?')->execute([$encoder]);
     $db->prepare('DELETE FROM dl_users WHERE id = ?')->execute([$encoder]);
     $db->prepare('DELETE FROM dl_products WHERE id = ?')->execute([$product]);
-    $db->prepare('DELETE FROM dl_branches WHERE id IN (?, ?, ?, ?)')->execute([$comm, $dest1, $dest2, $dest3]);
+    $db->prepare("DELETE FROM dl_branches WHERE id IN ({$in})")->execute();
 };
 
 $cleanup();
@@ -176,20 +177,21 @@ dlPersistModuleSettings(['formal_delivery_workflow_enabled' => '1']);
 try {
     $db->prepare(
         'INSERT INTO dl_branches (id, code, name, assigned_commissary_id, is_commissary, is_active)
-         VALUES (?, ?, ?, NULL, 1, 1), (?, ?, ?, ?, 0, 1), (?, ?, ?, ?, 0, 1), (?, ?, ?, ?, 0, 1)'
+         VALUES (?, ?, ?, NULL, 1, 1), (?, ?, ?, ?, 0, 1), (?, ?, ?, ?, 0, 1), (?, ?, ?, ?, 0, 1), (?, ?, ?, ?, 0, 1)'
     )->execute([
         $comm, 'SEAL-COM-99801', 'Seal Fixture Commissary',
         $dest1, 'SEAL-D1-99801', 'Seal Fixture Branch One', $comm,
         $dest2, 'SEAL-D2-99801', 'Seal Fixture Branch Two', $comm,
         $dest3, 'SEAL-D3-99801', 'Seal Fixture Branch Three', $comm,
+        $dest4, 'SEAL-D4-99801', 'Seal Fixture Branch Four', $comm,
     ]);
     $db->prepare(
         'INSERT INTO dl_products (id, sku, name, current_price, is_active) VALUES (?, ?, ?, 12, 1)'
     )->execute([$product, 'SEAL-P-99801', 'Seal Fixture Product']);
     $db->prepare(
         'INSERT INTO dl_branch_products (branch_id, product_id, is_active)
-         VALUES (?, ?, 1), (?, ?, 1), (?, ?, 1), (?, ?, 1)'
-    )->execute([$comm, $product, $dest1, $product, $dest2, $product, $dest3, $product]);
+         VALUES (?, ?, 1), (?, ?, 1), (?, ?, 1), (?, ?, 1), (?, ?, 1)'
+    )->execute([$comm, $product, $dest1, $product, $dest2, $product, $dest3, $product, $dest4, $product]);
     $db->prepare(
         'INSERT INTO dl_users (id, username, password_hash, full_name, role, shift, is_active)
          VALUES (?, ?, "fixture", "Seal Fixture Encoder", "production_in_charge", "AM", 1)'
@@ -368,6 +370,160 @@ try {
         (int) $stale->fetchColumn() === 0
             && str_contains($fnBody($handlers, 'apiCreateCashierDispatch'), 'AND delivery_date = :delivery_date'),
         'the same DR entered on another day would replay an old delivery'
+    );
+
+    // ------------------------------------------------------------ cashier lane first
+
+    $h->section('the cashier desk may own the DR');
+
+    $h->test(
+        'lane classification reads the row both desks write',
+        dl_deliveryLane(['remarks' => '[captured-from-paper-dr]', 'destination_type' => 'branch']) === 'cashier'
+            && dl_deliveryLane(['remarks' => '[cashier-dispatch]', 'destination_type' => 'branch']) === 'cashier'
+            && dl_deliveryLane(['remarks' => 'anything', 'destination_type' => 'consignee']) === 'cashier'
+            && dl_deliveryLane(['remarks' => '[commissary-dispatch]', 'destination_type' => 'branch']) === 'production'
+            && dl_deliveryLane(['remarks' => '[daily-sheet-entry] new', 'destination_type' => 'branch']) === 'production'
+            && dl_deliveryLane(['remarks' => '[auto-commissary-run]', 'destination_type' => 'branch']) === 'production'
+            && dl_deliveryLane(['remarks' => '', 'destination_type' => 'branch']) === 'other',
+        'a lane the code cannot read is a lane whose precedence cannot be enforced'
+    );
+
+    $notificationCount = static function (int $deliveryId) use ($db): int {
+        $stmt = $db->prepare('SELECT COUNT(*) FROM dl_integrity_notifications WHERE aggregate_key = :k');
+        $stmt->execute([':k' => 'cashier-dr-first-' . $deliveryId]);
+        return (int) $stmt->fetchColumn();
+    };
+
+    $insertCashierDr = static function (string $drNumber, int $qty) use ($db, $dest2, $dest4, $date, $product, $encoder): int {
+        $db->prepare(
+            'INSERT INTO dl_deliveries
+                (origin_type, origin_id, destination_type, destination_id, dr_number, delivery_date,
+                 production_shift, receipt_required, status, created_by, posted_at, remarks)
+             VALUES ("branch", ?, "branch", ?, ?, ?, "AM", 1, "posted", ?, NOW(), "[cashier-dispatch]")'
+        )->execute([$dest2, $dest4, $drNumber, $date, $encoder]);
+        $id = (int) $db->lastInsertId();
+        $db->prepare(
+            'INSERT INTO dl_delivery_items (delivery_id, product_id, quantity, unit, price_snapshot)
+             VALUES (?, ?, ?, "pcs", 0)'
+        )->execute([$id, $product, $qty]);
+        return $id;
+    };
+
+    $cashierDr = 'SEAL-CASH-99801';
+    $cashierDeliveryId = $insertCashierDr($cashierDr, 9);
+
+    $cashierFirst = $runDispatch([
+        'ledger_date' => $date,
+        'dr_number' => $cashierDr,
+        'production_shift' => 'AM',
+        'destination_branch_id' => $dest4,
+        'items' => [['commissary_branch_id' => $comm, 'product_id' => $product, 'quantity' => 11]],
+    ]);
+    $cashierRow = $drRow($cashierDr);
+    $h->test(
+        'production is told the cashier owns the DR and writes nothing',
+        ($cashierFirst['body']['ok'] ?? false) === true
+            && ($cashierFirst['body']['replayed'] ?? false) === true
+            && (string) ($cashierFirst['body']['lane'] ?? '') === 'cashier'
+            && str_contains((string) ($cashierFirst['body']['note'] ?? ''), 'cashier desk recorded this DR first')
+            && $deliveryCount($dest4) === 0
+            && $dispatchedQty() === 19,
+        'the production lane would apply a second stock movement over the cashier record: ' . json_encode($cashierFirst['body'])
+    );
+    $h->test(
+        'the disagreement is preserved on the record for the admin',
+        (string) ($cashierRow['provenance_status'] ?? '') === 'discrepant'
+            && str_contains((string) ($cashierRow['provenance_review_note'] ?? ''), '11')
+            && str_contains((string) ($cashierRow['provenance_review_note'] ?? ''), '9'),
+        'the numbers would vanish once the operator dismisses the toast: ' . json_encode($cashierRow)
+    );
+    $h->test(
+        'a durable finding names the cashier-first rule',
+        $notificationCount($cashierDeliveryId) === 1,
+        'no admin surface would say the production dispatch was not applied'
+    );
+
+    $repeatCashier = $runDispatch([
+        'ledger_date' => $date,
+        'dr_number' => $cashierDr,
+        'production_shift' => 'AM',
+        'destination_branch_id' => $dest4,
+        'items' => [['commissary_branch_id' => $comm, 'product_id' => $product, 'quantity' => 11]],
+    ]);
+    $h->test(
+        'a repeated attempt refreshes the finding instead of appending another',
+        $notificationCount($cashierDeliveryId) === 1
+            && ($repeatCashier['body']['replayed'] ?? false) === true,
+        'the admin queue would grow one row per retry'
+    );
+
+    // Owner: "production daily sheets data is respected and will be used to flag qty
+    // discrepancies". With a sheet load present, the SHEET is the yardstick.
+    $runDispatch([
+        'sheet_entry' => true,
+        'ledger_date' => $date,
+        'shift' => 'AM',
+        'destination_branch_id' => $dest4,
+        'commissary_branch_id' => $comm,
+        'items' => [['commissary_branch_id' => $comm, 'product_id' => $product, 'quantity' => 8]],
+        'submission_id' => 'seal-sheet-cash-99801',
+    ], 'production_in_charge');
+
+    $sheetDr = 'SEAL-CASH-SHEET-99801';
+    $sheetCashierId = $insertCashierDr($sheetDr, 6);
+    $sheetCompare = $runDispatch([
+        'ledger_date' => $date,
+        'dr_number' => $sheetDr,
+        'production_shift' => 'AM',
+        'destination_branch_id' => $dest4,
+        'items' => [['commissary_branch_id' => $comm, 'product_id' => $product, 'quantity' => 6]],
+    ]);
+    $sheetCashierRow = $drRow($sheetDr);
+    $h->test(
+        'the Daily Sheet is the yardstick, not the re-typed dispatch',
+        ($sheetCompare['body']['replayed'] ?? false) === true
+            && str_contains((string) ($sheetCompare['body']['difference'] ?? ''), 'Daily Sheet')
+            && str_contains((string) ($sheetCompare['body']['difference'] ?? ''), '8'),
+        'the sheet figures would be ignored and only the dispatch compared: ' . json_encode($sheetCompare['body'])
+    );
+    $h->test(
+        'the sheet disagreement is preserved on the cashier record',
+        (string) ($sheetCashierRow['provenance_status'] ?? '') === 'discrepant'
+            && str_contains((string) ($sheetCashierRow['provenance_review_note'] ?? ''), 'Daily Sheet')
+            && $notificationCount($sheetCashierId) === 1,
+        'the admin would see a flag with no yardstick behind it: ' . json_encode($sheetCashierRow)
+    );
+
+    $matchDr = 'SEAL-CASH-MATCH-99801';
+    $matchCashierId = $insertCashierDr($matchDr, 8);
+    $matchDispatch = $runDispatch([
+        'ledger_date' => $date,
+        'dr_number' => $matchDr,
+        'production_shift' => 'AM',
+        'destination_branch_id' => $dest4,
+        'items' => [['commissary_branch_id' => $comm, 'product_id' => $product, 'quantity' => 8]],
+    ]);
+    $h->test(
+        'matching figures raise no discrepancy but still record the precedence',
+        ($matchDispatch['body']['replayed'] ?? false) === true
+            && (string) ($matchDispatch['body']['difference'] ?? 'x') === ''
+            && (string) ($drRow($matchDr)['provenance_status'] ?? '') === 'none'
+            && $notificationCount($matchCashierId) === 1,
+        'a matching load would either be flagged as a disagreement or stay invisible'
+    );
+
+    $productionReplay = $runDispatch([
+        'ledger_date' => $date,
+        'dr_number' => 'SEAL-2-99801',
+        'production_shift' => 'AM',
+        'destination_branch_id' => $dest2,
+        'items' => [['commissary_branch_id' => $comm, 'product_id' => $product, 'quantity' => 5]],
+    ]);
+    $h->test(
+        'a production-owned DR is not reported as a cashier conflict',
+        (string) ($productionReplay['body']['lane'] ?? '') === 'production'
+            && $notificationCount((int) $drRow('SEAL-2-99801')['id']) === 0,
+        'the cashier-first finding would fire on every ordinary repeat'
     );
 } finally {
     $cleanup();

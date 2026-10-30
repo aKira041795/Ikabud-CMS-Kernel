@@ -415,7 +415,41 @@ function dl_isProvenanceReviewEligible(array $delivery): bool
 {
     return dl_isPaperDrCapturedDelivery($delivery)
         || dl_isDailySheetSealedDelivery($delivery)
+        // A record another desk already owns can still be marked discrepant by a later
+        // dispatch. Without this the flag would be written where no screen can show it.
+        || (string)($delivery['provenance_status'] ?? '') === 'discrepant'
         || (string)($delivery['destination_type'] ?? '') === 'consignee';
+}
+
+/**
+ * Which desk recorded a delivery: the cashier lane or the production lane.
+ *
+ * Owner contract (2026-10-30): "cashier lane can create the DR dispatch if none exists,
+ * otherwise the production dispatch will be used. if cashier DR is present, production
+ * dispatch is notified and discrepancy is preserved for admin."
+ *
+ * Both desks write dl_deliveries from opposite ends, so the lane has to be readable from
+ * the row itself. Remarks are the only durable marker both writers set; anything
+ * unrecognised is 'other' and is never treated as a lane conflict.
+ */
+function dl_deliveryLane(array $delivery): string
+{
+    if ((string)($delivery['destination_type'] ?? '') === 'consignee') {
+        return 'cashier';
+    }
+
+    $remarks = (string)($delivery['remarks'] ?? '');
+    if ($remarks === dl_paperDrCaptureRemark() || $remarks === dl_cashierDispatchRemark()) {
+        return 'cashier';
+    }
+    if ($remarks === '[commissary-dispatch]'
+        || $remarks === dl_autoCommissaryDeliveryRemark()
+        || $remarks === '[auto-dr-production]'
+        || str_starts_with($remarks, dl_dailySheetEntryRemarkPrefix())) {
+        return 'production';
+    }
+
+    return 'other';
 }
 
 /** The remark prefix every Daily Sheet delivery carries (see dl_recordDailySheetBranchEntry). */
@@ -769,14 +803,15 @@ function dl_sealDailySheetLoadWithDr(
  * a dispatch claiming different lines is the disagreement, so the message has to
  * carry the actual numbers rather than just refusing.
  */
-function dl_describeDrLineDifference(array $recorded, array $attempted): string
+function dl_describeDrLineDifference(array $recorded, array $attempted, string $referenceLabel = 'this dispatch'): string
 {
     $parts = [];
     foreach ($attempted as $pid => $qty) {
         if (!array_key_exists($pid, $recorded)) {
             $parts[] = 'product ' . $pid . ' is not on the recorded delivery';
         } elseif ((int) $recorded[$pid] !== (int) $qty) {
-            $parts[] = 'product ' . $pid . ': recorded ' . (int) $recorded[$pid] . ', this dispatch says ' . (int) $qty;
+            $parts[] = 'product ' . $pid . ': recorded ' . (int) $recorded[$pid]
+                . ', ' . $referenceLabel . ' says ' . (int) $qty;
         }
     }
     foreach ($recorded as $pid => $qty) {
@@ -805,14 +840,25 @@ function dl_flagDrDiscrepancy(
     array $existingDelivery,
     array $recordedQuantities,
     array $attemptedQuantities,
-    string $actorLabel
+    string $actorLabel,
+    bool $forceOnUnreviewed = false,
+    string $referenceLabel = 'this dispatch'
 ): string {
-    $diff = dl_describeDrLineDifference($recordedQuantities, $attemptedQuantities);
+    $diff = dl_describeDrLineDifference($recordedQuantities, $attemptedQuantities, $referenceLabel);
     if ($diff === '') {
         return '';
     }
 
-    if ((string) ($existingDelivery['provenance_status'] ?? '') !== 'paper_dr_pending') {
+    // A paper capture enters as paper_dr_pending and is flaggable as-is. A record owned by
+    // the OTHER desk (a cashier dispatch, a commissary dispatch) is 'none' - never paper
+    // reviewed, therefore neither verified nor settled - so a cross-lane disagreement may
+    // flag it (owner contract 2026-10-30: "discrepancy is preserved for admin").
+    // 'accepted' and 'discrepant' still do not reopen: after verification the remedy is a
+    // correction, not a second discrepancy.
+    $provenance = (string) ($existingDelivery['provenance_status'] ?? '');
+    $flaggable = $provenance === 'paper_dr_pending'
+        || ($forceOnUnreviewed && $provenance === 'none');
+    if (!$flaggable) {
         return $diff;
     }
 
@@ -824,9 +870,9 @@ function dl_flagDrDiscrepancy(
             SET provenance_status = "discrepant",
                 provenance_review_note = :note
           WHERE id = :id
-            AND provenance_status = "paper_dr_pending"
+            AND provenance_status = :current
             AND status <> "voided"'
-    )->execute([':note' => $note, ':id' => (int) $existingDelivery['id']]);
+    )->execute([':note' => $note, ':id' => (int) $existingDelivery['id'], ':current' => $provenance]);
 
     return $diff;
 }
@@ -2017,6 +2063,7 @@ function apiListDeliveries(array $params = []): void
                    CASE WHEN d.remarks = :paper_dr_remark2
                              OR d.destination_type = "consignee"
                              OR (d.remarks LIKE :sheet_sealed_prefix AND d.dr_number IS NOT NULL AND TRIM(d.dr_number) <> "")
+                             OR d.provenance_status = "discrepant"
                         THEN 1 ELSE 0 END AS is_provenance_reviewable,
                    ru.username AS provenance_reviewer_name,
                    CASE
