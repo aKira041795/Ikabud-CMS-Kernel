@@ -130,13 +130,21 @@
                        table it describes. *}
                     <p class="mb-2 text-xs font-medium text-slate-600">Confirm as sent, or correct the received qty if it differs.</p>
 
-                    <div class="max-h-[60vh] overflow-y-auto rounded-lg border border-gray-200 bg-white">
+                    {* overflow-x: auto keeps a tablet-width sideways scroll inside this box instead of
+                       sliding the whole modal. The Source column costs ~170px, and the owner's floor
+                       for admin/cashier work is tablet - below that the grid scrolls, the panel does not. *}
+                    <div class="max-h-[60vh] overflow-y-auto overflow-x-auto rounded-lg border border-gray-200 bg-white">
                         <table class="w-full text-sm">
                             <thead class="sticky top-0 z-10 bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
                                 <tr>
                                     <th class="px-2 py-2 text-left">DR Number</th>
                                     <th class="px-2 py-2 text-left">Branch / Commissary</th>
                                     <th class="px-2 py-2 text-left">Items</th>
+                                    {* Source is derived on the server from the product's category
+                                       group (non-bread = Bodega) and stamped on the receiving line.
+                                       It is shown here so the cashier can see what is being booked
+                                       as Bodega before confirming, not only the admin afterwards. *}
+                                    <th class="px-1 py-2 text-left">Source</th>
                                     <th class="px-2 py-2 text-right">Qty (received / sent)</th>
                                     <th class="px-2 py-2 text-left">Shift</th>
                                     <th class="px-2 py-2 text-right">Receive</th>
@@ -178,6 +186,19 @@
                                             </template>
                                             <template x-if="isPartial(g)">
                                                 <span class="mt-1 inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700 ring-1 ring-inset ring-amber-200">Partial</span>
+                                            </template>
+                                        </td>
+                                        <td class="px-1 py-2">
+                                            {* One chip per line, on the SAME 28px pitch and the same alternating
+                                               band index as the name and qty cells, so line N of all three
+                                               columns stays level. *}
+                                            <template x-for="(it, si) in g.items" :key="'s' + it.id">
+                                                <div class="-mx-1 flex h-7 items-center px-1"
+                                                     :class="si % 2 === 1 ? 'bg-gray-100' : ''">
+                                                    <span class="inline-flex items-center rounded-full px-1.5 py-0.5 text-[11px] font-semibold ring-1 ring-inset"
+                                                          :class="it.supply_origin === 'bodega' ? 'bg-teal-50 text-teal-800 ring-teal-200' : 'bg-gray-50 text-gray-600 ring-gray-200'"
+                                                          x-text="it.supply_origin === 'bodega' ? 'Bodega' : 'Commissary'"></span>
+                                                </div>
                                             </template>
                                         </td>
                                         <td class="px-2 py-2">

@@ -38,6 +38,7 @@ $moduleJson = (string)file_get_contents($base . '/modules/daily-ledger/module.js
 $deliverySource = (string)file_get_contents($base . '/modules/daily-ledger/handlers-deliveries.php');
 $handlersSource = (string)file_get_contents($base . '/modules/daily-ledger/handlers.php');
 $deliveriesTemplate = (string)file_get_contents($base . '/templates/modules/daily-ledger/admin/deliveries.disyl');
+$receiveTemplate = (string)file_get_contents($base . '/templates/modules/daily-ledger/cashier/receive_modal.disyl');
 
 $cleanup = static function () use ($db, $branchId, $productIds): void {
     $ids = array_values($productIds);
@@ -175,6 +176,26 @@ try {
             && !str_contains($paperBody, 'INSERT INTO dl_branch_receiving_items')
             && !str_contains($handlersSource, 'INSERT INTO dl_branch_receiving_items'),
         'the paper DR must not grow its own receiving-item insert - classify through dl_acceptFormalDelivery only'
+    );
+
+    $h->section('cashier visibility');
+    // The owner asked to see the source on the cashier side too, not only in the admin receipt.
+    $incomingStart = strpos($handlersSource, 'function apiGetIncomingDeliveries');
+    $incomingBody = $incomingStart === false ? '' : substr($handlersSource, $incomingStart, 30000);
+    $incomingEnd = $incomingBody === '' ? false : strpos($incomingBody, "\nfunction ", 10);
+    if ($incomingEnd !== false) { $incomingBody = substr($incomingBody, 0, $incomingEnd); }
+    $h->test(
+        'the receive list derives a per-line source for both payload branches',
+        $incomingBody !== ''
+            && substr_count($incomingBody, 'AS supply_origin') === 2
+            && substr_count($incomingBody, "'supply_origin' =>") === 2,
+        'both the cashier-withdrawal and the formal-delivery items must carry supply_origin'
+    );
+    $h->test(
+        'the cashier Receive Stock modal shows the source per line',
+        str_contains($receiveTemplate, '>Source</th>')
+            && str_contains($receiveTemplate, "it.supply_origin === 'bodega' ? 'Bodega' : 'Commissary'"),
+        'render a Source chip beside each received line so the cashier sees it before confirming'
     );
 
     $h->section('admin tracing');

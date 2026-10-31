@@ -10454,10 +10454,12 @@ function apiGetIncomingDeliveries(array $params = []): void
                    cw.quantity, cw.branch_id AS origin_branch_id,
                    ob.name AS origin_branch_name, cw.product_id, p.name AS product_name,
                    cw.encoded_by AS dispatching_cashier_id,
-                   COALESCE(NULLIF(cw.encoded_by_name_snapshot,\'\'), NULLIF(u.full_name,\'\'), u.username, \'\') AS dispatching_cashier_name
+                   COALESCE(NULLIF(cw.encoded_by_name_snapshot,\'\'), NULLIF(u.full_name,\'\'), u.username, \'\') AS dispatching_cashier_name,
+                   IF(pc.`grouping` = \'non_bread\', \'bodega\', \'commissary\') AS supply_origin
             FROM dl_cashier_withdrawals cw
             INNER JOIN dl_branches ob ON ob.id = cw.branch_id
             INNER JOIN dl_products p ON p.id = cw.product_id
+            LEFT JOIN dl_product_categories pc ON pc.id = p.category_id
             LEFT JOIN dl_users u ON u.id = cw.encoded_by
             WHERE cw.target_branch_id = :bid
               AND cw.withdrawal_type = \'delivery\'
@@ -10498,6 +10500,8 @@ function apiGetIncomingDeliveries(array $params = []): void
             'product_id' => (int)$r['product_id'],
             'product_name' => $r['product_name'],
             'quantity' => (int)$r['quantity'],
+            // Derived from the product's category grouping, never chosen by the cashier.
+            'supply_origin' => (string)($r['supply_origin'] ?? 'commissary'),
         ];
         $groups[$key]['ids'][] = (int)$r['id'];
     }
@@ -10510,10 +10514,12 @@ function apiGetIncomingDeliveries(array $params = []): void
                              d.created_by AS dispatching_cashier_id,
                              COALESCE(NULLIF(d.created_by_name_snapshot,\'\'), NULLIF(u.full_name,\'\'), u.username, \'\') AS dispatching_cashier_name,
                              di.id AS delivery_item_id,
-                             di.product_id, p.name AS product_name, di.quantity
+                             di.product_id, p.name AS product_name, di.quantity,
+                             IF(pc.`grouping` = "non_bread", "bodega", "commissary") AS supply_origin
                       FROM dl_deliveries d
                       INNER JOIN dl_delivery_items di ON di.delivery_id = d.id
                       INNER JOIN dl_products p ON p.id = di.product_id
+                      LEFT JOIN dl_product_categories pc ON pc.id = p.category_id
                       LEFT JOIN dl_branches ob ON ob.id = d.origin_id AND d.origin_type = "branch"
                       LEFT JOIN dl_branches cb ON cb.id = d.origin_id AND d.origin_type = "commissary"
                       LEFT JOIN dl_users u ON u.id = d.created_by
@@ -10567,6 +10573,7 @@ function apiGetIncomingDeliveries(array $params = []): void
                 'product_id' => (int)$row['product_id'],
                 'product_name' => $row['product_name'],
                 'quantity' => (int)$row['quantity'],
+                'supply_origin' => (string)($row['supply_origin'] ?? 'commissary'),
             ];
         }
     }
