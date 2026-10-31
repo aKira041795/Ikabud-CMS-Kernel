@@ -36,6 +36,7 @@ $date = dl_businessDate();
 
 $moduleJson = (string)file_get_contents($base . '/modules/daily-ledger/module.json');
 $deliverySource = (string)file_get_contents($base . '/modules/daily-ledger/handlers-deliveries.php');
+$handlersSource = (string)file_get_contents($base . '/modules/daily-ledger/handlers.php');
 $deliveriesTemplate = (string)file_get_contents($base . '/templates/modules/daily-ledger/admin/deliveries.disyl');
 
 $cleanup = static function () use ($db, $branchId, $productIds): void {
@@ -158,6 +159,22 @@ try {
         'every receiving-item insert in the handler writes supply_origin',
         substr_count($deliverySource, 'INSERT INTO dl_branch_receiving_items') === 2 && $insertCount === 2,
         'a receiving path can still rely on the column default instead of classifying its product'
+    );
+
+    // The cashier has two doors - the Receive Stock modal and a paper DR - and the owner asked
+    // that BOTH stamp non-bread as Bodega. They must share one writer, because a second insert
+    // site is exactly how one door silently loses the tag.
+    $paperStart = strpos($handlersSource, 'function apiReceivePaperDelivery');
+    $paperBody = $paperStart === false ? '' : substr($handlersSource, $paperStart, 40000);
+    $paperEnd = $paperBody === '' ? false : strpos($paperBody, "\nfunction ", 10);
+    if ($paperEnd !== false) { $paperBody = substr($paperBody, 0, $paperEnd); }
+    $h->test(
+        'a paper-DR receipt goes through the same audited writer as the modal',
+        $paperBody !== ''
+            && str_contains($paperBody, 'dl_acceptFormalDelivery(')
+            && !str_contains($paperBody, 'INSERT INTO dl_branch_receiving_items')
+            && !str_contains($handlersSource, 'INSERT INTO dl_branch_receiving_items'),
+        'the paper DR must not grow its own receiving-item insert - classify through dl_acceptFormalDelivery only'
     );
 
     $h->section('admin tracing');
