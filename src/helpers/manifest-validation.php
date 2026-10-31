@@ -159,8 +159,12 @@ function validateModuleManifestV1(array $manifest, array $context = []): array
                 }
             }
             foreach (is_array($caps['depends'] ?? null) ? $caps['depends'] : [] as $index => $dependency) {
-                if (!is_string($dependency) || !moduleManifestCapabilityIdIsValid($dependency)) {
-                    $fatal('capabilities_invalid', 'manifest.v1.capabilities.depends-entry', "/capabilities/depends/{$index}", 'Capability dependencies must be versioned capability-id strings.', 'Use a capability id such as module.action@1.');
+                $dependencyId = is_array($dependency) ? ($dependency['id'] ?? null) : $dependency;
+                $requiredIsValid = !is_array($dependency)
+                    || !array_key_exists('required', $dependency)
+                    || is_bool($dependency['required']);
+                if (!is_string($dependencyId) || !moduleManifestCapabilityIdIsValid($dependencyId) || !$requiredIsValid) {
+                    $fatal('capabilities_invalid', 'manifest.v1.capabilities.depends-entry', "/capabilities/depends/{$index}", 'Capability dependencies must be versioned capability-id strings or objects with an id and boolean required flag.', 'Use a capability id such as module.action@1 and make required true or false.');
                 }
             }
             foreach (is_array($caps['exposes'] ?? null) ? $caps['exposes'] : [] as $index => $expose) {

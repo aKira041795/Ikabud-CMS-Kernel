@@ -194,6 +194,11 @@
                 {if mod.author}<span>By {mod.author}</span>{/if}
                 <span>{mod.route_count} routes</span>
                 <span>{mod.nav_count} nav items</span>
+                {if mod.readiness_state == 'blocked'}
+                <span class="badge-warn" title="{foreach mod.readiness_problems as problem}{problem}; {/foreach}">dependency blocked</span>
+                {elseif mod.readiness_state == 'degraded'}
+                <span class="badge-warn" title="{foreach mod.readiness_problems as problem}{problem}; {/foreach}">dependency degraded</span>
+                {/if}
             </div>
 
             <div class="module-actions">

@@ -236,6 +236,48 @@ final class CapabilityBus implements CapabilityBusContract
     }
 
     /**
+     * The pre-dispatch decision, as an API.
+     *
+     * Diagnostics need to ask exactly the question dispatch asks, or they will
+     * disagree with it - and introspection that disagrees with dispatch is worse
+     * than none. This runs the same two gates `call()` runs, in the same order
+     * (caller policy, then the authorization registry), against the same
+     * resolved providers, and returns whatever survives.
+     *
+     * It never invokes a provider, never registers one, and never changes an
+     * authorization outcome: an empty return means dispatch would be denied.
+     *
+     * @param array<string,mixed> $caller   resolved caller identity
+     * @param array<string,mixed> $options  dispatch options (tenant scope, etc.)
+     * @return array<int, array{provider: string, modes: string[], handler: callable, meta?: array}>
+     */
+    public function authorizedProviders(string $capabilityId, array $caller, array $options = [], ?string $explicitProvider = null): array
+    {
+        $resolvedId = $this->registry->resolve($capabilityId);
+        $providers = $this->registry->providers($resolvedId);
+        if ($providers === []) {
+            return [];
+        }
+
+        $providers = $this->applyPolicy($resolvedId, $providers, (string) ($caller['module'] ?? ''));
+        if ($providers === []) {
+            return [];
+        }
+
+        if ($explicitProvider !== null && $explicitProvider !== '') {
+            $providers = array_values(array_filter(
+                $providers,
+                fn($provider) => ($provider['provider'] ?? '') === $explicitProvider
+            ));
+            if ($providers === []) {
+                return [];
+            }
+        }
+
+        return $this->applyAuthorizationRegistry($resolvedId, $providers, $caller, $options, $explicitProvider);
+    }
+
+    /**
      * @param array<int, array{provider: string, modes: string[], handler: callable, meta?: array}> $providers
      * @return array<int, array{provider: string, modes: string[], handler: callable, meta?: array}>
      */
@@ -842,7 +884,7 @@ final class CapabilityBus implements CapabilityBusContract
         return empty($errors);
     }
 
-    private function resolveCaller(array $options): array
+    public function resolveCaller(array $options): array
     {
         $ctx = function_exists('capability_call_context') ? capability_call_context() : null;
         $explicitCaller = is_array($options['caller'] ?? null) ? $options['caller'] : [];

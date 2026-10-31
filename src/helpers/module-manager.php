@@ -2282,11 +2282,152 @@ function getEnabledModules(): array
 
 require_once __DIR__ . '/module-migrations.php';
 
+/**
+ * Normalize declared capability dependencies without granting them validity.
+ * It refuses malformed ids and non-boolean requirement flags because an
+ * ambiguous dependency must never be trusted as optional.
+ *
+ * @param array<string,mixed> $manifest
+ * @return array<int,array{id:string,required:bool}>
+ */
+function moduleCapabilityRequirements(array $manifest): array
+{
+    $capabilities = $manifest['capabilities'] ?? null;
+    $depends = is_array($capabilities) ? ($capabilities['depends'] ?? []) : [];
+    if (!is_array($depends)) {
+        return [];
+    }
+
+    $requirements = [];
+    foreach ($depends as $entry) {
+        if (is_string($entry)) {
+            $id = $entry;
+            $required = true;
+        } elseif (is_array($entry)) {
+            $id = $entry['id'] ?? null;
+            if (array_key_exists('required', $entry) && !is_bool($entry['required'])) {
+                continue;
+            }
+            $required = $entry['required'] ?? true;
+        } else {
+            continue;
+        }
+
+        if (!is_string($id) || !isValidCapabilityId($id)) {
+            continue;
+        }
+        $requirements[] = ['id' => $id, 'required' => $required];
+    }
+
+    return $requirements;
+}
+
+/**
+ * Probe capability dependency readiness without dispatching or mutating state.
+ * It refuses to infer permission when policy cannot be evaluated, and refuses
+ * malformed declarations, so an introspection failure can never become access.
+ *
+ * @param array<string,mixed> $manifest
+ * @param array<string,mixed> $options
+ * @return array{module_id:string,state:string,requirements:array<int,array<string,mixed>>}
+ */
+function moduleDependencyReadiness(array $manifest, array $options = []): array
+{
+    $moduleId = is_string($manifest['id'] ?? null) ? (string)$manifest['id'] : '';
+    $callerModule = is_string($options['caller_module'] ?? null)
+        ? (string)$options['caller_module']
+        : $moduleId;
+    $results = [];
+
+    foreach (moduleCapabilityRequirements($manifest) as $requirement) {
+        $id = $requirement['id'];
+        $providerCount = 0;
+
+        try {
+            $registry = app()->capabilities();
+            $resolvedId = $registry->resolve($id);
+            $providers = $registry->providers($resolvedId);
+            $providerCount = count($providers);
+        } catch (\Throwable $e) {
+            $results[] = [
+                'id' => $id,
+                'required' => $requirement['required'],
+                'state' => 'provider_unavailable',
+                'reason_code' => 'provider_unavailable',
+                'detail' => 'Runtime providers could not be inspected (' . trim($e->getMessage()) . ').',
+                'provider_count' => 0,
+            ];
+            continue;
+        }
+
+        if ($providers === []) {
+            $results[] = [
+                'id' => $id,
+                'required' => $requirement['required'],
+                'state' => 'provider_unavailable',
+                'reason_code' => 'provider_unavailable',
+                'detail' => 'No runtime provider is registered for this capability.',
+                'provider_count' => 0,
+            ];
+            continue;
+        }
+
+        try {
+            $bus = app()->cap();
+            // Both gates below are dispatch's own: authorizedProviders() runs
+            // caller policy and then the authorization registry against the same
+            // resolved providers, and invokes nothing. Diagnostics must ask the
+            // exact question dispatch asks, without copying the answer path.
+            $caller = $bus->resolveCaller(['caller_module' => $callerModule]);
+            $permitted = $bus->authorizedProviders(
+                $resolvedId,
+                $caller,
+                ['caller_module' => $callerModule],
+                null
+            );
+            if ($permitted === []) {
+                throw new \RuntimeException('provider policy or authorization registry rejected the caller');
+            }
+
+            $results[] = [
+                'id' => $id,
+                'required' => $requirement['required'],
+                'state' => 'ready',
+                'reason_code' => 'ready',
+                'detail' => 'A runtime provider is available and authorized for this caller.',
+                'provider_count' => $providerCount,
+            ];
+        } catch (\Throwable $e) {
+            $results[] = [
+                'id' => $id,
+                'required' => $requirement['required'],
+                'state' => 'authorization_denied',
+                'reason_code' => 'authorization_denied',
+                'detail' => 'No runtime provider is authorized for this caller (' . trim($e->getMessage()) . ').',
+                'provider_count' => $providerCount,
+            ];
+        }
+    }
+
+    $state = 'ready';
+    foreach ($results as $result) {
+        if ($result['state'] !== 'ready' && $result['required'] === true) {
+            $state = 'blocked';
+            break;
+        }
+        if ($result['state'] !== 'ready') {
+            $state = 'degraded';
+        }
+    }
+
+    return ['module_id' => $moduleId, 'state' => $state, 'requirements' => $results];
+}
+
 function validateModuleCapabilities(array $manifest): array
 {
     $caps = $manifest['capabilities'] ?? null;
     if ($caps === null) {
-        return ['ok' => true, 'exposes' => [], 'depends' => [], 'policy' => []];
+        return ['ok' => true, 'exposes' => [], 'depends' => [], 'policy' => [], 'requirements' => []];
     }
     if (!is_array($caps)) {
         return ['ok' => false, 'error' => 'capabilities must be an object'];
@@ -2300,10 +2441,22 @@ function validateModuleCapabilities(array $manifest): array
         return ['ok' => false, 'error' => 'capabilities.exposes and capabilities.depends must be arrays'];
     }
 
+    $flatDepends = [];
     foreach ($depends as $d) {
-        if (!is_string($d) || !isValidCapabilityId($d)) {
+        if (is_string($d)) {
+            $id = $d;
+        } elseif (is_array($d)) {
+            $id = $d['id'] ?? null;
+            if (array_key_exists('required', $d) && !is_bool($d['required'])) {
+                return ['ok' => false, 'error' => 'Invalid capabilities.depends entry'];
+            }
+        } else {
             return ['ok' => false, 'error' => 'Invalid capabilities.depends entry'];
         }
+        if (!is_string($id) || !isValidCapabilityId($id)) {
+            return ['ok' => false, 'error' => 'Invalid capabilities.depends entry'];
+        }
+        $flatDepends[] = $id;
     }
 
     foreach ($exposes as $e) {
@@ -2413,7 +2566,13 @@ function validateModuleCapabilities(array $manifest): array
         }
     }
 
-    return ['ok' => true, 'exposes' => $exposes, 'depends' => array_values($depends), 'policy' => is_array($policy) ? $policy : []];
+    return [
+        'ok' => true,
+        'exposes' => $exposes,
+        'depends' => $flatDepends,
+        'policy' => is_array($policy) ? $policy : [],
+        'requirements' => moduleCapabilityRequirements($manifest),
+    ];
 }
 
 /**
@@ -5500,9 +5659,16 @@ function installModuleFromZip(string $zipPath, array $options = []): array
     $capCheck = validateModuleCapabilities($manifest);
     if (!empty($capCheck['ok'])) {
         $missing = [];
-        foreach (($capCheck['depends'] ?? []) as $capId) {
-            if (!app()->capabilities()->has((string)$capId)) {
-                $missing[] = (string)$capId;
+        $degraded = [];
+        foreach (($capCheck['requirements'] ?? moduleCapabilityRequirements($manifest)) as $requirement) {
+            $capId = (string)$requirement['id'];
+            if (app()->capabilities()->has($capId)) {
+                continue;
+            }
+            if ($requirement['required'] === true) {
+                $missing[] = $capId;
+            } else {
+                $degraded[] = $capId;
             }
         }
         if (empty($missing)) {
@@ -5511,7 +5677,12 @@ function installModuleFromZip(string $zipPath, array $options = []): array
             if ($installedBy !== '') {
                 moduleOwnershipRecordInstall($moduleId, $installedBy);
             }
-            return ['ok' => true, 'module_id' => $moduleId, 'enabled' => true, 'manifest' => $manifest];
+            $result = ['ok' => true, 'module_id' => $moduleId, 'enabled' => true, 'manifest' => $manifest];
+            if ($degraded !== []) {
+                $result['degraded'] = $degraded;
+                $result['warning'] = 'Module enabled with unavailable optional capability providers: ' . implode(', ', $degraded);
+            }
+            return $result;
         }
 
         // Ensure it is explicitly disabled (in case a default-enabled registry is present)
@@ -5520,14 +5691,22 @@ function installModuleFromZip(string $zipPath, array $options = []): array
         if ($installedBy !== '') {
             moduleOwnershipRecordInstall($moduleId, $installedBy);
         }
-        return [
+        $warning = 'Module installed but not enabled: missing required capability providers';
+        if ($degraded !== []) {
+            $warning .= '; unavailable optional capability providers: ' . implode(', ', $degraded);
+        }
+        $result = [
             'ok' => true,
             'module_id' => $moduleId,
             'enabled' => false,
             'manifest' => $manifest,
-            'warning' => 'Module installed but not enabled: missing required capability providers',
+            'warning' => $warning,
             'missing' => $missing,
         ];
+        if ($degraded !== []) {
+            $result['degraded'] = $degraded;
+        }
+        return $result;
     }
 
     // Invalid capability manifest: install but keep disabled.

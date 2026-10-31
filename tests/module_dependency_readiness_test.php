@@ -29,6 +29,13 @@ $root = dirname(__DIR__);
 ob_start();
 require $root . '/bootstrap.php';
 require_once BASE_PATH . '/src/helpers/module-manager.php';
+require_once BASE_PATH . '/src/helpers/module-routes.php';
+// Readiness asks the LIVE capability registry what providers exist. In CLI the
+// app has not loaded module handlers yet, so without this the registry is empty
+// and every dependency looks provider_unavailable - which is exactly the
+// "introspection disagrees with dispatch" failure the contract forbids, only
+// caused by the harness. Load the runtime the way a request does.
+loadModuleRoutes([]);
 ob_end_clean();
 
 $passed = 0;

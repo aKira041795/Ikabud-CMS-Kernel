@@ -820,6 +820,28 @@ function kernelHandlePageAdminModules(): void
             $child['tenant_admin_url'] = $childRoutes['tenant_admin_url'];
             $children[] = $child;
         }
+
+        // Dependency readiness. Only computed when the module declares
+        // dependencies, and never used to change anything: it reports whether a
+        // declared dependency has a provider and whether this module is authorized
+        // to call it. A declared dependency the caller may not use is a real
+        // configuration gap, and hiding it is how it stays broken.
+        $readinessState = 'ready';
+        $readinessProblems = [];
+        if (function_exists('moduleCapabilityRequirements') && function_exists('moduleDependencyReadiness')) {
+            $requirements = moduleCapabilityRequirements($m);
+            if ($requirements !== []) {
+                $readiness = moduleDependencyReadiness($m);
+                $readinessState = (string) ($readiness['state'] ?? 'ready');
+                foreach (($readiness['requirements'] ?? []) as $requirement) {
+                    if ((string) ($requirement['state'] ?? '') === 'ready') {
+                        continue;
+                    }
+                    $readinessProblems[] = (string) ($requirement['id'] ?? '') . ' — ' . (string) ($requirement['detail'] ?? $requirement['reason_code'] ?? '');
+                }
+            }
+        }
+
         $moduleList[] = [
             'id' => $moduleId,
             'name' => $m['name'] ?? $moduleId,
@@ -836,6 +858,8 @@ function kernelHandlePageAdminModules(): void
             'tenant_admin_url' => $routes['tenant_admin_url'],
             'child_count' => count($children),
             'children' => $children,
+            'readiness_state' => $readinessState,
+            'readiness_problems' => $readinessProblems,
         ];
     }
 
