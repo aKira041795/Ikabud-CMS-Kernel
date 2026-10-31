@@ -614,9 +614,17 @@ function dl_offlineApplyWithdrawal(array $user, array $op, bool $inTx = false): 
     if (!in_array($type, ['charge', 'pullout', 'adjustment_add', 'own_production', 'used', 'correction'], true)) {
         throw new RuntimeException('Invalid withdrawal type', 422);
     }
+    // OWN_PRODUCTION_DISABLED: replay enforces the same branch capability as
+    // the online write, before shift resolution can hide the actual refusal.
+    if ($type === 'own_production' && !dl_branchHasProduction((int)$branchId)) {
+        throw new RuntimeException(
+            'Own production is not enabled for this branch. An admin can enable it in Settings > Branch operating switches > Own production.',
+            422
+        );
+    }
     // Mirrors apiSaveCashierWithdrawals: own production lands on the CHOSEN
     // AM/PM shift (production happens in a shift); every other type keeps the
-    // shift lock. Reordered after the type read for the same reason.
+    // shift lock.
     $shift = dl_resolveWithdrawalShift($user, $input, $type);
     $drNumber = !empty($header['dr_number']) ? (string)$header['dr_number'] : null;
     $targetBranchId = !empty($header['target_branch_id']) ? (int)$header['target_branch_id'] : null;

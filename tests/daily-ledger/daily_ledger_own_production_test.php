@@ -73,9 +73,13 @@ $db->execute('DELETE FROM dl_users WHERE id = :id', [':id' => $boundCashierId]);
 $db->execute('DELETE FROM dl_branches WHERE id = :b', [':b' => $branchId]);
 $db->execute('DELETE FROM dl_products WHERE id = :p', [':p' => $productId]);
 
+// has_production = 1: own production is now a per-branch capability the admin grants
+// (Settings > Branch operating switches). This fixture is the producing, non-commissary
+// branch the feature exists for, so it carries the flag; the refusal path is covered by
+// daily_ledger_own_production_capability_test.php.
 $db->execute(
-    'INSERT INTO dl_branches (id, code, name, address, default_supply_mode, is_commissary, is_active)
-     VALUES (:id, :code, :name, :addr, :mode, 0, 1)',
+    'INSERT INTO dl_branches (id, code, name, address, default_supply_mode, is_commissary, has_production, is_active)
+     VALUES (:id, :code, :name, :addr, :mode, 0, 1, 1)',
     [':id' => $branchId, ':code' => 'T-OWNPROD', ':name' => 'Own Production Branch', ':addr' => 'Test', ':mode' => 'self_managed']
 );
 $db->execute(

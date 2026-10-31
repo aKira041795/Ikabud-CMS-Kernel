@@ -358,6 +358,7 @@
 <script>
     var BASE = '{base_url}';
     var BRANCH_ID = '{branch_id}';
+    var BRANCH_HAS_PRODUCTION = {if branch_has_production}true{else}false{/if};
     var LEDGER_DATE = '{ledger_date}';
     var SHIFT = '{shift}';
     var SHIFT_LOCKED = {if shift_locked}true{else}false{/if};
@@ -371,6 +372,7 @@
     var IS_CASHIER = {if is_cashier}true{else}false{/if};
     window.BASE = BASE;
     window.BRANCH_ID = BRANCH_ID;
+    window.BRANCH_HAS_PRODUCTION = BRANCH_HAS_PRODUCTION;
     window.LEDGER_DATE = LEDGER_DATE;
     window.SHIFT = SHIFT;
     window.SHIFT_LOCKED = SHIFT_LOCKED;

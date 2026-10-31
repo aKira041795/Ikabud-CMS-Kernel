@@ -63,6 +63,43 @@ if (!function_exists('dl_canAddStockWithoutPaperDr')) {
     }
 }
 
+/**
+ * Whether this branch produces its own stock, with or without being a commissary.
+ *
+ * Client request 2026-10-31: "branches with production (not necessarily a commissary)
+ * to have the capability to mark Own production for additional qty." Every production
+ * gate used to read dl_branches.is_commissary, which conflates "is the supply hub" with
+ * "makes stock". A retail branch that bakes is now described by its own flag.
+ *
+ * Reads LIVE (no static cache): the Settings switch must take effect in the same request,
+ * exactly as dl_branchSingleShiftMode() and dl_branchPaperlessDrEnabled() do.
+ *
+ * Fail-open TRUE on a read error, which matches the behaviour before the flag existed:
+ * an unreadable capability must never take away an entry path that works today, and a
+ * tenant that has not run migration 096 yet has no column to read.
+ */
+function dl_branchHasProduction(int $branchId): bool
+{
+    if ($branchId <= 0) {
+        return true;
+    }
+    try {
+        $ctx = module();
+        if (!$ctx) {
+            return true;
+        }
+        $stmt = $ctx->db()->prepare('SELECT is_commissary, has_production FROM dl_branches WHERE id = :id LIMIT 1');
+        $stmt->execute([':id' => $branchId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!is_array($row)) {
+            return true;
+        }
+        return (int)($row['is_commissary'] ?? 0) === 1 || (int)($row['has_production'] ?? 0) === 1;
+    } catch (\Throwable $e) {
+        return true;
+    }
+}
+
 function dl_resolveProductSupplySource(int $branchId, int $productId): array
 {
     $ctx = module();

@@ -146,7 +146,7 @@
                     <td>
                         <div class="flex items-center gap-1">
                             <a class="btn btn-sm btn-accent" href="{base_url}/admin/products?tab=assignment&branch_id={b.id}" data-branch-products="{b.id}">Products</a>
-                            <button class="btn btn-sm btn-accent" onclick='openEditBranch({b.id}, {b.name | json}, {b.address | json}, {b.area_id | default:"null"}, {b.is_active}, {b.default_supply_mode | json}, {b.assigned_commissary_id | default:"null"}, {b.price_group_id | default:"null"}, {b.is_commissary}, {b.sort_order | default:0}, {b.paperless_dr_enabled | default:1}, {b.single_shift_mode | default:0})'>Edit</button>
+                            <button class="btn btn-sm btn-accent" onclick='openEditBranch({b.id}, {b.name | json}, {b.address | json}, {b.area_id | default:"null"}, {b.is_active}, {b.default_supply_mode | json}, {b.assigned_commissary_id | default:"null"}, {b.price_group_id | default:"null"}, {b.is_commissary}, {b.sort_order | default:0}, {b.paperless_dr_enabled | default:1}, {b.single_shift_mode | default:0}, {b.has_production | default:0})'>Edit</button>
                         </div>
                     </td>
                 </tr>
@@ -243,6 +243,13 @@
                             Single cashier shift (whole day)
                         </label>
                         <p class="mt-2 text-xs text-gray-500">Use one AM ledger row for the whole business day. This mode can only change before the day's first ledger row.</p>
+                    </div>
+                    <div class="form-group">
+                        <label class="inline-flex items-center gap-2 text-sm text-gray-700">
+                            <input type="checkbox" id="add-has-production">
+                            Own production
+                        </label>
+                        <p class="mt-2 text-xs text-gray-500">This branch makes stock of its own. Cashiers can record it as Add Stock (own production) in the Addt'l cell.</p>
                     </div>
                 </div>
             </div>
@@ -350,6 +357,13 @@
                             Single cashier shift (whole day)
                         </label>
                         <p class="mt-2 text-xs text-gray-500">Use one AM ledger row for the whole business day. This mode can only change before the day's first ledger row.</p>
+                    </div>
+                    <div class="form-group">
+                        <label class="inline-flex items-center gap-2 text-sm text-gray-700">
+                            <input type="checkbox" id="edit-has-production">
+                            Own production
+                        </label>
+                        <p class="mt-2 text-xs text-gray-500">This branch makes stock of its own. Cashiers can record it as Add Stock (own production) in the Addt'l cell.</p>
                     </div>
                 </div>
             </div>
@@ -518,7 +532,7 @@
         }).catch(function(e) { showToast(e.message || 'Failed'); btn.disabled = false; });
     }
 
-    function openEditBranch(id, name, address, areaId, active, supplyMode, commissaryId, priceGroupId, isCommissary, sortOrder, paperDrEnabled, singleShiftMode) {
+    function openEditBranch(id, name, address, areaId, active, supplyMode, commissaryId, priceGroupId, isCommissary, sortOrder, paperDrEnabled, singleShiftMode, hasProduction) {
         document.getElementById('edit-id').value = id;
         document.getElementById('edit-name').value = name || '';
         document.getElementById('edit-address').value = address || '';
@@ -535,6 +549,7 @@
         document.getElementById('edit-is-commissary').checked = !!isCommissary;
         document.getElementById('edit-paper-dr-enabled').checked = paperDrEnabled == null ? true : !!paperDrEnabled;
         document.getElementById('edit-single-shift-mode').checked = !!singleShiftMode;
+        document.getElementById('edit-has-production').checked = !!hasProduction;
         document.getElementById('edit-modal').classList.add('show');
     }
 
@@ -556,7 +571,8 @@
                 price_group_id: priceGroupVal === '' ? null : parseInt(priceGroupVal, 10),
                 is_commissary: document.getElementById('add-is-commissary').checked ? 1 : 0,
                 paperless_dr_enabled: document.getElementById('add-paper-dr-enabled').checked,
-                single_shift_mode: document.getElementById('add-single-shift-mode').checked
+                single_shift_mode: document.getElementById('add-single-shift-mode').checked,
+                has_production: document.getElementById('add-has-production').checked
             })
         })
         .then(function(r) { return r.json(); })
@@ -591,7 +607,8 @@
                 price_group_id: priceGroupVal === '' ? null : parseInt(priceGroupVal, 10),
                 is_commissary: document.getElementById('edit-is-commissary').checked ? 1 : 0,
                 paperless_dr_enabled: document.getElementById('edit-paper-dr-enabled').checked,
-                single_shift_mode: document.getElementById('edit-single-shift-mode').checked
+                single_shift_mode: document.getElementById('edit-single-shift-mode').checked,
+                has_production: document.getElementById('edit-has-production').checked
             })
         })
         .then(function(r) { return r.json(); })

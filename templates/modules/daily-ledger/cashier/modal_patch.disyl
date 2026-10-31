@@ -18,9 +18,22 @@
 
                 <div>
                     <h3 class="text-lg font-semibold leading-6 text-gray-900" id="modal-title">Stock Adjustment</h3>
-                    <p class="text-sm text-gray-500 mb-4">Record branch-side stock corrections: <span class="font-semibold">charge</span> (cashier accountability), <span class="font-semibold">pullout</span> (unsold goods returning to commissary), <span class="font-semibold">used</span> (packaging/items consumed to make or fill a product), <span class="font-semibold">correction</span> (fixing a wrongly-recorded entry), or <span class="font-semibold">add stock</span> (stock that was missed or undercounted — or produced by the branch itself, via Add Stock (own production)). <span class="font-semibold">Pullout items are automatically sent back to the commissary</span> — they will appear as incoming stock on the commissary ledger.</p>
+                    <p class="text-sm text-gray-500 mb-4">Record branch-side stock corrections: <span class="font-semibold">charge</span> (cashier accountability), <span class="font-semibold">pullout</span> (unsold goods returning to commissary), <span class="font-semibold">used</span> (packaging/items consumed to make or fill a product), <span class="font-semibold">correction</span> (fixing a wrongly-recorded entry), or <span class="font-semibold">add stock</span> (stock that was missed or undercounted<span x-show="window.BRANCH_HAS_PRODUCTION"> — or produced by the branch itself, via Add Stock (own production)</span>). <span class="font-semibold">Pullout items are automatically sent back to the commissary</span> — they will appear as incoming stock on the commissary ledger.</p>
                     <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">
                         Quick rule: if another branch is involved, stop and use <span class="font-semibold">Send to Branch</span> or <span class="font-semibold">Receive Stock</span>. This modal is only for branch-side stock corrections. <span class="font-semibold">Pullout</span> returns goods to your assigned commissary automatically.
+                    </div>
+
+                    <div x-show="window.BRANCH_HAS_PRODUCTION" class="grid grid-cols-2 gap-2 mb-4">
+                        <button type="button" @click="chooseType('own_production')"
+                                class="rounded-lg border px-3 py-2 text-sm font-semibold"
+                                :class="header.withdrawal_type === 'own_production' ? 'border-teal-300 bg-teal-50 text-teal-900' : 'border-gray-300 bg-white text-gray-700'">
+                            Own production
+                        </button>
+                        <button type="button" @click="chooseType('adjustment_add')"
+                                class="rounded-lg border px-3 py-2 text-sm font-semibold"
+                                :class="header.withdrawal_type === 'adjustment_add' ? 'border-gray-400 bg-gray-100 text-gray-900' : 'border-gray-300 bg-white text-gray-700'">
+                            Other adjustment
+                        </button>
                     </div>
 
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
@@ -32,7 +45,9 @@
                                 <option value="used">Used (for a product/order)</option>
                                 <option value="correction">Correction — W/Draw (wrong entry)</option>
                                 <option value="adjustment_add">Add Stock (missed entry / variance)</option>
-                                <option value="own_production">Add Stock (own production)</option>
+                                <template x-if="window.BRANCH_HAS_PRODUCTION">
+                                    <option value="own_production">Add Stock (own production)</option>
+                                </template>
                                 <option value="correction_addtl">Correction — Additional (wrong entry)</option>
                             </select>
                         </div>
@@ -55,7 +70,11 @@
                         </div>
                     </div>
 
-                    <div class="mb-4" x-show="header.withdrawal_type === 'own_production'">
+                    <div class="mb-4" x-show="!window.BRANCH_HAS_PRODUCTION">
+                        <p class="text-xs leading-5 text-gray-500">Own production is off for this branch, so Add Stock stays for missed or undercounted entries only. An admin can turn it on in Settings &gt; Branch operating switches &gt; Own production.</p>
+                    </div>
+
+                    <div class="mb-4" x-show="window.BRANCH_HAS_PRODUCTION && header.withdrawal_type === 'own_production'">
                         <div class="rounded-lg border border-teal-200 bg-teal-50 px-3 py-2 text-xs leading-5 text-teal-900 mb-3">
                             <span class="font-semibold">Own production</span>: stock the branch produced itself — no DR and no commissary dispatch. It is recorded as Add Stock with the <span class="font-semibold">Self production</span> reason, on the shift it was made in.
                         </div>
@@ -281,6 +300,12 @@ function withdrawalModal() {
             return this.header.withdrawal_type === 'correction_addtl' ? 'adjustment_add' : this.header.withdrawal_type;
         },
 
+        chooseType(type) {
+            this.header.withdrawal_type = type;
+            // Explicit call keeps button presets correct even before the watcher runs.
+            this.onTypeChange();
+        },
+
         // Choosing "Add Stock (own production)" states the intent: reason = Self
         // production, and the production shift is asked for explicitly (default:
         // the shift being viewed). Changing away leaves both as the operator set
@@ -395,6 +420,10 @@ function withdrawalModal() {
 
         validate() {
             this.errorMsg = '';
+            if (this.header.withdrawal_type === 'own_production' && !window.BRANCH_HAS_PRODUCTION) {
+                this.errorMsg = 'Own production is off for this branch.';
+                return false;
+            }
             if (!this.header.reason_code || String(this.header.reason_code).trim() === '') {
                 this.errorMsg = 'Reason code is required.';
                 return false;

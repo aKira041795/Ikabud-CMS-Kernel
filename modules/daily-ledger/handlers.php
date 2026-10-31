@@ -8848,6 +8848,7 @@ function handleCashierLedger(array $params = []): void
         'shift'       => $shift,
         'shift_locked' => $shiftBound,
         'single_shift_mode' => dl_branchSingleShiftMode((int)$branchId),
+        'branch_has_production' => dl_branchHasProduction((int)$branchId),
         'today'       => $today,
         'day_status'  => $dayStatus,
         'branches'    => $branches,
@@ -9357,9 +9358,17 @@ function apiSaveCashierWithdrawals(array $params = []): void
         ], 403);
         return;
     }
-    // Resolved AFTER the type: own production carries its own AM/PM choice (the
-    // shift the stock was produced in, not necessarily the viewer's); every
-    // other type keeps the shift lock. See dl_resolveWithdrawalShift().
+    if ($type === 'own_production' && !dl_branchHasProduction((int)$branchId)) {
+        $ctx->json([
+            'ok' => false,
+            'error' => 'Own production is not enabled for this branch. An admin can enable it in Settings > Branch operating switches > Own production.',
+            'code' => 'OWN_PRODUCTION_DISABLED',
+        ], 422);
+        return;
+    }
+    // Resolved AFTER the capability check: own production carries its own AM/PM
+    // choice, but a branch that cannot produce must receive that clear refusal
+    // before shift resolution can mask it.
     $shift = dl_resolveWithdrawalShift($user, $input, $type);
     $drNumber = isset($header['dr_number']) && $header['dr_number'] !== '' ? (string)$header['dr_number'] : null;
     $targetBranchId = !empty($header['target_branch_id']) ? (int)$header['target_branch_id'] : null;
@@ -19931,6 +19940,15 @@ function apiCreateBranch(array $params = []): void
         return;
     }
     $singleShiftMode = $singleShiftBool ? 1 : 0;
+    $hasProductionRaw = $input['has_production'] ?? false;
+    $hasProductionBool = is_scalar($hasProductionRaw)
+        ? filter_var($hasProductionRaw, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE)
+        : null;
+    if ($hasProductionBool === null) {
+        $ctx->json(['ok' => false, 'error' => 'Own production must be enabled or disabled.'], 422);
+        return;
+    }
+    $hasProduction = $hasProductionBool ? 1 : 0;
 
     if ($code === '' || $name === '') {
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Code and name are required', 'type' => 'error']]));
@@ -19952,14 +19970,15 @@ function apiCreateBranch(array $params = []): void
 
     try {
         $ctx->db()->prepare(
-            'INSERT INTO dl_branches (code, name, address, area_id, area, default_supply_mode, assigned_commissary_id, price_group_id, is_commissary, paperless_dr_enabled, single_shift_mode)
-             VALUES (:code, :name, :addr, :area_id, :area, :mode, :ac, :pg, :ic, :paperless_dr, :single_shift)'
+            'INSERT INTO dl_branches (code, name, address, area_id, area, default_supply_mode, assigned_commissary_id, price_group_id, is_commissary, paperless_dr_enabled, single_shift_mode, has_production)
+             VALUES (:code, :name, :addr, :area_id, :area, :mode, :ac, :pg, :ic, :paperless_dr, :single_shift, :has_production)'
         )->execute([
             ':code' => $code, ':name' => $name, ':addr' => $address,
             ':area_id' => $area['id'], ':area' => $area['name'],
             ':mode' => $supplyMode, ':ac' => $assignedCommissaryId, ':pg' => $priceGroupId, ':ic' => $isCommissary,
             ':paperless_dr' => $paperlessDrEnabled,
             ':single_shift' => $singleShiftMode,
+            ':has_production' => $hasProduction,
         ]);
 
         $branchId = (int)$ctx->db()->lastInsertId();
@@ -19982,6 +20001,7 @@ function apiCreateBranch(array $params = []): void
             'is_commissary' => $isCommissary,
             'paperless_dr_enabled' => $paperlessDrEnabled,
             'single_shift_mode' => $singleShiftMode,
+            'has_production' => $hasProduction,
         ]);
 
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Branch created', 'type' => 'success']]));
@@ -20001,7 +20021,7 @@ function dlBranchOperatingSwitches(\Ikabud\Kernel\Contracts\ModuleDB $db): array
 {
     try {
         $rows = $db->query(
-            'SELECT id, name, is_commissary, paperless_dr_enabled, single_shift_mode '
+            'SELECT id, name, is_commissary, paperless_dr_enabled, single_shift_mode, has_production '
             . 'FROM dl_branches WHERE is_active = 1 ORDER BY sort_order ASC, name ASC'
         )->fetchAll(PDO::FETCH_ASSOC);
     } catch (\Throwable $e) {
@@ -20019,6 +20039,7 @@ function dlBranchOperatingSwitches(\Ikabud\Kernel\Contracts\ModuleDB $db): array
             'is_commissary' => (int)($row['is_commissary'] ?? 0),
             'paperless_dr_enabled' => (int)($row['paperless_dr_enabled'] ?? 1),
             'single_shift_mode' => (int)($row['single_shift_mode'] ?? 0),
+            'has_production' => (int)($row['has_production'] ?? 0),
         ];
     }
     return $out;
@@ -20032,7 +20053,7 @@ function dlBranchOperatingSwitches(\Ikabud\Kernel\Contracts\ModuleDB $db): array
  */
 function dl_applyBranchFlags(\Ikabud\Kernel\Contracts\ModuleDB $db, int $branchId, array $flags): array
 {
-    $allowed = ['paperless_dr_enabled', 'single_shift_mode'];
+    $allowed = ['paperless_dr_enabled', 'single_shift_mode', 'has_production'];
     $unknown = array_diff(array_keys($flags), $allowed);
     if ($unknown !== []) {
         return ['ok' => false, 'error' => 'Unknown branch switch: ' . implode(', ', $unknown) . '.'];
@@ -20041,7 +20062,7 @@ function dl_applyBranchFlags(\Ikabud\Kernel\Contracts\ModuleDB $db, int $branchI
         return ['ok' => false, 'error' => 'No branch switch was supplied.'];
     }
 
-    $stmt = $db->prepare('SELECT id, name, paperless_dr_enabled, single_shift_mode FROM dl_branches WHERE id = :id LIMIT 1');
+    $stmt = $db->prepare('SELECT id, name, paperless_dr_enabled, single_shift_mode, has_production FROM dl_branches WHERE id = :id LIMIT 1');
     $stmt->execute([':id' => $branchId]);
     $before = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
     if (!$before) {
@@ -20103,8 +20124,8 @@ function dl_applyBranchFlags(\Ikabud\Kernel\Contracts\ModuleDB $db, int $branchI
         $branchId,
         'dl_branches',
         (string)$branchId,
-        ['paperless_dr_enabled' => (int)$before['paperless_dr_enabled'], 'single_shift_mode' => (int)$before['single_shift_mode']],
-        ['paperless_dr_enabled' => (int)$after['paperless_dr_enabled'], 'single_shift_mode' => (int)$after['single_shift_mode']]
+        ['paperless_dr_enabled' => (int)$before['paperless_dr_enabled'], 'single_shift_mode' => (int)$before['single_shift_mode'], 'has_production' => (int)$before['has_production']],
+        ['paperless_dr_enabled' => (int)$after['paperless_dr_enabled'], 'single_shift_mode' => (int)$after['single_shift_mode'], 'has_production' => (int)$after['has_production']]
     );
 
     return ['ok' => true, 'changed' => true, 'after' => $after];
@@ -20135,7 +20156,7 @@ function apiUpdateBranchFlags(array $params = []): void
     }
 
     $flags = [];
-    foreach (['paperless_dr_enabled', 'single_shift_mode'] as $key) {
+    foreach (['paperless_dr_enabled', 'single_shift_mode', 'has_production'] as $key) {
         if (!array_key_exists($key, $input)) {
             continue;
         }
@@ -20257,6 +20278,17 @@ function apiUpdateBranch(array $params = []): void
         }
         $singleShiftMode = $singleShiftBool ? 1 : 0;
     }
+    $hasProduction = null;
+    if (array_key_exists('has_production', $input)) {
+        $hasProductionBool = is_scalar($input['has_production'])
+            ? filter_var($input['has_production'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE)
+            : null;
+        if ($hasProductionBool === null) {
+            $ctx->json(['ok' => false, 'error' => 'Own production must be enabled or disabled.'], 422);
+            return;
+        }
+        $hasProduction = $hasProductionBool ? 1 : 0;
+    }
 
     if (!$branchId || $name === '') {
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Invalid input', 'type' => 'error']]));
@@ -20283,7 +20315,7 @@ function apiUpdateBranch(array $params = []): void
     }
 
     try {
-        $beforeStmt = $ctx->db()->prepare('SELECT default_supply_mode, assigned_commissary_id, price_group_id, is_commissary, paperless_dr_enabled, single_shift_mode FROM dl_branches WHERE id = :id');
+        $beforeStmt = $ctx->db()->prepare('SELECT default_supply_mode, assigned_commissary_id, price_group_id, is_commissary, paperless_dr_enabled, single_shift_mode, has_production FROM dl_branches WHERE id = :id');
         $beforeStmt->execute([':id' => $branchId]);
         $before = $beforeStmt->fetch(PDO::FETCH_ASSOC) ?: [];
 
@@ -20297,6 +20329,9 @@ function apiUpdateBranch(array $params = []): void
         }
         if ($singleShiftMode !== null) {
             $switchInputs['single_shift_mode'] = (int)$singleShiftMode;
+        }
+        if ($hasProduction !== null) {
+            $switchInputs['has_production'] = (int)$hasProduction;
         }
         if ($switchInputs !== []) {
             $switchResult = dl_applyBranchFlags($ctx->db(), $branchId, $switchInputs);
@@ -20326,10 +20361,10 @@ function apiUpdateBranch(array $params = []): void
             $sets[] = 'is_commissary = :ic';
             $bind[':ic'] = $isCommissary;
         }
-        // paperless_dr_enabled / single_shift_mode were applied above by dl_applyBranchFlags().
+        // All operating switches were applied above by dl_applyBranchFlags().
         $ctx->db()->prepare('UPDATE dl_branches SET ' . implode(', ', $sets) . ' WHERE id = :id')->execute($bind);
 
-        $afterStmt = $ctx->db()->prepare('SELECT default_supply_mode, assigned_commissary_id, price_group_id, is_commissary, paperless_dr_enabled, single_shift_mode FROM dl_branches WHERE id = :id');
+        $afterStmt = $ctx->db()->prepare('SELECT default_supply_mode, assigned_commissary_id, price_group_id, is_commissary, paperless_dr_enabled, single_shift_mode, has_production FROM dl_branches WHERE id = :id');
         $afterStmt->execute([':id' => $branchId]);
         $after = $afterStmt->fetch(PDO::FETCH_ASSOC) ?: [];
 
