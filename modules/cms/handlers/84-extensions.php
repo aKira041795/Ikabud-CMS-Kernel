@@ -244,6 +244,14 @@ function _cmsInstallAvailableModule(string $moduleId, ?int $tenantId = null): ar
         _cmsRunModuleMigrations($moduleId, $manifest, $moduleDir, $effectiveTenantId);
     }
 
+    // Kernel-install provenance: the CMS is this module's lifecycle root. For a
+    // bundled module `extends` may already say so; recording it here is what
+    // covers an extension adopted from another tenant's install. Instruction, not
+    // authority - it only decides which screen manages the module.
+    if (function_exists('moduleOwnershipRecordInstall')) {
+        moduleOwnershipRecordInstall($moduleId, 'cms', ['source' => 'cms_catalog_install']);
+    }
+
     _cmsInvokeModuleSetup($moduleId, 'install', $effectiveTenantId);
 
     kernelFlushCodeCaches();
@@ -885,7 +893,10 @@ function cmsApiModuleUpload(array $params = []): void
             exit;
         }
 
-        $updateResult = updateModuleFromZip($tmpPath, ['require_certification' => false]);
+        $updateResult = updateModuleFromZip($tmpPath, [
+            'require_certification' => false,
+            'installed_by' => 'cms',
+        ]);
         if (empty($updateResult['ok'])) {
             _cmsDeleteDirRecursive($extractDir);
             _cmsAuditInstaller('module.upload', 'module', $moduleId, 'failed', (string)($updateResult['error'] ?? 'Module update failed.'), [
@@ -921,6 +932,13 @@ function cmsApiModuleUpload(array $params = []): void
 
     // Register in the CMS sub-module registry so it appears in the CMS admin
     _cmsRegisterSubModule($moduleId);
+
+    // Kernel-install provenance: the CMS is this module's lifecycle root even
+    // though its manifest declares no `extends`. This is what keeps the kernel
+    // admin at roots instead of growing one row per installed extension.
+    if (function_exists('moduleOwnershipRecordInstall')) {
+        moduleOwnershipRecordInstall($moduleId, 'cms', ['source' => 'cms_zip_upload']);
+    }
 
     $existingCatalog = moduleCatalogEntry($moduleId) ?? [];
     $currentTenantId = function_exists('moduleTenantSettingsTenantId') ? moduleTenantSettingsTenantId() : null;
