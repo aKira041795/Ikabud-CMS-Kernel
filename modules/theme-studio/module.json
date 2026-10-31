@@ -145,9 +145,7 @@
                 "description": "Validate and apply a Theme Studio preset"
             }
         ],
-        "depends": [
-            "cms.content.get@1"
-        ],
+        "depends": [],
         "policy": {
             "capabilities": {
                 "theme.presets.list@1": {

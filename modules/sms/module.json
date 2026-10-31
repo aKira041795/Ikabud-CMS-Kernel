@@ -46,7 +46,8 @@
             "kernel",
           "guidance",
           "guidance-sms",
-            "sms"
+            "sms",
+            "ticketing"
           ]
         }
       }

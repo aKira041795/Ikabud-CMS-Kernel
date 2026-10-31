@@ -72,7 +72,8 @@
                     "allow_callers": [
                         "documents",
                         "clinical-notes",
-                        "results"
+                        "results",
+                        "privacy-consent"
                     ]
                 },
                 "ehr.document.view@1": {

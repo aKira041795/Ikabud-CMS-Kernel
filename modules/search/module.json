@@ -130,7 +130,8 @@
                 "search.index.upsert@1": {
                     "allow_callers": [
                         "cms",
-                        "search"
+                        "search",
+                        "cms-akira-search-adapter"
                     ]
                 }
             }

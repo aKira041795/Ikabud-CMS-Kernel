@@ -1,0 +1,96 @@
+{
+    "_comment": "Capabilities each module CALLS in production code but has not declared in capabilities.depends. This is a frozen baseline: tests/module_dependency_fleet_gate_test.php fails if a module gains a NEW undeclared capability, and passes when one is removed. Fix by declaring the dependency (required or optional) - never by widening this file.",
+    "generated": "2026-11-01",
+    "modules": {
+        "academic-similarity": [
+            "academic_similarity.semantic.health@1",
+            "ai.search.discover@1",
+            "ai.text.generate@1"
+        ],
+        "academic-thesis-evaluation": [
+            "academic_similarity.assessment.bundle@1",
+            "academic_similarity.check@1",
+            "academic_similarity.citation.analysis@1",
+            "academic_similarity.context.analysis@1",
+            "academic_similarity.context.analyze@1",
+            "academic_similarity.lineage.graph@1",
+            "academic_similarity.report.view@1",
+            "academic_similarity.scholarship.profile@1",
+            "academic_similarity.semantic.resemblance@1",
+            "academic_similarity.submit@1",
+            "academic_similarity.textual.match@1"
+        ],
+        "attendance-wage": [
+            "kernel.audit.record@1",
+            "kernel.auth.delegate@1"
+        ],
+        "cms": [
+            "cms.cart.add@1",
+            "cms.public.entity.list@1",
+            "cms.public.entity.view@1",
+            "ecommerce.cart.get@1",
+            "entity.get.cms_page@1",
+            "entity.get.cms_post@1",
+            "report.export.approve@1",
+            "report.export.list_pending@1",
+            "report.export.reject@1",
+            "report.export.request_approval@1",
+            "theme.preset.apply@1",
+            "theme.presets.list@1",
+            "weather.current@1",
+            "weather.forecast@1"
+        ],
+        "cms-akira-core": [
+            "akira.ai.summary.suggest@1",
+            "akira.media.resolve@1",
+            "akira.navigation.resolve@1",
+            "akira.search.document.build@1",
+            "akira.seo.meta.build@1",
+            "akira.theme.resolve@1",
+            "akira.workflow.evaluate@1",
+            "editor.normalize@1",
+            "editor.sanitize@1",
+            "editor.validate@1"
+        ],
+        "content-ingestion": [
+            "cms.content.create@1",
+            "cms.content.update@1"
+        ],
+        "ecommerce": [
+            "ecommerce.public.cart@1",
+            "ecommerce.public.catalog@1",
+            "ecommerce.public.checkout@1",
+            "ecommerce.public.order.confirmation@1",
+            "ecommerce.public.order.detail@1",
+            "ecommerce.public.orders@1",
+            "ecommerce.public.product@1",
+            "ecommerce.public.shell@1",
+            "entity.capability.inventory.data@1",
+            "entity.capability.pricing.data@1",
+            "wms.order.cancel@1",
+            "wms.order.create@1",
+            "wms.product.upsert@1",
+            "wms.return.create@1",
+            "wms.stock.release@1",
+            "wms.stock.reserve@1"
+        ],
+        "ehr": [
+            "ehr.appointment.list@1",
+            "ehr.consent.active@1",
+            "ehr.document.list@1",
+            "ehr.encounter.list@1",
+            "ehr.encounter.progress@1",
+            "ehr.note.list@1",
+            "ehr.order.list@1",
+            "ehr.patient.allergies@1",
+            "ehr.prescription.list@1",
+            "ehr.result.list@1"
+        ],
+        "guidance": [
+            "kernel.audit.record@1"
+        ],
+        "project-audit-ledger": [
+            "kernel.auth.validate_delegate@1"
+        ]
+    }
+}

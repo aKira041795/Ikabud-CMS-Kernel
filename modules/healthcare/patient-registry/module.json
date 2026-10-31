@@ -84,7 +84,9 @@
                         "scheduling",
                         "billing-bridge",
                         "patient-portal",
-                        "ehr"
+                        "ehr",
+                        "hospital-adt",
+                        "interoperability-bridge"
                     ]
                 },
                 "ehr.patient.update@1": {

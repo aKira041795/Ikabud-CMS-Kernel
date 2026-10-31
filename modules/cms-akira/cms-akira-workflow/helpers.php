@@ -135,3 +135,9 @@ function caw_cap_akira_workflow_evaluate_1(mixed $payload, string $capabilityId 
 // app()->events()->listen('order.placed', function (array $payload, string $event) {
 //     // React to events from other modules
 // }, 10, 'cms-akira-workflow');
+//
+// NOTE: this module is a workflow capability caller. Registration is NOT done
+// here: WorkflowRuntime registers its providers during bootstrap and caps the
+// caller allow-list at that moment, so a registerCaller() call from module
+// helpers (loaded later) cannot grant access. The caller is declared in
+// kernel/WorkflowRuntime.php's seed list instead.

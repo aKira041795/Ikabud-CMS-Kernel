@@ -94,7 +94,8 @@
                         "prescriptions",
                         "documents",
                         "scheduling",
-                        "billing-bridge"
+                        "billing-bridge",
+                        "ehr"
                     ]
                 },
                 "ehr.encounter.list@1": {

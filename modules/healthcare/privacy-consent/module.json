@@ -113,7 +113,8 @@
                         "clinical-notes",
                         "results",
                         "patient-portal",
-                        "ehr"
+                        "ehr",
+                        "ehr-core"
                     ]
                 },
                 "ehr.break_glass.request@1": {
@@ -135,7 +136,8 @@
                         "privacy-consent",
                         "documents",
                         "clinical-notes",
-                        "results"
+                        "results",
+                        "ehr-core"
                     ]
                 },
                 "ehr.consent.revoke@1": {

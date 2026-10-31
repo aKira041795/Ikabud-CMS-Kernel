@@ -11,6 +11,14 @@ final class WorkflowRuntime
 {
     /**
      * Modules that have registered themselves as workflow callers.
+     *
+     * NOTE (2026-11-01): the workflow capability providers are registered during
+     * bootstrap, and cap the caller allow-list to a snapshot of this list taken at
+     * that moment. A module that calls registerCaller() later - from its helpers,
+     * which load after bootstrap - therefore cannot gain access this way. Callers
+     * that must be allowed need an entry here. cms-akira-workflow was denied its own
+     * declared dependency for exactly that reason.
+     *
      * @var array<string, true>
      */
     private array $registeredCallers = [
@@ -18,6 +26,7 @@ final class WorkflowRuntime
         'guidance' => true,
         'workflow' => true,
         'kernel' => true,
+        'cms-akira-workflow' => true,
     ];
 
     public function __construct(private readonly App $app)
