@@ -70,6 +70,7 @@ return [
 
         // Production movements
         '/daily-ledger/api/v1/production/products'      => 'daily-ledger:apiProductionProducts',
+        '/daily-ledger/api/v1/admin/product-categories' => 'daily-ledger:apiAdminProductCategories',
         '/daily-ledger/api/v1/production/destinations' => 'daily-ledger:apiProductionDestinations',
         '/daily-ledger/api/v1/production/movements'    => 'daily-ledger:apiProductionMovements',
         '/daily-ledger/api/v1/commissary/materials'    => 'daily-ledger:apiCommissaryMaterials',
@@ -154,6 +155,8 @@ return [
         '/daily-ledger/api/v1/admin/products/update'     => 'daily-ledger:apiUpdateProduct',
         '/daily-ledger/api/v1/admin/products/reprice'    => 'daily-ledger:apiRepriceProduct',
         '/daily-ledger/api/v1/admin/products/import-csv' => 'daily-ledger:apiProductsImportCsv',
+        '/daily-ledger/api/v1/admin/product-categories' => 'daily-ledger:apiCreateProductCategory',
+        '/daily-ledger/api/v1/admin/product-categories/update' => 'daily-ledger:apiUpdateProductCategory',
 
         // Admin: branch management
         '/daily-ledger/api/v1/admin/branches'            => 'daily-ledger:apiCreateBranch',

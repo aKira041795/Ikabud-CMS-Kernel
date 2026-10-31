@@ -53,6 +53,9 @@
             grid-template-columns: 1fr;
         }
     }
+    .category-manager { max-width: 52rem; }
+    .category-row { display:grid; grid-template-columns:minmax(8rem,1.5fr) minmax(8rem,1fr) 6rem 5rem auto; gap:.5rem; align-items:center; }
+    @media (max-width: 767px) { .category-row { grid-template-columns:1fr 1fr; } .category-row__wide { grid-column:1 / -1; } }
     .picker-row.is-hidden { display: none; }
     .picker-table-wrap { max-height: 60vh; overflow-y: auto; }
     #picker-table thead th { position: sticky; top: 0; z-index: 1; }
@@ -189,7 +192,7 @@
                     <td class="text-xs uppercase tracking-wider text-gray-600">{p.product_category}</td>
                     <td class="text-right">
                         <button type="button" class="btn btn-sm btn-accent" aria-label="Open {p.name} product view" title="View details and all branch assignments"
-                            data-price="{p.current_price}" data-sort="{p.sort_order}" data-active="{p.is_active}"
+                            data-price="{p.current_price}" data-sort="{p.sort_order}" data-active="{p.is_active}" data-category-id="{p.category_id}"
                             data-output-pieces="{p.output_pieces_per_batch | default:0}" data-output-unit="{p.output_unit_label | default:pcs}"
                             data-batch-kilo="{p.batch_input_qty | default:0}" data-batch-eggs="{p.batch_egg_qty | default:0}" data-pack="{p.pcs_per_pack | default:0}"
                             data-effective="{p.current_price_effective_from | default:''}" data-assignment-mode="{p.assignment_mode | default:'all_active'}"
@@ -237,11 +240,19 @@
             <div>
                 <label class="form-label" for="product-category-filter">Category</label>
                 <select class="form-input" id="product-category-filter" name="category">
-                    <option value="all" {if category == 'all'}selected{/if}>All ({category_counts.bread_count + category_counts.non_bread_count})</option>
-                    <option value="bread" {if category == 'bread'}selected{/if}>Bread ({category_counts.bread_count})</option>
-                    <option value="non_bread" {if category == 'non_bread'}selected{/if}>Non-bread ({category_counts.non_bread_count})</option>
-                    {if category == 'cake'}<option value="cake" selected>Cake only</option>{/if}
-                    {if category == 'other'}<option value="other" selected>Other only</option>{/if}
+                    {* Two different questions, so two labelled groups. A flat list showed
+                       "Bread (111)" twice - once as the bakery group and once as the single
+                       category - and the reader could not tell them apart. *}
+                    <optgroup label="Group">
+                        <option value="all" {if category == 'all'}selected{/if}>All products ({category_counts.bread_count + category_counts.non_bread_count})</option>
+                        <option value="bread" {if category == 'bread'}selected{/if}>Bread group ({category_counts.bread_count})</option>
+                        <option value="non_bread" {if category == 'non_bread'}selected{/if}>Non-bread group ({category_counts.non_bread_count})</option>
+                    </optgroup>
+                    <optgroup label="Single category">
+                        {foreach product_categories as c}
+                        <option value="{c.code}" {if category_id == c.id}selected{/if}>{c.label} ({c.product_count})</option>
+                        {/foreach}
+                    </optgroup>
                 </select>
             </div>
             <input type="text" class="form-input w-full sm:w-64" name="q" value="{search}" placeholder="Search name or SKU...">
@@ -250,6 +261,7 @@
         <div class="flex flex-wrap gap-3 sm:ml-2">
             <a href="{base_url}/admin/products/export" class="btn btn-accent h-10" download>Export CSV</a>
             <button class="btn btn-accent h-10" onclick="openImportProduct()">Import CSV</button>
+            <button class="btn btn-accent h-10" onclick="openCategoryManager()">Manage categories</button>
             <button class="btn btn-primary h-10" onclick="openAddProduct()">+ Add</button>
         </div>
     </div>
@@ -305,7 +317,7 @@
                         {if p.is_active == 0}<span class="inline-flex items-center rounded-full bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700 ring-1 ring-inset ring-rose-200">Inactive</span>{/if}
                     </td>
                     <td>
-                        <button class="btn btn-sm btn-accent" onclick="openEditProduct({p.id}, '{p.name}', '{p.product_category}', {p.current_price}, {p.sort_order}, {p.is_active}, {p.output_pieces_per_batch | default:0}, '{p.output_unit_label | default:pcs}', {p.batch_input_qty | default:0}, {p.batch_egg_qty | default:0}, {p.pcs_per_pack | default:0}, '{p.current_price_effective_from | default:''}', '{p.assignment_mode | default:'all_active'}', '{p.assigned_branch_ids | default:''}', '{p.consignee_assignment_mode | default:'all_active'}', '{p.assigned_consignee_ids | default:''}')">Edit</button>
+                        <button class="btn btn-sm btn-accent" onclick="openEditProduct({p.id}, '{p.name}', {p.category_id}, {p.current_price}, {p.sort_order}, {p.is_active}, {p.output_pieces_per_batch | default:0}, '{p.output_unit_label | default:pcs}', {p.batch_input_qty | default:0}, {p.batch_egg_qty | default:0}, {p.pcs_per_pack | default:0}, '{p.current_price_effective_from | default:''}', '{p.assignment_mode | default:'all_active'}', '{p.assigned_branch_ids | default:''}', '{p.consignee_assignment_mode | default:'all_active'}', '{p.assigned_consignee_ids | default:''}')">Edit</button>
                     </td>
                 </tr>
                 {/foreach}
@@ -333,9 +345,12 @@
                     <div class="form-group">
                         <label class="form-label">Product Category</label>
                         <select class="form-input" id="add-category">
-                            <option value="bread">Bread</option>
-                            <option value="cake">Cake</option>
-                            <option value="other">Other</option>
+                            <optgroup label="Bakery (bread group)">
+                            {foreach product_categories as c}{if c.grouping == 'bread' && c.is_active == 1}<option value="{c.id}">{c.label}</option>{/if}{/foreach}
+                            </optgroup>
+                            <optgroup label="Bodega-sourced (non-bread group)">
+                            {foreach product_categories as c}{if c.grouping == 'non_bread' && c.is_active == 1}<option value="{c.id}">{c.label}</option>{/if}{/foreach}
+                            </optgroup>
                         </select>
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -434,9 +449,12 @@
                     <div class="form-group">
                         <label class="form-label">Product Category</label>
                         <select class="form-input" id="edit-category">
-                            <option value="bread">Bread</option>
-                            <option value="cake">Cake</option>
-                            <option value="other">Other</option>
+                            <optgroup label="Bakery (bread group)">
+                            {foreach product_categories as c}{if c.grouping == 'bread'}<option value="{c.id}">{c.label}{if c.is_active == 0} (inactive){/if}</option>{/if}{/foreach}
+                            </optgroup>
+                            <optgroup label="Bodega-sourced (non-bread group)">
+                            {foreach product_categories as c}{if c.grouping == 'non_bread'}<option value="{c.id}">{c.label}{if c.is_active == 0} (inactive){/if}</option>{/if}{/foreach}
+                            </optgroup>
                         </select>
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -544,6 +562,34 @@
     </div>
 </div>
 
+<!-- Category Manager Modal -->
+<div class="modal-overlay" id="category-modal">
+    <div class="modal category-manager">
+        <h3>Manage product categories</h3>
+        <p class="mb-4 text-sm text-gray-500">Bread-group products are bakery supplied; non-bread products are Bodega sourced.</p>
+        <div class="space-y-2">
+            {foreach product_categories as c}
+            <div class="category-row rounded border border-gray-200 p-2" data-category-row="{c.id}">
+                <input class="form-input category-row__wide" data-category-label value="{c.label}" aria-label="Label for {c.code}">
+                <select class="form-input" data-category-group><option value="bread" {if c.grouping == 'bread'}selected{/if}>Bread</option><option value="non_bread" {if c.grouping == 'non_bread'}selected{/if}>Non-bread</option></select>
+                <input class="form-input" type="number" data-category-sort value="{c.sort_order}" aria-label="Sort order">
+                <label class="text-sm"><input type="checkbox" data-category-active {if c.is_active == 1}checked{/if}> Active</label>
+                <button class="btn btn-accent btn-sm" onclick="saveCategory({c.id})">Save</button>
+                <span class="category-row__wide text-xs text-gray-500">{c.code} · {c.product_count} product(s)</span>
+            </div>
+            {/foreach}
+            <div class="category-row rounded border border-gray-200 bg-gray-50 p-2" id="new-category-row">
+                <input class="form-input" id="new-category-code" placeholder="code">
+                <input class="form-input" id="new-category-label" placeholder="Label">
+                <select class="form-input" id="new-category-group"><option value="bread">Bread</option><option value="non_bread" selected>Non-bread</option></select>
+                <input class="form-input" id="new-category-sort" type="number" value="0" aria-label="Sort order">
+                <button class="btn btn-primary btn-sm" onclick="addCategory()">Add</button>
+            </div>
+        </div>
+        <div class="modal-actions"><button class="btn btn-accent" onclick="closeModal('category-modal')">Close</button></div>
+    </div>
+</div>
+
 <!-- Import CSV Modal -->
 <div class="modal-overlay" id="import-modal">
     <div class="modal">
@@ -576,12 +622,37 @@
         document.getElementById('add-name').focus();
     }
     function openImportProduct() { document.getElementById('import-modal').classList.add('show'); }
+    function openCategoryManager() { document.getElementById('category-modal').classList.add('show'); }
+    function categoryRequest(path, payload) {
+        return fetch(BASE + path, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) })
+            .then(function(r){ return r.json(); }).then(function(res){
+                if (!res.ok) { showToast(res.error || 'Category save failed', 'error'); return; }
+                showToast('Category saved'); setTimeout(function(){ window.location.reload(); }, 500);
+            }).catch(function(){ showToast('Network error', 'error'); });
+    }
+    function saveCategory(id) {
+        var row = document.querySelector('[data-category-row="' + id + '"]');
+        categoryRequest('/api/v1/admin/product-categories/update', {
+            id:id, label:row.querySelector('[data-category-label]').value,
+            grouping:row.querySelector('[data-category-group]').value,
+            sort_order:parseInt(row.querySelector('[data-category-sort]').value,10)||0,
+            is_active:row.querySelector('[data-category-active]').checked ? 1 : 0
+        });
+    }
+    function addCategory() {
+        categoryRequest('/api/v1/admin/product-categories', {
+            code:document.getElementById('new-category-code').value,
+            label:document.getElementById('new-category-label').value,
+            grouping:document.getElementById('new-category-group').value,
+            sort_order:parseInt(document.getElementById('new-category-sort').value,10)||0
+        });
+    }
     function closeModal(id) { document.getElementById(id).classList.remove('show'); }
 
-    function openEditProduct(id, name, category, price, sort, active, outputPieces, outputUnit, batchKiloQty, batchEggQty, pcsPerPack, currentPriceEffectiveFrom, assignmentMode, assignedBranchIdsCsv, consigneeAssignmentMode, assignedConsigneeIdsCsv) {
+    function openEditProduct(id, name, categoryId, price, sort, active, outputPieces, outputUnit, batchKiloQty, batchEggQty, pcsPerPack, currentPriceEffectiveFrom, assignmentMode, assignedBranchIdsCsv, consigneeAssignmentMode, assignedConsigneeIdsCsv) {
         document.getElementById('edit-id').value = id;
         document.getElementById('edit-name').value = name;
-        document.getElementById('edit-category').value = category || 'bread';
+        document.getElementById('edit-category').value = String(categoryId || '');
         document.getElementById('edit-price').value = price;
         document.getElementById('edit-sort').value = sort;
         document.getElementById('edit-active').value = active;
@@ -672,7 +743,7 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 name: document.getElementById('add-name').value,
-                product_category: document.getElementById('add-category').value,
+                category_id: parseInt(document.getElementById('add-category').value, 10),
                 price: parseFloat(document.getElementById('add-price').value) || 0,
                 sort_order: parseInt(document.getElementById('add-sort').value) || 0,
                 output_pieces_per_batch: parseInt(document.getElementById('add-output-pieces').value, 10) || 0,
@@ -709,7 +780,7 @@
             body: JSON.stringify({
                 product_id: parseInt(document.getElementById('edit-id').value),
                 name: document.getElementById('edit-name').value,
-                product_category: document.getElementById('edit-category').value,
+                category_id: parseInt(document.getElementById('edit-category').value, 10),
                 price: parseFloat(document.getElementById('edit-price').value) || 0,
                 effective_from: document.getElementById('edit-effective-from').value,
                 sort_order: parseInt(document.getElementById('edit-sort').value) || 0,
@@ -959,7 +1030,7 @@
         openEditProduct(
             parseInt(row.getAttribute('data-product-id'), 10),
             row.querySelector('.picker-name').textContent.trim(),
-            row.querySelector('td:nth-child(4)').textContent.trim().toLowerCase(),
+            parseInt(button.getAttribute('data-category-id'), 10),
             parseFloat(button.getAttribute('data-price')) || 0,
             parseInt(button.getAttribute('data-sort'), 10) || 0,
             parseInt(button.getAttribute('data-active'), 10),

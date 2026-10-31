@@ -12155,17 +12155,19 @@ function apiProductionProducts(array $params = []): void
     $input = $ctx->input();
     $category = trim((string)($input['category'] ?? ''));
 
-    $sql = 'SELECT id, sku, name, current_price, product_category, output_pieces_per_batch, batch_input_qty, batch_egg_qty, output_unit_label
-            FROM dl_products
-            WHERE is_active = 1';
+    $sql = 'SELECT p.id, p.sku, p.name, p.current_price, p.product_category, p.output_pieces_per_batch, p.batch_input_qty, p.batch_egg_qty, p.output_unit_label
+            FROM dl_products p
+            INNER JOIN dl_product_categories c ON c.id = p.category_id
+            WHERE p.is_active = 1';
     $bind = [];
-    if ($category === 'non_bread') {
-        $sql .= ' AND product_category IN ("cake", "other")';
-    } elseif ($category !== '' && in_array($category, ['bread', 'cake', 'other'], true)) {
-        $sql .= ' AND product_category = :category';
-        $bind[':category'] = $category;
+    if (in_array($category, ['bread', 'non_bread'], true)) {
+        $sql .= ' AND c.`grouping` = :category_group';
+        $bind[':category_group'] = $category;
+    } elseif ($category !== '') {
+        $sql .= ' AND c.code = :category_code';
+        $bind[':category_code'] = $category;
     }
-    $sql .= ' ORDER BY sort_order, name';
+    $sql .= ' ORDER BY p.sort_order, p.name';
 
     $stmt = $ctx->db()->prepare($sql);
     $stmt->execute($bind);
@@ -18489,6 +18491,141 @@ function apiToggleBranchProduct(array $params = []): void
 
 // ─── Admin: Products ───────────────────────────────────────────────────
 
+/** Live category read; deliberately uncached because admins edit this data. */
+function dl_productCategories(bool $activeOnly = true): array
+{
+    $ctx = module();
+    if (!$ctx) return [];
+    $sql = 'SELECT id, code, label, `grouping`, sort_order FROM dl_product_categories';
+    if ($activeOnly) $sql .= ' WHERE is_active = 1';
+    $sql .= ' ORDER BY `grouping` = "bread" DESC, sort_order, label';
+    $rows = $ctx->db()->query($sql)->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $out = [];
+    foreach ($rows as $row) {
+        $out[(string)$row['code']] = [
+            'id' => (int)$row['id'], 'label' => (string)$row['label'],
+            'grouping' => (string)$row['grouping'], 'sort_order' => (int)$row['sort_order'],
+        ];
+    }
+    return $out;
+}
+
+function dl_productCategoryGroups(): array
+{
+    $groups = ['bread' => [], 'non_bread' => []];
+    foreach (dl_productCategories(true) as $code => $category) {
+        $groups[$category['grouping']][$code] = $category;
+    }
+    return $groups;
+}
+
+/** Resolve preferred category_id, otherwise a legacy code. */
+function dl_resolveProductCategory(array $input, bool $activeOnly = true): ?array
+{
+    $ctx = module();
+    if (!$ctx) return null;
+    $activeSql = $activeOnly ? ' AND is_active = 1' : '';
+    if (isset($input['category_id']) && $input['category_id'] !== '') {
+        $stmt = $ctx->db()->prepare('SELECT id, code, label, `grouping`, sort_order FROM dl_product_categories WHERE id = :category_id' . $activeSql . ' LIMIT 1');
+        $stmt->execute([':category_id' => (int)$input['category_id']]);
+    } else {
+        $code = strtolower(trim((string)($input['category'] ?? $input['product_category'] ?? '')));
+        $stmt = $ctx->db()->prepare('SELECT id, code, label, `grouping`, sort_order FROM dl_product_categories WHERE code = :category_code' . $activeSql . ' LIMIT 1');
+        $stmt->execute([':category_code' => $code]);
+    }
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    return $row ?: null;
+}
+
+function dl_validateProductCategoryInput(array $input): array
+{
+    $category = dl_resolveProductCategory($input);
+    if ($category) return ['ok' => true, 'status' => 200, 'category' => $category];
+    $bad = (string)($input['category_id'] ?? $input['category'] ?? $input['product_category'] ?? '');
+    return ['ok' => false, 'status' => 422, 'error' => 'Unknown or inactive product category: ' . $bad];
+}
+
+function dl_updateProductCategoryCore($db, int $id, string $label, string $grouping, int $sortOrder, int $isActive): array
+{
+    $oldStmt = $db->prepare('SELECT id, code, label, `grouping`, sort_order, is_active FROM dl_product_categories WHERE id = :id LIMIT 1');
+    $oldStmt->execute([':id' => $id]);
+    $before = $oldStmt->fetch(PDO::FETCH_ASSOC);
+    if (!$before) return ['ok' => false, 'status' => 404, 'error' => 'Category not found.'];
+    if ($isActive === 0) {
+        $countStmt = $db->prepare('SELECT COUNT(*) FROM dl_products WHERE category_id = :category_id');
+        $countStmt->execute([':category_id' => $id]);
+        $count = (int)$countStmt->fetchColumn();
+        if ($count > 0) return ['ok' => false, 'status' => 409, 'error' => "Cannot deactivate this category: {$count} product(s) still use it.", 'product_count' => $count];
+    }
+    $db->prepare('UPDATE dl_product_categories SET label = :label, `grouping` = :grouping, sort_order = :sort_order, is_active = :is_active WHERE id = :id')
+        ->execute([':label' => $label, ':grouping' => $grouping, ':sort_order' => $sortOrder, ':is_active' => $isActive, ':id' => $id]);
+    $after = ['id' => $id, 'code' => (string)$before['code'], 'label' => $label, 'grouping' => $grouping, 'sort_order' => $sortOrder, 'is_active' => $isActive];
+    return ['ok' => true, 'status' => 200, 'before' => $before, 'category' => $after];
+}
+
+function apiAdminProductCategories(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) { http_response_code(500); return; }
+    dlCurrentUser(['admin']);
+    $stmt = $ctx->db()->query(
+        'SELECT c.id, c.code, c.label, c.`grouping`, c.sort_order, c.is_active, COUNT(p.id) AS product_count
+           FROM dl_product_categories c LEFT JOIN dl_products p ON p.category_id = c.id
+          GROUP BY c.id ORDER BY c.`grouping` = "bread" DESC, c.sort_order, c.label'
+    );
+    $ctx->json(['ok' => true, 'categories' => $stmt->fetchAll(PDO::FETCH_ASSOC) ?: []]);
+}
+
+function apiCreateProductCategory(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) { http_response_code(500); return; }
+    dlCurrentUser(['admin']);
+    $input = $ctx->input();
+    $code = strtolower(trim((string)($input['code'] ?? '')));
+    $label = trim((string)($input['label'] ?? ''));
+    $grouping = (string)($input['grouping'] ?? '');
+    $sortOrder = (int)($input['sort_order'] ?? 0);
+    if (!preg_match('/^[a-z0-9_]{2,50}$/', $code) || $label === '' || !in_array($grouping, ['bread', 'non_bread'], true)) {
+        $ctx->json(['ok' => false, 'error' => 'Code must be 2-50 lowercase letters, numbers, or underscores; label and grouping are required.'], 422);
+        return;
+    }
+    try {
+        $ctx->db()->prepare('INSERT INTO dl_product_categories (code, label, `grouping`, sort_order) VALUES (:code, :label, :grouping, :sort_order)')
+            ->execute([':code' => $code, ':label' => $label, ':grouping' => $grouping, ':sort_order' => $sortOrder]);
+        $id = (int)$ctx->db()->lastInsertId();
+        $after = ['id' => $id, 'code' => $code, 'label' => $label, 'grouping' => $grouping, 'sort_order' => $sortOrder, 'is_active' => 1];
+        dl_auditLog('create_product_category', null, 'dl_product_categories', (string)$id, null, $after);
+        $ctx->json(['ok' => true, 'category' => $after]);
+    } catch (\Throwable $e) {
+        $ctx->json(['ok' => false, 'error' => str_contains($e->getMessage(), 'Duplicate') ? 'That category code already exists.' : 'Failed to create category.'], str_contains($e->getMessage(), 'Duplicate') ? 422 : 500);
+    }
+}
+
+function apiUpdateProductCategory(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) { http_response_code(500); return; }
+    dlCurrentUser(['admin']);
+    $input = $ctx->input();
+    $id = (int)($input['id'] ?? 0);
+    $label = trim((string)($input['label'] ?? ''));
+    $grouping = (string)($input['grouping'] ?? '');
+    $sortOrder = (int)($input['sort_order'] ?? 0);
+    $isActive = (int)($input['is_active'] ?? 1) === 1 ? 1 : 0;
+    if ($id <= 0 || $label === '' || !in_array($grouping, ['bread', 'non_bread'], true)) {
+        $ctx->json(['ok' => false, 'error' => 'Category id, label, and a valid grouping are required.'], 422);
+        return;
+    }
+    $result = dl_updateProductCategoryCore($ctx->db(), $id, $label, $grouping, $sortOrder, $isActive);
+    if (($result['ok'] ?? false) !== true) {
+        $ctx->json($result, (int)($result['status'] ?? 500));
+        return;
+    }
+    dl_auditLog('update_product_category', null, 'dl_product_categories', (string)$id, $result['before'], $result['category']);
+    $ctx->json(['ok' => true, 'category' => $result['category']]);
+}
+
 function handleAdminProducts(array $params = []): void
 {
     $ctx = module();
@@ -18503,8 +18640,25 @@ function handleAdminProducts(array $params = []): void
     $input = $ctx->input();
     $search = trim((string)($input['q'] ?? ''));
     $category = trim((string)($input['category'] ?? ''));
-    if (!in_array($category, ['all', 'bread', 'non_bread', 'cake', 'other'], true)) {
+    $categoryId = (int)($input['category_id'] ?? 0);
+    $categoryRows = dl_productCategories(false);
+    if ($categoryId > 0) {
+        $knownCategoryId = false;
+        foreach ($categoryRows as $candidate) {
+            if ((int)$candidate['id'] === $categoryId) { $knownCategoryId = true; break; }
+        }
+        if (!$knownCategoryId) $categoryId = 0;
+    }
+    if ($categoryId <= 0 && !in_array($category, ['bread', 'non_bread'], true) && !isset($categoryRows[$category])) {
         $category = 'all';
+    }
+    // A code filter and an id filter select the same rows, so resolve the code once and let
+    // the filter select highlight what the list is actually showing. `bread` deliberately
+    // stays on the group path: the bread group and the bread category are the same rows, and
+    // the group option is the one the reader picked. Without this, picking "Cake" showed
+    // "All products (214)" in the box while listing 23 rows - measured 2026-10-31.
+    if ($categoryId <= 0 && !in_array($category, ['all', 'bread', 'non_bread'], true) && isset($categoryRows[$category])) {
+        $categoryId = (int)$categoryRows[$category]['id'];
     }
     // Slice B: /admin/products carries two server-rendered tabs. With NO `tab`
     // parameter the page renders exactly the product list it always has; the
@@ -18529,20 +18683,23 @@ function handleAdminProducts(array $params = []): void
                    (SELECT DATE(ph.effective_at) FROM dl_product_price_history ph
                      WHERE ph.product_id = p.id AND ph.effective_at < DATE_ADD(:product_label_at, INTERVAL 1 DAY)
                      ORDER BY ph.effective_at DESC, ph.id DESC LIMIT 1) AS current_price_effective_from
-            FROM dl_products p WHERE 1=1';
+            FROM dl_products p
+            INNER JOIN dl_product_categories pc ON pc.id = p.category_id
+            WHERE 1=1';
         $bind = [':product_price_at' => $today, ':product_label_at' => $today];
         if ($search !== '') {
             $sql .= ' AND (p.name LIKE :q OR p.sku LIKE :q2)';
             $bind[':q'] = "%{$search}%"; $bind[':q2'] = "%{$search}%";
         }
-        if ($category === 'bread') {
-            $sql .= ' AND p.product_category = :product_category_bread';
-            $bind[':product_category_bread'] = 'bread';
-        } elseif ($category === 'non_bread') {
-            $sql .= ' AND p.product_category IN ("cake", "other")';
-        } elseif (in_array($category, ['cake', 'other'], true)) {
-            $sql .= ' AND p.product_category = :product_category_exact';
-            $bind[':product_category_exact'] = $category;
+        if ($categoryId > 0) {
+            $sql .= ' AND pc.id = :filter_category_id';
+            $bind[':filter_category_id'] = $categoryId;
+        } elseif (in_array($category, ['bread', 'non_bread'], true)) {
+            $sql .= ' AND pc.`grouping` = :filter_grouping';
+            $bind[':filter_grouping'] = $category;
+        } elseif (isset($categoryRows[$category])) {
+            $sql .= ' AND pc.id = :filter_category_code_id';
+            $bind[':filter_category_code_id'] = (int)$categoryRows[$category]['id'];
         }
         $sql .= ' ORDER BY p.sort_order, p.name';
         $stmt = $ctx->db()->prepare($sql);
@@ -18551,17 +18708,23 @@ function handleAdminProducts(array $params = []): void
     }
 
     $countSql = 'SELECT
-            SUM(CASE WHEN product_category = "bread" THEN 1 ELSE 0 END) AS bread_count,
-            SUM(CASE WHEN product_category IN ("cake", "other") THEN 1 ELSE 0 END) AS non_bread_count
-        FROM dl_products WHERE 1=1';
+            SUM(CASE WHEN c.`grouping` = "bread" THEN 1 ELSE 0 END) AS bread_count,
+            SUM(CASE WHEN c.`grouping` = "non_bread" THEN 1 ELSE 0 END) AS non_bread_count
+        FROM dl_products p INNER JOIN dl_product_categories c ON c.id = p.category_id WHERE 1=1';
     $countBind = [];
     if ($search !== '') {
-        $countSql .= ' AND (name LIKE :count_name OR sku LIKE :count_sku)';
+        $countSql .= ' AND (p.name LIKE :count_name OR p.sku LIKE :count_sku)';
         $countBind = [':count_name' => "%{$search}%", ':count_sku' => "%{$search}%"];
     }
     $countStmt = $ctx->db()->prepare($countSql);
     $countStmt->execute($countBind);
     $categoryCounts = $countStmt->fetch(PDO::FETCH_ASSOC) ?: ['bread_count' => 0, 'non_bread_count' => 0];
+    $categoryListStmt = $ctx->db()->query(
+        'SELECT c.id, c.code, c.label, c.`grouping`, c.sort_order, c.is_active, COUNT(p.id) AS product_count
+           FROM dl_product_categories c LEFT JOIN dl_products p ON p.category_id = c.id
+          GROUP BY c.id ORDER BY c.`grouping` = "bread" DESC, c.sort_order, c.label'
+    );
+    $productCategories = $categoryListStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
     // Shared by the assignment selector and the product modal's branch pickers.
     $branches = $ctx->db()->query('SELECT id, code, name, is_commissary FROM dl_branches WHERE is_active = 1 AND id IN (' . $viewBranchSql . ') ORDER BY ' . dl_entityOrderBySql())->fetchAll(PDO::FETCH_ASSOC) ?: [];
@@ -18686,6 +18849,8 @@ function handleAdminProducts(array $params = []): void
         'search' => $search,
         'category' => $category,
         'category_counts' => $categoryCounts,
+        'product_categories' => $productCategories,
+        'category_id' => $categoryId,
         'today' => $today,
         'tab' => $tab,
         'branch_id' => $selectedBranchId,
@@ -19325,8 +19490,14 @@ function apiCreateProduct(array $params = []): void
 
     $input = $ctx->input();
     $name  = trim((string)($input['name'] ?? ''));
-    $category  = strtolower(trim((string)($input['product_category'] ?? 'bread')));
-    if (!in_array($category, ['bread', 'cake', 'other'])) $category = 'bread';
+    $categoryValidation = dl_validateProductCategoryInput($input);
+    if (($categoryValidation['ok'] ?? false) !== true) {
+        $ctx->json($categoryValidation, 422);
+        return;
+    }
+    $categoryRow = $categoryValidation['category'];
+    $category = (string)$categoryRow['code'];
+    $categoryId = (int)$categoryRow['id'];
     $price = (float)($input['price'] ?? 0);
     $sort  = (int)($input['sort_order'] ?? 0);
     $outputPiecesPerBatch = dl_normalizePiecesPerBatch($input['output_pieces_per_batch'] ?? null);
@@ -19367,8 +19538,8 @@ function apiCreateProduct(array $params = []): void
 
     try {
         $ctx->db()->prepare(
-            'INSERT INTO dl_products (sku, name, product_category, current_price, sort_order, output_pieces_per_batch, batch_input_qty, batch_egg_qty, output_unit_label, pcs_per_pack, assignment_mode, consignee_assignment_mode) VALUES (:sku, :name, :cat, :price, :sort, :oppb, :biq, :beq, :unit, :ppp, :mode, :cmode)'
-        )->execute([':sku' => $sku, ':name' => $name, ':cat' => $category, ':price' => $price, ':sort' => $sort, ':oppb' => $outputPiecesPerBatch, ':biq' => $batchInputQty, ':beq' => $batchEggQty, ':unit' => $outputUnitLabel, ':ppp' => $pcsPerPack, ':mode' => $assignmentMode, ':cmode' => $consigneeAssignmentMode]);
+            'INSERT INTO dl_products (sku, name, product_category, category_id, current_price, sort_order, output_pieces_per_batch, batch_input_qty, batch_egg_qty, output_unit_label, pcs_per_pack, assignment_mode, consignee_assignment_mode) VALUES (:sku, :name, :cat, :category_id, :price, :sort, :oppb, :biq, :beq, :unit, :ppp, :mode, :cmode)'
+        )->execute([':sku' => $sku, ':name' => $name, ':cat' => $category, ':category_id' => $categoryId, ':price' => $price, ':sort' => $sort, ':oppb' => $outputPiecesPerBatch, ':biq' => $batchInputQty, ':beq' => $batchEggQty, ':unit' => $outputUnitLabel, ':ppp' => $pcsPerPack, ':mode' => $assignmentMode, ':cmode' => $consigneeAssignmentMode]);
 
         $productId = (int)$ctx->db()->lastInsertId();
 
@@ -19463,8 +19634,14 @@ function apiUpdateProduct(array $params = []): void
     $input     = $ctx->input();
     $productId = (int)($input['product_id'] ?? 0);
     $name      = trim((string)($input['name'] ?? ''));
-    $category  = strtolower(trim((string)($input['product_category'] ?? 'bread')));
-    if (!in_array($category, ['bread', 'cake', 'other'])) $category = 'bread';
+    $categoryValidation = dl_validateProductCategoryInput($input);
+    if (($categoryValidation['ok'] ?? false) !== true) {
+        $ctx->json($categoryValidation, 422);
+        return;
+    }
+    $categoryRow = $categoryValidation['category'];
+    $category = (string)$categoryRow['code'];
+    $categoryId = (int)$categoryRow['id'];
     $price     = (float)($input['price'] ?? 0);
     $effectiveFrom = dl_normalizeEffectiveFrom(
         array_key_exists('effective_from', $input) ? $input['effective_from'] : null,
@@ -19529,7 +19706,7 @@ function apiUpdateProduct(array $params = []): void
         $ctx->db()->beginTransaction();
 
         // Lock the product so history insertion, current-price sync and repricing are atomic.
-        $oldStmt = $ctx->db()->prepare('SELECT name, current_price, sort_order, is_active, assignment_mode, consignee_assignment_mode, output_pieces_per_batch, batch_input_qty, batch_egg_qty, output_unit_label, pcs_per_pack FROM dl_products WHERE id = :id FOR UPDATE');
+        $oldStmt = $ctx->db()->prepare('SELECT name, product_category, category_id, current_price, sort_order, is_active, assignment_mode, consignee_assignment_mode, output_pieces_per_batch, batch_input_qty, batch_egg_qty, output_unit_label, pcs_per_pack FROM dl_products WHERE id = :id FOR UPDATE');
         $oldStmt->execute([':id' => $productId]);
         $old = $oldStmt->fetch(PDO::FETCH_ASSOC);
 
@@ -19625,8 +19802,8 @@ function apiUpdateProduct(array $params = []): void
         // Future-dated changes must not leak into undated consumers before their start date.
         $currentPrice = dl_resolveBaseProductPrice($productId, dl_businessDate());
         $ctx->db()->prepare(
-            'UPDATE dl_products SET name = :name, product_category = :cat, current_price = :price, sort_order = :sort, is_active = :active, output_pieces_per_batch = :oppb, batch_input_qty = :biq, batch_egg_qty = :beq, output_unit_label = :unit, pcs_per_pack = :ppp WHERE id = :id'
-        )->execute([':name' => $name, ':cat' => $category, ':price' => $currentPrice, ':sort' => $sort, ':active' => $isActive, ':oppb' => $outputPiecesPerBatch, ':biq' => $batchInputQty, ':beq' => $batchEggQty, ':unit' => $outputUnitLabel, ':ppp' => $pcsPerPack, ':id' => $productId]);
+            'UPDATE dl_products SET name = :name, product_category = :cat, category_id = :category_id, current_price = :price, sort_order = :sort, is_active = :active, output_pieces_per_batch = :oppb, batch_input_qty = :biq, batch_egg_qty = :beq, output_unit_label = :unit, pcs_per_pack = :ppp WHERE id = :id'
+        )->execute([':name' => $name, ':cat' => $category, ':category_id' => $categoryId, ':price' => $currentPrice, ':sort' => $sort, ':active' => $isActive, ':oppb' => $outputPiecesPerBatch, ':biq' => $batchInputQty, ':beq' => $batchEggQty, ':unit' => $outputUnitLabel, ':ppp' => $pcsPerPack, ':id' => $productId]);
 
         dl_auditLog('update_product', null, 'product', (string)$productId, $old, [
             'name' => $name,
@@ -21044,12 +21221,18 @@ function dl_normalizeProductCsvRow(array $normalizedRow): array
     $sku = trim((string)($normalizedRow['sku'] ?? ''));
     $sortOrder = dlCsvNullableInt($normalizedRow['sort_order'] ?? null) ?? 0;
     $isActive = isset($normalizedRow['active']) && in_array(strtolower(trim((string)$normalizedRow['active'])), ['0', 'false', 'no']) ? 0 : 1;
-    $category = 'bread';
-    if (isset($normalizedRow['category'])) {
-        $val = strtolower(trim((string)$normalizedRow['category']));
-        if (in_array($val, ['bread', 'cake', 'other'], true)) {
-            $category = $val;
+    $rawCategory = trim((string)($normalizedRow['category'] ?? 'bread'));
+    $category = null;
+    $categoryId = 0;
+    foreach (dl_productCategories(true) as $code => $candidate) {
+        if (strcasecmp($rawCategory, $code) === 0 || strcasecmp($rawCategory, (string)$candidate['label']) === 0) {
+            $category = $code;
+            $categoryId = (int)$candidate['id'];
+            break;
         }
+    }
+    if ($category === null) {
+        throw new \RuntimeException('Unknown product category "' . $rawCategory . '".');
     }
 
     $oppbSource = $normalizedRow['output_pieces_per_batch'] ?? ($normalizedRow['output_pieces'] ?? null);
@@ -21081,6 +21264,7 @@ function dl_normalizeProductCsvRow(array $normalizedRow): array
         'sort_order' => $sortOrder,
         'is_active' => $isActive,
         'category' => $category,
+        'category_id' => $categoryId,
         'oppb' => $oppb,
         'oul' => $oul,
         'batch_input_qty' => $batchInputQty,
@@ -21161,6 +21345,7 @@ function apiProductsImportCsv(): void
             $sortOrder = $parsed['sort_order'];
             $isActive = $parsed['is_active'];
             $category = $parsed['category'];
+            $categoryId = $parsed['category_id'];
             $oppb = $parsed['oppb'];
             $oul = $parsed['oul'];
             $batchInputQty = $parsed['batch_input_qty'];
@@ -21179,6 +21364,7 @@ function apiProductsImportCsv(): void
                         'UPDATE dl_products
                          SET name = :name,
                              product_category = :cat,
+                             category_id = :category_id,
                              current_price = :price,
                              sort_order = :sort,
                              is_active = :act,
@@ -21190,6 +21376,7 @@ function apiProductsImportCsv(): void
                     )->execute([
                         ':name' => $name,
                         ':cat' => $category,
+                        ':category_id' => $categoryId,
                         ':price' => $price,
                         ':sort' => $sortOrder,
                         ':act' => $isActive,
@@ -21241,13 +21428,14 @@ function apiProductsImportCsv(): void
             
             $ctx->db()->prepare(
                 'INSERT INTO dl_products
-                    (sku, name, product_category, current_price, sort_order, is_active, output_pieces_per_batch, batch_input_qty, batch_egg_qty, output_unit_label)
+                    (sku, name, product_category, category_id, current_price, sort_order, is_active, output_pieces_per_batch, batch_input_qty, batch_egg_qty, output_unit_label)
                  VALUES
-                    (:sku, :name, :cat, :price, :sort, :act, :oppb, :biq, :beq, :oul)'
+                    (:sku, :name, :cat, :category_id, :price, :sort, :act, :oppb, :biq, :beq, :oul)'
             )->execute([
                 ':sku' => $sku,
                 ':name' => $name,
                 ':cat' => $category,
+                ':category_id' => $categoryId,
                 ':price' => $price,
                 ':sort' => $sortOrder,
                 ':act' => $isActive,

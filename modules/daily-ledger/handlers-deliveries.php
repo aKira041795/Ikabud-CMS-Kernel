@@ -115,10 +115,24 @@ function dl_supplyOriginForProduct(int $productId, string $fallback = 'commissar
         if (!$ctx) {
             return $fallback;
         }
-        $stmt = $ctx->db()->prepare('SELECT product_category FROM dl_products WHERE id = :product_id LIMIT 1');
+        $stmt = $ctx->db()->prepare(
+            'SELECT c.grouping, p.product_category
+               FROM dl_products p
+               LEFT JOIN dl_product_categories c ON c.id = p.category_id
+              WHERE p.id = :product_id LIMIT 1'
+        );
         $stmt->execute([':product_id' => $productId]);
-        $category = $stmt->fetchColumn();
-        return in_array($category, ['cake', 'other'], true) ? 'bodega' : $fallback;
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$row) {
+            return $fallback;
+        }
+        // During a partially-applied migration, retain the exact legacy mapping.
+        $grouping = $row['grouping'] ?? null;
+        if ($grouping === null) {
+            $grouping = in_array((string)($row['product_category'] ?? ''), ['cake', 'other'], true)
+                ? 'non_bread' : 'bread';
+        }
+        return $grouping === 'non_bread' ? 'bodega' : $fallback;
     } catch (\Throwable $e) {
         return $fallback;
     }
