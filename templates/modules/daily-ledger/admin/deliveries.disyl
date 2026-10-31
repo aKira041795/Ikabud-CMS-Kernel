@@ -238,6 +238,7 @@
                                                 <thead class="text-xs text-gray-500 uppercase border-b border-gray-200">
                                                     <tr>
                                                         <th class="text-left py-1">Product</th>
+                                                        <th class="text-left py-1 pr-3">Source</th>
                                                         <th class="text-right py-1 pr-3">Sent</th>
                                                         <th class="text-right py-1 pr-3">Received</th>
                                                         <th class="text-right py-1">Variance</th>
@@ -248,6 +249,8 @@
                                                         <tr class="border-t border-gray-100"
                                                             :class="{ 'bg-rose-50': it.variance !== 0 }">
                                                             <td class="py-1" x-text="it.product_name"></td>
+                                                            <td class="py-1 pr-3 font-medium"
+                                                                x-text="it.supply_origin === 'bodega' ? 'Bodega' : (it.supply_origin === 'commissary' ? 'Commissary' : (it.supply_origin === 'branch' ? 'Branch' : (it.supply_origin || 'Commissary'))) "></td>
                                                             <td class="py-1 text-right pr-3 text-gray-500" x-text="it.sent_qty"></td>
                                                             <td class="py-1 text-right pr-3" x-text="it.received_qty"></td>
                                                             <td class="py-1 text-right font-semibold"

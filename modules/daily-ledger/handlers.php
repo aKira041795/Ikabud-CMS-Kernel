@@ -10657,7 +10657,9 @@ function dl_acceptFormalDeliveryByItem($db, int $branchId, int $deliveryId, int 
             ? min($seedByProduct[$pid], $counts[$itemId])
             : $counts[$itemId];
     }
-    $receivingId = dl_acceptFormalDelivery($db, $branchId, $deliveryId, $userId, $receiveDate, $seedByProduct, $shift);
+    // Delay the Bodega summary until duplicate-product line corrections have
+    // replaced the temporary seed quantities, so its total is the posted fact.
+    $receivingId = dl_acceptFormalDelivery($db, $branchId, $deliveryId, $userId, $receiveDate, $seedByProduct, $shift, false);
 
     $update = $db->prepare(
         'UPDATE dl_branch_receiving_items SET quantity_received = :quantity
@@ -10677,6 +10679,7 @@ function dl_acceptFormalDeliveryByItem($db, int $branchId, int $deliveryId, int 
         ->execute([':receiving' => $receivingId]);
     dl_recordReceivingVariances($receivingId);
     dl_markReceivingCountBasis($db, $receivingId, 'independently_counted');
+    dl_auditBodegaReceiving($receivingId, $branchId);
     return $receivingId;
 }
 
@@ -12156,7 +12159,9 @@ function apiProductionProducts(array $params = []): void
             FROM dl_products
             WHERE is_active = 1';
     $bind = [];
-    if ($category !== '' && in_array($category, ['bread', 'cake', 'other'], true)) {
+    if ($category === 'non_bread') {
+        $sql .= ' AND product_category IN ("cake", "other")';
+    } elseif ($category !== '' && in_array($category, ['bread', 'cake', 'other'], true)) {
         $sql .= ' AND product_category = :category';
         $bind[':category'] = $category;
     }
@@ -18497,6 +18502,10 @@ function handleAdminProducts(array $params = []): void
     dl_promoteCurrentPrices();
     $input = $ctx->input();
     $search = trim((string)($input['q'] ?? ''));
+    $category = trim((string)($input['category'] ?? ''));
+    if (!in_array($category, ['all', 'bread', 'non_bread', 'cake', 'other'], true)) {
+        $category = 'all';
+    }
     // Slice B: /admin/products carries two server-rendered tabs. With NO `tab`
     // parameter the page renders exactly the product list it always has; the
     // assignment tab is the per-branch picker on that SAME page.
@@ -18526,11 +18535,33 @@ function handleAdminProducts(array $params = []): void
             $sql .= ' AND (p.name LIKE :q OR p.sku LIKE :q2)';
             $bind[':q'] = "%{$search}%"; $bind[':q2'] = "%{$search}%";
         }
+        if ($category === 'bread') {
+            $sql .= ' AND p.product_category = :product_category_bread';
+            $bind[':product_category_bread'] = 'bread';
+        } elseif ($category === 'non_bread') {
+            $sql .= ' AND p.product_category IN ("cake", "other")';
+        } elseif (in_array($category, ['cake', 'other'], true)) {
+            $sql .= ' AND p.product_category = :product_category_exact';
+            $bind[':product_category_exact'] = $category;
+        }
         $sql .= ' ORDER BY p.sort_order, p.name';
         $stmt = $ctx->db()->prepare($sql);
         $stmt->execute($bind);
         $products = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
+
+    $countSql = 'SELECT
+            SUM(CASE WHEN product_category = "bread" THEN 1 ELSE 0 END) AS bread_count,
+            SUM(CASE WHEN product_category IN ("cake", "other") THEN 1 ELSE 0 END) AS non_bread_count
+        FROM dl_products WHERE 1=1';
+    $countBind = [];
+    if ($search !== '') {
+        $countSql .= ' AND (name LIKE :count_name OR sku LIKE :count_sku)';
+        $countBind = [':count_name' => "%{$search}%", ':count_sku' => "%{$search}%"];
+    }
+    $countStmt = $ctx->db()->prepare($countSql);
+    $countStmt->execute($countBind);
+    $categoryCounts = $countStmt->fetch(PDO::FETCH_ASSOC) ?: ['bread_count' => 0, 'non_bread_count' => 0];
 
     // Shared by the assignment selector and the product modal's branch pickers.
     $branches = $ctx->db()->query('SELECT id, code, name, is_commissary FROM dl_branches WHERE is_active = 1 AND id IN (' . $viewBranchSql . ') ORDER BY ' . dl_entityOrderBySql())->fetchAll(PDO::FETCH_ASSOC) ?: [];
@@ -18653,6 +18684,8 @@ function handleAdminProducts(array $params = []): void
         'branches' => $branches,
         'consignees' => $consignees,
         'search' => $search,
+        'category' => $category,
+        'category_counts' => $categoryCounts,
         'today' => $today,
         'tab' => $tab,
         'branch_id' => $selectedBranchId,

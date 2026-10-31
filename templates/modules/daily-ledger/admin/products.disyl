@@ -228,11 +228,24 @@
     <div class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
         <form class="flex flex-wrap items-end gap-3" action="{base_url}/admin/products" method="GET"
       onsubmit="return window.dlLoadForm(this)">
+            {if tab}<input type="hidden" name="tab" value="{tab}">{/if}
+            {if branch_id > 0}<input type="hidden" name="branch_id" value="{branch_id}">{/if}
+            {if consignee_id > 0}<input type="hidden" name="consignee_id" value="{consignee_id}">{/if}
             <div class="min-w-40 w-40">
                 {include "modules/daily-ledger/admin/partials/scope-filter.disyl"}
             </div>
+            <div>
+                <label class="form-label" for="product-category-filter">Category</label>
+                <select class="form-input" id="product-category-filter" name="category">
+                    <option value="all" {if category == 'all'}selected{/if}>All ({category_counts.bread_count + category_counts.non_bread_count})</option>
+                    <option value="bread" {if category == 'bread'}selected{/if}>Bread ({category_counts.bread_count})</option>
+                    <option value="non_bread" {if category == 'non_bread'}selected{/if}>Non-bread ({category_counts.non_bread_count})</option>
+                    {if category == 'cake'}<option value="cake" selected>Cake only</option>{/if}
+                    {if category == 'other'}<option value="other" selected>Other only</option>{/if}
+                </select>
+            </div>
             <input type="text" class="form-input w-full sm:w-64" name="q" value="{search}" placeholder="Search name or SKU...">
-            <button type="submit" class="btn btn-primary h-10">Search</button>
+            <button type="submit" class="btn btn-primary h-10">Apply</button>
         </form>
         <div class="flex flex-wrap gap-3 sm:ml-2">
             <a href="{base_url}/admin/products/export" class="btn btn-accent h-10" download>Export CSV</a>

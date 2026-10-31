@@ -100,6 +100,68 @@ function dl_branchHasProduction(int $branchId): bool
     }
 }
 
+/**
+ * Resolve the receiving-line source from the product's current category.
+ * Non-bread is supplied by Bodega; a missing product or read failure retains
+ * the caller's honest receiving source.
+ */
+function dl_supplyOriginForProduct(int $productId, string $fallback = 'commissary'): string
+{
+    if ($productId <= 0) {
+        return $fallback;
+    }
+    try {
+        $ctx = module();
+        if (!$ctx) {
+            return $fallback;
+        }
+        $stmt = $ctx->db()->prepare('SELECT product_category FROM dl_products WHERE id = :product_id LIMIT 1');
+        $stmt->execute([':product_id' => $productId]);
+        $category = $stmt->fetchColumn();
+        return in_array($category, ['cake', 'other'], true) ? 'bodega' : $fallback;
+    } catch (\Throwable $e) {
+        return $fallback;
+    }
+}
+
+/** Write one audit event when a posted receiving contains Bodega lines. */
+function dl_auditBodegaReceiving(int $receivingId, int $branchId): void
+{
+    $ctx = module();
+    if (!$ctx || $receivingId <= 0) return;
+
+    $duplicate = $ctx->db()->prepare(
+        'SELECT COUNT(*) FROM audit_logs
+          WHERE module = :audit_module AND action = :audit_action
+            AND entity_type = :entity_type AND entity_id = :entity_id'
+    );
+    $duplicate->execute([
+        ':audit_module' => 'daily-ledger', ':audit_action' => 'receiving_bodega_lines',
+        ':entity_type' => 'dl_branch_receivings', ':entity_id' => (string)$receivingId,
+    ]);
+    if ((int)$duplicate->fetchColumn() > 0) return;
+
+    $stmt = $ctx->db()->prepare(
+        'SELECT br.delivery_id, br.dr_number, COUNT(ri.id) AS line_count,
+                COALESCE(SUM(ri.quantity_received), 0) AS total_qty
+           FROM dl_branch_receivings br
+           INNER JOIN dl_branch_receiving_items ri ON ri.receiving_id = br.id AND ri.supply_origin = :supply_origin
+          WHERE br.id = :receiving_id
+          GROUP BY br.id, br.delivery_id, br.dr_number'
+    );
+    $stmt->execute([':supply_origin' => 'bodega', ':receiving_id' => $receivingId]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$row || (int)$row['line_count'] === 0) return;
+
+    dl_auditLog('receiving_bodega_lines', $branchId, 'dl_branch_receivings', (string)$receivingId, null, [
+        'receiving_id' => $receivingId,
+        'delivery_id' => $row['delivery_id'] !== null ? (int)$row['delivery_id'] : null,
+        'dr_number' => $row['dr_number'],
+        'bodega_line_count' => (int)$row['line_count'],
+        'bodega_total_qty' => (int)$row['total_qty'],
+    ]);
+}
+
 function dl_resolveProductSupplySource(int $branchId, int $productId): array
 {
     $ctx = module();
@@ -1206,7 +1268,7 @@ function dl_syncAutoCommissaryDeliveryFromRuns(\Ikabud\Kernel\Contracts\Database
     return $deliveryId;
 }
 
-function dl_acceptFormalDelivery(\Ikabud\Kernel\Contracts\DatabaseContract $db, int $branchId, int $deliveryId, int $userId, string $receiveDate, ?array $partialQtys = null, string $shift = 'AM'): int
+function dl_acceptFormalDelivery(\Ikabud\Kernel\Contracts\DatabaseContract $db, int $branchId, int $deliveryId, int $userId, string $receiveDate, ?array $partialQtys = null, string $shift = 'AM', bool $auditBodega = true): int
 {
     $shift = dl_requireResolvedReceiveShift(['shift' => $shift]);
     $headStmt = $db->prepare(
@@ -1283,9 +1345,9 @@ function dl_acceptFormalDelivery(\Ikabud\Kernel\Contracts\DatabaseContract $db, 
 
     $rcvItemStmt = $db->prepare(
         'INSERT INTO dl_branch_receiving_items
-            (receiving_id, delivery_item_id, product_id, quantity_received, unit,
+            (receiving_id, delivery_item_id, product_id, supply_origin, quantity_received, unit,
              unit_cost_snapshot, selling_price_snapshot, remarks)
-         VALUES (:receiving_id, :delivery_item_id, :product_id, :quantity_received, :unit,
+         VALUES (:receiving_id, :delivery_item_id, :product_id, :supply_origin, :quantity_received, :unit,
                  :unit_cost_snapshot, :selling_price_snapshot, :remarks)'
     );
     foreach ($items as $item) {
@@ -1297,6 +1359,7 @@ function dl_acceptFormalDelivery(\Ikabud\Kernel\Contracts\DatabaseContract $db, 
             ':receiving_id' => $receivingId,
             ':delivery_item_id' => (int)$item['id'],
             ':product_id' => $pid,
+            ':supply_origin' => dl_supplyOriginForProduct($pid),
             ':quantity_received' => $quantity,
             ':unit' => (string)$item['unit'],
             ':unit_cost_snapshot' => $item['unit_cost_snapshot'] !== null ? (float)$item['unit_cost_snapshot'] : null,
@@ -1328,6 +1391,9 @@ function dl_acceptFormalDelivery(\Ikabud\Kernel\Contracts\DatabaseContract $db, 
         'line_count' => count($items),
     ]);
     dl_accountabilityAuditGuard($db, 'create_receiving', 'dl_branch_receivings', (string)$receivingId, $branchId);
+    if ($auditBodega) {
+        dl_auditBodegaReceiving($receivingId, $branchId);
+    }
 
     return $receivingId;
 }
@@ -2198,15 +2264,22 @@ function dl_formalReceiptViewModel(\Ikabud\Kernel\Contracts\DatabaseContract $db
         'SELECT p.name AS product_name,
                 di.quantity AS sent_qty,
                 COALESCE(ri.quantity_received, di.quantity) AS received_qty,
-                COALESCE(ri.quantity_received, di.quantity) - di.quantity AS variance
+                COALESCE(ri.quantity_received, di.quantity) - di.quantity AS variance,
+                COALESCE(ri.supply_origin, br.origin_type, d.origin_type, "commissary") AS supply_origin
          FROM dl_delivery_items di
          INNER JOIN dl_products p ON p.id = di.product_id
          LEFT JOIN dl_branch_receiving_items ri
              ON ri.delivery_item_id = di.id AND ri.receiving_id = :rcv
+         INNER JOIN dl_branch_receivings br ON br.id = :rcv_head
+         INNER JOIN dl_deliveries d ON d.id = di.delivery_id
          WHERE di.delivery_id = :did
          ORDER BY p.name'
     );
-    $itemStmt->execute([':did' => $deliveryId, ':rcv' => (int)$receiving['id']]);
+    $itemStmt->execute([
+        ':did' => $deliveryId,
+        ':rcv' => (int)$receiving['id'],
+        ':rcv_head' => (int)$receiving['id'],
+    ]);
     $items = $itemStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     foreach ($items as &$item) {
         $item['sent_qty'] = (int)$item['sent_qty'];
@@ -2240,7 +2313,8 @@ function dl_branchTransferReceiptViewModel(\Ikabud\Kernel\Contracts\DatabaseCont
     $itemStmt = $db->prepare(
         'SELECT cw.id, p.name AS product_name, cw.quantity AS sent_qty,
                 COALESCE(cw.received_qty, cw.quantity) AS received_qty,
-                COALESCE(cw.received_qty, cw.quantity) - cw.quantity AS variance
+                COALESCE(cw.received_qty, cw.quantity) - cw.quantity AS variance,
+                "branch" AS supply_origin
          FROM dl_cashier_withdrawals cw
          INNER JOIN dl_products p ON p.id = cw.product_id
          WHERE cw.withdrawal_type = "delivery"
@@ -2478,15 +2552,16 @@ function apiCreateReceiving(array $params = []): void
 
         $insItem = $ctx->db()->prepare(
             'INSERT INTO dl_branch_receiving_items
-                (receiving_id, delivery_item_id, product_id, quantity_received, unit,
+                (receiving_id, delivery_item_id, product_id, supply_origin, quantity_received, unit,
                  unit_cost_snapshot, selling_price_snapshot, remarks)
-             VALUES (:r, :di, :p, :q, :u, :uc, :sp, :rmk)'
+             VALUES (:r, :di, :p, :so, :q, :u, :uc, :sp, :rmk)'
         );
         foreach ($clean as $it) {
             $insItem->execute([
                 ':r' => $rcvId, ':di' => $it['delivery_item_id'],
-                ':p' => $it['product_id'], ':q' => $it['quantity_received'],
-                ':u' => $it['unit'], ':uc' => $it['unit_cost_snapshot'],
+                ':p' => $it['product_id'],
+                ':so' => dl_supplyOriginForProduct((int)$it['product_id'], $deliveryId ? 'commissary' : $originType),
+                ':q' => $it['quantity_received'], ':u' => $it['unit'], ':uc' => $it['unit_cost_snapshot'],
                 ':sp' => $it['selling_price_snapshot'], ':rmk' => $it['remarks'],
             ]);
         }
@@ -2606,6 +2681,7 @@ function apiPostReceiving(array $params = []): void
         $ctx->db()->commit();
         dl_auditLog('receiving_posted', $branchId, 'dl_branch_receivings', (string)$rcvId,
             ['status' => 'draft'], ['status' => 'posted']);
+        dl_auditBodegaReceiving($rcvId, $branchId);
         $ctx->json(['ok' => true]);
     } catch (\Throwable $e) {
         $ctx->db()->rollBack();
