@@ -643,8 +643,14 @@ function moduleExtensionUpdateFeedUrl(array $manifest): string
     }
 
     $scheme = strtolower((string) parse_url($url, PHP_URL_SCHEME));
-    $allowHttp = filter_var($_ENV['APP_EXTENSION_FEEDS_ALLOW_HTTP'] ?? 'false', FILTER_VALIDATE_BOOL);
-    if ($scheme !== 'https' && !($scheme === 'http' && $allowHttp)) {
+    $allowDev = filter_var($_ENV['APP_EXTENSION_FEEDS_ALLOW_HTTP'] ?? getenv('APP_EXTENSION_FEEDS_ALLOW_HTTP') ?: 'false', FILTER_VALIDATE_BOOL);
+    if ($allowDev) {
+        // One deliberate escape hatch for local development and the end-to-end
+        // test: it relaxes the SCHEME and the HOST rules together, so a fixture
+        // server on 127.0.0.1 can serve a feed. Production must never set it.
+        return $scheme === 'https' || $scheme === 'http' ? $url : '';
+    }
+    if ($scheme !== 'https') {
         return '';
     }
 

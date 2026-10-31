@@ -140,9 +140,12 @@ That URL must serve:
 
 Rules the updater applies:
 
+- **`update_url` must be in the PACKAGE manifest.** An update replaces the module tree,
+  so a feed declaration patched onto the installed copy afterwards does not survive the
+  next update.
 - `https` only. Loopback and private-network hosts are refused, so a package cannot aim the
   updater at the server it runs on. (`APP_EXTENSION_FEEDS_ALLOW_HTTP=1` relaxes the scheme
-  for local development only.)
+  *and* the host rules together, for local development only — never set it in production.)
 - `sha256` is **mandatory**. A version without a digest is skipped, not trusted — an update
   the installer cannot verify is remote code execution with a version number.
 - `requires_kernel` entries that this kernel does not satisfy are skipped.
