@@ -182,8 +182,27 @@ row, and only the explicit **Check for Updates** action (or the cron script) fet
 | Action | Endpoint | Behaviour |
 |---|---|---|
 | Disable | `POST /api/v1/cms/modules/toggle` | Module stops participating for this tenant; data retained. |
-| Delete | `POST /api/v1/cms/modules/{id}/delete` | Only when disabled; removes files and the registry entry. |
-| Uninstall | `POST /api/v1/cms/modules/{id}/uninstall` | Honours the manifest's `uninstall` block. `purge` drops owned tables and requires `confirm_purge` when the module asks for it; `export` requires `supports_data_export`. |
+| Delete | `POST /api/v1/cms/modules/{id}/delete` | Only when disabled; removes the module from this site (shared code on disk is preserved in a multi-tenant install). Data is never touched. |
+| Uninstall | `POST /api/v1/cms/modules/{id}/uninstall` | Removes files too, and honours the manifest's `uninstall` block for data. |
+
+### The uninstall dialog
+
+The screen offers **Uninstall…** for a disabled module, and the options it shows come from
+that module's own `uninstall` policy — the UI never offers a choice the server will refuse:
+
+- **Keep the data** is the default. Reinstalling later restores the content.
+- **Also delete the data** appears with the number of tables the module owns. When the
+  manifest sets `requires_confirmation_to_drop_data`, a second acknowledgement is required
+  (unchecked by default — a data drop is not the place to assume permission).
+- **Export before deleting** appears only when the module declares `supports_data_export`.
+- **Uninstall anyway** appears only when the module declares `disable_safe: false`.
+
+### Multi-tenant installs
+
+Uninstall deletes `modules/<id>` — a directory every tenant shares — and drops module-owned
+tables. When one install serves several tenants, neither is one tenant's to remove, so the
+endpoint refuses with `uninstall_requires_superadmin_in_multitenant` and the screen does not
+offer the action at all. **Delete** remains the tenant-scoped removal path there.
 
 Required always-active modules and kernel modules are refused by all of the above.
 
@@ -191,10 +210,10 @@ Required always-active modules and kernel modules are refused by all of the abov
 
 ## 7. Known gaps (not implemented here)
 
-- **No uninstall options UI.** `purge` / `export` / `confirm_purge` are implemented in the
-  API but the admin screen only offers Delete.
 - **No marketplace.** Feeds are decentralised by design; a directory index would be an
   additive discovery layer over the same contract.
 - **One code version per install.** `modules/` is shared by every tenant, so the first
   installer of a version sets it for all tenants that activate the module. Per-tenant code
   versions would require per-tenant module roots.
+- **No per-tenant data purge.** Because of the point above, dropping a module's tables from a
+  tenant session is refused rather than guessed at; a superadmin performs it.

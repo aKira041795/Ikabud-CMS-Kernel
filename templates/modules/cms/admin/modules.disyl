@@ -263,6 +263,12 @@
                                         Delete
                                     </button>
                                 </template>
+                                <!-- Uninstall (only disabled modules, single-tenant installs) -->
+                                <template x-if="!CMS_MULTI_TENANT && !mod.enabled && !mod.is_core">
+                                    <button @click="openUninstall(mod)" class="px-3 py-1.5 text-xs font-semibold text-white bg-rose-600 rounded-2xl hover:bg-rose-700 transition-colors">
+                                        Uninstall…
+                                    </button>
+                                </template>
                             </div>
                         </td>
                     </tr>
@@ -332,12 +338,72 @@
         <p class="mt-4 text-sm text-slate-500">No CMS extension modules installed yet.</p>
         <p class="mt-1 text-xs text-slate-400">Upload a module package (.zip) to extend your CMS. Kernel modules are managed at the application level.</p>
     </div>
+
+    <!-- Uninstall dialog: the options it offers come from the module's own
+         uninstall policy, so the screen never promises a choice the module
+         will refuse. -->
+    <div x-show="uninstallOpen" x-cloak class="fixed inset-0 z-[70] flex items-center justify-center p-4" @keydown.escape.window="closeUninstall()">
+        <div class="fixed inset-0 bg-black/35 backdrop-blur-sm" @click="closeUninstall()"></div>
+        <div class="relative w-full max-w-xl rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-900/20">
+            <div class="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5">
+                <div>
+                    <h3 class="text-base font-semibold text-slate-900" x-text="'Uninstall ' + uninstallForm.name"></h3>
+                    <p class="mt-1 text-sm text-slate-500">Uninstalling removes the module files. What happens to its data is your choice below.</p>
+                </div>
+                <button type="button" class="rounded-2xl border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-500 hover:bg-slate-50 transition-colors" @click="closeUninstall()">Close</button>
+            </div>
+            <div class="space-y-4 px-6 py-5">
+                <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                    <p x-show="uninstallForm.tableCount > 0" x-text="'This module owns ' + uninstallForm.tableCount + ' database table(s). Keeping the data leaves them in place so reinstalling restores your content.'"></p>
+                    <p x-show="uninstallForm.tableCount === 0">This module declares no database tables, so there is no module data to keep or delete.</p>
+                </div>
+
+                <label class="flex items-start gap-3 text-sm text-slate-700">
+                    <input type="checkbox" x-model="uninstallForm.purge" :disabled="uninstallForm.tableCount === 0" class="mt-0.5 rounded border-slate-300">
+                    <span>Also delete this module's data (cannot be undone)</span>
+                </label>
+
+                <div x-show="uninstallForm.purge && uninstallForm.supportsExport" x-cloak class="pl-7">
+                    <label class="flex items-start gap-3 text-sm text-slate-700">
+                        <input type="checkbox" x-model="uninstallForm.export" class="mt-0.5 rounded border-slate-300">
+                        <span>Export the data before deleting it</span>
+                    </label>
+                </div>
+
+                <div x-show="uninstallForm.purge && uninstallForm.requiresConfirmation" x-cloak class="pl-7">
+                    <label class="flex items-start gap-3 text-sm text-rose-700">
+                        <input type="checkbox" x-model="uninstallForm.confirmPurge" class="mt-0.5 rounded border-rose-300">
+                        <span>I confirm dropping this module's owned data</span>
+                    </label>
+                </div>
+
+                <div x-show="!uninstallForm.disableSafe" x-cloak class="pl-7">
+                    <label class="flex items-start gap-3 text-sm text-amber-700">
+                        <input type="checkbox" x-model="uninstallForm.force" class="mt-0.5 rounded border-amber-300">
+                        <span>This module declares it is not safe to disable. Uninstall it anyway.</span>
+                    </label>
+                </div>
+
+                <p x-show="uninstallMsg" x-cloak class="text-sm rounded-lg px-4 py-2 bg-rose-50 text-rose-700" x-text="uninstallMsg"></p>
+
+                <div class="flex items-center justify-end gap-3 border-t border-slate-100 pt-4">
+                    <button type="button" class="rounded-2xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors" @click="closeUninstall()">Cancel</button>
+                    <button type="button" @click="confirmUninstall()" :disabled="uninstalling" class="inline-flex items-center gap-2 rounded-2xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-50 transition-colors">
+                        <span x-text="uninstalling ? 'Uninstalling…' : 'Uninstall'"></span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
 function cmsModuleManager() {
     const rawModules = {modules_json|raw};
     const rawCatalogModules = {catalog_json|raw};
+    // Uninstall removes shared files and module tables, which are not one site's
+    // to delete when several tenants share this modules directory.
+    const CMS_MULTI_TENANT = {multi_tenant_json|raw};
 
     // Pre-populate configValues from each module's current settings
     const configValues = {};
@@ -374,6 +440,14 @@ function cmsModuleManager() {
         togglingAuto: null,
         updateMsg:   '',
         updateOk:    false,
+        CMS_MULTI_TENANT: CMS_MULTI_TENANT,
+        uninstallOpen: false,
+        uninstalling: false,
+        uninstallMsg: '',
+        uninstallForm: {
+            id: '', name: '', purge: false, export: false, confirmPurge: false, force: false,
+            tableCount: 0, supportsExport: false, requiresConfirmation: true, disableSafe: true,
+        },
         testingResetEmail: false,
         resetEmailMsg: '',
         resetEmailOk: false,
@@ -514,6 +588,65 @@ function cmsModuleManager() {
                 this.uploadOk = false;
             } finally {
                 this.uploading = false;
+            }
+        },
+
+        openUninstall(mod) {
+            const policy = mod.uninstall || {};
+            this.uninstallForm = {
+                id: mod.id,
+                name: mod.name,
+                purge: false,
+                export: false,
+                confirmPurge: false,
+                force: false,
+                tableCount: Array.isArray(mod.tables) ? mod.tables.length : 0,
+                supportsExport: policy.supports_data_export === true,
+                // Default to requiring confirmation when the manifest says nothing:
+                // a data drop is not the place to assume permission.
+                requiresConfirmation: policy.requires_confirmation_to_drop_data !== false,
+                disableSafe: policy.disable_safe !== false,
+            };
+            this.uninstallMsg = '';
+            this.uninstallOpen = true;
+        },
+
+        closeUninstall() {
+            if (this.uninstalling) { return; }
+            this.uninstallOpen = false;
+            this.uninstallMsg = '';
+        },
+
+        async confirmUninstall() {
+            const form = this.uninstallForm;
+            this.uninstalling = true;
+            this.uninstallMsg = '';
+            try {
+                const fd = new FormData();
+                if (form.purge) {
+                    fd.append('purge', '1');
+                    if (form.export) { fd.append('export', '1'); }
+                    if (form.confirmPurge) { fd.append('confirm_purge', '1'); }
+                }
+                if (form.force) { fd.append('force', '1'); }
+                fd.append('_token', CMS_CSRF);
+                const res = await fetch(CMS_BASE + '/api/v1/cms/modules/' + encodeURIComponent(form.id) + '/uninstall', {
+                    method: 'POST',
+                    body: fd,
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    this.uninstallOpen = false;
+                    this.updateOk = true;
+                    this.updateMsg = data.message || 'Module uninstalled.';
+                    setTimeout(function () { window.location.reload(); }, 900);
+                } else {
+                    this.uninstallMsg = data.error || 'Uninstall failed.';
+                }
+            } catch (e) {
+                this.uninstallMsg = 'Uninstall failed: ' + e.message;
+            } finally {
+                this.uninstalling = false;
             }
         },
 

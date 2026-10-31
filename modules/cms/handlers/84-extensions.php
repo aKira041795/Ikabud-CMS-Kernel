@@ -46,7 +46,21 @@ function cmsAdminModules(array $params = []): void
         'page_title'    => 'CMS Modules',
         'modules_json'  => json_encode($modules),
         'catalog_json'  => json_encode($catalogModules),
+        // Uninstall removes shared files and module-owned tables. In a multi-tenant
+        // install neither belongs to one tenant, so the screen must not offer it.
+        'multi_tenant_json' => json_encode(_cmsIsMultiTenantModuleHost()),
     ]));
+}
+
+/**
+ * Whether this install serves several tenants from one modules/ directory.
+ *
+ * Used to decide what a tenant admin may be offered: in that mode the module
+ * code and its tables are not one tenant's to delete.
+ */
+function _cmsIsMultiTenantModuleHost(): bool
+{
+    return function_exists('moduleTenantSettingsModeEnabled') && moduleTenantSettingsModeEnabled();
 }
 
 /**
@@ -2060,6 +2074,21 @@ function cmsApiModuleUninstall(array $params = []): void
     if (!_cmsIsRegisteredSubModule($moduleId)) {
         http_response_code(403);
         echo json_encode(['ok' => false, 'error' => 'Module "' . $moduleId . '" is a kernel module and cannot be uninstalled from the CMS.']);
+        exit;
+    }
+
+    // Uninstall deletes the module directory (shared by every tenant) and drops
+    // module-owned tables. In a multi-tenant install neither is one tenant's to
+    // remove, so this is refused rather than performed on the wrong database or
+    // for every other tenant. "Delete" remains the tenant-scoped removal path.
+    if (_cmsIsMultiTenantModuleHost()) {
+        _cmsAuditInstaller('module.uninstall', 'module', $moduleId, 'failed', 'Uninstall refused: multi-tenant install.');
+        http_response_code(409);
+        echo json_encode([
+            'ok'              => false,
+            'error_code'      => 'uninstall_requires_superadmin_in_multitenant',
+            'error'           => 'This install serves several tenants from one modules directory, so uninstalling would remove code and data that are not this site\'s alone. Use Delete to remove it from this site, or ask a superadmin to uninstall it.',
+        ]);
         exit;
     }
 
