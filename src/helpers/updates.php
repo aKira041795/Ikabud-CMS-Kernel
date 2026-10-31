@@ -794,9 +794,15 @@ function moduleExtensionSelectVersion(array $versions, string $channel): ?array
             continue;
         }
         $requiresKernel = trim((string) ($entry['requires_kernel'] ?? ''));
-        if ($requiresKernel !== '' && function_exists('kernelSemverConstraintSatisfies')
-            && !kernelSemverConstraintSatisfies($kernelVersion, $requiresKernel)) {
-            continue;
+        if ($requiresKernel !== '') {
+            // A version that declares a kernel constraint must be evaluated against
+            // THIS kernel. If the evaluator is unavailable we cannot prove the
+            // update runs here, so the entry is not eligible - refusing an update
+            // is recoverable, installing an incompatible one is not.
+            if (!function_exists('kernelSemverRangeSatisfies')
+                || !kernelSemverRangeSatisfies($kernelVersion, $requiresKernel)) {
+                continue;
+            }
         }
         if ($best !== null && version_compare($version, (string) $best['version'], '<=')) {
             continue;
@@ -984,6 +990,10 @@ function moduleExtensionAutoUpdateEnabled(string $moduleId): bool
 
 /**
  * Record the operator's auto-update choice for one extension.
+ *
+ * Refuses a module that declares no usable feed: there is nothing to update
+ * from, and recording an opt-in would show an operator a promise the updater
+ * cannot keep.
  */
 function moduleExtensionSetAutoUpdate(string $moduleId, bool $enabled): bool
 {
@@ -991,6 +1001,9 @@ function moduleExtensionSetAutoUpdate(string $moduleId, bool $enabled): bool
     if ($state['feed_url'] === '') {
         $manifest = function_exists('loadModuleManifestForId') ? loadModuleManifestForId($moduleId) : null;
         $state['feed_url'] = is_array($manifest) ? moduleExtensionUpdateFeedUrl($manifest) : '';
+    }
+    if ($state['feed_url'] === '') {
+        return false;
     }
     $state['module_id'] = $moduleId;
     $state['auto_update'] = $enabled;
