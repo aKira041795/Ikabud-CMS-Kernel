@@ -5064,6 +5064,69 @@ function moduleSignPackageForPath(string $zipPath, string $privateKeyB64): array
     return ['ok' => true, 'files_signed' => count($files)];
 }
 
+/**
+ * Normalize a ZIP entry name, refusing absolute, drive-qualified, null-byte,
+ * colon-containing, and parent-traversal paths so extraction cannot escape.
+ */
+function moduleZipSanitizeEntryName(string $name): ?string
+{
+    $name = str_replace('\\\\', '/', $name);
+    if ($name === '' || str_contains($name, "\0")) {
+        return null;
+    }
+    if (preg_match('/^[A-Za-z]:\//', $name)) {
+        return null;
+    }
+    if (str_contains($name, ':')) {
+        return null;
+    }
+    if (str_starts_with($name, '/')) {
+        return null;
+    }
+
+    $parts = explode('/', $name);
+    foreach ($parts as $part) {
+        if ($part === '' || $part === '.') {
+            continue;
+        }
+        if ($part === '..') {
+            return null;
+        }
+    }
+
+    return ltrim($name, '/');
+}
+
+/**
+ * Refuse ZIP symlinks and non-regular special files because following or
+ * creating them could escape the package root or create unsafe filesystem nodes.
+ */
+function moduleZipEntryTypeAllowed(\ZipArchive $zip, int $index, bool $isDirectory): bool
+{
+    if (!method_exists($zip, 'getExternalAttributesIndex')) {
+        return true;
+    }
+
+    $opsys = 0;
+    $attr = 0;
+    $ok = $zip->getExternalAttributesIndex($index, $opsys, $attr);
+    if (!$ok) {
+        return true;
+    }
+
+    $mode = ($attr >> 16) & 0xF000;
+    if ($mode === 0) {
+        return true;
+    }
+    if ($mode === 0xA000) {
+        return false;
+    }
+    if ($isDirectory) {
+        return $mode === 0x4000;
+    }
+    return $mode === 0x8000;
+}
+
 function installModuleFromZip(string $zipPath): array
 {
     if (!is_file($zipPath)) {
@@ -5099,67 +5162,7 @@ function installModuleFromZip(string $zipPath): array
     $packageTemplatesPrefix = $packagePrefix . 'templates/';
     $hasPackagedTemplates = false;
 
-    // Normalize + validate zip entry names before any extraction.
-    // This blocks Zip Slip style traversal, absolute paths, and null-byte names.
-    $sanitizeEntryName = static function (string $name): ?string {
-        $name = str_replace('\\\\', '/', $name);
-        if ($name === '' || str_contains($name, "\0")) {
-            return null;
-        }
-        if (preg_match('/^[A-Za-z]:\//', $name)) {
-            return null;
-        }
-        if (str_contains($name, ':')) {
-            return null;
-        }
-        if (str_starts_with($name, '/')) {
-            return null;
-        }
-
-        $parts = explode('/', $name);
-        foreach ($parts as $part) {
-            if ($part === '' || $part === '.') {
-                continue;
-            }
-            if ($part === '..') {
-                return null;
-            }
-        }
-
-        return ltrim($name, '/');
-    };
-
-    $isSafeZipEntryType = static function (int $index, bool $isDirectory) use ($zip): bool {
-        if (!method_exists($zip, 'getExternalAttributesIndex')) {
-            return true;
-        }
-
-        $opsys = 0;
-        $attr = 0;
-        $ok = $zip->getExternalAttributesIndex($index, $opsys, $attr);
-        if (!$ok) {
-            return true;
-        }
-
-        // On Unix creators, upper 16 bits generally store st_mode.
-        $mode = ($attr >> 16) & 0xF000;
-        if ($mode === 0) {
-            return true;
-        }
-
-        // Reject symbolic links explicitly.
-        if ($mode === 0xA000) {
-            return false;
-        }
-
-        if ($isDirectory) {
-            return $mode === 0x4000;
-        }
-
-        // For file entries, allow regular files only.
-        return $mode === 0x8000;
-    };
-
+    // Normalize and validate every ZIP entry before extraction.
     // Check root first
     if ($zip->locateName('module.json') !== false) {
         $manifestIndex = $zip->locateName('module.json');
@@ -5168,7 +5171,7 @@ function installModuleFromZip(string $zipPath): array
         // Check for single top-level directory containing module.json
         for ($i = 0; $i < $zip->numFiles; $i++) {
             $rawName = (string)$zip->getNameIndex($i);
-            $name = $sanitizeEntryName($rawName);
+            $name = moduleZipSanitizeEntryName($rawName);
             if ($name === null) {
                 continue;
             }
@@ -5189,7 +5192,7 @@ function installModuleFromZip(string $zipPath): array
     $totalUncompressedBytes = 0;
     for ($i = 0; $i < $zip->numFiles; $i++) {
         $rawName = (string)$zip->getNameIndex($i);
-        $name = $sanitizeEntryName($rawName);
+        $name = moduleZipSanitizeEntryName($rawName);
         if ($name === null) {
             $zip->close();
             return moduleInstallFailure('zip_invalid_path', "Zip contains invalid entry path: {$rawName}");
@@ -5217,7 +5220,7 @@ function installModuleFromZip(string $zipPath): array
         }
 
         $isDirectory = str_ends_with($relativeName, '/');
-        if (!$isSafeZipEntryType($i, $isDirectory)) {
+        if (!moduleZipEntryTypeAllowed($zip, $i, $isDirectory)) {
             $zip->close();
             return moduleInstallFailure('zip_unsupported_entry_type', "Zip contains unsupported entry type: {$name}");
         }
@@ -5358,7 +5361,7 @@ function installModuleFromZip(string $zipPath): array
 
     for ($i = 0; $i < $zip->numFiles; $i++) {
         $rawName = (string)$zip->getNameIndex($i);
-        $name = $sanitizeEntryName($rawName);
+        $name = moduleZipSanitizeEntryName($rawName);
         if ($name === null) {
             $zip->close();
             $cleanupInstall();
@@ -5386,7 +5389,7 @@ function installModuleFromZip(string $zipPath): array
         $destinationBase = $isTemplateEntry ? $targetTemplateDir : $targetDir;
 
         if ($relativeName === '' || str_ends_with($relativeName, '/')) {
-            if (!$isSafeZipEntryType($i, true)) {
+            if (!moduleZipEntryTypeAllowed($zip, $i, true)) {
                 $zip->close();
                 $cleanupInstall();
                 return moduleInstallFailure('zip_unsupported_entry_type', "Zip contains unsupported directory entry type: {$name}");
@@ -5399,7 +5402,7 @@ function installModuleFromZip(string $zipPath): array
             continue;
         }
 
-        if (!$isSafeZipEntryType($i, false)) {
+        if (!moduleZipEntryTypeAllowed($zip, $i, false)) {
             $zip->close();
             $cleanupInstall();
             return moduleInstallFailure('zip_unsupported_entry_type', "Zip contains unsupported file entry type: {$name}");
@@ -5528,6 +5531,402 @@ function installModuleFromZip(string $zipPath): array
         'warning' => 'Module installed but not enabled: invalid capability manifest',
         'error' => $capCheck['error'] ?? 'invalid',
     ];
+}
+
+/**
+ * Apply the shared package gates without throwing or rendering. It refuses
+ * malformed capabilities, incompatible suite contracts, and (when requested)
+ * uncertified modules before package files can replace a live installation.
+ *
+ * @param array<string,mixed> $manifest
+ * @param array<string,mixed> $options
+ * @return array<string,mixed>
+ */
+function modulePackagePreflightGates(array $manifest, array $options = []): array
+{
+    $checks = [];
+    try {
+        $capabilities = validateModuleCapabilities($manifest);
+        $checks['capabilities'] = $capabilities;
+        if (empty($capabilities['ok'])) {
+            return moduleInstallFailure('manifest_invalid_capabilities', (string)($capabilities['error'] ?? 'module.json capabilities block is invalid'));
+        }
+
+        $fleet = is_array($options['fleet'] ?? null) ? $options['fleet'] : discoverModules();
+        $suite = validateModuleSuiteContractForInstall($manifest, $fleet);
+        $checks['suite_contract'] = $suite;
+        if (empty($suite['ok'])) {
+            return [
+                'ok' => false,
+                'error_code' => (string)($suite['error_code'] ?? 'module_suite_contract_failed'),
+                'error' => (string)($suite['error'] ?? 'Module failed product suite contract'),
+            ];
+        }
+
+        if (!empty($options['require_certification'])) {
+            $certificationManifest = $manifest;
+            $moduleDir = trim((string)($options['module_dir'] ?? ''));
+            if ($moduleDir !== '') {
+                $certificationManifest['_path'] = $moduleDir;
+            }
+            $certification = validateModuleCertification($certificationManifest);
+            $checks['certification'] = $certification;
+            if (empty($certification['ok'])) {
+                $failed = array_map(
+                    static fn(array $check): string => (string)($check['check'] ?? 'Certification') . ': ' . (string)($check['detail'] ?? 'failed'),
+                    array_values(array_filter($certification['checks'] ?? [], static fn($check): bool => is_array($check) && empty($check['passed'])))
+                );
+                return moduleInstallFailure('module_not_certified', 'Module failed production certification: ' . implode('; ', $failed));
+            }
+        }
+
+        return ['ok' => true, 'checks' => $checks];
+    } catch (\Throwable $e) {
+        return moduleInstallFailure('module_preflight_failed', 'Module package preflight failed: ' . $e->getMessage());
+    }
+}
+
+/**
+ * Replace an installed module from a validated ZIP. It refuses unsafe archive
+ * entries, absent installations, implicit downgrades, bad signatures,
+ * incomplete packages, and failed package gates; post-swap failures restore
+ * both module and packaged-template trees rather than leave a partial update.
+ *
+ * @param array<string,mixed> $options
+ * @return array<string,mixed>
+ */
+function updateModuleFromZip(string $zipPath, array $options = []): array
+{
+    $allowDowngrade = !empty($options['allow_downgrade']);
+    $requireCertification = !array_key_exists('require_certification', $options) || (bool)$options['require_certification'];
+    $installPackagedTemplates = !array_key_exists('packaged_templates', $options) || (bool)$options['packaged_templates'];
+
+    if (!is_file($zipPath)) {
+        return moduleInstallFailure('zip_not_found', 'Zip file not found');
+    }
+    $signature = @file_get_contents($zipPath, false, null, 0, 4);
+    if (!is_string($signature) || !in_array($signature, ["PK\x03\x04", "PK\x05\x06", "PK\x07\x08"], true)) {
+        return moduleInstallFailure('zip_invalid_signature', 'Uploaded file is not a valid ZIP archive');
+    }
+    if (!class_exists('ZipArchive')) {
+        return moduleInstallFailure('zip_extension_missing', 'PHP zip extension is required');
+    }
+
+    $zip = new \ZipArchive();
+    if ($zip->open($zipPath) !== true) {
+        return moduleInstallFailure('zip_open_failed', 'Cannot open zip file');
+    }
+    if ($zip->numFiles > 2000) {
+        $zip->close();
+        return moduleInstallFailure('zip_too_many_entries', 'Zip contains too many entries');
+    }
+
+    $manifestIndex = null;
+    $prefix = '';
+    if ($zip->locateName('module.json') !== false) {
+        $manifestIndex = $zip->locateName('module.json');
+    } else {
+        for ($i = 0; $i < $zip->numFiles; $i++) {
+            $name = moduleZipSanitizeEntryName((string)$zip->getNameIndex($i));
+            if ($name !== null && preg_match('#^([^/]+)/module\.json$#', $name, $match)) {
+                $manifestIndex = $i;
+                $prefix = $match[1] . '/';
+                break;
+            }
+        }
+    }
+    if ($manifestIndex === null) {
+        $zip->close();
+        return moduleInstallFailure('manifest_not_found', 'Zip file does not contain module.json');
+    }
+
+    $packagePrefix = '__ikabud_package/';
+    $templatesPrefix = $packagePrefix . 'templates/';
+    $hasTemplates = false;
+    $totalBytes = 0;
+    for ($i = 0; $i < $zip->numFiles; $i++) {
+        $rawName = (string)$zip->getNameIndex($i);
+        $name = moduleZipSanitizeEntryName($rawName);
+        if ($name === null) {
+            $zip->close();
+            return moduleInstallFailure('zip_invalid_path', "Zip contains invalid entry path: {$rawName}");
+        }
+        if ($prefix !== '' && !str_starts_with($name, $prefix)) {
+            $zip->close();
+            return moduleInstallFailure('zip_outside_module_root', "Zip contains files outside module root: {$name}");
+        }
+        $relative = $prefix !== '' ? substr($name, strlen($prefix)) : $name;
+        if ($relative === '') {
+            continue;
+        }
+        if (str_starts_with($relative, $packagePrefix)) {
+            if (!str_starts_with($relative, $templatesPrefix)) {
+                $zip->close();
+                return moduleInstallFailure('zip_unknown_package_section', "Zip contains an unsupported package section: {$name}");
+            }
+            if (substr($relative, strlen($templatesPrefix)) !== '') {
+                $hasTemplates = true;
+            }
+        }
+        $isDirectory = str_ends_with($relative, '/');
+        if (!moduleZipEntryTypeAllowed($zip, $i, $isDirectory)) {
+            $zip->close();
+            return moduleInstallFailure('zip_unsupported_entry_type', "Zip contains unsupported entry type: {$name}");
+        }
+        if (!$isDirectory) {
+            $normalized = ltrim(str_replace('\\\\', '/', $relative), '/');
+            if ($normalized === '' || str_contains($normalized, "\0") || str_contains($normalized, '../')) {
+                $zip->close();
+                return moduleInstallFailure('zip_invalid_path', "Zip contains invalid file path: {$name}");
+            }
+            $stat = $zip->statIndex($i);
+            if (is_array($stat)) {
+                $size = (int)($stat['size'] ?? 0);
+                if ($size < 0) {
+                    $zip->close();
+                    return moduleInstallFailure('zip_invalid_metadata', "Zip contains invalid entry metadata: {$name}");
+                }
+                $totalBytes += $size;
+                if ($totalBytes > 200 * 1024 * 1024) {
+                    $zip->close();
+                    return moduleInstallFailure('zip_size_limit_exceeded', 'Zip uncompressed size exceeds allowed limit');
+                }
+            }
+        }
+    }
+
+    $manifestBytes = $zip->getFromIndex($manifestIndex);
+    $tempManifest = tempnam(sys_get_temp_dir(), 'mod_update_manifest_');
+    if (!is_string($manifestBytes) || $tempManifest === false || file_put_contents($tempManifest, $manifestBytes) === false) {
+        if (is_string($tempManifest)) @unlink($tempManifest);
+        $zip->close();
+        return moduleInstallFailure('manifest_read_failed', 'Failed reading module.json from package');
+    }
+    $validation = validateModuleManifest($tempManifest, ['check_filesystem' => false]);
+    @unlink($tempManifest);
+    if (empty($validation['ok']) || !is_array($validation['manifest'] ?? null)) {
+        $zip->close();
+        return $validation + ['error_code' => $validation['error_code'] ?? 'manifest_validation_failed'];
+    }
+    $manifest = $validation['manifest'];
+    $capabilities = validateModuleCapabilities($manifest);
+    if (empty($capabilities['ok'])) {
+        $zip->close();
+        return moduleInstallFailure('manifest_invalid_capabilities', (string)($capabilities['error'] ?? 'module.json capabilities block is invalid'));
+    }
+
+    $moduleId = (string)$manifest['id'];
+    $targetDir = modulePathForId($moduleId);
+    if ($targetDir === null) {
+        $zip->close();
+        return moduleInstallFailure('module_not_installed', "Module '{$moduleId}' is not installed.");
+    }
+    $installed = json_decode((string)@file_get_contents($targetDir . '/module.json'), true);
+    $fromVersion = is_array($installed) ? (string)($installed['version'] ?? '') : '';
+    $toVersion = (string)($manifest['version'] ?? '');
+    $comparison = version_compare($toVersion, $fromVersion);
+    $reinstalled = $comparison === 0;
+    if ($comparison < 0 && !$allowDowngrade) {
+        $zip->close();
+        return [
+            'ok' => false,
+            'error_code' => 'module_downgrade_blocked',
+            'error' => "Installed version {$fromVersion} is newer than package {$toVersion}. Pass allow_downgrade to force.",
+            'from_version' => $fromVersion,
+            'to_version' => $toVersion,
+        ];
+    }
+
+    $signatureCheck = moduleVerifyPackageSignature($zip, $prefix);
+    if (!empty($signatureCheck['error'])) {
+        $zip->close();
+        return moduleInstallFailure('module_signature_verification_failed', (string)$signatureCheck['error']);
+    }
+    if (!empty($signatureCheck['warning']) && function_exists('write_log')) {
+        write_log('module update signature advisory: ' . $signatureCheck['warning'], 'warning', ['module_id' => $moduleId]);
+    }
+
+    $staging = sys_get_temp_dir() . '/ikabud_module_update_' . bin2hex(random_bytes(8));
+    $templateStaging = $staging . '_templates';
+    $removeDirectory = static function (string $path): void {
+        if (is_link($path)) {
+            @unlink($path);
+            return;
+        }
+        if (!is_dir($path)) return;
+        $iterator = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($path, \FilesystemIterator::SKIP_DOTS), \RecursiveIteratorIterator::CHILD_FIRST);
+        foreach ($iterator as $item) {
+            $item->isDir() && !$item->isLink() ? @rmdir($item->getPathname()) : @unlink($item->getPathname());
+        }
+        @rmdir($path);
+    };
+    $copyDirectory = static function (string $source, string $destination) use (&$copyDirectory): bool {
+        if (!is_dir($source) || (!is_dir($destination) && !@mkdir($destination, 0775, true) && !is_dir($destination))) return false;
+        $iterator = new \FilesystemIterator($source, \FilesystemIterator::SKIP_DOTS);
+        foreach ($iterator as $item) {
+            $to = $destination . '/' . $item->getBasename();
+            if ($item->isDir() && !$item->isLink()) {
+                if (!$copyDirectory($item->getPathname(), $to)) return false;
+            } elseif (!@copy($item->getPathname(), $to)) {
+                return false;
+            }
+        }
+        return true;
+    };
+    @mkdir($staging, 0775, true);
+    if (!is_dir($staging)) {
+        $zip->close();
+        return moduleInstallFailure('staging_dir_init_failed', 'Failed to initialize module update staging directory');
+    }
+    if ($hasTemplates && $installPackagedTemplates) @mkdir($templateStaging, 0775, true);
+
+    $extractError = null;
+    for ($i = 0; $i < $zip->numFiles && $extractError === null; $i++) {
+        $name = moduleZipSanitizeEntryName((string)$zip->getNameIndex($i));
+        if ($name === null) {
+            $extractError = 'Zip contains an invalid entry path';
+            break;
+        }
+        $relative = $prefix !== '' ? substr($name, strlen($prefix)) : $name;
+        if ($relative === '') continue;
+        $isTemplate = str_starts_with($relative, $templatesPrefix);
+        if (str_starts_with($relative, $packagePrefix) && !$isTemplate) continue;
+        if ($isTemplate && !$installPackagedTemplates) continue;
+        $destinationRelative = $isTemplate ? substr($relative, strlen($templatesPrefix)) : $relative;
+        if ($destinationRelative === '') continue;
+        $base = $isTemplate ? $templateStaging : $staging;
+        $fullPath = $base . '/' . ltrim($destinationRelative, '/');
+        if (str_ends_with($relative, '/')) {
+            if (!is_dir($fullPath) && !@mkdir($fullPath, 0775, true) && !is_dir($fullPath)) $extractError = "Failed extracting directory: {$name}";
+            continue;
+        }
+        if (!is_dir(dirname($fullPath)) && !@mkdir(dirname($fullPath), 0775, true) && !is_dir(dirname($fullPath))) {
+            $extractError = "Failed extracting directory for: {$name}";
+            continue;
+        }
+        $contents = $zip->getFromIndex($i);
+        if (!is_string($contents) || file_put_contents($fullPath, $contents) === false) $extractError = "Failed extracting file: {$name}";
+    }
+    $zip->close();
+    if ($extractError !== null) {
+        $removeDirectory($staging);
+        $removeDirectory($templateStaging);
+        return moduleInstallFailure('zip_extraction_failed', $extractError);
+    }
+
+    $postValidation = validateModuleManifest($staging . '/module.json');
+    if (empty($postValidation['ok']) || !is_array($postValidation['manifest'] ?? null)) {
+        $removeDirectory($staging);
+        $removeDirectory($templateStaging);
+        return moduleInstallFailure((string)($postValidation['error_code'] ?? 'post_extract_manifest_validation_failed'), 'Extracted module failed manifest validation: ' . (string)($postValidation['error'] ?? 'unknown error'));
+    }
+    $manifest = $postValidation['manifest'];
+    $fleet = discoverModules();
+    $fleetManifest = $manifest;
+    $fleetManifest['_path'] = $targetDir;
+    $fleet[$moduleId] = $fleetManifest;
+    $gates = modulePackagePreflightGates($manifest, [
+        'require_certification' => $requireCertification,
+        'fleet' => $fleet,
+        'module_dir' => $targetDir,
+    ]);
+    if (empty($gates['ok'])) {
+        $removeDirectory($staging);
+        $removeDirectory($templateStaging);
+        return $gates;
+    }
+
+    $wasEnabled = function_exists('isModuleEnabled') && isModuleEnabled($moduleId);
+    $stampTime = time();
+    do {
+        $stamp = date('Ymd_His', $stampTime++);
+        $backup = $targetDir . '.bak_' . $stamp;
+        $templateDir = BASE_PATH . '/templates/modules/' . $moduleId;
+        $candidateTemplateBackup = $templateDir . '.bak_' . $stamp;
+    } while (file_exists($backup) || file_exists($candidateTemplateBackup));
+    $templatesBackup = null;
+
+    if (!@rename($targetDir, $backup)) {
+        $removeDirectory($staging);
+        $removeDirectory($templateStaging);
+        return moduleInstallFailure('module_update_failed', 'Failed to create module backup before update');
+    }
+
+    $rollback = static function (string $reason) use ($removeDirectory, $targetDir, $backup, $templateDir, &$templatesBackup, $staging, $templateStaging): array {
+        $removeDirectory($targetDir);
+        if (is_dir($backup)) @rename($backup, $targetDir);
+        $removeDirectory($templateDir);
+        if (is_string($templatesBackup) && is_dir($templatesBackup)) @rename($templatesBackup, $templateDir);
+        $removeDirectory($staging);
+        $removeDirectory($templateStaging);
+        return moduleInstallFailure('module_update_failed_rolled_back', $reason);
+    };
+
+    try {
+        if ($hasTemplates && $installPackagedTemplates && (file_exists($templateDir) || is_link($templateDir))) {
+            if (!@rename($templateDir, $candidateTemplateBackup)) {
+                return $rollback('Failed to back up packaged templates; module update was rolled back');
+            }
+            $templatesBackup = $candidateTemplateBackup;
+        }
+        if (!@rename($staging, $targetDir)) {
+            if (!$copyDirectory($staging, $targetDir)) {
+                return $rollback('Failed to install staged module; module update was rolled back');
+            }
+            $removeDirectory($staging);
+        }
+        if ($hasTemplates && $installPackagedTemplates) {
+            if (!@rename($templateStaging, $templateDir)) {
+                if (!$copyDirectory($templateStaging, $templateDir)) {
+                    return $rollback('Failed to install packaged templates; module update was rolled back');
+                }
+                $removeDirectory($templateStaging);
+            }
+        }
+        if (function_exists('kernelFlushCodeCaches')) kernelFlushCodeCaches();
+        if ($wasEnabled && function_exists('enableModule')) enableModule($moduleId);
+    } catch (\Throwable $e) {
+        return $rollback('Module update failed and was rolled back: ' . $e->getMessage());
+    }
+
+    $removeDirectory($staging);
+    $removeDirectory($templateStaging);
+    return [
+        'ok' => true,
+        'module_id' => $moduleId,
+        'from_version' => $fromVersion,
+        'to_version' => $toVersion,
+        'reinstalled' => $reinstalled,
+        'backup' => $backup,
+        'templates_backup' => $templatesBackup,
+        'manifest' => $manifest,
+    ];
+}
+
+/**
+ * Remove only timestamped package-backup directories older than the retention
+ * period. It refuses every near-match so an imprecise name can never authorize
+ * recursive deletion of a module or suite directory.
+ */
+function modulePackageBackupGc(int $keepDays = 7): int
+{
+    $keepDays = max(0, $keepDays);
+    $cutoff = time() - ($keepDays * 86400);
+    $deleted = 0;
+    $candidates = array_merge(glob(rtrim(modulesPath(), '/') . '/*.bak_*') ?: [], glob(rtrim(modulesPath(), '/') . '/*/*.bak_*') ?: []);
+
+    foreach (array_unique($candidates) as $path) {
+        if (!is_dir($path) || preg_match('/\.bak_(\d{8}_\d{6})$/', $path, $match) !== 1) continue;
+        $timestamp = \DateTimeImmutable::createFromFormat('!Ymd_His', $match[1]);
+        if (!$timestamp || ($keepDays > 0 && $timestamp->getTimestamp() >= $cutoff)) continue;
+
+        $iterator = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($path, \FilesystemIterator::SKIP_DOTS), \RecursiveIteratorIterator::CHILD_FIRST);
+        foreach ($iterator as $item) {
+            $item->isDir() && !$item->isLink() ? @rmdir($item->getPathname()) : @unlink($item->getPathname());
+        }
+        if (@rmdir($path)) $deleted++;
+    }
+    return $deleted;
 }
 
 /**

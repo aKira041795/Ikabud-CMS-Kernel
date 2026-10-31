@@ -626,6 +626,40 @@ function cmsApiModuleUpload(array $params = []): void
         exit;
     }
 
+    // Package authenticity is checked HERE, before anything is extracted, on
+    // every tenant upload. The kernel installer has always done this; this path
+    // used to skip it entirely, so a CMS-installed extension never had its
+    // module.sig.json verified. Verification is advisory until
+    // MODULE_SIGNING_REQUIRED=true, exactly as it is for the kernel installer.
+    if (function_exists('moduleVerifyPackageSignature')) {
+        $sigPrefix = '';
+        if ($zip->locateName('module.json') === false) {
+            for ($zi = 0; $zi < $zip->numFiles; $zi++) {
+                $zn = (string)$zip->getNameIndex($zi);
+                if (preg_match('#^([^/]+)/module\.json$#', $zn, $zm) === 1) {
+                    $sigPrefix = $zm[1] . '/';
+                    break;
+                }
+            }
+        }
+        $signatureCheck = moduleVerifyPackageSignature($zip, $sigPrefix);
+        if (!empty($signatureCheck['error'])) {
+            $zip->close();
+            _cmsDeleteDirRecursive($extractDir);
+            _cmsAuditInstaller('module.upload', 'module', 'unknown', 'failed', 'Package signature verification failed: ' . (string)$signatureCheck['error'], ['filename' => (string)($file['name'] ?? '')]);
+            http_response_code(400);
+            echo json_encode(['ok' => false, 'error' => 'Package signature verification failed: ' . (string)$signatureCheck['error']]);
+            exit;
+        }
+        if (!empty($signatureCheck['warning'])) {
+            write_log('CMS module upload signature advisory', 'warning', [
+                'warning' => (string)$signatureCheck['warning'],
+                'filename' => (string)($file['name'] ?? ''),
+                'request_id' => function_exists('request_id') ? request_id() : null,
+            ]);
+        }
+    }
+
     $zip->extractTo($extractDir);
     $zip->close();
 
@@ -656,6 +690,29 @@ function cmsApiModuleUpload(array $params = []): void
         http_response_code(400);
         echo json_encode(['ok' => false, 'error' => $manifestError]);
         exit;
+    }
+
+    // The kernel gates that are machine-checkable without a Workbench contract:
+    // capability manifest validity, product-suite ownership (an extension must
+    // extend an INSTALLED host and may only contribute to declared extension
+    // points), and the declared kernel/suite compatibility ranges. Certification
+    // stays out of the tenant path because a third-party extension does not ship
+    // a workbench-contract.json.
+    if (function_exists('modulePackagePreflightGates')) {
+        $preflight = modulePackagePreflightGates($meta, ['require_certification' => false]);
+        if (empty($preflight['ok'])) {
+            _cmsDeleteDirRecursive($extractDir);
+            _cmsAuditInstaller('module.upload', 'module', (string)($meta['id'] ?? 'unknown'), 'failed', 'Package failed install gates: ' . (string)($preflight['error'] ?? 'unknown'), [
+                'error_code' => (string)($preflight['error_code'] ?? 'preflight_failed'),
+            ]);
+            http_response_code(400);
+            echo json_encode([
+                'ok' => false,
+                'error' => 'Package failed install gates: ' . (string)($preflight['error'] ?? 'unknown'),
+                'error_code' => (string)($preflight['error_code'] ?? 'preflight_failed'),
+            ]);
+            exit;
+        }
     }
 
     $moduleId = trim((string)$meta['id']);
@@ -789,19 +846,53 @@ function cmsApiModuleUpload(array $params = []): void
         exit;
     }
 
-    // Determine target directory
+    // Determine target directory. A module that is already installed ANYWHERE
+    // (including inside a product-suite container) is updated in place; a new
+    // module goes through the kernel's target resolver so suite nesting is
+    // honoured instead of being flattened into modules/<id>.
+    $installedDir = function_exists('modulePathForId') ? modulePathForId($moduleId) : null;
     $modulesDir = rtrim((string)(defined('BASE_PATH') ? BASE_PATH : dirname(__DIR__, 2)), '/') . '/modules';
-    $destDir = $modulesDir . '/' . $moduleId;
+    $destDir = is_string($installedDir) && $installedDir !== ''
+        ? $installedDir
+        : (function_exists('moduleInstallTargetDirForId')
+            ? moduleInstallTargetDirForId($moduleId)
+            : $modulesDir . '/' . $moduleId);
 
     $isUpgrade = is_dir($destDir);
     if ($isUpgrade) {
-        // Backup existing before overwrite
-        $backupDir = $destDir . '.bak_' . date('Ymd_His');
-        @rename($destDir, $backupDir);
-    }
+        // Gated update, not a rename-and-copy: version comparison (a downgrade is
+        // refused), package signature verification, manifest re-validation of the
+        // extracted tree, a restorable backup, and rollback if the swap fails.
+        if (!function_exists('updateModuleFromZip')) {
+            _cmsDeleteDirRecursive($extractDir);
+            _cmsAuditInstaller('module.upload', 'module', $moduleId, 'failed', 'Gated module update path is unavailable.');
+            http_response_code(503);
+            echo json_encode(['ok' => false, 'error' => 'Gated module update path is unavailable in this install.']);
+            exit;
+        }
 
-    if (!@rename($moduleRoot, $destDir)) {
-        _cmsCopyDirRecursive($moduleRoot, $destDir);
+        $updateResult = updateModuleFromZip($tmpPath, ['require_certification' => false]);
+        if (empty($updateResult['ok'])) {
+            _cmsDeleteDirRecursive($extractDir);
+            _cmsAuditInstaller('module.upload', 'module', $moduleId, 'failed', (string)($updateResult['error'] ?? 'Module update failed.'), [
+                'error_code'   => (string)($updateResult['error_code'] ?? 'update_failed'),
+                'from_version' => (string)($updateResult['from_version'] ?? ''),
+                'to_version'   => (string)($updateResult['to_version'] ?? ''),
+            ]);
+            http_response_code(400);
+            echo json_encode([
+                'ok'           => false,
+                'error'        => (string)($updateResult['error'] ?? 'Module update failed.'),
+                'error_code'   => (string)($updateResult['error_code'] ?? 'update_failed'),
+                'from_version' => (string)($updateResult['from_version'] ?? ''),
+                'to_version'   => (string)($updateResult['to_version'] ?? ''),
+            ]);
+            exit;
+        }
+    } else {
+        if (!@rename($moduleRoot, $destDir)) {
+            _cmsCopyDirRecursive($moduleRoot, $destDir);
+        }
     }
 
     // Mark this module directory as CMS-owned so other tenants (multi-tenant)
@@ -1425,6 +1516,12 @@ function _cmsDiscoverSubModules(): array
         return [];
     }
 
+    // Cached creator-published update state. Reading it never touches the
+    // network: the admin page must not be made to wait on a remote host. The
+    // feeds are refreshed only by the explicit "Check for updates" action and by
+    // the cron script.
+    $updateStates = function_exists('moduleExtensionUpdateStates') ? moduleExtensionUpdateStates() : [];
+
     $result = [];
     foreach ($ids as $id) {
         if (!isset($all[$id])) continue; // Module dir was removed externally
@@ -1476,6 +1573,14 @@ function _cmsDiscoverSubModules(): array
             'admin_contributions' => is_array($m['admin_contributions'] ?? null) ? $m['admin_contributions'] : [],
             'compatibility'   => is_array($m['compatibility'] ?? null) ? $m['compatibility'] : null,
             'uninstall'       => is_array($m['uninstall'] ?? null) ? $m['uninstall'] : null,
+            // Creator-published update state (cached; null when no feed is declared)
+            'has_update_feed'   => (string) ($updateStates[$id]['feed_url'] ?? '') !== '',
+            'update_available'  => !empty($updateStates[$id]['update_available']),
+            'latest_version'    => (string) ($updateStates[$id]['latest_version'] ?? ''),
+            'auto_update'       => !empty($updateStates[$id]['auto_update']),
+            'update_error'      => (string) ($updateStates[$id]['error'] ?? ''),
+            'update_checked_at' => (string) ($updateStates[$id]['checked_at'] ?? ''),
+            'update_notes'      => (string) ($updateStates[$id]['notes'] ?? ''),
         ];
     }
     usort($result, function ($a, $b) {
@@ -1990,6 +2095,190 @@ function cmsApiModuleUninstall(array $params = []): void
         'purged'  => !empty($opts['purge']),
         'export'  => $result['export'] ?? null,
         'message' => 'Module "' . $moduleId . '" uninstalled.',
+    ]);
+    exit;
+}
+
+/**
+ * API: Refresh creator-published update feeds for the modules installed here.
+ * POST /api/v1/cms/modules/check-updates
+ *
+ * This is the only CMS module endpoint that reaches the network on behalf of an
+ * extension. It stores what each feed advertises and installs nothing — an
+ * operator still decides whether to apply an update.
+ */
+function cmsApiModuleCheckUpdates(array $params = []): void
+{
+    header('Content-Type: application/json');
+    cmsRequireCap('settings.manage');
+    app()->csrfEnforce();
+
+    if (!function_exists('moduleExtensionCheckAll')) {
+        http_response_code(503);
+        echo json_encode(['ok' => false, 'error' => 'Extension update feeds are not available in this install.']);
+        exit;
+    }
+
+    $checked = moduleExtensionCheckAll(['force' => true]);
+    $states = [];
+    $failures = [];
+    $updates = [];
+
+    foreach ($checked as $moduleId => $result) {
+        $state = moduleExtensionUpdateState((string) $moduleId);
+        $states[(string) $moduleId] = $state;
+        if (empty($result['ok'])) {
+            $failures[(string) $moduleId] = (string) ($result['error'] ?? 'unknown error');
+            continue;
+        }
+        if (!empty($state['update_available'])) {
+            $updates[] = $state;
+        }
+    }
+
+    _cmsAuditInstaller(
+        'module.check_updates',
+        'module',
+        'all',
+        $failures === [] ? 'success' : 'failed',
+        'Checked ' . count($checked) . ' extension update feed(s); ' . count($updates) . ' update(s) available.',
+        ['failures' => $failures]
+    );
+
+    echo json_encode([
+        'ok'       => $failures === [],
+        'checked'  => count($checked),
+        'updates'  => $updates,
+        'modules'  => $states,
+        'failures' => $failures,
+    ]);
+    exit;
+}
+
+/**
+ * API: Download and apply the update a creator's feed advertises.
+ * POST /api/v1/cms/modules/{module_id}/update
+ *
+ * The download is digest-checked before it is used, and the package still passes
+ * every gate updateModuleFromZip() enforces. Certification is not required on
+ * this path (a third-party extension does not ship a Workbench contract), which
+ * matches how a tenant ZIP is installed here.
+ */
+function cmsApiModuleApplyUpdate(array $params = []): void
+{
+    header('Content-Type: application/json');
+    cmsRequireCap('settings.manage');
+    app()->csrfEnforce();
+
+    $moduleId = trim((string) ($params['module_id'] ?? ''));
+    if ($moduleId === '') {
+        http_response_code(400);
+        echo json_encode(['ok' => false, 'error' => 'module_id required']);
+        exit;
+    }
+
+    if (!_cmsIsRegisteredSubModule($moduleId)) {
+        http_response_code(403);
+        echo json_encode(['ok' => false, 'error' => 'Module "' . $moduleId . '" is a kernel module and cannot be updated from the CMS.']);
+        exit;
+    }
+
+    if (!function_exists('moduleExtensionApplyUpdate')) {
+        _cmsAuditInstaller('module.update', 'module', $moduleId, 'failed', 'Update feeds are not available in this install.');
+        http_response_code(503);
+        echo json_encode(['ok' => false, 'error' => 'Extension update feeds are not available in this install.']);
+        exit;
+    }
+
+    $result = moduleExtensionApplyUpdate($moduleId, ['require_certification' => false]);
+
+    if (empty($result['ok'])) {
+        _cmsAuditInstaller('module.update', 'module', $moduleId, 'failed', (string) ($result['error'] ?? 'Update failed.'), [
+            'error_code' => (string) ($result['error_code'] ?? 'update_failed'),
+        ]);
+        http_response_code(400);
+        echo json_encode([
+            'ok'         => false,
+            'error'      => (string) ($result['error'] ?? 'Update failed.'),
+            'error_code' => (string) ($result['error_code'] ?? 'update_failed'),
+        ]);
+        exit;
+    }
+
+    kernelFlushCodeCaches();
+
+    _cmsAuditInstaller('module.update', 'module', $moduleId, 'success', 'Module updated from its creator feed.', [
+        'from_version' => (string) ($result['from_version'] ?? ''),
+        'to_version'   => (string) ($result['to_version'] ?? ''),
+    ]);
+
+    echo json_encode([
+        'ok'           => true,
+        'module_id'    => $moduleId,
+        'from_version' => (string) ($result['from_version'] ?? ''),
+        'to_version'   => (string) ($result['to_version'] ?? ''),
+        'message'      => 'Module "' . $moduleId . '" updated to ' . (string) ($result['to_version'] ?? '') . '. Reload to apply.',
+    ]);
+    exit;
+}
+
+/**
+ * API: Turn automatic updates on or off for one module.
+ * POST /api/v1/cms/modules/{module_id}/auto-update
+ *
+ * Default OFF, and only offered when the module declares an update feed: there is
+ * nothing to update from without one.
+ */
+function cmsApiModuleAutoUpdateToggle(array $params = []): void
+{
+    header('Content-Type: application/json');
+    cmsRequireCap('settings.manage');
+    app()->csrfEnforce();
+
+    $moduleId = trim((string) ($params['module_id'] ?? ''));
+    if ($moduleId === '') {
+        http_response_code(400);
+        echo json_encode(['ok' => false, 'error' => 'module_id required']);
+        exit;
+    }
+
+    if (!_cmsIsRegisteredSubModule($moduleId)) {
+        http_response_code(403);
+        echo json_encode(['ok' => false, 'error' => 'Module "' . $moduleId . '" is a kernel module and cannot be managed from the CMS.']);
+        exit;
+    }
+
+    $input   = cmsInput();
+    $enabled = !empty($input['enabled']);
+
+    if (!function_exists('moduleExtensionUpdateState') || !function_exists('moduleExtensionSetAutoUpdate')) {
+        http_response_code(503);
+        echo json_encode(['ok' => false, 'error' => 'Extension update feeds are not available in this install.']);
+        exit;
+    }
+
+    $state = moduleExtensionUpdateState($moduleId);
+    if ($state['feed_url'] === '') {
+        http_response_code(422);
+        echo json_encode(['ok' => false, 'error' => 'This module does not declare an update feed, so it cannot be auto-updated.']);
+        exit;
+    }
+
+    moduleExtensionSetAutoUpdate($moduleId, $enabled);
+
+    _cmsAuditInstaller(
+        'module.auto_update',
+        'module',
+        $moduleId,
+        'success',
+        $enabled ? 'Automatic updates enabled from the creator feed.' : 'Automatic updates disabled.'
+    );
+
+    echo json_encode([
+        'ok'         => true,
+        'module_id'  => $moduleId,
+        'auto_update' => $enabled,
+        'message'    => 'Automatic updates ' . ($enabled ? 'enabled' : 'disabled') . ' for "' . $moduleId . '".',
     ]);
     exit;
 }

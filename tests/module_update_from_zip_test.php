@@ -111,6 +111,11 @@ $cleanup = static function () use ($moduleId, $moduleDir, $templateDir, $zipV1, 
         mupRrmdir($backup);
     }
     mupRrmdir($templateDir);
+    foreach (mupBackupsFor($templateDir) as $backup) {
+        mupRrmdir($backup);
+    }
+    // `ikabud make:module` also scaffolds a test file; it must not survive the run.
+    @unlink(BASE_PATH . '/tests/' . str_replace('-', '_', $moduleId) . '_module_test.php');
     @unlink($zipV1);
     @unlink($zipV2);
     @unlink($zipV3);
@@ -144,6 +149,15 @@ mupAssert('pack v1.1.0 succeeds', $packed2 === 0 && is_file($zipV2));
 mupSetVersion($manifestPath, '0.9.0');
 $packed3 = (int) shell_exec($cli . ' module:pack ' . escapeshellarg($moduleId) . ' ' . escapeshellarg($zipV3) . ' >/dev/null 2>&1; echo $?');
 mupAssert('pack v0.9.0 succeeds', $packed3 === 0 && is_file($zipV3));
+
+// The scaffold leaves a real module directory behind. Installing from the ZIP is
+// only meaningful from a clean slate, and the module scan has to be flushed so the
+// process sees the removal the scaffold caused.
+$uninstalled = (int) shell_exec($cli . ' module:uninstall ' . escapeshellarg($moduleId) . ' >/dev/null 2>&1; echo $?');
+mupAssert('scaffold removed before baseline install', $uninstalled === 0 && !is_dir($moduleDir), 'exit ' . $uninstalled);
+if (function_exists('kernelFlushCodeCaches')) {
+    kernelFlushCodeCaches();
+}
 
 // ── Install 1.0.0 as the baseline ──────────────────────────────────────────
 $installed = installModuleFromZip($zipV1);

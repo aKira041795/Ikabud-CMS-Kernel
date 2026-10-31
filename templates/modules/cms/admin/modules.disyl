@@ -10,12 +10,20 @@
         </div>
         <div class="flex items-center gap-3">
             <span class="text-xs text-slate-400" x-text="modules.length ? modules.length + ' CMS module(s) installed' : 'No CMS modules installed'"></span>
+            <button @click="checkForUpdates()" :disabled="checkingUpdates" class="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-slate-700 bg-white border border-slate-200 rounded-2xl hover:bg-slate-50 disabled:opacity-50 transition-colors">
+                <template x-if="checkingUpdates">
+                    <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+                </template>
+                <span x-text="checkingUpdates ? 'Checking…' : 'Check for Updates'"></span>
+            </button>
             <button @click="showUpload = !showUpload" class="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-sky-600 rounded-2xl hover:bg-sky-700 transition-colors shadow-sm shadow-sky-600/20">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
                 Upload ZIP
             </button>
         </div>
     </div>
+
+    <div x-show="updateMsg" x-cloak class="text-sm rounded-lg px-4 py-2" :class="updateOk ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'" x-text="updateMsg"></div>
 
     <!-- Available Host Modules -->
     <div class="rounded-[28px] border border-slate-200 bg-white/92 shadow-[0_18px_40px_rgba(15,23,42,0.05)] p-6">
@@ -185,8 +193,12 @@
                         </td>
                         <!-- Version -->
                         <td class="px-5 py-4">
-                            <span class="text-sm text-slate-600" x-text="mod.version"></span>
+                            <div class="flex flex-wrap items-center gap-2">
+                                <span class="text-sm text-slate-600" x-text="mod.version"></span>
+                                <span x-show="mod.update_available" x-cloak class="inline-flex items-center px-2 py-0.5 text-[10px] font-semibold rounded-full bg-emerald-100 text-emerald-700" x-text="'→ ' + mod.latest_version"></span>
+                            </div>
                             <p class="text-xs text-slate-400 mt-0.5" x-show="mod.author" x-text="mod.author"></p>
+                            <p x-show="mod.update_error" x-cloak class="text-[11px] text-rose-600 mt-0.5 max-w-xs truncate" :title="mod.update_error" x-text="mod.update_error"></p>
                         </td>
                         <!-- Details -->
                         <td class="px-5 py-4">
@@ -197,6 +209,7 @@
                                 <span x-show="mod.tables && mod.tables.length > 0" class="inline-flex items-center px-2 py-0.5 text-[10px] font-medium rounded-full bg-green-100 text-green-700" x-text="mod.tables.length + ' tables'"></span>
                                 <span x-show="mod.settings_fields && mod.settings_fields.length > 0" class="inline-flex items-center px-2 py-0.5 text-[10px] font-medium rounded-full bg-amber-100 text-amber-700" x-text="mod.settings_fields.length + ' settings'"></span>
                                 <span x-show="mod.catalog_managed" class="inline-flex items-center px-2 py-0.5 text-[10px] font-medium rounded-full bg-slate-100 text-slate-700" x-text="'Catalog • ' + (mod.commercial_mode || 'free')"></span>
+                                <span x-show="mod.auto_update" x-cloak class="inline-flex items-center px-2 py-0.5 text-[10px] font-medium rounded-full bg-teal-100 text-teal-700">Auto-update</span>
                             </div>
                         </td>
                         <!-- Status -->
@@ -211,6 +224,16 @@
                         <!-- Actions -->
                         <td class="px-5 py-4 text-right">
                             <div class="flex items-center justify-end gap-2">
+                                <!-- Update from the creator's feed (only when one is advertised) -->
+                                <template x-if="mod.update_available">
+                                    <button @click="applyUpdate(mod)" :disabled="updating === mod.id" class="px-3 py-1.5 text-xs font-semibold text-white bg-emerald-600 rounded-2xl hover:bg-emerald-700 disabled:opacity-50 transition-colors" x-text="updating === mod.id ? 'Updating…' : 'Update'"></button>
+                                </template>
+                                <!-- Automatic updates (only when the module declares a feed) -->
+                                <template x-if="mod.has_update_feed && !mod.is_core">
+                                    <button @click="toggleAutoUpdate(mod)" :disabled="togglingAuto === mod.id" class="px-3 py-1.5 text-xs font-medium rounded-2xl transition-colors"
+                                        :class="mod.auto_update ? 'text-teal-700 bg-teal-50 hover:bg-teal-100' : 'text-slate-600 bg-slate-100 hover:bg-slate-200'"
+                                        x-text="mod.auto_update ? 'Auto-update on' : 'Auto-update off'"></button>
+                                </template>
                                 <!-- Configure (only when settings_fields exist) -->
                                 <template x-if="mod.settings_fields && mod.settings_fields.length > 0">
                                     <button @click="toggleConfig(mod)"
@@ -346,6 +369,11 @@ function cmsModuleManager() {
         uploadOk:    false,
         catalogMsg:  '',
         catalogOk:   false,
+        checkingUpdates: false,
+        updating:    null,
+        togglingAuto: null,
+        updateMsg:   '',
+        updateOk:    false,
         testingResetEmail: false,
         resetEmailMsg: '',
         resetEmailOk: false,
@@ -486,6 +514,96 @@ function cmsModuleManager() {
                 this.uploadOk = false;
             } finally {
                 this.uploading = false;
+            }
+        },
+
+        async checkForUpdates() {
+            this.checkingUpdates = true;
+            this.updateMsg = '';
+            try {
+                const res = await fetch(CMS_BASE + '/api/v1/cms/modules/check-updates', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ _token: CMS_CSRF }),
+                });
+                const data = await res.json();
+                this.updateOk = !!data.ok;
+                if (!data.ok) {
+                    const failures = Object.keys(data.failures || {});
+                    this.updateMsg = failures.length
+                        ? 'Could not check: ' + failures.join(', ')
+                        : (data.error || 'Update check failed.');
+                } else {
+                    const available = (data.updates || []).length;
+                    this.updateMsg = available
+                        ? available + ' update(s) available.'
+                        : (data.checked ? 'All extensions are up to date.' : 'No installed extension declares an update feed.');
+                    const states = data.modules || {};
+                    this.modules.forEach(function (mod) {
+                        const s = states[mod.id];
+                        if (!s) { return; }
+                        mod.update_available = !!s.update_available;
+                        mod.latest_version = s.latest_version || '';
+                        mod.update_error = s.error || '';
+                        mod.update_checked_at = s.checked_at || '';
+                        mod.update_notes = s.notes || '';
+                    });
+                }
+            } catch (e) {
+                this.updateOk = false;
+                this.updateMsg = 'Update check failed: ' + e.message;
+            } finally {
+                this.checkingUpdates = false;
+            }
+        },
+
+        async applyUpdate(mod) {
+            if (!confirm('Update "' + mod.name + '" from ' + mod.version + ' to ' + mod.latest_version + '? The current version is backed up first.')) {
+                return;
+            }
+            this.updating = mod.id;
+            this.updateMsg = '';
+            try {
+                const fd = new FormData();
+                fd.append('_token', CMS_CSRF);
+                const res = await fetch(CMS_BASE + '/api/v1/cms/modules/' + encodeURIComponent(mod.id) + '/update', { method: 'POST', body: fd });
+                const data = await res.json();
+                this.updateOk = !!data.ok;
+                if (data.ok) {
+                    this.updateMsg = data.message || 'Module updated.';
+                    setTimeout(function () { window.location.reload(); }, 1200);
+                } else {
+                    this.updateMsg = data.error || 'Update failed.';
+                }
+            } catch (e) {
+                this.updateOk = false;
+                this.updateMsg = 'Update failed: ' + e.message;
+            } finally {
+                this.updating = null;
+            }
+        },
+
+        async toggleAutoUpdate(mod) {
+            this.togglingAuto = mod.id;
+            this.updateMsg = '';
+            try {
+                const fd = new FormData();
+                fd.append('enabled', mod.auto_update ? '0' : '1');
+                fd.append('_token', CMS_CSRF);
+                const res = await fetch(CMS_BASE + '/api/v1/cms/modules/' + encodeURIComponent(mod.id) + '/auto-update', { method: 'POST', body: fd });
+                const data = await res.json();
+                this.updateOk = !!data.ok;
+                if (data.ok) {
+                    mod.auto_update = !!data.auto_update;
+                    this.updateMsg = data.message || 'Automatic updates updated.';
+                } else {
+                    this.updateMsg = data.error || 'Could not change automatic updates.';
+                }
+            } catch (e) {
+                this.updateOk = false;
+                this.updateMsg = 'Could not change automatic updates: ' + e.message;
+            } finally {
+                this.togglingAuto = null;
             }
         },
 
