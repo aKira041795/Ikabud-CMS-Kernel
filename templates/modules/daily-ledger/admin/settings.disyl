@@ -188,22 +188,29 @@
                 </select>
                 <span id="branch-bulk-status" class="text-sm text-muted"></span>
             </div>
-            <div class="table-responsive">
+            {* overflow-x: auto keeps any leftover sideways scroll on a phone inside this box.
+               The theme's .table-responsive is overflow-x: visible, so the table used to move
+               the whole modal instead. Wide screens fit without a scrollbar. *}
+            <div class="table-responsive" style="overflow-x: auto;">
                 <table class="table">
                     <thead>
                         <tr>
                             <th>Branch</th>
-                            <th>
+                            <th class="whitespace-normal">
                                 No paper DR (add stock)
-                                <span class="block text-[11px] font-normal text-gray-500">unclick to hide</span>
+                                <span class="block text-[11px] font-normal text-gray-500 whitespace-normal break-words normal-case">unclick to hide</span>
                             </th>
-                            <th>
+                            <th class="whitespace-normal">
                                 Single cashier shift (whole day)
-                                <span class="block text-[11px] font-normal text-gray-500">unclick to turn off</span>
+                                <span class="block text-[11px] font-normal text-gray-500 whitespace-normal break-words normal-case">unclick to turn off</span>
                             </th>
-                            <th>
+                            {* whitespace-normal + break-words: the theme's .table th is nowrap, so
+                               this sentence used to render as one 781px line and pushed the table
+                               359px past the modal (owner report 2026-10-31: sideways scrolling).
+                               The text wraps inside a bounded column instead. *}
+                            <th class="whitespace-normal align-top" style="width: 42%; min-width: 16rem;">
                                 Own production
-                                <span class="block text-[11px] font-normal text-gray-500">This branch makes stock of its own (not only a commissary). Cashiers get Add Stock (own production) for the Addt'l cell.</span>
+                                <span class="block text-[11px] font-normal text-gray-500 whitespace-normal break-words normal-case">This branch makes stock of its own (not only a commissary). Cashiers get Add Stock (own production) for the Addt'l cell.</span>
                             </th>
                         </tr>
                     </thead>

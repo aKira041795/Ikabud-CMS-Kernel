@@ -35,6 +35,7 @@ $date = dl_businessDate();
 $handlers = (string)file_get_contents($base . '/modules/daily-ledger/handlers.php');
 $offline = (string)file_get_contents($base . '/modules/daily-ledger/handlers-offline.php');
 $settings = (string)file_get_contents($base . '/templates/modules/daily-ledger/admin/settings.disyl');
+$branchesForm = (string)file_get_contents($base . '/templates/modules/daily-ledger/admin/branches.disyl');
 $ledger = (string)file_get_contents($base . '/templates/modules/daily-ledger/cashier/ledger.disyl');
 $modal = (string)file_get_contents($base . '/templates/modules/daily-ledger/cashier/modal_patch.disyl');
 $module = (string)file_get_contents($base . '/modules/daily-ledger/module.json');
@@ -179,6 +180,21 @@ try {
             && !str_contains($onlineBody, 'Branch switches >')
             && !str_contains($offline, 'Branch switches >'),
         'say Settings > Branch operating switches > Own production everywhere, matching the on-screen heading'
+    );
+    // Owner 2026-10-31: one sentence in all three places, and it must wrap. The theme sets
+    // .table th to nowrap, which rendered the Settings helper as one 781px line and pushed
+    // the table 359px past the modal (measured: body scrollWidth 1396 vs clientWidth 1037).
+    $helperSentence = 'This branch makes stock of its own (not only a commissary). Cashiers get Add Stock (own production) for the Addt\'l cell.';
+    $h->test(
+        'Own production is described by the same sentence in Settings and both branch forms',
+        substr_count($settings, $helperSentence) === 1 && substr_count($branchesForm, $helperSentence) === 2,
+        'use the owner\'s sentence in the Settings column and in the add and edit branch forms'
+    );
+    $h->test(
+        'the switch table wraps its helper instead of scrolling the modal sideways',
+        str_contains($settings, 'whitespace-normal break-words normal-case')
+            && str_contains($settings, 'style="overflow-x: auto;"'),
+        'wrap the helper (the theme th is nowrap), keep it sentence case, and confine any phone-width scroll to the table box'
     );
     $h->test(
         'the cashier ledger handler passes branch_has_production',

@@ -249,7 +249,7 @@
                             <input type="checkbox" id="add-has-production">
                             Own production
                         </label>
-                        <p class="mt-2 text-xs text-gray-500">This branch makes stock of its own. Cashiers can record it as Add Stock (own production) in the Addt'l cell.</p>
+                        <p class="mt-2 text-xs text-gray-500 whitespace-normal break-words">This branch makes stock of its own (not only a commissary). Cashiers get Add Stock (own production) for the Addt'l cell.</p>
                     </div>
                 </div>
             </div>
@@ -363,7 +363,7 @@
                             <input type="checkbox" id="edit-has-production">
                             Own production
                         </label>
-                        <p class="mt-2 text-xs text-gray-500">This branch makes stock of its own. Cashiers can record it as Add Stock (own production) in the Addt'l cell.</p>
+                        <p class="mt-2 text-xs text-gray-500 whitespace-normal break-words">This branch makes stock of its own (not only a commissary). Cashiers get Add Stock (own production) for the Addt'l cell.</p>
                     </div>
                 </div>
             </div>
