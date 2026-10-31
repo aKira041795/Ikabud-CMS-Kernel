@@ -32,6 +32,14 @@
     .btn-disable:hover { background: #fef2f2; border-color: #f87171; }
     .optin-row { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #64748b; margin-top: 2px; padding-top: 12px; border-top: 1px solid #f1f5f9; }
     .optin-hint { color: #94a3b8; font-size: 11px; }
+    .ownership-children { border-top: 1px solid #e2e8f0; padding-top: 10px; }
+    .ownership-children summary { cursor: pointer; color: #334155; font-size: 12px; font-weight: 700; }
+    .ownership-child { display: grid; grid-template-columns: minmax(120px, 1.3fr) repeat(3, minmax(80px, 1fr)) auto; gap: 8px; align-items: center; padding: 9px 0; border-bottom: 1px solid #f1f5f9; font-size: 12px; color: #475569; }
+    .ownership-child-id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: #64748b; }
+    .ownership-unresolved { margin-top: 28px; border: 1px solid #fca5a5; border-radius: var(--radius); background: #fff; padding: 18px; }
+    .ownership-unresolved h3 { color: #991b1b; margin: 0 0 10px; }
+    .ownership-unresolved-row { padding: 9px 0; border-top: 1px solid #fee2e2; font-size: 13px; }
+    @media (max-width: 700px) { .ownership-child { grid-template-columns: 1fr 1fr; } }
 </style>
 <script>
     var BASE = '{base_url}';
@@ -201,6 +209,21 @@
 
             <div style="margin-top:10px;font-size:12px;color:var(--text-muted);">Module settings are configured by the admin on the tenant domain.</div>
 
+            {if mod.child_count > 0}
+            <details class="ownership-children">
+                <summary>{mod.child_count} owned modules — read-only lifecycle view</summary>
+                {foreach mod.children as child}
+                <div class="ownership-child">
+                    <div><strong>{child.name}</strong><div class="ownership-child-id">{child.id}</div></div>
+                    <div>v{child.version}</div>
+                    <div>{child.kind}</div>
+                    <div>Parent: {child.direct_parent}<br>Owner: {child.root}</div>
+                    <div>{if child.tenant_admin_url}<a class="btn-sm btn-outline" href="{child.tenant_admin_url}">Tenant settings</a>{/if}</div>
+                </div>
+                {/foreach}
+            </details>
+            {/if}
+
             {if mod.show_allow_kernel_admin}
             <div class="optin-row">
                 <input type="checkbox" id="optin-{mod.id}" {if mod.kernel_admin_guaranteed}disabled{/if} {if mod.allow_kernel_admin}checked{/if} onchange="toggleAdminOptin('{mod.id}', this.checked)">
@@ -212,5 +235,18 @@
     </div>
     {/if}
 </div>
+
+{if unresolved_ownership | count > 0}
+<section class="ownership-unresolved">
+    <h3>Unresolved ownership</h3>
+    <p>These installed modules cannot be assigned to a lifecycle root and require operator attention.</p>
+    {foreach unresolved_ownership as item}
+    <div class="ownership-unresolved-row">
+        <strong>{item.id}</strong> — {item.reason_label}<br>
+        <span style="color:#64748b;">{item.detail}</span>
+    </div>
+    {/foreach}
+</section>
+{/if}
 
 {/block}

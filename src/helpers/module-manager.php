@@ -1459,6 +1459,7 @@ function getModuleSettingsForTenant(string $moduleId, int $tenantId): array
 
 
 require_once __DIR__ . '/module-catalog.php';
+require_once __DIR__ . '/module-ownership.php';
 require_once __DIR__ . '/module-registry.php';
 require_once __DIR__ . '/module-routes.php';
 
@@ -5127,7 +5128,7 @@ function moduleZipEntryTypeAllowed(\ZipArchive $zip, int $index, bool $isDirecto
     return $mode === 0x8000;
 }
 
-function installModuleFromZip(string $zipPath): array
+function installModuleFromZip(string $zipPath, array $options = []): array
 {
     if (!is_file($zipPath)) {
         return moduleInstallFailure('zip_not_found', 'Zip file not found');
@@ -5506,11 +5507,19 @@ function installModuleFromZip(string $zipPath): array
         }
         if (empty($missing)) {
             enableModule($moduleId);
+            $installedBy = trim((string)($options['installed_by'] ?? ''));
+            if ($installedBy !== '') {
+                moduleOwnershipRecordInstall($moduleId, $installedBy);
+            }
             return ['ok' => true, 'module_id' => $moduleId, 'enabled' => true, 'manifest' => $manifest];
         }
 
         // Ensure it is explicitly disabled (in case a default-enabled registry is present)
         disableModule($moduleId);
+        $installedBy = trim((string)($options['installed_by'] ?? ''));
+        if ($installedBy !== '') {
+            moduleOwnershipRecordInstall($moduleId, $installedBy);
+        }
         return [
             'ok' => true,
             'module_id' => $moduleId,
@@ -5523,6 +5532,10 @@ function installModuleFromZip(string $zipPath): array
 
     // Invalid capability manifest: install but keep disabled.
     disableModule($moduleId);
+    $installedBy = trim((string)($options['installed_by'] ?? ''));
+    if ($installedBy !== '') {
+        moduleOwnershipRecordInstall($moduleId, $installedBy);
+    }
     return [
         'ok' => true,
         'module_id' => $moduleId,
@@ -5891,6 +5904,10 @@ function updateModuleFromZip(string $zipPath, array $options = []): array
 
     $removeDirectory($staging);
     $removeDirectory($templateStaging);
+    $installedBy = trim((string)($options['installed_by'] ?? ''));
+    if ($installedBy !== '') {
+        moduleOwnershipRecordInstall($moduleId, $installedBy);
+    }
     return [
         'ok' => true,
         'module_id' => $moduleId,
@@ -6090,6 +6107,8 @@ function uninstallModule(string $moduleId, array $options = []): array
         }
         @rmdir($templateDir);
     }
+
+    moduleOwnershipForget($moduleId);
 
     $res = ['ok' => true];
     if (is_array($exportResult)) {

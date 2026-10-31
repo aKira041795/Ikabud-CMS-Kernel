@@ -764,49 +764,48 @@ function kernelHandlePageAdminModules(): void
     }
 
     $allModules = discoverModules();
+    $ownership = moduleOwnershipResolveAll($allModules);
     $moduleList = [];
-    foreach ($allModules as $m) {
+
+    $routeInfo = static function (array $module): array {
         $routeCount = 0;
         $tenantAdminUrl = '';
-
-        $moduleId = (string)($m['id'] ?? '');
-        $rf = ($m['_path'] ?? '') . '/routes.php';
-        if ($moduleId !== '' && is_file($rf)) {
-            $mr = require $rf;
-            if (is_array($mr)) {
-                foreach ($mr as $method => $routes_arr) {
-                    if (!is_array($routes_arr)) {
-                        continue;
-                    }
-                    $routeCount += count($routes_arr);
-
-                    if ($tenantAdminUrl === '' && strtoupper((string)$method) === 'GET') {
-                        foreach ($routes_arr as $path => $handler) {
-                            if (!is_string($path)) {
-                                continue;
-                            }
-                            if (preg_match('#^/' . preg_quote($moduleId, '#') . '/admin/settings$#', $path)) {
-                                $tenantAdminUrl = $path;
-                                break;
-                            }
-                        }
+        $moduleId = (string)($module['id'] ?? '');
+        $routesFile = ($module['_path'] ?? '') . '/routes.php';
+        if ($moduleId === '' || !is_file($routesFile)) {
+            return ['count' => 0, 'tenant_admin_url' => ''];
+        }
+        $routes = require $routesFile;
+        if (!is_array($routes)) {
+            return ['count' => 0, 'tenant_admin_url' => ''];
+        }
+        foreach ($routes as $method => $methodRoutes) {
+            if (!is_array($methodRoutes)) {
+                continue;
+            }
+            $routeCount += count($methodRoutes);
+            if ($tenantAdminUrl === '' && strtoupper((string)$method) === 'GET') {
+                foreach ($methodRoutes as $path => $handler) {
+                    if (is_string($path) && preg_match('#^/' . preg_quote($moduleId, '#') . '/admin/settings$#', $path)) {
+                        $tenantAdminUrl = $path;
+                        break;
                     }
                 }
             }
         }
+        return ['count' => $routeCount, 'tenant_admin_url' => $tenantAdminUrl];
+    };
 
-        // The kernel-admin access opt-in applies only to modules DECLARED as
-        // kernel companions (kernel_companion: true, e.g. gui-settings, which
-        // customizes the kernel admin shell) — resolved from the validated
-        // on-disk manifest. Suite extension/adapter inference is rejected:
-        // standalone, entity, and extension modules are never shown the toggle.
+    foreach ($ownership['roots'] as $rootId => $rootOwnership) {
+        $m = $allModules[$rootId] ?? [];
+        if (!is_array($m)) {
+            continue;
+        }
+        $moduleId = (string)$rootId;
+        $routes = $routeInfo($m);
         $declaredCompanion = function_exists('isDeclaredKernelCompanion')
             ? isDeclaredKernelCompanion($moduleId)
             : !empty($m['kernel_companion'] ?? false);
-
-        // Modules authenticating against the kernel users table are always
-        // reachable by the kernel admin (the route gate is bypassed), so the
-        // opt-in is locked on for those companions.
         $usesKernelUsers = function_exists('tenantEntryModuleUsesKernelUsers')
             && tenantEntryModuleUsesKernelUsers($moduleId);
         $kernelAdminGuaranteed = $declaredCompanion && $usesKernelUsers;
@@ -814,9 +813,16 @@ function kernelHandlePageAdminModules(): void
             ? true
             : (bool)(getModuleSettings($moduleId)['allow_kernel_admin'] ?? false);
 
+        $children = [];
+        foreach ($rootOwnership['children'] as $child) {
+            $childManifest = $allModules[$child['id']] ?? [];
+            $childRoutes = is_array($childManifest) ? $routeInfo($childManifest) : ['tenant_admin_url' => ''];
+            $child['tenant_admin_url'] = $childRoutes['tenant_admin_url'];
+            $children[] = $child;
+        }
         $moduleList[] = [
-            'id' => $m['id'],
-            'name' => $m['name'] ?? $m['id'],
+            'id' => $moduleId,
+            'name' => $m['name'] ?? $moduleId,
             'version' => $m['version'] ?? '0.0.0',
             'description' => $m['description'] ?? '',
             'author' => $m['author'] ?? '',
@@ -826,15 +832,39 @@ function kernelHandlePageAdminModules(): void
             'kernel_admin_guaranteed' => $kernelAdminGuaranteed,
             'show_allow_kernel_admin' => $declaredCompanion,
             'nav_count' => count($m['nav'] ?? []),
-            'route_count' => $routeCount,
-            'tenant_admin_url' => $tenantAdminUrl,
+            'route_count' => $routes['count'],
+            'tenant_admin_url' => $routes['tenant_admin_url'],
+            'child_count' => count($children),
+            'children' => $children,
         ];
     }
+
+    $unresolved = $ownership['unresolved'];
+    $accounted = array_fill_keys(array_keys($ownership['roots']), true);
+    foreach ($ownership['roots'] as $root) {
+        foreach ($root['children'] as $child) {
+            $accounted[(string)$child['id']] = true;
+        }
+    }
+    foreach ($unresolved as $entry) {
+        $accounted[(string)$entry['id']] = true;
+    }
+    foreach ($allModules as $id => $manifest) {
+        if (!isset($accounted[$id])) {
+            $unresolved[] = ['id' => (string)$id, 'reason_code' => 'unaccounted', 'detail' => 'Resolver did not project this installed module.'];
+        }
+    }
+    $reasonLabels = ['ownership_conflict' => 'Ownership conflict', 'parent_missing' => 'Parent missing', 'ownership_cycle' => 'Ownership cycle', 'unaccounted' => 'Unaccounted ownership'];
+    foreach ($unresolved as &$entry) {
+        $entry['reason_label'] = $reasonLabels[$entry['reason_code'] ?? ''] ?? 'Unresolved ownership';
+    }
+    unset($entry);
     echo app()->render('pages/admin-modules.disyl', array_merge(
         kernelAdminContext($user, 'modules'),
         [
             'page_title' => 'Module Manager',
             'modules' => $moduleList,
+            'unresolved_ownership' => $unresolved,
         ]
     ));
     exit;

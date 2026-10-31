@@ -85,7 +85,9 @@ $fleet = [
 
 $provenance = [
     'zip-ext'    => ['installed_by' => 'cms', 'installed_at' => '2026-10-31 09:00:00'],
-    'conflict-d' => ['installed_by' => 'root-a', 'installed_at' => '2026-10-31 09:00:00'], // agrees
+    // The manifest says root-a, the install record says cms: they DISAGREE, which
+    // must surface as unresolved rather than letting one silently win.
+    'conflict-d' => ['installed_by' => 'cms', 'installed_at' => '2026-10-31 09:00:00'],
     'ghost-e2'   => ['installed_by' => 'cms'], // recorded but not installed: must not create a root
 ];
 
