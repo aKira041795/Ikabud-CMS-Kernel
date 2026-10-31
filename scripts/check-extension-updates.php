@@ -68,4 +68,12 @@ foreach ($result['failed'] as $moduleId => $error) {
     echo '  FAILED  ' . $moduleId . ' — ' . $error . "\n";
 }
 
+// Retire old pre-update trees. Every update leaves modules/<id>.bak_<stamp>
+// behind on purpose, so without this the modules directory grows forever.
+// modulePackageBackupGc() refuses any path that is not stamped, so it can only
+// ever remove a backup this updater made.
+$retentionDays = max(1, (int) (getenv('EXTENSION_BACKUP_RETENTION_DAYS') ?: 7));
+$retired = function_exists('modulePackageBackupGc') ? modulePackageBackupGc($retentionDays) : 0;
+echo 'Backup GC: ' . $retired . ' tree(s) older than ' . $retentionDays . " day(s) removed\n";
+
 exit(($feedErrors === [] && $result['failed'] === []) ? 0 : 1);
