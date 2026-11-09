@@ -22536,7 +22536,14 @@ function handleAdminCommissary(): void
     // R5: the Daily Sheet is ONE table. The destination filter only selects which
     // destination COLUMNS are shown; TOTAL and ACTUAL BAL are the same on every
     // filter because both read the single departure derivation.
-    $destinationFilter = (string)($input['destination'] ?? 'branches');
+    // Default to 'all'. It previously defaulted to 'branches', which meant a consignee created
+    // moments earlier was invisible on this sheet until the operator discovered the Destinations
+    // toggle — measured 2026-11-09: PUREGOLD (consignee 99881, supplied by this commissary) was
+    // absent from every column while the filter read 'branches', and the client had already
+    // reported "dili ko ka buhat" about creating it. Showing both is the honest default; the
+    // toggle still narrows to Branches or Consignees. With no consignees the 'all' branch renders
+    // no consignee columns, so commissaries without them are visually unchanged.
+    $destinationFilter = (string)($input['destination'] ?? 'all');
     if (!in_array($destinationFilter, ['branches', 'consignees', 'all'], true)) {
         $destinationFilter = 'branches';
     }
