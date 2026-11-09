@@ -3805,7 +3805,10 @@ function handleAdminDeliveries(array $params = []): void
         'delivery_filter_date_from' => $dateFrom,
         'delivery_filter_date_to' => $dateTo,
         'formal_delivery_enabled' => dl_isFormalDeliveryEnabled(),
-        'can_create_delivery_docs' => in_array($role, ['admin', 'supervisor'], true),
+        // production_in_charge creates the DRs that the receiving branch reconciles. handleAdminDeliveries()
+        // already authorises the role (its dlCurrentUser list includes it), so excluding them here
+        // only hid the create controls from the actor whose job is to create them.
+        'can_create_delivery_docs' => in_array($role, ['admin', 'supervisor', 'production_in_charge'], true),
         'can_review_delivery_provenance' => in_array($role, ['admin', 'supervisor', 'production_in_charge'], true),
         'can_mark_delivery_discrepant' => in_array($role, ['admin', 'supervisor'], true),
         'can_change_destination' => in_array($role, ['admin', 'supervisor'], true),

@@ -1147,7 +1147,7 @@
                     <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Commissary</span>
                 </a>
 
-                     {if feature_formal_delivery && (user_role == 'admin' || user_role == 'supervisor')}
+                     {if feature_formal_delivery && (user_role == 'admin' || user_role == 'supervisor' || user_role == 'production_in_charge')}
                      <a href="{base_url}/admin/deliveries"
                          class="wb-nav-item flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'deliveries'}bg-white/10 ring-1 ring-white/10{/if}"
                          aria-label="Deliveries">
@@ -2299,9 +2299,12 @@
 
 </div>
 
-{if can_view_production_management}
-{* The trigger lives in the top action bar beside Print Daily Sheet (owner 2026-10-22);
-   only the backdrop and the panel stay here.
+{if can_create_commissary_delivery}
+{* Gate this on the SAME permission as the trigger button (top action bar, beside Print Daily
+   Sheet). Gating the trigger on can_create_commissary_delivery while the panel it opens stayed
+   on can_view_production_management meant a production_in_charge user saw a "New Delivery (DR)"
+   button that did nothing: openDispatchEntry() targets #dispatch-panel, which was never rendered.
+   Measured in the browser 2026-11-09. Keep these two gates identical.
    This marker is also the end anchor for the Daily Sheet slice in
    daily_ledger_production_sheet_test.php - keep it above the dispatch panel. *}
 <!-- Dispatch to Branch -->

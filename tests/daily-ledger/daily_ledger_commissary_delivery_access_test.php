@@ -27,15 +27,25 @@ $h->test(
     str_contains($template, "{if can_view_production_management && shift_status == 'finalized'}")
 );
 
-$h->section('B4 deliveries navigation remains aligned with document creation rights');
+$h->section('B4 deliveries navigation aligns with document creation rights');
 $deliveries = (string)file_get_contents($base . '/modules/daily-ledger/handlers-deliveries.php');
+// DECISION CHANGED 2026-11-09 (owner: "ensure this is accessible by a production user, and not
+// only by admins or supervisors"). Tranche 1 deliberately left document creation admin-only and
+// pinned that here. handleAdminDeliveries() already authorised production_in_charge, so keeping
+// creation admin-only hid the create controls from the role whose job is creating DRs. Both the
+// creation right and the nav entry now include the role. These assertions were UPDATED to the new
+// decision — not weakened: they still assert an exact allowlist and still exclude cashier/viewer.
 $h->test(
-    'formal delivery document creation still excludes production-in-charge',
-    str_contains($deliveries, "'can_create_delivery_docs' => in_array(\$role, ['admin', 'supervisor'], true)")
+    'formal delivery document creation includes production-in-charge',
+    str_contains($deliveries, "'can_create_delivery_docs' => in_array(\$role, ['admin', 'supervisor', 'production_in_charge'], true)")
 );
 $h->test(
-    'Deliveries nav therefore remains admin/supervisor only',
-    str_contains($template, "{if feature_formal_delivery && (user_role == 'admin' || user_role == 'supervisor')}")
+    'Deliveries nav includes production-in-charge, aligned with creation rights',
+    str_contains($template, "{if feature_formal_delivery && (user_role == 'admin' || user_role == 'supervisor' || user_role == 'production_in_charge')}")
+);
+$h->test(
+    'cashier and viewer still cannot create delivery documents',
+    !preg_match("/'can_create_delivery_docs'\s*=>\s*in_array\(\\\$role,\s*\[[^\]]*'(cashier|viewer|auditor)'/", $deliveries)
 );
 
 $h->done();
