@@ -169,7 +169,15 @@ lane_policy_touch_allowed() {
         # Trim surrounding whitespace.
         pattern="${pattern#"${pattern%%[![:space:]]*}"}"
         pattern="${pattern%"${pattern##*[![:space:]]}"}"
-        if [[ "$path" == $pattern || "$path" == "$pattern"/* ]]; then
+        # A trailing slash is the natural way to declare a DIRECTORY prefix. Without this
+        # normalisation the prefix test below expands to "dir//*", which matches nothing, so a
+        # path explicitly inside the declared scope reads as a violation. Measured 2026-11-09:
+        # lane dl-tranche1 and dl-tranche2 were both recorded completion=BLOCKED / reason=crash /
+        # exit=97 for touching only paths inside their own --touches lists, which also corrupts
+        # the autonomy rate (a lane that is BLOCKED never counts as autonomous).
+        while [[ "$pattern" == */ ]]; do pattern="${pattern%/}"; done
+        [ -n "$pattern" ] || continue
+        if [[ "$path" == "$pattern" || "$path" == "$pattern"/* ]]; then
             return 0
         fi
     done
@@ -269,6 +277,17 @@ lane_policy_selftest() {
     printf 'changed\n' > outside.txt
     lane_policy_postcheck implement "allowed.txt" "$snapdir/before2" > /dev/null 2>&1
     [ $? -eq 97 ] && ok "implement role rejects an untouched path" || bad "implement role accepted an untouched path"
+
+    # Regression guard (defect measured 2026-11-09): a trailing slash declares a DIRECTORY
+    # prefix. Before the fix, "dir/" expanded to "dir//*" and matched nothing, so every path
+    # inside an explicitly declared directory was reported as a violation and the lane was
+    # recorded BLOCKED/crash/exit-97 despite doing entirely in-scope work.
+    lane_policy_touch_allowed "sub/inner.txt" "sub/" \
+        && ok "trailing-slash directory prefix allows an inner path" \
+        || bad "trailing-slash directory prefix rejected an inner path"
+    lane_policy_touch_allowed "other/inner.txt" "sub/" \
+        && bad "trailing-slash prefix accepted a path outside it" \
+        || ok "trailing-slash directory prefix still rejects an outside path"
 
     lane_policy_prepare review "" > /dev/null || { cd "$oldpwd"; rm -rf "$tmp" "$snapdir"; return 1; }
     lane_policy_snapshot "$snapdir/before3" > /dev/null
