@@ -5809,6 +5809,14 @@ function dl_processProductionMovement(array $user, string $movementType, array $
         }
     }
 
+    if ($formalDeliveryEnabled
+        && $movementType === 'output'
+        && $flowMode === 'production'
+        && !$isCommissaryDirectOutput
+        && $drNumber === '') {
+        throw new \RuntimeException('Enter a Delivery Receipt number for production output to a branch when formal delivery workflow is enabled.');
+    }
+
     $shouldAutoCreateFormalDelivery = $movementType === 'output'
         && $referenceMovementId === null
         && $formalDeliveryEnabled
