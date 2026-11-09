@@ -20499,9 +20499,64 @@ function dlBranchOperatingSwitches(\Ikabud\Kernel\Contracts\ModuleDB $db): array
  * @param array<string, int> $flags
  * @return array{ok: bool, error?: string, after?: array<string, mixed>}
  */
+/**
+ * Name the reason a branch may not change ROLE (ordinary branch <-> commissary) right now.
+ *
+ * Diagnosis only. dl_applyBranchFlags() enforces the rule inside the UPDATE's WHERE clause so the
+ * check and the write cannot be separated; this helper runs only AFTER that write has already
+ * refused, purely so the operator is told which condition blocked them. A refusal with no
+ * explanation was the original complaint in this batch of work, so the message has to name the
+ * next action.
+ *
+ * @return string|null Human-readable reason, or null when no known condition applies.
+ */
+function dl_branchRoleChangeBlocker($db, int $branchId, int $newIsCommissary): ?string
+{
+    $today = dl_businessDate();
+
+    $stmt = $db->prepare('SELECT COUNT(*) FROM dl_daily_ledger WHERE branch_id = :b AND ledger_date = :d');
+    $stmt->execute([':b' => $branchId, ':d' => $today]);
+    if ((int) $stmt->fetchColumn() > 0) {
+        return 'This branch already has ledger rows for ' . $today
+            . '. Change whether it is a commissary before the business day starts.';
+    }
+
+    // A dispatch the destination has not acknowledged would be stranded by a role flip: the
+    // receiving branch would no longer be a branch, so nothing can accept it.
+    $stmt = $db->prepare(
+        'SELECT COUNT(*) FROM dl_deliveries d'
+        . ' WHERE d.status = \'posted\''
+        . '   AND ((d.destination_type = \'branch\' AND d.destination_id = :dest)'
+        . '        OR d.origin_id = :org OR d.resolved_origin_id = :res)'
+        . '   AND NOT EXISTS (SELECT 1 FROM dl_branch_receivings r'
+        . '                    WHERE r.delivery_id = d.id AND r.status = \'posted\')'
+    );
+    $stmt->execute([':dest' => $branchId, ':org' => $branchId, ':res' => $branchId]);
+    if ((int) $stmt->fetchColumn() > 0) {
+        return 'This branch has deliveries still awaiting receipt. Receive or void them before changing its role.';
+    }
+
+    if ($newIsCommissary === 0) {
+        $stmt = $db->prepare('SELECT COUNT(*) FROM dl_branches WHERE assigned_commissary_id = :b AND id <> :self AND is_active = 1');
+        $stmt->execute([':b' => $branchId, ':self' => $branchId]);
+        $branches = (int) $stmt->fetchColumn();
+
+        $stmt = $db->prepare('SELECT COUNT(*) FROM dl_consignees WHERE assigned_commissary_id = :b AND is_active = 1');
+        $stmt->execute([':b' => $branchId]);
+        $consignees = (int) $stmt->fetchColumn();
+
+        if ($branches > 0 || $consignees > 0) {
+            return 'This commissary still supplies ' . $branches . ' branch(es) and ' . $consignees
+                . ' consignee(s). Reassign them before making it an ordinary branch.';
+        }
+    }
+
+    return null;
+}
+
 function dl_applyBranchFlags(\Ikabud\Kernel\Contracts\ModuleDB $db, int $branchId, array $flags): array
 {
-    $allowed = ['paperless_dr_enabled', 'single_shift_mode', 'has_production'];
+    $allowed = ['paperless_dr_enabled', 'single_shift_mode', 'has_production', 'is_commissary'];
     $unknown = array_diff(array_keys($flags), $allowed);
     if ($unknown !== []) {
         return ['ok' => false, 'error' => 'Unknown branch switch: ' . implode(', ', $unknown) . '.'];
@@ -20510,7 +20565,7 @@ function dl_applyBranchFlags(\Ikabud\Kernel\Contracts\ModuleDB $db, int $branchI
         return ['ok' => false, 'error' => 'No branch switch was supplied.'];
     }
 
-    $stmt = $db->prepare('SELECT id, name, paperless_dr_enabled, single_shift_mode, has_production FROM dl_branches WHERE id = :id LIMIT 1');
+    $stmt = $db->prepare('SELECT id, name, paperless_dr_enabled, single_shift_mode, has_production, is_commissary FROM dl_branches WHERE id = :id LIMIT 1');
     $stmt->execute([':id' => $branchId]);
     $before = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
     if (!$before) {
@@ -20543,17 +20598,68 @@ function dl_applyBranchFlags(\Ikabud\Kernel\Contracts\ModuleDB $db, int $branchI
     // mode mid-day orphans the carry-forward chain PM bal_end -> next AM beg_bal).
     // NOT EXISTS on another table is MySQL 5.7-safe (error 1093 only applies when a
     // subquery selects from the table being updated).
+    // A branch changing ROLE must be safe on every axis before anything is written; the helper
+    // names the reason so the operator gets an action rather than a silent refusal.
+    if (in_array('is_commissary', $changedKeys, true)) {
+        $roleBlocked = dl_branchRoleChangeBlocker($db, $branchId, (int) ($flags['is_commissary'] ?? 1));
+        if ($roleBlocked !== null) {
+            return ['ok' => false, 'error' => $roleBlocked];
+        }
+    }
+
     $guardSql = '';
     $guardBind = [];
     if (in_array('single_shift_mode', $changedKeys, true)) {
-        $guardSql = ' AND NOT EXISTS (SELECT 1 FROM dl_daily_ledger dl_gate'
+        $guardSql .= ' AND NOT EXISTS (SELECT 1 FROM dl_daily_ledger dl_gate'
             . ' WHERE dl_gate.branch_id = :gate_branch AND dl_gate.ledger_date = :gate_date)';
-        $guardBind = [':gate_branch' => $branchId, ':gate_date' => dl_businessDate()];
+        $guardBind[':gate_branch'] = $branchId;
+        $guardBind[':gate_date'] = dl_businessDate();
+    }
+
+    // is_commissary changes the branch's ROLE: a supplier stops receiving and starts shipping,
+    // or the reverse. There was no guard at all, so the admin UI's checkbox would happily convert
+    // a branch mid-flight and strand any dispatch already addressed to it. Same one-statement
+    // shape as R7 so the check and the write cannot be separated.
+    if (in_array('is_commissary', $changedKeys, true)) {
+        // (a) not after the branch has already started the business day
+        $guardSql .= ' AND NOT EXISTS (SELECT 1 FROM dl_daily_ledger dl_ic_gate'
+            . ' WHERE dl_ic_gate.branch_id = :ic_gate_branch AND dl_ic_gate.ledger_date = :ic_gate_date)';
+        $guardBind[':ic_gate_branch'] = $branchId;
+        $guardBind[':ic_gate_date'] = dl_businessDate();
+
+        // (b) no dispatch that is still awaiting acknowledgement, in EITHER direction
+        $guardSql .= ' AND NOT EXISTS (SELECT 1 FROM dl_deliveries dl_ic_move'
+            . ' WHERE dl_ic_move.status = \'posted\''
+            . '   AND ((dl_ic_move.destination_type = \'branch\' AND dl_ic_move.destination_id = :ic_dest)'
+            . '        OR dl_ic_move.origin_id = :ic_origin'
+            . '        OR dl_ic_move.resolved_origin_id = :ic_resolved)'
+            . '   AND NOT EXISTS (SELECT 1 FROM dl_branch_receivings dl_ic_rcv'
+            . '                    WHERE dl_ic_rcv.delivery_id = dl_ic_move.id AND dl_ic_rcv.status = \'posted\'))';
+        $guardBind[':ic_dest'] = $branchId;
+        $guardBind[':ic_origin'] = $branchId;
+        $guardBind[':ic_resolved'] = $branchId;
+
+        // (c) DEMOTING a commissary would orphan every branch and consignee supplied by it. That
+        // check reads dl_branches, and a same-table subquery on a table being UPDATEd is MySQL
+        // error 1093; the derived-table workaround is rejected by this kernel's table allowlist.
+        // So it runs in the pre-check above instead (dl_branchRoleChangeBlocker), which also
+        // supplies the operator-facing reason. The two races worth closing in SQL - a ledger row
+        // landing, or a dispatch arriving - stay below.
     }
 
     $applied = $db->prepare('UPDATE dl_branches SET ' . implode(', ', $sets) . ' WHERE id = :id' . $guardSql);
     $applied->execute($bind + $guardBind);
     if ($guardSql !== '' && $applied->rowCount() === 0) {
+        // The WHERE refused the write. Diagnose WHICH condition refused so the operator gets an
+        // actionable message instead of a generic failure - a refusal with no explanation is the
+        // exact complaint that opened this batch of work. The SQL guard above remains the
+        // authority; this only names the reason for the operator.
+        if (in_array('is_commissary', $changedKeys, true)) {
+            $blocked = dl_branchRoleChangeBlocker($db, $branchId, (int) ($flags['is_commissary'] ?? 1));
+            if ($blocked !== null) {
+                return ['ok' => false, 'error' => $blocked];
+            }
+        }
         return [
             'ok' => false,
             'error' => 'Single cashier shift can only be changed before the first ledger row of the business day ('
@@ -20572,8 +20678,8 @@ function dl_applyBranchFlags(\Ikabud\Kernel\Contracts\ModuleDB $db, int $branchI
         $branchId,
         'dl_branches',
         (string)$branchId,
-        ['paperless_dr_enabled' => (int)$before['paperless_dr_enabled'], 'single_shift_mode' => (int)$before['single_shift_mode'], 'has_production' => (int)$before['has_production']],
-        ['paperless_dr_enabled' => (int)$after['paperless_dr_enabled'], 'single_shift_mode' => (int)$after['single_shift_mode'], 'has_production' => (int)$after['has_production']]
+        ['paperless_dr_enabled' => (int)$before['paperless_dr_enabled'], 'single_shift_mode' => (int)$before['single_shift_mode'], 'has_production' => (int)$before['has_production'], 'is_commissary' => (int)$before['is_commissary']],
+        ['paperless_dr_enabled' => (int)$after['paperless_dr_enabled'], 'single_shift_mode' => (int)$after['single_shift_mode'], 'has_production' => (int)$after['has_production'], 'is_commissary' => (int)$after['is_commissary']]
     );
 
     return ['ok' => true, 'changed' => true, 'after' => $after];
@@ -20781,6 +20887,13 @@ function apiUpdateBranch(array $params = []): void
         if ($hasProduction !== null) {
             $switchInputs['has_production'] = (int)$hasProduction;
         }
+        // is_commissary joins the shared applier so its guard lives in exactly ONE place. This
+        // handler previously wrote it straight into its own UPDATE, which is how the Edit form
+        // drifted from the Settings toggle and how the role flip ended up with no guard at all.
+        // Always supplied: the Edit modal posts the checkbox state on every save.
+        if ($isCommissary !== null) {
+            $switchInputs['is_commissary'] = (int)$isCommissary;
+        }
         if ($switchInputs !== []) {
             $switchResult = dl_applyBranchFlags($ctx->db(), $branchId, $switchInputs);
             if (empty($switchResult['ok'])) {
@@ -20804,10 +20917,6 @@ function apiUpdateBranch(array $params = []): void
         if ($priceGroupId !== null || array_key_exists('price_group_id', $input)) {
             $sets[] = 'price_group_id = :pg';
             $bind[':pg'] = $priceGroupId;
-        }
-        if ($isCommissary !== null) {
-            $sets[] = 'is_commissary = :ic';
-            $bind[':ic'] = $isCommissary;
         }
         // All operating switches were applied above by dl_applyBranchFlags().
         $ctx->db()->prepare('UPDATE dl_branches SET ' . implode(', ', $sets) . ' WHERE id = :id')->execute($bind);
