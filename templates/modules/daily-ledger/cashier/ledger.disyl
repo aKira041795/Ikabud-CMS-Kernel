@@ -164,11 +164,11 @@
         <span id="held-actions"></span>
         <span id="offline-ready-badge" class="hidden inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset bg-emerald-50 text-emerald-700 ring-emerald-200">Offline ready</span>
         <button type="button" class="btn btn-accent" id="offline-access-btn" onclick="dlOpenOfflineAccess()">Enable offline access</button>
-        {if shift == 'PM' && day_status == 'open' && !reference_only}
-        {if pm_pending}
-        <button type="button" class="btn btn-primary" id="finalize-pm-btn" onclick="finalizePmShift()">Close PM Shift</button>
+        {if (shift == 'PM' || (single_shift_mode && shift == 'AM')) && day_status == 'open' && !reference_only}
+        {if shift_status != 'finalized'}
+        <button type="button" class="btn btn-primary" id="finalize-pm-btn" onclick="finalizePmShift()">{if single_shift_mode}Close Day-Ending Shift{else}Close PM Shift{/if}</button>
         {else}
-        <span class="inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-200">PM Shift Finalized</span>
+        <span class="inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-200">{if single_shift_mode}Day-Ending Shift Finalized{else}PM Shift Finalized{/if}</span>
         {/if}
         {/if}
         <button type="button" class="btn btn-accent" onclick="printCashierLedger()">Print</button>
@@ -2442,7 +2442,7 @@
         w.print();
     }
 
-    // Close PM shift: server-authoritative finalization of the manual day gate.
+    // Finalize the branch's day-ending shift through the established PM-named route.
     window.finalizePmShift = function() {
         var btn = document.getElementById('finalize-pm-btn');
         if (btn) { btn.disabled = true; btn.textContent = 'Finalizing…'; }
@@ -2457,16 +2457,16 @@
                 'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
             },
             body: JSON.stringify({ date: LEDGER_DATE, branch_id: BRANCH_ID })
-        }, 'Finalizing the PM shift')
+        }, 'Finalizing the ' + SHIFT + ' shift')
         .then(dlResponseJson)
         .then(function(res) {
             if (isSessionExpiredResponse(res)) { window.dlSessionExpired(res); return; }
             if (res.ok) {
-                showToast('PM shift finalized.', 'success');
+                showToast(SHIFT + ' shift finalized.', 'success');
                 location.reload();
                 return;
             }
-            var msg = res.error || 'Failed to finalize PM shift.';
+            var msg = res.error || ('Failed to finalize ' + SHIFT + ' shift.');
             if (box) {
                 var html = '<div class="font-semibold">' + String(msg) + '</div>';
                 var missing = (res.missing_products || []).slice(0, 50);

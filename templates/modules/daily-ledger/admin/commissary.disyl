@@ -1814,7 +1814,7 @@
                    narrower than its contents, and without the group the dispatch button
                    stayed on row 1 while Print fell alone to row 2. *}
                 <span class="inline-flex items-center gap-2">
-                    {if can_view_production_management}<button type="button" class="btn btn-primary btn-sm" onclick="openDispatchEntry()" title="Records a delivery to a branch against a DR number">New Delivery (DR)</button>{/if}
+                    {if can_create_commissary_delivery}<button type="button" class="btn btn-primary btn-sm" onclick="openDispatchEntry()" title="Records a delivery to a branch against a DR number">New Delivery (DR)</button>{/if}
                     <button type="button" class="btn btn-accent btn-sm" onclick="window.print()">Print Daily Sheet</button>
                 </span>
             </div>

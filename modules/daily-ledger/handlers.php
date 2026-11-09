@@ -2625,6 +2625,16 @@ function dl_isLastShiftOfDay(string $shift, int $branchId, ?bool $singleShiftMod
     return false;
 }
 
+/** Resolve the shift whose ending closes this branch's business day. */
+function dl_dayEndingShift(int $branchId): string
+{
+    // Test AM first: PM remains a valid day-end for historical rows on every
+    // branch, while AM is the actual operating day-end only in single-shift mode.
+    return dl_isLastShiftOfDay('AM', $branchId)
+        ? 'AM'
+        : (dl_isLastShiftOfDay('PM', $branchId) ? 'PM' : 'PM');
+}
+
 /**
  * Resolve and enforce the ledger shift for the current actor.
  *
@@ -3354,6 +3364,18 @@ function dl_applyLedgerDelta(int $branchId, int $productId, string $ledgerDate, 
             ':uid' => $actorId > 0 ? $actorId : null,
             ':uid2' => $actorId > 0 ? $actorId : null,
         ]);
+        $ledgerId = (int)$ctx->db()->lastInsertId();
+        dl_auditLog('ledger_delta_applied', $branchId, 'dl_daily_ledger', (string)$ledgerId, null, [
+            'branch_id' => $branchId,
+            'product_id' => $productId,
+            'ledger_date' => $ledgerDate,
+            'shift' => $shift,
+            'column' => $column,
+            'delta' => $delta,
+            'value_before' => 0,
+            'value_after' => $delta,
+            'actor_id' => $actorId,
+        ]);
         dl_recomputeSales($branchId, $productId, $ledgerDate, max(0, $actorId), $shift);
         dl_recomputeVariancesForDay($branchId, $ledgerDate);
         return [$column => $delta];
@@ -3375,6 +3397,17 @@ function dl_applyLedgerDelta(int $branchId, int $productId, string $ledgerDate, 
         ':val' => $newVal,
         ':uid' => $actorId > 0 ? $actorId : null,
         ':id' => (int)$row['id'],
+    ]);
+    dl_auditLog('ledger_delta_applied', $branchId, 'dl_daily_ledger', (string)$row['id'], null, [
+        'branch_id' => $branchId,
+        'product_id' => $productId,
+        'ledger_date' => $ledgerDate,
+        'shift' => $shift,
+        'column' => $column,
+        'delta' => $delta,
+        'value_before' => $currentVal,
+        'value_after' => $newVal,
+        'actor_id' => $actorId,
     ]);
 
     dl_recomputeSales($branchId, $productId, $ledgerDate, max(0, $actorId), $shift);
@@ -12423,6 +12456,7 @@ function apiFinalizePmShift(array $params = []): void
     }
     $branchId = $authResult['branch_id'];
     $date = (string)($input['date'] ?? dl_businessDate());
+    $endShift = dl_dayEndingShift((int)$branchId);
     $userId = dl_getActorUserId($user);
     if ($userId <= 0) {
         $ctx->json(['ok' => false, 'error' => 'Auth required', 'code' => 'session_expired'], 401);
@@ -12456,24 +12490,24 @@ function apiFinalizePmShift(array $params = []): void
             return;
         }
 
-        $pmStatus = dl_lockShiftStatusRow($ctx->db(), $branchId, $date, 'PM');
-        if ((string)$pmStatus['status'] === 'finalized') {
-            // Idempotent: an unchanged already-finalized PM shift is a success.
+        $endStatus = dl_lockShiftStatusRow($ctx->db(), $branchId, $date, $endShift);
+        if ((string)$endStatus['status'] === 'finalized') {
+            // Idempotent: an unchanged already-finalized day-ending shift is a success.
             $ctx->db()->commit();
-            header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'PM shift already finalized', 'type' => 'success']]));
+            header('HX-Trigger: ' . json_encode(['showToast' => ['message' => $endShift . ' shift already finalized', 'type' => 'success']]));
             $ctx->json(['ok' => true, 'already_finalized' => true, 'finalized' => true]);
             return;
         }
 
         // Validate every currently active branch product has a recorded ending.
-        $missing = dl_shiftMissingEndings($ctx->db(), $branchId, $date, 'PM');
+        $missing = dl_shiftMissingEndings($ctx->db(), $branchId, $date, $endShift);
         if (count($missing) > 0) {
             $ctx->db()->rollBack();
-            header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Complete all PM ending counts first.', 'type' => 'error']]));
+            header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Complete all ' . $endShift . ' ending counts first.', 'type' => 'error']]));
             $ctx->json([
                 'ok' => false,
-                'code' => 'PM_ENDING_MISSING',
-                'error' => count($missing) . ' active product(s) are missing a PM ending count.',
+                'code' => $endShift . '_ENDING_MISSING',
+                'error' => count($missing) . ' active product(s) are missing ' . ($endShift === 'AM' ? 'an ' : 'a ') . $endShift . ' ending count.',
                 'missing_products' => array_map(static function (array $m): array {
                     return ['product_id' => (int)$m['product_id'], 'name' => (string)$m['name'], 'sku' => (string)($m['sku'] ?? '')];
                 }, $missing),
@@ -12481,33 +12515,33 @@ function apiFinalizePmShift(array $params = []): void
             return;
         }
 
-        // Recompute every PM sales value inside the lock, then the day variances.
+        // Recompute every day-ending-shift sales value inside the lock, then the day variances.
         $updStmt = $ctx->db()->prepare(
             'SELECT product_id FROM dl_daily_ledger
-              WHERE branch_id = :bid AND ledger_date = :d AND shift = \'PM\''
+              WHERE branch_id = :bid AND ledger_date = :d AND shift = :shift'
         );
-        $updStmt->execute([':bid' => $branchId, ':d' => $date]);
+        $updStmt->execute([':bid' => $branchId, ':d' => $date, ':shift' => $endShift]);
         foreach ($updStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r) {
-            dl_recomputeSales($branchId, (int)$r['product_id'], $date, $userId, 'PM');
+            dl_recomputeSales($branchId, (int)$r['product_id'], $date, $userId, $endShift);
         }
         dl_recomputeVariancesForDay($branchId, $date, false);
 
         $finalize = $ctx->db()->prepare(
             'UPDATE dl_ledger_shift_status
                 SET status = \'finalized\', finalized_by = :uid, finalized_at = CURRENT_TIMESTAMP
-              WHERE branch_id = :bid AND ledger_date = :d AND shift = \'PM\''
+              WHERE branch_id = :bid AND ledger_date = :d AND shift = :shift'
         );
-        $finalize->execute([':uid' => $userId, ':bid' => $branchId, ':d' => $date]);
+        $finalize->execute([':uid' => $userId, ':bid' => $branchId, ':d' => $date, ':shift' => $endShift]);
 
-        dl_auditLog('finalize_shift', $branchId, 'dl_ledger_shift_status', "{$branchId}-{$date}-PM", ['status' => 'open'], [
+        dl_auditLog('finalize_shift', $branchId, 'dl_ledger_shift_status', "{$branchId}-{$date}-{$endShift}", ['status' => 'open'], [
             'status' => 'finalized',
-            'shift' => 'PM',
+            'shift' => $endShift,
             'finalized_by' => $userId,
         ]);
 
         $ctx->db()->commit();
 
-        header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'PM shift finalized', 'type' => 'success']]));
+        header('HX-Trigger: ' . json_encode(['showToast' => ['message' => $endShift . ' shift finalized', 'type' => 'success']]));
         $ctx->json(['ok' => true, 'finalized' => true]);
     } catch (\Throwable $e) {
         try {
@@ -12588,16 +12622,17 @@ function apiCloseDay(array $params = []): void
             return;
         }
 
-        // Fully manual days require the PM shift to be finalized first.
+        // Fully manual days require the branch's day-ending shift to be finalized first.
         if (dl_isFullyManualDay($ctx->db(), $branchId, $date)) {
-            $pmStatus = dl_lockShiftStatusRow($ctx->db(), $branchId, $date, 'PM');
-            if ((string)$pmStatus['status'] !== 'finalized') {
+            $endShift = dl_dayEndingShift((int)$branchId);
+            $endStatus = dl_lockShiftStatusRow($ctx->db(), $branchId, $date, $endShift);
+            if ((string)$endStatus['status'] !== 'finalized') {
                 $ctx->db()->rollBack();
-                header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Close the PM shift before closing the day.', 'type' => 'error']]));
+                header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Close the ' . $endShift . ' shift before closing the day.', 'type' => 'error']]));
                 $ctx->json([
                     'ok' => false,
-                    'code' => 'PM_ENDING_PENDING',
-                    'error' => 'The PM shift has not been finalized. Complete the PM ending counts and close the PM shift before closing the day.',
+                    'code' => $endShift . '_ENDING_PENDING',
+                    'error' => 'The ' . $endShift . ' shift has not been finalized. Complete the ' . $endShift . ' ending counts and close the ' . $endShift . ' shift before closing the day.',
                 ], 422);
                 return;
             }
@@ -23223,6 +23258,7 @@ function handleAdminCommissary(): void
         'production_beg_shift_locked' => $shift === null,
         'historical_unshifted_count' => $historicalUnshiftedCount,
         'can_view_production_management' => $canViewProductionManagement,
+        'can_create_commissary_delivery' => in_array($role, ['admin', 'supervisor', 'production_in_charge'], true),
         'can_close_day' => $canCloseDay,
         'can_reopen_day' => $canReopenDay,
         'can_view_production_variance' => $role === 'admin',
