@@ -1259,6 +1259,12 @@
                                 <div class="text-xs" data-delivery-variance="{v.id}">
                                     <div class="font-medium text-gray-700">Sent {v.sent_qty} · cashier counted {v.original_counted_qty}</div>
                                     <div class="mt-1 text-gray-500">Produced: {if v.delivery_production_shift}{v.delivery_production_shift}{else}not recorded{/if} · Received into: {if v.delivery_received_shift}{v.delivery_received_shift}{else}not recorded{/if}</div>
+                                    <div class="mt-2 border-t border-gray-200 pt-1">
+                                        <div class="font-semibold text-gray-700">Sender remark</div>
+                                        {if v.sender_remark}<div class="text-gray-600">{v.sender_remark | esc_html}</div><div class="text-gray-500">{v.sender_remarker_name} · {v.sender_remark_branch_name} · {v.sender_remarked_at}</div>{else}<div class="text-gray-400">No sender remark recorded.</div>{/if}
+                                        <div class="mt-1 font-semibold text-gray-700">Receiver remark</div>
+                                        {if v.receiver_remark}<div class="text-gray-600">{v.receiver_remark | esc_html}</div><div class="text-gray-500">{v.receiver_remarker_name} · {v.receiver_remark_branch_name} · {v.receiver_remarked_at}</div>{else}<div class="text-gray-400">No receiver remark recorded.</div>{/if}
+                                    </div>
                                     {if v.resolution_choice}
                                     <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset {if v.resolution_choice == 'accept_production'}bg-emerald-50 text-emerald-700 ring-emerald-200{/if}{if v.resolution_choice == 'keep_as_evidence'}bg-sky-50 text-sky-700 ring-sky-200{/if}">{v.choice_label}</span>
                                     <div class="mt-1 text-gray-500">{v.reviewer_name}{if v.reviewed_at} · {v.reviewed_at}{/if}</div>
@@ -1391,6 +1397,12 @@
                                 <div class="text-xs" data-delivery-variance="{v.id}">
                                     <div class="font-medium text-gray-700">Sent {v.sent_qty} · cashier counted {v.original_counted_qty}</div>
                                     <div class="mt-1 text-gray-500">Produced: {if v.delivery_production_shift}{v.delivery_production_shift}{else}not recorded{/if} · Received into: {if v.delivery_received_shift}{v.delivery_received_shift}{else}not recorded{/if}</div>
+                                    <div class="mt-2 border-t border-gray-200 pt-1">
+                                        <div class="font-semibold text-gray-700">Sender remark</div>
+                                        {if v.sender_remark}<div class="text-gray-600">{v.sender_remark | esc_html}</div><div class="text-gray-500">{v.sender_remarker_name} · {v.sender_remark_branch_name} · {v.sender_remarked_at}</div>{else}<div class="text-gray-400">No sender remark recorded.</div>{/if}
+                                        <div class="mt-1 font-semibold text-gray-700">Receiver remark</div>
+                                        {if v.receiver_remark}<div class="text-gray-600">{v.receiver_remark | esc_html}</div><div class="text-gray-500">{v.receiver_remarker_name} · {v.receiver_remark_branch_name} · {v.receiver_remarked_at}</div>{else}<div class="text-gray-400">No receiver remark recorded.</div>{/if}
+                                    </div>
                                     {if v.resolution_choice}
                                     <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset {if v.resolution_choice == 'accept_production'}bg-emerald-50 text-emerald-700 ring-emerald-200{/if}{if v.resolution_choice == 'keep_as_evidence'}bg-sky-50 text-sky-700 ring-sky-200{/if}">{v.choice_label}</span>
                                     <div class="mt-1 text-gray-500">{v.reviewer_name}{if v.reviewed_at} · {v.reviewed_at}{/if}</div>

@@ -77,7 +77,10 @@
             <input type="text" class="form-input w-full sm:w-64" name="q" value="{search}" placeholder="Search name or code...">
             <button type="submit" class="btn btn-primary">Search</button>
         </form>
-        <button class="btn btn-primary" onclick="openAddBranch()">+ Add Branch</button>
+        <div class="flex gap-2">
+            <button type="button" class="btn btn-accent" id="manage-areas-button">Manage Areas</button>
+            <button class="btn btn-primary" onclick="openAddBranch()">+ Add Branch</button>
+        </div>
     </div>
 </div>
 
@@ -467,6 +470,59 @@
         <div class="modal-actions branch-modal__actions"><button class="btn btn-accent" onclick="closeModal('consignee-modal')">Cancel</button><button class="btn btn-primary" id="consignee-submit" onclick="saveConsignee()">Save</button></div>
     </div>
 </div>
+
+<!-- Area management stays beside branch/consignee work because both use this registry. -->
+<div class="modal-overlay" id="area-modal">
+    <div class="modal branch-modal">
+        <div class="branch-modal__header">
+            <h3 class="mb-1">Manage Areas</h3>
+            <p class="text-sm text-gray-500">Create or edit the canonical areas available to branches and consignees.</p>
+        </div>
+        <div class="branch-modal__body">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="branch-modal__section">
+                    <div class="branch-modal__section-title">Existing Areas</div>
+                    <div class="space-y-2">
+                        {foreach areas as area}
+                        <button type="button" class="btn btn-outline w-full justify-between area-edit-button"
+                                data-area-id="{area.id}" data-area-code="{area.code | esc_html}"
+                                data-area-name="{area.name | esc_html}" data-area-active="{area.is_active}"
+                                data-area-sort="{area.sort_order | default:0}">
+                            <span>{area.name} ({area.code})</span><span>{if area.is_active == 1}Active{else}Inactive{/if}</span>
+                        </button>
+                        {/foreach}
+                    </div>
+                </div>
+                <div class="branch-modal__section">
+                    <div class="branch-modal__section-title" id="area-form-title">Create Area</div>
+                    <input type="hidden" id="area-id">
+                    <div class="form-group">
+                        <label class="form-label" for="area-code">Area Code</label>
+                        <input class="form-input uppercase" type="text" id="area-code" maxlength="64" placeholder="e.g. SINDANGAN">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="area-name">Area Name</label>
+                        <input class="form-input" type="text" id="area-name" maxlength="120" placeholder="e.g. Sindangan">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="area-sort-order">Display Order</label>
+                        <input class="form-input" type="number" id="area-sort-order" step="1" value="0">
+                    </div>
+                    <div class="form-group">
+                        <label class="inline-flex items-center gap-2 text-sm text-gray-700">
+                            <input type="checkbox" id="area-active" checked> This area is active
+                        </label>
+                    </div>
+                    <button type="button" class="btn btn-outline" id="area-new-button">Clear for New Area</button>
+                </div>
+            </div>
+        </div>
+        <div class="modal-actions branch-modal__actions">
+            <button type="button" class="btn btn-accent" id="area-cancel-button">Cancel</button>
+            <button type="button" class="btn btn-primary" id="area-save-button">Create Area</button>
+        </div>
+    </div>
+</div>
 {/block}
 
 {block scripts}
@@ -487,6 +543,69 @@
 
     function openAddBranch() { document.getElementById('add-modal').classList.add('show'); document.getElementById('add-code').focus(); }
     function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+
+    function resetAreaForm() {
+        document.getElementById('area-id').value = '';
+        document.getElementById('area-code').value = '';
+        document.getElementById('area-name').value = '';
+        document.getElementById('area-sort-order').value = '0';
+        document.getElementById('area-active').checked = true;
+        document.getElementById('area-form-title').textContent = 'Create Area';
+        document.getElementById('area-save-button').textContent = 'Create Area';
+    }
+
+    document.addEventListener('click', function(e) {
+        var manage = e.target.closest('#manage-areas-button');
+        if (manage) {
+            resetAreaForm();
+            document.getElementById('area-modal').classList.add('show');
+            document.getElementById('area-code').focus();
+            return;
+        }
+        if (e.target.closest('#area-new-button')) {
+            resetAreaForm();
+            document.getElementById('area-code').focus();
+            return;
+        }
+        if (e.target.closest('#area-cancel-button')) {
+            closeModal('area-modal');
+            return;
+        }
+        var edit = e.target.closest('.area-edit-button');
+        if (edit) {
+            document.getElementById('area-id').value = edit.dataset.areaId;
+            document.getElementById('area-code').value = edit.dataset.areaCode || '';
+            document.getElementById('area-name').value = edit.dataset.areaName || '';
+            document.getElementById('area-sort-order').value = edit.dataset.areaSort || '0';
+            document.getElementById('area-active').checked = edit.dataset.areaActive === '1';
+            document.getElementById('area-form-title').textContent = 'Edit Area';
+            document.getElementById('area-save-button').textContent = 'Update Area';
+            return;
+        }
+        if (!e.target.closest('#area-save-button')) return;
+        var save = document.getElementById('area-save-button');
+        var areaId = parseInt(document.getElementById('area-id').value, 10) || 0;
+        save.disabled = true;
+        fetch(BASE + (areaId ? '/api/v1/admin/areas/update' : '/api/v1/admin/areas'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                area_id: areaId,
+                code: document.getElementById('area-code').value,
+                name: document.getElementById('area-name').value,
+                is_active: document.getElementById('area-active').checked,
+                sort_order: parseInt(document.getElementById('area-sort-order').value, 10) || 0
+            })
+        }).then(function(r) { return r.json(); }).then(function(res) {
+            if (!res.ok) throw new Error(res.error || 'Failed to save area.');
+            closeModal('area-modal');
+            showToast(areaId ? 'Area updated' : 'Area created');
+            setTimeout(function() { window.refreshMainContent(); }, 500);
+        }).catch(function(error) {
+            showToast(error.message || 'Failed to save area.');
+            save.disabled = false;
+        });
+    });
     function openConsignee(id, code, name, commissaryId, active, areaId, address, priceGroupId, sortOrder) {
         document.getElementById('consignee-id').value = id || '';
         document.getElementById('consignee-code').value = code || '';

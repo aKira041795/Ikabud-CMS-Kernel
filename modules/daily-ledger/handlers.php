@@ -15926,6 +15926,10 @@ function handleAdminVariances(array $params = []): void
             INNER JOIN dl_products p ON p.id = vf.product_id
             INNER JOIN dl_branches b ON b.id = vf.branch_id
             LEFT JOIN dl_users reviewer ON reviewer.id = vf.reviewed_by
+            LEFT JOIN dl_users sender_remarker ON sender_remarker.id = vf.sender_remark_by
+            LEFT JOIN dl_users receiver_remarker ON receiver_remarker.id = vf.receiver_remark_by
+            LEFT JOIN dl_branches sender_remark_branch ON sender_remark_branch.id = vf.sender_remark_branch_id
+            LEFT JOIN dl_branches receiver_remark_branch ON receiver_remark_branch.id = vf.receiver_remark_branch_id
             LEFT JOIN dl_deliveries d ON d.id = vf.delivery_id
             LEFT JOIN dl_branch_receivings r ON r.id = vf.receiving_id
             WHERE ';
@@ -15954,7 +15958,11 @@ function handleAdminVariances(array $params = []): void
         'SELECT vf.*, p.name AS product_name, p.sku AS product_sku, b.name AS branch_name, b.code AS branch_code,
                 COALESCE(reviewer.full_name, \'Unknown\') AS reviewer_name,
                 d.production_shift AS delivery_production_shift,
-                r.received_shift AS delivery_received_shift '
+                r.received_shift AS delivery_received_shift,
+                sender_remarker.full_name AS sender_remarker_name,
+                receiver_remarker.full_name AS receiver_remarker_name,
+                sender_remark_branch.name AS sender_remark_branch_name,
+                receiver_remark_branch.name AS receiver_remark_branch_name '
         . $filteredFromSql . ' ORDER BY vf.ledger_date DESC, b.name, p.name LIMIT ' . DL_VARIANCE_PAGE_ROW_LIMIT
     );
     $listStmt->execute($bindFiltered);
@@ -19204,6 +19212,90 @@ function apiUpdateVarianceStatus(array $params = []): void
 }
 
 /**
+ * Store one branch-side explanation without changing the discrepancy or its resolution.
+ */
+function apiSaveDeliveryVarianceRemark(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) { http_response_code(500); return; }
+    $user = dlCurrentUser(['cashier', 'supervisor', 'production_in_charge']);
+    $input = $ctx->input();
+    $varianceId = (int)($input['variance_id'] ?? 0);
+    $side = trim((string)($input['side'] ?? ''));
+    $remark = trim((string)($input['remark'] ?? ''));
+    if ($varianceId <= 0 || !in_array($side, ['sender', 'receiver'], true)) {
+        $ctx->json(['ok' => false, 'error' => 'A delivery variance and sender or receiver side are required.'], 422);
+        return;
+    }
+    if ($remark === '' || mb_strlen($remark) > DL_VARIANCE_NOTE_MAX) {
+        $ctx->json(['ok' => false, 'error' => 'A remark is required and must be at most ' . DL_VARIANCE_NOTE_MAX . ' characters.'], 422);
+        return;
+    }
+
+    try {
+        $ctx->db()->beginTransaction();
+        $stmt = $ctx->db()->prepare(
+            'SELECT vf.id, vf.kind, vf.sent_qty, vf.received_qty, vf.resolution_status,
+                    vf.sender_remark, vf.receiver_remark, vf.branch_id AS receiving_branch_id,
+                    d.origin_type, d.origin_id
+               FROM dl_variance_flags vf
+               INNER JOIN dl_deliveries d ON d.id = vf.delivery_id
+              WHERE vf.id = :id LIMIT 1 FOR UPDATE'
+        );
+        $stmt->execute([':id' => $varianceId]);
+        $flag = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$flag || (string)$flag['kind'] !== 'delivery') {
+            $ctx->db()->rollBack();
+            $ctx->json(['ok' => false, 'error' => 'Delivery variance not found.'], 404);
+            return;
+        }
+        $senderBranchId = in_array((string)$flag['origin_type'], ['branch', 'commissary'], true) ? (int)$flag['origin_id'] : 0;
+        $sideBranchId = $side === 'sender' ? $senderBranchId : (int)$flag['receiving_branch_id'];
+        if ($sideBranchId <= 0) {
+            $ctx->db()->rollBack();
+            $ctx->json(['ok' => false, 'error' => 'The delivery side has no branch.'], 409);
+            return;
+        }
+        $auth = dl_authorizeBranch($user, ['branch_id' => $sideBranchId]);
+        if ((int)($auth['branch_id'] ?? -1) !== $sideBranchId) {
+            $ctx->db()->rollBack();
+            $ctx->json(['ok' => false, 'error' => 'Only the branch on this side of the delivery may write this remark.'], 403);
+            return;
+        }
+        $actorId = dl_getActorUserId($user);
+        // dl_authorizeBranch is the canonical role-aware gate. The direct pair
+        // below narrows its commissary-network expansion for this endpoint:
+        // a remark represents the named branch's own words, not a network-wide
+        // operating permission exercised on that branch's behalf.
+        $actor = $ctx->db()->prepare(
+            'SELECT u.id FROM dl_users u
+             INNER JOIN dl_user_branches ub ON ub.user_id = u.id AND ub.branch_id = :branch
+             WHERE u.id = :id AND u.deleted_at IS NULL AND u.is_active = 1 LIMIT 1'
+        );
+        $actor->execute([':id' => $actorId, ':branch' => $sideBranchId]);
+        if (!$actor->fetchColumn()) {
+            $ctx->db()->rollBack();
+            $ctx->json(['ok' => false, 'error' => 'Only a user assigned to the branch on this side may write this remark.'], 403);
+            return;
+        }
+        $prefix = $side === 'sender' ? 'sender' : 'receiver';
+        $sql = 'UPDATE dl_variance_flags SET ' . $prefix . '_remark = :remark, '
+            . $prefix . '_remark_by = :actor, ' . $prefix . '_remark_branch_id = :branch, '
+            . $prefix . '_remarked_at = CURRENT_TIMESTAMP WHERE id = :id';
+        $ctx->db()->prepare($sql)->execute([':remark' => $remark, ':actor' => $actorId, ':branch' => $sideBranchId, ':id' => $varianceId]);
+        dl_auditLog('delivery_variance_' . $side . '_remark', $sideBranchId, 'dl_variance_flags', (string)$varianceId,
+            ['remark' => $flag[$prefix . '_remark'] ?? null],
+            ['remark' => $remark, 'author_id' => $actorId, 'author_branch_id' => $sideBranchId]);
+        $ctx->db()->commit();
+        $ctx->json(['ok' => true, 'side' => $side, 'remark' => $remark]);
+    } catch (\Throwable $e) {
+        if ($ctx->db()->inTransaction()) { $ctx->db()->rollBack(); }
+        write_log('daily-ledger apiSaveDeliveryVarianceRemark failed', 'error', ['error' => $e->getMessage(), 'variance_id' => $varianceId]);
+        $ctx->json(['ok' => false, 'error' => 'Failed to save delivery remark.'], 500);
+    }
+}
+
+/**
  * POST /daily-ledger/api/v1/admin/variances/decide-delivery
  *
  * The admin-only acceptance decision for a production correction that changed a
@@ -19953,6 +20045,102 @@ function apiRepriceProduct(array $params = []): void
 
 // ─── Admin: Branches ───────────────────────────────────────────────────
 
+/** Validate the writable area fields shared by create and update. */
+function dl_validateAreaInput(array $input): array
+{
+    $name = trim((string)($input['name'] ?? ''));
+    $code = strtoupper(trim((string)($input['code'] ?? '')));
+    if ($name === '' || mb_strlen($name) > 120) {
+        throw new \InvalidArgumentException('Area name is required and must be at most 120 characters.');
+    }
+    if ($code === '' || mb_strlen($code) > 64) {
+        throw new \InvalidArgumentException('Area code is required and must be at most 64 characters.');
+    }
+    if (!array_key_exists('is_active', $input) || !is_scalar($input['is_active'])) {
+        throw new \InvalidArgumentException('Area active status must be explicitly enabled or disabled.');
+    }
+    $active = filter_var($input['is_active'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+    if ($active === null) {
+        throw new \InvalidArgumentException('Area active status must be explicitly enabled or disabled.');
+    }
+    return ['name' => $name, 'code' => $code, 'is_active' => $active ? 1 : 0, 'sort_order' => (int)($input['sort_order'] ?? 0)];
+}
+
+function apiCreateArea(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) { http_response_code(500); return; }
+    $user = dlCurrentUser(['admin']);
+    $input = $ctx->input();
+    try {
+        $area = dl_validateAreaInput(is_array($input) ? $input : []);
+        $duplicate = $ctx->db()->prepare('SELECT id FROM dl_areas WHERE code = :code LIMIT 1');
+        $duplicate->execute([':code' => $area['code']]);
+        if ($duplicate->fetchColumn()) {
+            $ctx->json(['ok' => false, 'error' => 'Area code already exists.'], 422);
+            return;
+        }
+        $stmt = $ctx->db()->prepare('INSERT INTO dl_areas (code, name, is_active, sort_order) VALUES (:code, :name, :active, :sort_order)');
+        $stmt->execute([':code' => $area['code'], ':name' => $area['name'], ':active' => $area['is_active'], ':sort_order' => $area['sort_order']]);
+        $id = (int)$ctx->db()->lastInsertId();
+        dl_auditLog('area_created', null, 'dl_areas', (string)$id, null, $area + ['actor_id' => dl_getActorUserId($user)]);
+        $ctx->json(['ok' => true, 'area_id' => $id]);
+    } catch (\InvalidArgumentException $e) {
+        $ctx->json(['ok' => false, 'error' => $e->getMessage()], 422);
+    } catch (\Throwable $e) {
+        $message = strtolower($e->getMessage());
+        if (str_contains($message, 'duplicate') || str_contains($message, 'uq_dl_areas_code')) {
+            $ctx->json(['ok' => false, 'error' => 'Area code already exists.'], 422);
+            return;
+        }
+        write_log('daily-ledger apiCreateArea failed', 'error', ['error' => $e->getMessage()]);
+        $ctx->json(['ok' => false, 'error' => 'Failed to create area.'], 500);
+    }
+}
+
+function apiUpdateArea(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) { http_response_code(500); return; }
+    $user = dlCurrentUser(['admin']);
+    $input = $ctx->input();
+    $id = (int)($input['area_id'] ?? 0);
+    if ($id <= 0) {
+        $ctx->json(['ok' => false, 'error' => 'A valid area is required.'], 422);
+        return;
+    }
+    try {
+        $area = dl_validateAreaInput(is_array($input) ? $input : []);
+        $oldStmt = $ctx->db()->prepare('SELECT code, name, is_active, sort_order FROM dl_areas WHERE id = :id LIMIT 1');
+        $oldStmt->execute([':id' => $id]);
+        $old = $oldStmt->fetch(PDO::FETCH_ASSOC);
+        if (!$old) {
+            $ctx->json(['ok' => false, 'error' => 'Area not found.'], 404);
+            return;
+        }
+        $duplicate = $ctx->db()->prepare('SELECT id FROM dl_areas WHERE code = :code AND id <> :id LIMIT 1');
+        $duplicate->execute([':code' => $area['code'], ':id' => $id]);
+        if ($duplicate->fetchColumn()) {
+            $ctx->json(['ok' => false, 'error' => 'Area code already exists.'], 422);
+            return;
+        }
+        $ctx->db()->prepare('UPDATE dl_areas SET code = :code, name = :name, is_active = :active, sort_order = :sort_order WHERE id = :id')
+            ->execute([':code' => $area['code'], ':name' => $area['name'], ':active' => $area['is_active'], ':sort_order' => $area['sort_order'], ':id' => $id]);
+        dl_auditLog('area_updated', null, 'dl_areas', (string)$id, $old, $area + ['actor_id' => dl_getActorUserId($user)]);
+        $ctx->json(['ok' => true, 'area_id' => $id]);
+    } catch (\InvalidArgumentException $e) {
+        $ctx->json(['ok' => false, 'error' => $e->getMessage()], 422);
+    } catch (\Throwable $e) {
+        $message = strtolower($e->getMessage());
+        if (str_contains($message, 'duplicate') || str_contains($message, 'uq_dl_areas_code')) {
+            $ctx->json(['ok' => false, 'error' => 'Area code already exists.'], 422);
+            return;
+        }
+        write_log('daily-ledger apiUpdateArea failed', 'error', ['error' => $e->getMessage(), 'area_id' => $id]);
+        $ctx->json(['ok' => false, 'error' => 'Failed to update area.'], 500);
+    }
+}
+
 /** Resolve a picker value to its canonical row; NULL means no area. */
 function dl_resolveCanonicalArea($db, mixed $value): array
 {
@@ -20032,7 +20220,7 @@ function handleAdminBranches(array $params = []): void
     $consigneeStmt = $ctx->db()->prepare($consigneeSql);
     $consigneeStmt->execute($consigneeBind);
     $consignees = $consigneeStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-    $areasStmt = $ctx->db()->query('SELECT id, code, name, is_active FROM dl_areas ORDER BY is_active DESC, sort_order ASC, name ASC');
+    $areasStmt = $ctx->db()->query('SELECT id, code, name, is_active, sort_order FROM dl_areas ORDER BY is_active DESC, sort_order ASC, name ASC');
     $areas = $areasStmt ? ($areasStmt->fetchAll(PDO::FETCH_ASSOC) ?: []) : [];
     $priceGroupsStmt = $ctx->db()->query('SELECT id, name, type, is_default FROM dl_price_groups WHERE is_active = 1 ORDER BY is_default DESC, name');
     $priceGroups = $priceGroupsStmt ? ($priceGroupsStmt->fetchAll(PDO::FETCH_ASSOC) ?: []) : [];
