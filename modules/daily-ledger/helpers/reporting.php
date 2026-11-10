@@ -1462,13 +1462,14 @@ function dl_forecastRows(ModuleDB $db, array $filters, string $targetDate, int $
         . '  AND ss.shift = dl.shift COLLATE utf8mb4_unicode_ci'
         . ' WHERE dl.branch_id IN (' . $salesMarks . ') AND dl.ledger_date BETWEEN ? AND ?'
         . '   AND dl.bal_end IS NOT NULL'
-        . dl_officialOnlySqlPredicate('dl', 'ss')
-        // ANY_VALUE is the MySQL 5.7 escape from ONLY_FULL_GROUP_BY for a column that IS grouped but
-        // whose collation the join above coerces: selecting the bare column (or a CAST of it) was
-        // rejected with "Expression #3 of SELECT list is not in GROUP BY clause" on the fixture
-        // connection even though it is grouped, and the grouped value is the only possible one.
-        . ' GROUP BY dl.branch_id, dl.product_id, dl.shift';
+        . dl_officialOnlySqlPredicate('dl', 'ss');
     $salesBind = array_merge($salesIds, [$historyFrom, $historyTo]);
+    // The optional filters MUST be appended here, before GROUP BY. Appending them after it does not
+    // error: MySQL reads `GROUP BY a, b, c AND dl.branch_id = ?` as an extra grouping EXPRESSION, so
+    // the query silently groups by a boolean and filters NOTHING. Measured 2026-11-10 on the overview
+    // fixture: a supervisor scoped to branch 99402 received branch 99401's forecast rows, and the
+    // report's own official-only count was 0 against this query's 2 groups. A missing filter that
+    // raises no error is worse than one that raises, so the GROUP BY below stays last.
     if ($filters['branch_id'] > 0) {
         $salesSql .= ' AND dl.branch_id = ?';
         $salesBind[] = $filters['branch_id'];
@@ -1481,6 +1482,11 @@ function dl_forecastRows(ModuleDB $db, array $filters, string $targetDate, int $
         $salesSql .= ' AND dl.shift = ?';
         $salesBind[] = $filters['shift'];
     }
+    // ANY_VALUE is the MySQL 5.7 escape from ONLY_FULL_GROUP_BY for a column that IS grouped but
+    // whose collation the join above coerces: selecting the bare column (or a CAST of it) was rejected
+    // with "Expression #3 of SELECT list is not in GROUP BY clause" on the fixture connection even
+    // though it is grouped, and the grouped value is the only possible one.
+    $salesSql .= ' GROUP BY dl.branch_id, dl.product_id, dl.shift';
     $salesStmt = $db->prepare($salesSql);
     $salesStmt->execute($salesBind);
     $sales = $salesStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
