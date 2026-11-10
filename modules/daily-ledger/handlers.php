@@ -14418,6 +14418,95 @@ function handleAdminForecast(array $params = []): void
     ]);
 }
 
+/**
+ * The ONE source of truth for Activity/Sales action-category filtering.
+ *
+ * These categories were duplicated in handleAdminSales and handleAdminActivity and had ALREADY
+ * drifted: the Activity copy had no 'delivery' category while the Sales copy did, and neither
+ * listed 'delivery_received' — the action written when a branch accepts stock, i.e. the single
+ * most important record for "kinsay nagbutang sa additional".
+ *
+ * A category present in the dropdown but MISSING from this map is the dangerous case: the handler
+ * resets an unknown filter to '', so choosing it silently shows EVERY activity instead of the one
+ * asked for. dl_activityActionFilterOptions() therefore derives the dropdown from this map, so the
+ * two can never disagree again.
+ */
+function dl_activityActionFilterMap(): array
+{
+    return [
+        'output' => ['production_output'],
+        // The withdrawal audit action actually written is 'withdrawal'
+        // (handlers-offline.php and apiCreateWithdrawal), plus 'withdrawal_updated'
+        // for edits. 'production_withdrawal' is retained last for any legacy rows.
+        'withdrawal' => ['withdrawal', 'withdrawal_updated', 'production_withdrawal'],
+        'delivery' => [
+            'create_delivery', 'delivery_created', 'update_delivery',
+            'delivery_posted', 'delivery_voided',
+            // Written by apiReceiveDelivery / dl_acceptFormalDelivery when a branch ACCEPTS stock.
+            // This is the credit that moves addtl, so it must be findable under Delivery.
+            'delivery_received',
+            // The source-side debit recorded when a dispatch is posted.
+            'delivery_ledger_applied',
+            'create_receiving', 'receiving_created', 'receiving_posted', 'receiving_voided',
+            'receiving_bodega_lines',
+            // Office correction of a received quantity; posts an addtl delta.
+            'resolve_receiving_count',
+            'review_delivery_provenance',
+        ],
+        'product' => ['create_product', 'update_product'],
+        'user' => ['create_user', 'update_user', 'delete_user', 'restore_user'],
+        'commissary' => ['create_commissary_run', 'update_commissary_run', 'delete_commissary_run', 'save_commissary_material'],
+        'ledger' => [
+            'field_update', 'row_update', 'close_day', 'reopen_day',
+            // Written by dl_applyLedgerDelta() on every programmatic stock change: production
+            // output, receiving, office corrections.
+            'ledger_delta_applied',
+            // Beginning-balance carries and own-production writes also change ledger values.
+            'auto_carry', 'save_cashier_ledger_beg', 'carry_cashier_beginnings',
+        ],
+        'variance' => ['variance_status'],
+        // Actual writers include adjusted as well as applied/reversed. Keep the
+        // assignment names here too so this family remains complete when those
+        // action paths are deployed.
+        'consignee' => [
+            'consignee_created', 'consignee_updated',
+            'consignee_ledger_applied', 'consignee_ledger_adjusted', 'consignee_ledger_reversed',
+            'consignee_product_assigned', 'consignee_product_unassigned',
+            'review_delivery_provenance',
+        ],
+    ];
+}
+
+/**
+ * Dropdown options DERIVED from dl_activityActionFilterMap().
+ *
+ * Deriving rather than listing is deliberate: a hand-written option list is how "Delivery" ended up
+ * selectable on the Activity page while the map had no 'delivery' key, so the filter was silently
+ * discarded and every activity was shown under a Delivery label.
+ */
+function dl_activityActionFilterOptions(): array
+{
+    $labels = [
+        'output' => 'Output',
+        'withdrawal' => 'Withdrawal',
+        'delivery' => 'Delivery',
+        'ledger' => 'Ledger',
+        'commissary' => 'Commissary',
+        'product' => 'Product',
+        'user' => 'User',
+        'variance' => 'Variance',
+        'consignee' => 'Consignee Activities',
+    ];
+    $map = dl_activityActionFilterMap();
+    $options = [['value' => '', 'label' => 'All Activities']];
+    foreach ($labels as $value => $label) {
+        if (isset($map[$value])) {
+            $options[] = ['value' => $value, 'label' => $label];
+        }
+    }
+    return $options;
+}
+
 function handleAdminSales(array $params = []): void
 {
     $ctx = module();
@@ -14441,46 +14530,11 @@ function handleAdminSales(array $params = []): void
         $shiftFilter = '';
     }
 
-    $actionFilterMap = [
-        'output' => ['production_output'],
-        // The withdrawal audit action actually written is 'withdrawal'
-        // (handlers-offline.php and apiCreateWithdrawal), plus 'withdrawal_updated'
-        // for edits. 'production_withdrawal' is retained last for any legacy rows.
-        'withdrawal' => ['withdrawal', 'withdrawal_updated', 'production_withdrawal'],
-        'delivery' => [
-            'create_delivery',
-            'delivery_created',
-            'update_delivery',
-            'delivery_posted',
-            'delivery_voided',
-            'create_receiving',
-            'receiving_created',
-            'receiving_posted',
-            'receiving_voided',
-            'review_delivery_provenance',
-        ],
-        'product' => ['create_product', 'update_product'],
-        'user' => ['create_user', 'update_user', 'delete_user', 'restore_user'],
-        'commissary' => ['create_commissary_run', 'update_commissary_run', 'delete_commissary_run', 'save_commissary_material'],
-        // Same category vocabulary as the Activity page: keep 'ledger_delta_applied' visible here
-        // too, or "Ledger" means two different things on two pages.
-        'ledger' => ['field_update', 'row_update', 'close_day', 'reopen_day', 'ledger_delta_applied'],
-        'variance' => ['variance_status'],
-    ];
+    $actionFilterMap = dl_activityActionFilterMap();
     if ($actionFilter !== '' && !isset($actionFilterMap[$actionFilter])) {
         $actionFilter = '';
     }
-    $actionFilterOptions = [
-        ['value' => '', 'label' => 'All Activities'],
-        ['value' => 'output', 'label' => 'Output'],
-        ['value' => 'withdrawal', 'label' => 'Withdrawal'],
-        ['value' => 'delivery', 'label' => 'Delivery'],
-        ['value' => 'ledger', 'label' => 'Ledger'],
-        ['value' => 'commissary', 'label' => 'Commissary'],
-        ['value' => 'product', 'label' => 'Product'],
-        ['value' => 'user', 'label' => 'User'],
-        ['value' => 'variance', 'label' => 'Variance'],
-    ];
+    $actionFilterOptions = dl_activityActionFilterOptions();
 
     $accessibleBranchIds = dl_adminViewBranchIds($user, $input);
     if (count($accessibleBranchIds) === 0) { $accessibleBranchIds = [0]; }
@@ -17274,46 +17328,11 @@ function handleAdminActivity(array $params = []): void
     $search   = trim((string)($input['q'] ?? ''));
     $drNumber = trim((string)($input['dr_number'] ?? ''));
 
-    $actionFilterMap = [
-        'output' => ['production_output'],
-        // The withdrawal audit action actually written is 'withdrawal'
-        // (handlers-offline.php and apiCreateWithdrawal), plus 'withdrawal_updated'
-        // for edits. 'production_withdrawal' is retained last for any legacy rows.
-        'withdrawal' => ['withdrawal', 'withdrawal_updated', 'production_withdrawal'],
-        'product' => ['create_product', 'update_product'],
-        'user' => ['create_user', 'update_user', 'delete_user', 'restore_user'],
-        'commissary' => ['create_commissary_run', 'update_commissary_run', 'delete_commissary_run', 'save_commissary_material'],
-        // 'ledger_delta_applied' is written by dl_applyLedgerDelta() on every programmatic stock
-        // change (production output, receiving, office corrections). It was missing here, so the
-        // operator's own "Ledger" filter HID the rows answering "kinsay nagbutang sa additional" —
-        // the very question this action exists to answer. A filter that hides the evidence is
-        // worse than no filter, because it reads as "nothing happened".
-        'ledger' => ['field_update', 'row_update', 'close_day', 'reopen_day', 'ledger_delta_applied'],
-        'variance' => ['variance_status'],
-        // Actual writers include adjusted as well as applied/reversed. Keep the
-        // assignment names here too so this family remains complete when those
-        // action paths are deployed.
-        'consignee' => [
-            'consignee_created', 'consignee_updated',
-            'consignee_ledger_applied', 'consignee_ledger_adjusted', 'consignee_ledger_reversed',
-            'consignee_product_assigned', 'consignee_product_unassigned',
-            'review_delivery_provenance',
-        ],
-    ];
+    $actionFilterMap = dl_activityActionFilterMap();
     if ($actionFilter !== '' && !isset($actionFilterMap[$actionFilter])) {
         $actionFilter = '';
     }
-    $actionFilterOptions = [
-        ['value' => '', 'label' => 'All Activities'],
-        ['value' => 'output', 'label' => 'Output'],
-        ['value' => 'withdrawal', 'label' => 'Withdrawal'],
-        ['value' => 'ledger', 'label' => 'Ledger'],
-        ['value' => 'commissary', 'label' => 'Commissary'],
-        ['value' => 'product', 'label' => 'Product'],
-        ['value' => 'user', 'label' => 'User'],
-        ['value' => 'variance', 'label' => 'Variance'],
-        ['value' => 'consignee', 'label' => 'Consignee Activities'],
-    ];
+    $actionFilterOptions = dl_activityActionFilterOptions();
 
     $accessibleBranchIds = dl_adminViewBranchIds($user, $input);
     if (count($accessibleBranchIds) === 0) { $accessibleBranchIds = [0]; }

@@ -91,21 +91,57 @@ try {
     }
 }
 
-// An audit row an operator cannot FIND is not evidence. The Activity page filters by category
-// through a fixed action map; 'ledger_delta_applied' was missing from it, so choosing "Ledger"
-// hid exactly the rows that answer "kinsay nagbutang sa additional" — the question this action
-// was added for. Measured 2026-11-10; both pages that expose that category must list it.
-$h->section('the audit action is reachable from the Activity filter');
+// An audit row an operator cannot FIND is not evidence. Category filtering goes through an action
+// map; 'ledger_delta_applied' was missing from it, so choosing "Ledger" hid exactly the rows that
+// answer "kinsay nagbutang sa additional" - the question this action exists for. The map also
+// existed in TWO drifted copies, so the fix is one shared source of truth.
+$h->section('the audit action is reachable from the activity filters');
 $handlerSrc = (string) file_get_contents($base . '/modules/daily-ledger/handlers.php');
-$ledgerCategoryHits = preg_match_all(
-    "/'ledger'\s*=>\s*\[[^\]]*'ledger_delta_applied'/",
-    $handlerSrc
+
+$h->test(
+    'a single shared filter map exists',
+    substr_count($handlerSrc, 'function dl_activityActionFilterMap(') === 1,
+    'duplicated maps drift: the Activity copy once lacked the whole delivery category'
 );
 $h->test(
-    "every 'ledger' activity category exposes ledger_delta_applied",
-    $ledgerCategoryHits >= 2,
-    'found ' . (int) $ledgerCategoryHits . ' of 2 category maps carrying the action; a filter that '
-        . 'hides the evidence reads as "nothing happened"'
+    'the dropdown options are DERIVED from the map, not hand-listed',
+    str_contains($handlerSrc, 'function dl_activityActionFilterOptions(')
+        && substr_count($handlerSrc, 'dl_activityActionFilterOptions()') >= 2,
+    'a hand-written option list is how "Delivery" became a filter that silently showed everything'
 );
+$h->test(
+    'the shared map exposes ledger_delta_applied under ledger',
+    (bool) preg_match("/'ledger'\s*=>\s*\[[^\]]*'ledger_delta_applied'/", $handlerSrc),
+    'the operator\'s own Ledger filter would hide the evidence'
+);
+$h->test(
+    'the shared map exposes delivery_received under delivery',
+    (bool) preg_match("/'delivery'\s*=>\s*\[[^\]]*'delivery_received'/", $handlerSrc),
+    'delivery_received is the credit that moves addtl when a branch accepts stock - unfilterable means invisible'
+);
+
+// Nothing that writes addtl may be unattributable. Every writer must route through
+// dl_applyLedgerDelta(), write its own audit row, or be a carry that cannot move real stock.
+$h->section('every addtl writer leaves an attributable trail');
+$writers = [
+    'dl_applyLedgerDelta'        => 'ledger_delta_applied',
+    'apiReceiveDelivery'         => 'delivery_received',
+    'apiSaveCashierWithdrawals'  => 'dl_auditLog',
+    'apiSaveLedgerBatch'         => 'row_update',
+    'apiUpdateCashierWithdrawal' => 'withdrawal_updated',
+    'dl_offlineApplyWithdrawal'  => 'dl_auditLog',
+];
+$offlineSrc = (string) file_get_contents($base . '/modules/daily-ledger/handlers-offline.php');
+foreach ($writers as $fn => $needle) {
+    $src = str_contains($handlerSrc, 'function ' . $fn . '(') ? $handlerSrc : $offlineSrc;
+    $start = strpos($src, 'function ' . $fn . '(');
+    $end = $start === false ? false : strpos($src, "\nfunction ", $start + 10);
+    $body = ($start === false) ? '' : substr($src, $start, ($end === false ? strlen($src) : $end) - $start);
+    $h->test(
+        $fn . ' records who acted',
+        $body !== '' && str_contains($body, $needle),
+        'this path can move addtl, so an unattributed write is the original complaint again'
+    );
+}
 
 $h->done();
