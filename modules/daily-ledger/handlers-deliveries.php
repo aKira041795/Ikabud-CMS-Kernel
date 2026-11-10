@@ -1979,7 +1979,13 @@ function apiRecordConsigneeReturn(array $params = []): void
 {
     $ctx = module();
     if (!$ctx) { http_response_code(500); return; }
-    $user = dlCurrentUser(['admin', 'supervisor']);
+    // Owner directive 2026-11-10: "allow cashiers". A cashier taking goods back from an account at
+    // the counter is the normal case; requiring an admin made the counter stop and wait.
+    // NOTE this endpoint adjusts the CONSIGNEE ledger only - it does not credit branch stock.
+    // Office-only operations stay office-only: apiCorrectConsigneeDeliveryDiscrepancy below is
+    // still admin/supervisor, because correcting a delivery quantity is not a counter action
+    // (client concern #3: "kami ra diri sa office ang makausab").
+    $user = dlCurrentUser(['admin', 'supervisor', 'cashier']);
     $actorId = dl_getActorUserId($user);
     $input = json_decode((string)file_get_contents('php://input'), true);
     if (!is_array($input)) {
