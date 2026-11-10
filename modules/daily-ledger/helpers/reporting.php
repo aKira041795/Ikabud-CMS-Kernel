@@ -1410,8 +1410,66 @@ function dl_forecastDemand(array $salesRows, array $varianceRows, array $invento
     return $result;
 }
 
+/**
+ * Read only the producer-side product wastage ratio used by the forecast.
+ *
+ * @param array<int,array<string,mixed>> $sources
+ * @param array<string,mixed> $filters
+ * @return array<int,float>
+ */
+function dl_forecastSpoilageRates(
+    ModuleDB $db,
+    array $sources,
+    array $filters,
+    string $historyFrom,
+    string $historyTo
+): array {
+    $ids = array_values(array_map('intval', $filters['accessible_branch_ids'] ?? []));
+    $scopeIds = ($filters['branch_id'] ?? 0) > 0 ? [(int)$filters['branch_id']] : $ids;
+    $producerIds = [];
+    foreach ($scopeIds as $scopeId) {
+        if (in_array((string)($sources[$scopeId]['class'] ?? ''), ['producer', 'mixed'], true)) {
+            $producerIds[] = $scopeId;
+        }
+    }
+    if ($producerIds === []) {
+        return [];
+    }
+
+    $marks = implode(',', array_fill(0, count($producerIds), '?'));
+    $sql = "SELECT cpl.product_id,
+                   COALESCE(SUM(cpl.produced_qty), 0) AS produced_qty,
+                   COALESCE(SUM(cpl.wastage_qty), 0) AS wastage_qty
+              FROM dl_commissary_product_ledger cpl
+             WHERE cpl.ledger_date BETWEEN ? AND ?
+               AND cpl.commissary_branch_id IN ({$marks})";
+    $bind = array_merge([$historyFrom, $historyTo], $producerIds);
+    // Optional filters are predicates, never grouping expressions: keep them before GROUP BY.
+    if (($filters['product_id'] ?? 0) > 0) {
+        $sql .= ' AND cpl.product_id = ?';
+        $bind[] = $filters['product_id'];
+    }
+    if (($filters['shift'] ?? '') !== '') {
+        $sql .= ' AND cpl.shift = ?';
+        $bind[] = $filters['shift'];
+    }
+    $sql .= ' GROUP BY cpl.product_id';
+    $stmt = $db->prepare($sql);
+    $stmt->execute($bind);
+
+    $rates = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+        $produced = (int)$row['produced_qty'];
+        if ($produced > 0) {
+            $ratePct = round((int)$row['wastage_qty'] / $produced * 100, 2);
+            $rates[(int)$row['product_id']] = $ratePct / 100.0;
+        }
+    }
+    return $rates;
+}
+
 /** @return array<int,array<string,mixed>> */
-function dl_forecastRows(ModuleDB $db, array $filters, string $targetDate, int $window = 14): array
+function dl_forecastRows(ModuleDB $db, array $filters, string $targetDate, int $window = 14, bool $summaryOnly = false): array
 {
     $target = new DateTimeImmutable($targetDate);
     $historyTo = $target->modify('-1 day')->format('Y-m-d');
@@ -1423,10 +1481,6 @@ function dl_forecastRows(ModuleDB $db, array $filters, string $targetDate, int $
     if ($officialStart !== null && $historyTo >= $officialStart && $historyFrom < $officialStart) {
         $historyFrom = $officialStart;
     }
-    $historyFilters = $filters;
-    $historyFilters['date_from'] = $historyFrom;
-    $historyFilters['date_to'] = $historyTo;
-
     // The forecast needs the OFFICIAL sales series and nothing else that the sales report carries.
     // It used to take dl_reportSalesData()'s whole row set, which for a full window across every
     // branch is ~179,000 ledger rows joined to products, branches and the price math: measured 331 MB
@@ -1447,49 +1501,122 @@ function dl_forecastRows(ModuleDB $db, array $filters, string $targetDate, int $
     $salesMarks = implode(',', array_fill(0, count($salesIds), '?'));
     $salesQty = dl_ledgerSalesQuantitySql('dl');
     $availableExpr = '(COALESCE(dl.beg_bal,0) > 0 OR COALESCE(dl.addtl,0) > 0)';
-    // ONE row per branch+product+shift, not one per ledger cell. dl_forecastDemand() only ever uses
-    // the day COUNT, the sales SUM and the available/censored/zero-sale day counts, so the aggregation
-    // that used to happen per row in PHP happens in SQL instead. A 90-day window on this tenant is
-    // ~179,000 cells and ~8,700 keys, which is the difference between 200 MB and a page that loads.
-    $salesSql = 'SELECT dl.branch_id, dl.product_id, ANY_VALUE(dl.shift) AS shift,'
-        . ' SUM(' . $salesQty . ') AS sales,'
-        . ' COUNT(DISTINCT dl.ledger_date) AS agg_sales_days,'
-        . ' COUNT(DISTINCT CASE WHEN ' . $availableExpr . ' THEN dl.ledger_date END) AS agg_available_days,'
-        . ' COUNT(DISTINCT CASE WHEN ' . $availableExpr . ' AND COALESCE(' . $salesQty . ',0) = 0 THEN dl.ledger_date END) AS agg_zero_days'
+    // This is the canonical provisional predicate with its correlated branch EXISTS resolved by an
+    // exact PK join below. Unlike a precomputed branch list, the row's own single_shift_mode remains
+    // part of every decision; this only avoids evaluating the same correlated lookup in each CASE.
+    $provisionalExpr = "(dl.end_source IN ('derived-from-movements','zero-forced')"
+        . ' OR dl.bal_end IS NULL'
+        . " OR (ss.status IS NULL AND (dl.shift = 'PM' OR (dl.shift = 'AM' AND b.single_shift_mode = 1)))"
+        . " OR (ss.status IS NOT NULL AND ss.status <> 'finalized'))";
+    $officialExpr = 'COALESCE(' . $provisionalExpr . ', 0) = 0';
+    $movementExpr = '(COALESCE(dl.beg_bal,0) <> 0 OR COALESCE(dl.addtl,0) <> 0'
+        . ' OR COALESCE(dl.withdraw,0) <> 0 OR COALESCE(dl.bal_end,0) <> 0)';
+
+    // Health consumes only average_sales/sample_days by product. Its summary is independent of
+    // inventory, variance, spoilage, source labels, movement-only rows, and branch-calendar gaps;
+    // availability is present in every aggregate row and is the denominator. Avoid constructing the
+    // full operational forecast merely to discard those fields immediately afterward.
+    if ($summaryOnly) {
+        $summarySql = 'SELECT dl.product_id,'
+            . ' SUM(' . $salesQty . ') AS sales,'
+            . ' SUM(CASE WHEN ' . $availableExpr . ' THEN 1 ELSE 0 END) AS agg_available_days'
+            . ' FROM dl_daily_ledger dl FORCE INDEX (idx_dl_branch_date)'
+            . ' INNER JOIN dl_branches b ON b.id = dl.branch_id'
+            . ' LEFT JOIN dl_ledger_shift_status ss ON ss.branch_id = dl.branch_id'
+            . ' AND ss.ledger_date = dl.ledger_date AND ss.shift = dl.shift COLLATE utf8mb4_unicode_ci'
+            . ' WHERE dl.branch_id IN (' . $salesMarks . ') AND dl.ledger_date BETWEEN ? AND ?'
+            . ' AND dl.bal_end IS NOT NULL AND ' . $officialExpr;
+        $summaryBind = array_merge($salesIds, [$historyFrom, $historyTo]);
+        // Every optional filter is a WHERE predicate before GROUP BY (MySQL otherwise accepts it as
+        // a grouping expression and silently fails to filter).
+        if ($filters['branch_id'] > 0) {
+            $summarySql .= ' AND dl.branch_id = ?';
+            $summaryBind[] = $filters['branch_id'];
+        }
+        if ($filters['product_id'] > 0) {
+            $summarySql .= ' AND dl.product_id = ?';
+            $summaryBind[] = $filters['product_id'];
+        }
+        if ($filters['shift'] !== '') {
+            $summarySql .= ' AND dl.shift = ?';
+            $summaryBind[] = $filters['shift'];
+        }
+        $summarySql .= ' GROUP BY dl.branch_id, dl.product_id, dl.shift';
+        $summaryStmt = $db->prepare($summarySql);
+        $summaryStmt->execute($summaryBind);
+        // Match dl_forecastDemand()'s per-stream two-decimal average, then sum those streams exactly
+        // as dl_overviewForecastSummary() does. Stream the aggregate so thousands of operational
+        // branch/shift rows are never materialised in a second PHP array.
+        $summaryProducts = [];
+        while (($summaryRow = $summaryStmt->fetch(PDO::FETCH_ASSOC)) !== false) {
+            $summaryPid = (int)$summaryRow['product_id'];
+            $summaryProducts[$summaryPid] ??= [
+                'product_id' => $summaryPid,
+                'sku' => '',
+                'product_name' => '',
+                'average_sales' => 0.0,
+                'sample_days' => 0,
+            ];
+            $availableDays = (int)$summaryRow['agg_available_days'];
+            $summaryProducts[$summaryPid]['average_sales'] += round(
+                (float)$summaryRow['sales'] / max(1, $availableDays),
+                2
+            );
+            $summaryProducts[$summaryPid]['sample_days'] = max(
+                $summaryProducts[$summaryPid]['sample_days'],
+                $availableDays
+            );
+        }
+        $summaryNames = [];
+        foreach ($db->query('SELECT id, sku, name FROM dl_products')->fetchAll(PDO::FETCH_ASSOC) ?: [] as $summaryName) {
+            $summaryNames[(int)$summaryName['id']] = $summaryName;
+        }
+        foreach ($summaryProducts as $summaryPid => &$summaryProduct) {
+            $summaryProduct['sku'] = (string)($summaryNames[$summaryPid]['sku'] ?? '');
+            $summaryProduct['product_name'] = (string)($summaryNames[$summaryPid]['name'] ?? '');
+        }
+        unset($summaryProduct);
+
+        return array_values($summaryProducts);
+    }
+
+    // One pass supplies the sales aggregate, movement population, and the branch/shift calendar.
+    // GROUP_CONCAT is bounded here: the window is capped at 90 dates (989 bytes including commas),
+    // below MySQL 5.7's default group_concat_max_len. Dates are harvested from every product group
+    // so their union retains days on which a particular product was absent (a measured zero).
+    $historySql = 'SELECT dl.branch_id, dl.product_id, ANY_VALUE(dl.shift) AS shift,'
+        . ' SUM(CASE WHEN dl.bal_end IS NOT NULL AND ' . $officialExpr . ' THEN ' . $salesQty . ' ELSE 0 END) AS sales,'
+        . ' SUM(CASE WHEN dl.bal_end IS NOT NULL AND ' . $officialExpr . ' THEN 1 ELSE 0 END) AS sales_rows,'
+        . ' COUNT(DISTINCT CASE WHEN dl.bal_end IS NOT NULL AND ' . $officialExpr . ' THEN dl.ledger_date END) AS agg_sales_days,'
+        . ' COUNT(DISTINCT CASE WHEN dl.bal_end IS NOT NULL AND ' . $officialExpr . ' AND ' . $availableExpr . ' THEN dl.ledger_date END) AS agg_available_days,'
+        . ' COUNT(DISTINCT CASE WHEN dl.bal_end IS NOT NULL AND ' . $officialExpr . ' AND ' . $availableExpr
+        . ' AND COALESCE(' . $salesQty . ',0) = 0 THEN dl.ledger_date END) AS agg_zero_days,'
+        . ' SUM(CASE WHEN ' . $movementExpr . ' THEN 1 ELSE 0 END) AS movement_rows,'
+        . ' GROUP_CONCAT(DISTINCT CASE WHEN ' . $officialExpr . ' THEN dl.ledger_date END ORDER BY dl.ledger_date SEPARATOR ' . "','" . ') AS recorded_dates'
         . ' FROM dl_daily_ledger dl'
+        . ' INNER JOIN dl_branches b ON b.id = dl.branch_id'
         . ' LEFT JOIN dl_ledger_shift_status ss'
         . '   ON ss.branch_id = dl.branch_id AND ss.ledger_date = dl.ledger_date'
         . '  AND ss.shift = dl.shift COLLATE utf8mb4_unicode_ci'
-        . ' WHERE dl.branch_id IN (' . $salesMarks . ') AND dl.ledger_date BETWEEN ? AND ?'
-        . '   AND dl.bal_end IS NOT NULL'
-        . dl_officialOnlySqlPredicate('dl', 'ss');
-    $salesBind = array_merge($salesIds, [$historyFrom, $historyTo]);
-    // The optional filters MUST be appended here, before GROUP BY. Appending them after it does not
-    // error: MySQL reads `GROUP BY a, b, c AND dl.branch_id = ?` as an extra grouping EXPRESSION, so
-    // the query silently groups by a boolean and filters NOTHING. Measured 2026-11-10 on the overview
-    // fixture: a supervisor scoped to branch 99402 received branch 99401's forecast rows, and the
-    // report's own official-only count was 0 against this query's 2 groups. A missing filter that
-    // raises no error is worse than one that raises, so the GROUP BY below stays last.
+        . ' WHERE dl.branch_id IN (' . $salesMarks . ') AND dl.ledger_date BETWEEN ? AND ?';
+    $historyBind = array_merge($salesIds, [$historyFrom, $historyTo]);
+    // Optional row-scope filters stay before GROUP BY. Product is deliberately applied while reading
+    // the aggregate below: filtering it in SQL would remove calendar dates recorded by other products
+    // and turn those measured-zero days into missing days for the selected product.
     if ($filters['branch_id'] > 0) {
-        $salesSql .= ' AND dl.branch_id = ?';
-        $salesBind[] = $filters['branch_id'];
-    }
-    if ($filters['product_id'] > 0) {
-        $salesSql .= ' AND dl.product_id = ?';
-        $salesBind[] = $filters['product_id'];
+        $historySql .= ' AND dl.branch_id = ?';
+        $historyBind[] = $filters['branch_id'];
     }
     if ($filters['shift'] !== '') {
-        $salesSql .= ' AND dl.shift = ?';
-        $salesBind[] = $filters['shift'];
+        $historySql .= ' AND dl.shift = ?';
+        $historyBind[] = $filters['shift'];
     }
-    // ANY_VALUE is the MySQL 5.7 escape from ONLY_FULL_GROUP_BY for a column that IS grouped but
-    // whose collation the join above coerces: selecting the bare column (or a CAST of it) was rejected
-    // with "Expression #3 of SELECT list is not in GROUP BY clause" on the fixture connection even
-    // though it is grouped, and the grouped value is the only possible one.
-    $salesSql .= ' GROUP BY dl.branch_id, dl.product_id, dl.shift';
-    $salesStmt = $db->prepare($salesSql);
-    $salesStmt->execute($salesBind);
-    $sales = $salesStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    // ANY_VALUE is required by MySQL 5.7 ONLY_FULL_GROUP_BY because the status join coerces shift's
+    // collation even though the same column is grouped.
+    $historySql .= ' GROUP BY dl.branch_id, dl.product_id, dl.shift';
+    $historyStmt = $db->prepare($historySql);
+    $historyStmt->execute($historyBind);
+    $historyRows = $historyStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
     // Say WHERE each suggestion acts and whether it is a production requirement or a supply
     // requirement. The classifier is the same evidence-based one the production-efficiency view
@@ -1501,12 +1628,45 @@ function dl_forecastRows(ModuleDB $db, array $filters, string $targetDate, int $
     foreach ($db->query('SELECT id, sku, name FROM dl_products')->fetchAll(PDO::FETCH_ASSOC) ?: [] as $nameRow) {
         $forecastProductNames[(int)$nameRow['id']] = ['sku' => (string)($nameRow['sku'] ?? ''), 'name' => (string)($nameRow['name'] ?? '')];
     }
-    foreach ($sales as &$salesRow) {
-        $sourceInfo = $forecastSources[(int)($salesRow['branch_id'] ?? 0)] ?? null;
-        $salesRow['source_class'] = (string)($sourceInfo['class'] ?? 'unknown');
-        $salesRow['source_label'] = (string)($sourceInfo['label'] ?? 'source not declared');
+    $sales = [];
+    $recordedCells = [];
+    foreach ($historyRows as $historyRow) {
+        $rowShift = strtoupper((string)($historyRow['shift'] ?? 'AM')) === 'PM' ? 'PM' : 'AM';
+        $cellKey = (int)$historyRow['branch_id'] . ':' . $rowShift;
+        foreach (explode(',', (string)($historyRow['recorded_dates'] ?? '')) as $recordedDate) {
+            if ($recordedDate !== '') {
+                $recordedCells[$cellKey][$recordedDate] = true;
+            }
+        }
+        if ($filters['product_id'] > 0 && (int)$historyRow['product_id'] !== (int)$filters['product_id']) {
+            continue;
+        }
+        $sourceInfo = $forecastSources[(int)($historyRow['branch_id'] ?? 0)] ?? null;
+        if ((int)($historyRow['sales_rows'] ?? 0) > 0) {
+            unset($historyRow['sales_rows'], $historyRow['movement_rows'], $historyRow['recorded_dates']);
+            $historyRow['source_class'] = (string)($sourceInfo['class'] ?? 'unknown');
+            $historyRow['source_label'] = (string)($sourceInfo['label'] ?? 'source not declared');
+            $sales[] = $historyRow;
+            continue;
+        }
+        // Preserve the movement query's population exactly: it returned every ledger key in the
+        // window, including a key whose movement_rows aggregate happened to be zero.
+        $pid = (int)$historyRow['product_id'];
+        $sales[] = [
+            'branch_id' => (int)$historyRow['branch_id'],
+            'branch_name' => (string)($sourceInfo['name'] ?? ''),
+            'product_id' => $pid,
+            'sku' => (string)($forecastProductNames[$pid]['sku'] ?? ''),
+            'product_name' => (string)($forecastProductNames[$pid]['name'] ?? ''),
+            'shift' => $rowShift,
+            'ledger_date' => '',
+            'sales' => null,
+            'movement_only' => true,
+            'movement_rows' => (int)($historyRow['movement_rows'] ?? 0),
+            'source_class' => (string)($sourceInfo['class'] ?? 'unknown'),
+            'source_label' => (string)($sourceInfo['label'] ?? 'source not declared'),
+        ];
     }
-    unset($salesRow);
 
     $ids = $filters['accessible_branch_ids'];
     $marks = implode(',', array_fill(0, count($ids), '?'));
@@ -1573,105 +1733,11 @@ function dl_forecastRows(ModuleDB $db, array $filters, string $targetDate, int $
         $stockAsOf[(int)$invRow['branch_id'] . ':' . (int)$invRow['product_id']] = (string)$invRow['ledger_date'];
     }
 
-    // ── The cells each BRANCH recorded, so a product absent from a traded day is a MEASURED zero ──
-    // Official-only, exactly like the sales rows that form the numerator: mixing an inclusive
-    // denominator with an official numerator would divide two populations.
-    $cellStmt = $db->prepare(
-        "SELECT DISTINCT dl.branch_id, dl.ledger_date, dl.shift
-           FROM dl_daily_ledger dl
-           LEFT JOIN dl_ledger_shift_status ss
-             ON ss.branch_id = dl.branch_id AND ss.ledger_date = dl.ledger_date
-            AND ss.shift = dl.shift COLLATE utf8mb4_unicode_ci
-          WHERE dl.ledger_date BETWEEN ? AND ?
-            AND dl.branch_id IN ({$marks})"
-        . dl_officialOnlySqlPredicate('dl', 'ss')
-    );
-    $cellStmt->execute(array_merge([$historyFrom, $historyTo], $ids));
-    $recordedCells = [];
-    foreach ($cellStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $cellRow) {
-        $cellShift = strtoupper((string)($cellRow['shift'] ?? 'AM')) === 'PM' ? 'PM' : 'AM';
-        $recordedCells[(int)$cellRow['branch_id'] . ':' . $cellShift][(string)$cellRow['ledger_date']] = true;
-    }
-
-    // ── Every branch+product+shift that MOVED in the window ──
-    // The forecast is otherwise driven by official sales rows, so a pair that carried movement but no
-    // sales produced NO row at all. Measured on tenant 207 (2026-09-01..2026-10-11): 420 branch-product
-    // pairs carried movement and 209 of them sold nothing, so those simply vanished from the page - an
-    // owner could not see dead stock, nor a product a branch stocks and never sells.
-    // Owner: "all products with movement".
-    // Scoped to the SELECTED branch: dl_reportSalesData() narrows its own rows with
-    // `AND dl.branch_id = ?`, so a movement query that used the whole accessible set would add rows
-    // for every branch the user can reach and the branch filter would appear not to work.
-    $movementIds = ($filters['branch_id'] ?? 0) > 0 ? [(int)$filters['branch_id']] : $ids;
-    $movementMarks = implode(',', array_fill(0, count($movementIds), '?'));
-    $movementStmt = $db->prepare(
-        "SELECT dl.branch_id, dl.product_id, dl.shift, p.sku, p.name AS product_name,
-                SUM(CASE WHEN COALESCE(dl.beg_bal,0) <> 0 OR COALESCE(dl.addtl,0) <> 0
-                           OR COALESCE(dl.withdraw,0) <> 0 OR COALESCE(dl.bal_end,0) <> 0
-                         THEN 1 ELSE 0 END) AS movement_rows
-           FROM dl_daily_ledger dl
-           INNER JOIN dl_products p ON p.id = dl.product_id
-          WHERE dl.ledger_date BETWEEN ? AND ?
-            AND dl.branch_id IN ({$movementMarks})"
-        . ($filters['product_id'] > 0 ? ' AND dl.product_id = ?' : '')
-        . ($filters['shift'] !== '' ? ' AND dl.shift = ?' : '')
-        . ' GROUP BY dl.branch_id, dl.product_id, dl.shift, p.sku, p.name'
-    );
-    $movementBind = array_merge([$historyFrom, $historyTo], $movementIds);
-    if ($filters['product_id'] > 0) {
-        $movementBind[] = $filters['product_id'];
-    }
-    if ($filters['shift'] !== '') {
-        $movementBind[] = $filters['shift'];
-    }
-    $movementStmt->execute($movementBind);
-
-    $keysWithMeasuredSales = [];
-    foreach ($sales as $salesRow) {
-        $keysWithMeasuredSales[(int)($salesRow['branch_id'] ?? 0) . ':' . (int)($salesRow['product_id'] ?? 0)
-            . ':' . strtoupper((string)($salesRow['shift'] ?? ''))] = true;
-    }
-    $addedMovementKeys = [];
-    foreach ($movementStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $movedRow) {
-        $movedShift = strtoupper((string)($movedRow['shift'] ?? 'AM')) === 'PM' ? 'PM' : 'AM';
-        $movedKey = (int)$movedRow['branch_id'] . ':' . (int)$movedRow['product_id'] . ':' . $movedShift;
-        if (isset($keysWithMeasuredSales[$movedKey]) || isset($addedMovementKeys[$movedKey])) {
-            continue;
-        }
-        $addedMovementKeys[$movedKey] = true;
-        $movedSource = $forecastSources[(int)$movedRow['branch_id']] ?? null;
-        // sales => null so it contributes NOTHING to the daily series; movement_only so the row is
-        // still created. A 0 average on this row means "no sales were measured", which the page says.
-        $sales[] = [
-            'branch_id' => (int)$movedRow['branch_id'],
-            'branch_name' => (string)($movedSource['name'] ?? ''),
-            'product_id' => (int)$movedRow['product_id'],
-            'sku' => (string)($movedRow['sku'] ?? ''),
-            'product_name' => (string)($movedRow['product_name'] ?? ''),
-            'shift' => $movedShift,
-            'ledger_date' => '',
-            'sales' => null,
-            'movement_only' => true,
-            'movement_rows' => (int)$movedRow['movement_rows'],
-            'source_class' => (string)($movedSource['class'] ?? 'unknown'),
-            'source_label' => (string)($movedSource['label'] ?? 'source not declared'),
-        ];
-    }
-
-    // Reuse the production-efficiency view's own spoilage rate (wasted / produced)
-    // instead of inventing a second definition. The efficiency aggregate runs over
-    // the SAME history window as the forecast, so the gross-up and the efficiency
-    // table cannot disagree about a product's rate. A product with no measurable
-    // rate is simply absent here; the forecast states that gap explicitly.
-    $spoilageRates = [];
-    $efficiency = dl_productionEfficiencyData($db, $historyFilters);
-    foreach ($efficiency['products'] as $efficiencyProduct) {
-        $efficiencyPid = (int)($efficiencyProduct['product_id'] ?? 0);
-        $ratePct = $efficiencyProduct['wastage_rate_pct'] ?? null;
-        if ($efficiencyPid > 0 && $ratePct !== null) {
-            $spoilageRates[$efficiencyPid] = (float)$ratePct / 100.0;
-        }
-    }
+    // The forecast needs one field from production efficiency: producer-side wasted / produced by
+    // product. Rebuilding receipts, openings, sales, runs, yield, pullouts, and coverage to obtain it
+    // was the largest cost on this path. Use the already-computed evidence classification, then run
+    // the exact production aggregate and preserve efficiency's percentage rounding before gross-up.
+    $spoilageRates = dl_forecastSpoilageRates($db, $forecastSources, $filters, $historyFrom, $historyTo);
 
     $forecastRows = dl_forecastDemand($sales, $variance, $inventory, $window, 0.10, $spoilageRates, $recordedCells);
 
@@ -2464,7 +2530,7 @@ function dl_forecastSortByQty(array $rows, string $sortDir): array
  * @param array<string,mixed> $filters
  * @return array<int,array<string,mixed>>
  */
-function dl_overviewForecastRows(DatabaseContract $db, array $filters, string $anchorDate, int $window = DL_OVERVIEW_FORECAST_WINDOW_DEFAULT): array
+function dl_overviewForecastRows(DatabaseContract $db, array $filters, string $anchorDate, int $window = DL_OVERVIEW_FORECAST_WINDOW_DEFAULT, bool $summaryOnly = false): array
 {
     $anchor = DateTimeImmutable::createFromFormat('!Y-m-d', $anchorDate);
     if (!$anchor instanceof DateTimeImmutable || $anchor->format('Y-m-d') !== $anchorDate) {
@@ -2479,7 +2545,7 @@ function dl_overviewForecastRows(DatabaseContract $db, array $filters, string $a
 
     $target = $anchor->modify('+1 day')->format('Y-m-d');
 
-    return dl_forecastRows($db, $filters, $target, dl_overviewForecastWindow($window));
+    return dl_forecastRows($db, $filters, $target, dl_overviewForecastWindow($window), $summaryOnly);
 }
 
 /**

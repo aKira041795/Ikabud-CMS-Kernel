@@ -13415,9 +13415,16 @@ function handleAdminOverview(array $params = []): void
     $filters = dl_reportFilters(array_merge($input, ['date_from' => $dateFrom, 'date_to' => $dateTo]), $user);
     $filters['pending_rows_mode'] = $pendingRowsMode;
     $branchId = (int)$filters['branch_id'];
+    // One per-branch pass also supplies scope completeness; querying the same ledger window again
+    // for totals added latency and could only reproduce these sums.
+    $branchSignals = dl_overviewBranchSignals($ctx->db(), $filters);
+    $completeness = [
+        'rows_total' => array_sum(array_column($branchSignals, 'rows_total')),
+        'pending' => array_sum(array_column($branchSignals, 'pending')),
+        'completed' => array_sum(array_column($branchSignals, 'completed')),
+    ];
     // Completeness of the period's ledger: the ranked tables drop pending rows, so an
     // all-pending day is empty. Report that as unfinished reporting, never as zero sales.
-    $completeness = dl_overviewLedgerCompleteness($ctx->db(), $filters);
     $reportingPending = $completeness['pending'] > 0 && $completeness['completed'] === 0;
     // Three distinct sales states from the row counts: nothing recorded is not a
     // measured zero, and an all-pending period is unfinished rather than zero. A
@@ -13462,7 +13469,6 @@ function handleAdminOverview(array $params = []): void
 
     // Product rankings and Pareto remain available on Reports. This health view
     // deliberately stops its drill-down at branch.
-    $branchSignals = dl_overviewBranchSignals($ctx->db(), $filters);
 
     // Sales per branch for the period.
     $grandUnits = 0;
@@ -13567,7 +13573,7 @@ function handleAdminOverview(array $params = []): void
     // Production forecast anchored at the selected date_to (target = next day).
     $forecastWindow = dl_overviewForecastWindow($input['forecast_window'] ?? null);
     $forecastPeriod = dl_overviewNormalizeForecastPeriod((string)($input['forecast_period'] ?? 'daily'));
-    $forecastRows = dl_overviewForecastRows($ctx->db(), $filters, $dateTo, $forecastWindow);
+    $forecastRows = dl_overviewForecastRows($ctx->db(), $filters, $dateTo, $forecastWindow, true);
     $forecast = dl_overviewForecastSummary($forecastRows, $forecastPeriod);
     // Only the aggregate forecast belongs on Health. Product-level forecast
     // rows remain available through the dedicated Forecast/Reports surfaces.
@@ -13747,7 +13753,6 @@ function handleAdminOverview(array $params = []): void
         // "all periods" figures are an accountability surface, not an archive scan.
         $lifetimeFilters['date_from'] = dl_officialClampFrom('1970-01-01');
         $lifetimeFilters['date_to'] = $dateTo;
-        $lifetimeGross = dl_overviewOfficialSalesTotal($db, $lifetimeFilters);
 
         $lifetimeIds = array_values(array_filter(
             array_map('intval', $filters['accessible_branch_ids'] ?? []),
@@ -13762,8 +13767,20 @@ function handleAdminOverview(array $params = []): void
             $lifetimeMarks = implode(',', array_fill(0, count($lifetimeIds), '?'));
             // One single-quoted string, no escape sequences: single quotes do not interpret \n, so
             // building this from '...\n' fragments sent a literal backslash-n to MySQL (1064).
-            $lifetimeSql = 'SELECT MIN(dl.ledger_date) AS first_date, MAX(dl.ledger_date) AS last_date, COUNT(DISTINCT dl.ledger_date) AS active_days, COUNT(DISTINCT DATE_FORMAT(dl.ledger_date, "%Y-%m")) AS active_months'
-                . ' FROM dl_daily_ledger dl'
+            $lifetimeAmount = dl_ledgerSalesAmountSql('dl');
+            // Resolve the canonical predicate's branch EXISTS with the row's exact PK join. This
+            // preserves single-shift semantics while avoiding a correlated lookup across lifetime.
+            $lifetimeProvisional = "(dl.end_source IN ('derived-from-movements','zero-forced')"
+                . ' OR dl.bal_end IS NULL'
+                . " OR (ss.status IS NULL AND (dl.shift = 'PM' OR (dl.shift = 'AM' AND b.single_shift_mode = 1)))"
+                . " OR (ss.status IS NOT NULL AND ss.status <> 'finalized'))";
+            $lifetimeSql = 'SELECT COALESCE(SUM(CASE WHEN ' . $lifetimeProvisional
+                . ' THEN 0 ELSE ' . $lifetimeAmount . ' END), 0) AS gross,'
+                . ' MIN(dl.ledger_date) AS first_date, MAX(dl.ledger_date) AS last_date,'
+                . ' COUNT(DISTINCT dl.ledger_date) AS active_days,'
+                . ' COUNT(DISTINCT YEAR(dl.ledger_date), MONTH(dl.ledger_date)) AS active_months'
+                . ' FROM dl_daily_ledger dl FORCE INDEX (idx_dl_branch_date)'
+                . ' INNER JOIN dl_branches b ON b.id = dl.branch_id'
                 . ' LEFT JOIN dl_ledger_shift_status ss'
                 . ' ON ss.branch_id = dl.branch_id AND ss.ledger_date = dl.ledger_date'
                 . ' AND ss.shift = dl.shift COLLATE utf8mb4_unicode_ci'
@@ -13778,6 +13795,7 @@ function handleAdminOverview(array $params = []): void
             $lifetimeStmt = $db->prepare($lifetimeSql);
             $lifetimeStmt->execute($lifetimeBind);
             $lifetimeRow = $lifetimeStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+            $lifetimeGross = (float)($lifetimeRow['gross'] ?? 0);
             $lifetimeFirstDate = (string)($lifetimeRow['first_date'] ?? '');
             $lifetimeLastDate = (string)($lifetimeRow['last_date'] ?? '');
             $lifetimeActiveDays = (int)($lifetimeRow['active_days'] ?? 0);
