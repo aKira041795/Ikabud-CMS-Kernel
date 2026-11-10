@@ -422,6 +422,145 @@
                             </div>
                         </div>
                     </div>
+
+                    {* ─── A third door, chosen by what is physically at the door ──────────────────
+                       An account returning stock is NOT a delivery and NOT a spoilage write-off. The
+                       dispatch already exists with its own DR, so putting "Account" into the Paper DR
+                       form's "where stock came from" would create a second delivery record for stock
+                       that only ever left once, and would offer the whole catalogue when only what
+                       the account actually holds can legitimately come back.
+
+                       The table below IS the answer to every question the other forms ask: the
+                       product, the date it left and the shift it left on all come from the row, so
+                       the cashier is never asked for a date. That matters because a return can only
+                       be recorded against the date and shift the stock left on, and asking for today
+                       when the goods left last week is exactly how a save fails. *}
+                    <div class="mt-4 rounded-lg border border-teal-200 bg-teal-50 p-3">
+                        <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                                <div class="text-sm font-semibold text-teal-900">An account brought stock back</div>
+                                <p class="mt-1 text-xs text-teal-800">Returned goods go back into <span class="font-semibold">this branch's stock</span>, not into spoilage. Pick the account, then enter what came back.</p>
+                            </div>
+                            <button type="button" class="btn btn-accent" @click="openReturn()" x-text="returnOpen ? 'Hide Account Return' : 'Open Account Return'"></button>
+                        </div>
+
+                        <div class="mt-3 space-y-3" x-show="returnOpen" x-cloak>
+                            <template x-if="returnLoading">
+                                <div class="py-4 text-center text-sm text-gray-500">Loading accounts...</div>
+                            </template>
+
+                            {* Honest empty state. Accounts return to the branch that SUPPLIED them, so a
+                               branch that supplies none legitimately has nothing to return here - it is
+                               not a broken screen, and saying so avoids a cashier hunting for a fix. *}
+                            <template x-if="!returnLoading && returnAccounts.length === 0">
+                                <div class="rounded-md border border-slate-200 bg-white px-3 py-3 text-xs leading-5 text-slate-600">
+                                    <span class="font-semibold">This branch does not supply any account that still holds stock.</span>
+                                    Accounts can only return goods to the branch that supplied them, so there is nothing to take back here.
+                                </div>
+                            </template>
+
+                            <template x-if="!returnLoading && returnAccounts.length > 0">
+                                <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                    <div>
+                                        <label class="block text-xs font-medium text-teal-900 mb-1">Account <span class="text-rose-500">*</span></label>
+                                        <select x-model="returnConsigneeId" @change="loadReturnLines()" class="form-input mt-0 w-full">
+                                            <option value="">-- Select account --</option>
+                                            <template x-for="a in returnAccounts" :key="'acc' + a.id">
+                                                <option :value="String(a.id)" x-text="a.name + ' — holds ' + a.custody + ' pcs'"></option>
+                                            </template>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-medium text-teal-900 mb-1">Return slip / DR Number <span class="text-rose-500">*</span></label>
+                                        <input type="text" x-model="returnDr" placeholder="Number printed on the return slip"
+                                               class="form-input mt-0 w-full border-teal-300 bg-white font-mono font-semibold uppercase tracking-[0.18em]">
+                                    </div>
+                                </div>
+                            </template>
+
+                            <template x-if="returnConsigneeId && !returnLoading && returnLines.length === 0">
+                                <div class="rounded-md border border-slate-200 bg-white px-3 py-3 text-xs text-slate-600">This account is not holding any stock from this branch.</div>
+                            </template>
+
+                            {* Which delivery is coming back. Chosen from the account's OWN outstanding
+                               deliveries, never typed into a calendar: a return can only be recorded against
+                               the date and shift the stock left on, so offering a free date would invite the
+                               one entry the ledger must refuse. Lee Plaza had 32 open deliveries and 213
+                               product lines on the live data, so without this scope the cashier would hunt
+                               a 213-row table for the six pieces that actually came back. *}
+                            <template x-if="returnBuckets().length > 1">
+                                <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                    <div>
+                                        <label class="block text-xs font-medium text-teal-900 mb-1">Which delivery came back?</label>
+                                        <select x-model="returnBucket" class="form-input mt-0 w-full">
+                                            <template x-for="bk in returnBuckets()" :key="bk.key">
+                                                <option :value="bk.key" x-text="bk.label"></option>
+                                            </template>
+                                        </select>
+                                    </div>
+                                </div>
+                            </template>
+
+                            <template x-if="returnLines.length > 0">
+                                <div class="overflow-x-auto rounded-lg border border-gray-200 bg-white">
+                                    <table class="w-full text-sm">
+                                        <thead class="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
+                                            <tr>
+                                                <th class="px-2 py-2 text-left">Product</th>
+                                                <th class="px-2 py-2 text-right">Still with them</th>
+                                                {* Only the quantity is the cashier's to type. The date and shift are
+                                                   read from the row, because the ledger accepts a return only against
+                                                   the date and shift the stock actually left on. *}
+                                                <th class="px-2 py-2 text-right">Coming back</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <template x-for="row in returnBucketLines()" :key="'rl' + row.gi">
+                                                <tr class="border-t border-gray-100">
+                                                    <td class="px-2 py-2 text-gray-800" x-text="row.line.product_name"></td>
+                                                    <td class="px-2 py-2 text-right tabular-nums text-gray-800" x-text="row.line.custody"></td>
+                                                    <td class="px-2 py-2 text-right">
+                                                        <input type="number" min="0" :max="row.line.custody"
+                                                               class="h-7 w-20 rounded border border-gray-300 px-1.5 text-right text-sm tabular-nums focus:border-indigo-500 focus:ring-indigo-500"
+                                                               placeholder="0"
+                                                               :disabled="row.line.locked"
+                                                               :value="returnQty[row.gi] || ''"
+                                                               @input="returnQty[row.gi] = $event.target.value">
+                                                    </td>
+                                                </tr>
+                                            </template>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </template>
+
+                            {* Same pattern as the Paper DR form: say what is missing at the top of the
+                               section, because the Save button is disabled and the cashier otherwise has
+                               to guess which control is holding it shut. *}
+                            <div class="rounded-md border px-3 py-2 text-xs"
+                                 x-bind:class="returnMissing().length ? 'border-slate-200 bg-white text-slate-600' : 'border-emerald-200 bg-emerald-50 text-emerald-800'"
+                                 role="status" aria-live="polite">
+                                <template x-if="returnMissing().length">
+                                    <span>Still needed: <span x-text="returnMissing().join(', ')"></span>.</span>
+                                </template>
+                                <template x-if="returnMissing().length === 0">
+                                    <span class="font-semibold">Ready to save — <span x-text="returnPickedQty()"></span> pcs across <span x-text="returnPicked().length"></span> line(s) go back into this branch's stock.</span>
+                                </template>
+                            </div>
+
+                            <div class="flex justify-end">
+                                <button type="button" class="btn btn-primary inline-flex items-center justify-center"
+                                        x-bind:disabled="returnSaving || returnMissing().length > 0"
+                                        @click="submitReturn()">
+                                    <svg x-show="returnSaving" class="mr-2 h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                                    </svg>
+                                    <span x-text="returnSaving ? 'Saving...' : 'Save account return'"></span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="mt-5 sm:mt-6 sm:flex sm:flex-row-reverse">
@@ -464,6 +603,21 @@ function receiveModal() {
         },
         // partialQtys: { group_key: { product_id: qty } }
         partialQtys: {},
+        // Account return (client concern #2): the third door. `returnLines` IS the account's live
+        // custody - one row per product x dispatch date x shift - so the cashier types only a
+        // quantity and never a date.
+        returnOpen: false,
+        returnLoading: false,
+        returnSaving: false,
+        returnAccounts: [],
+        returnLines: [],
+        returnConsigneeId: '',
+        returnDr: '',
+        returnQty: {},
+        // One account can have dozens of outstanding deliveries (Lee Plaza: 32) and hundreds of
+        // product lines, so the table is scoped to ONE delivery. The bucket list is built from the
+        // account's own rows, which is why the cashier never types a date.
+        returnBucket: '',
 
         get filteredDeliveries() {
             var q = this.drFilter.trim().toLowerCase();
@@ -524,6 +678,166 @@ function receiveModal() {
             var sel = document.getElementById('branch-select');
             if (sel && sel.value) return sel.value;
             return window.BRANCH_ID || '';
+        },
+
+        // ─── Account return (client concern #2) ───────────────────────────────────────────
+        // The account's custody is fetched, never computed here: the server owns both the rule
+        // (an account returns only to the branch that supplied it) and the row set, so the screen
+        // cannot offer something the write would refuse.
+        openReturn() {
+            this.returnOpen = !this.returnOpen;
+            if (this.returnOpen && this.returnAccounts.length === 0) {
+                this.loadReturnAccounts();
+            }
+        },
+
+        loadReturnAccounts() {
+            var self = this;
+            this.returnLoading = true;
+            this.errorMsg = '';
+            fetch(BASE + '/api/v1/deliveries/consignee-custody?branch_id=' + encodeURIComponent(this.currentBranchId()), {
+                credentials: 'same-origin'
+            }).then(function (response) {
+                return response.json().catch(function () { return {}; }).then(function (body) {
+                    if (!response.ok || !body.ok) throw new Error(body.error || 'Could not load accounts.');
+                    self.returnAccounts = body.accounts || [];
+                    self.returnLoading = false;
+                    // Exactly one account is the normal case, so preselect it: one less click, and the
+                    // quantities appear immediately instead of after a second deliberate action.
+                    if (self.returnAccounts.length === 1) {
+                        self.returnConsigneeId = String(self.returnAccounts[0].id);
+                        self.loadReturnLines();
+                    }
+                });
+            }).catch(function (error) {
+                self.returnLoading = false;
+                self.errorMsg = (error && error.message) || 'Could not load accounts.';
+            });
+        },
+
+        loadReturnLines() {
+            var self = this;
+            this.returnLines = [];
+            this.returnQty = {};
+            if (!this.returnConsigneeId) return;
+            this.returnLoading = true;
+            this.errorMsg = '';
+            fetch(BASE + '/api/v1/deliveries/consignee-custody?branch_id=' + encodeURIComponent(this.currentBranchId())
+                    + '&consignee_id=' + encodeURIComponent(this.returnConsigneeId), {
+                credentials: 'same-origin'
+            }).then(function (response) {
+                return response.json().catch(function () { return {}; }).then(function (body) {
+                    if (!response.ok || !body.ok) throw new Error(body.error || 'Could not load this account.');
+                    self.returnLines = body.lines || [];
+                    self.returnLoading = false;
+                    // Default to the most recent delivery: the routine case is yesterday's or this
+                    // morning's unsold stock coming back.
+                    var buckets = self.returnBuckets();
+                    self.returnBucket = buckets.length > 0 ? buckets[0].key : '';
+                });
+            }).catch(function (error) {
+                self.returnLoading = false;
+                self.errorMsg = (error && error.message) || 'Could not load this account.';
+            });
+        },
+
+        // Distinct outstanding deliveries for the chosen account, newest first. Built from the rows
+        // themselves, so every entry names a real dispatch that can still be acted on.
+        returnBuckets() {
+            var seen = {};
+            var out = [];
+            this.returnLines.forEach(function (line) {
+                var key = line.ledger_date + '|' + line.shift;
+                if (!seen[key]) {
+                    seen[key] = { key: key, count: 0, custody: 0, label: '' };
+                    out.push(seen[key]);
+                }
+                seen[key].count += 1;
+                seen[key].custody += line.custody;
+            });
+            out.forEach(function (b) {
+                var parts = b.key.split('|');
+                b.label = parts[0] + ' · ' + parts[1] + ' — ' + b.count + ' item' + (b.count === 1 ? '' : 's') + ', ' + b.custody + ' pcs';
+            });
+            out.sort(function (a, b) { return a.key < b.key ? 1 : (a.key > b.key ? -1 : 0); });
+            return out;
+        },
+
+        // The selected delivery's lines, each carrying its GLOBAL index so returnQty keys stay valid
+        // when the cashier switches between deliveries and entries already typed are kept.
+        returnBucketLines() {
+            var key = this.returnBucket;
+            var out = [];
+            this.returnLines.forEach(function (line, index) {
+                if ((line.ledger_date + '|' + line.shift) !== key) return;
+                out.push({ gi: index, line: line });
+            });
+            return out;
+        },
+
+        returnPicked() {
+            var self = this;
+            var picked = [];
+            this.returnLines.forEach(function (line, index) {
+                var qty = parseInt(self.returnQty[index], 10);
+                if (!isNaN(qty) && qty > 0) {
+                    picked.push({
+                        product_id: line.product_id,
+                        ledger_date: line.ledger_date,
+                        shift: line.shift,
+                        quantity: qty
+                    });
+                }
+            });
+            return picked;
+        },
+
+        returnMissing() {
+            var missing = [];
+            if (!this.returnConsigneeId) missing.push('the account');
+            if (!this.returnDr.trim()) missing.push('the return slip number');
+            if (this.returnPicked().length === 0) missing.push('at least one quantity coming back');
+            return missing;
+        },
+
+        returnPickedQty() {
+            return this.returnPicked().reduce(function (sum, line) { return sum + line.quantity; }, 0);
+        },
+
+        submitReturn() {
+            var self = this;
+            var lines = this.returnPicked();
+            if (lines.length === 0 || !this.returnDr.trim()) return;
+            this.returnSaving = true;
+            window.dlWriteTimeout(BASE + '/api/v1/deliveries/consignee-return', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    consignee_id: Number(this.returnConsigneeId),
+                    branch_id: Number(this.currentBranchId()),
+                    dr_number: this.returnDr.trim(),
+                    lines: lines
+                })
+            }, 'This account return').then(function (response) {
+                return response.json().catch(function () { return {}; }).then(function (body) {
+                    if (!response.ok || !body.ok) throw new Error(body.error || 'Return was not saved.');
+                    showToast('Account return saved — stock is back in this branch', 'success');
+                    self.returnSaving = false;
+                    self.returnDr = '';
+                    self.returnQty = {};
+                    self.receivedAny = true;
+                    // Re-read the custody: the rows just consumed pieces, and a stale table would
+                    // invite the same quantity being returned twice.
+                    self.loadReturnLines();
+                    self.load();
+                });
+            }).catch(function (error) {
+                self.returnSaving = false;
+                var message = error && error.dlTimedOut
+                    ? window.dlWriteTimeoutMessage('This account return')
+                    : ((error && error.message) || 'Return was not saved.');
+                showToast(message, 'error');
+            });
         },
 
         // Default origin for this branch's routine receives: its assigned supply

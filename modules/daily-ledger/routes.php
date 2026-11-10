@@ -112,6 +112,10 @@ return [
         // Offline PWA: enrollment status + bootstrap refresh (additive/versioned)
         '/daily-ledger/api/v1/offline/status'    => 'daily-ledger:apiOfflineStatus',
         '/daily-ledger/api/v1/offline/bootstrap' => 'daily-ledger:apiOfflineBootstrap',
+
+        // Feeds the "Return from account" panel: what an account still holds, per dispatch date
+        // and shift, so the cashier never has to know (or guess) a date.
+        '/daily-ledger/api/v1/deliveries/consignee-custody' => 'daily-ledger:apiConsigneeCustody',
     ],
     'POST' => [
         // Module-owned login (namespaced)

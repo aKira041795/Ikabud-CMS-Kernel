@@ -1975,16 +1975,128 @@ function apiReviewDeliveryProvenance(array $params = []): void
 }
 
 /** Record an admin-entered total return/pullout from consignee custody. */
+/**
+ * What an account still physically holds at this branch — the rows a cashier returns against.
+ *
+ *   ?branch_id=N                 -> the accounts this branch supplies that still hold stock
+ *   ?branch_id=N&consignee_id=M  -> that account's custody lines: product x dispatch date x shift
+ *
+ * WHY A DATE IS NEVER ASKED FOR: dl_applyConsigneeLedgerDelta() computes custody as
+ * addtl - withdraw on ONE (consignee, product, ledger_date, shift) row, so a return can only be
+ * recorded against the date and shift the stock actually left on. Returning against today when the
+ * goods left last week is refused ("Reverse quantity exceeds consignee custody stock"). These rows
+ * ARE that answer, so the cashier picks a row and types how many came back — the single most likely
+ * wrong entry becomes impossible to make.
+ *
+ * `locked` carries whether the dispatch shift is already finalized. Showing it BEFORE the cashier
+ * types is the difference between a dead end and a next step ("reopen the shift"), and it is the
+ * same rule the write enforces.
+ */
+function apiConsigneeCustody(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) { http_response_code(500); return; }
+    $user = dlCurrentUser(['admin', 'supervisor', 'cashier']);
+
+    $branchId = (int)(filter_var($_GET['branch_id'] ?? 0, FILTER_VALIDATE_INT) ?: 0);
+    if ($branchId <= 0) {
+        $ctx->json(['ok' => false, 'error' => 'A branch is required.'], 422);
+        return;
+    }
+    $auth = dl_authorizeBranch($user, ['branch_id' => $branchId]);
+    if (($auth['branch_id'] ?? -1) < 0) {
+        $ctx->json(['ok' => false, 'error' => 'Branch not authorized'], 403);
+        return;
+    }
+
+    $db = $ctx->db();
+    $consigneeId = (int)(filter_var($_GET['consignee_id'] ?? 0, FILTER_VALIDATE_INT) ?: 0);
+
+    if ($consigneeId <= 0) {
+        // Accounts THIS branch supplies. An account returns to its supplier, so that equality is
+        // the whole rule — no supply-line indirection.
+        $stmt = $db->prepare(
+            'SELECT c.id, c.code, c.name, SUM(l.addtl - l.withdraw) AS custody'
+            . ' FROM dl_consignees c'
+            . ' INNER JOIN dl_consignee_ledger l ON l.consignee_id = c.id'
+            . ' WHERE c.is_active = 1 AND c.assigned_commissary_id = :b'
+            . ' GROUP BY c.id, c.code, c.name'
+            . ' HAVING SUM(l.addtl - l.withdraw) > 0'
+            . ' ORDER BY c.name'
+        );
+        $stmt->execute([':b' => $branchId]);
+        $accounts = [];
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r) {
+            $accounts[] = [
+                'id' => (int)$r['id'],
+                'code' => (string)$r['code'],
+                'name' => (string)$r['name'],
+                'custody' => (int)$r['custody'],
+            ];
+        }
+        $ctx->json(['ok' => true, 'accounts' => $accounts, 'lines' => []]);
+        return;
+    }
+
+    // The account must be supplied by THIS branch, otherwise there is nothing legitimate to show.
+    $check = $db->prepare('SELECT assigned_commissary_id FROM dl_consignees WHERE id = :c LIMIT 1');
+    $check->execute([':c' => $consigneeId]);
+    $supplying = $check->fetchColumn();
+    if ($supplying === false) {
+        $ctx->json(['ok' => false, 'error' => 'Account not found.'], 422);
+        return;
+    }
+    if ($supplying === null || (int)$supplying !== $branchId) {
+        $ctx->json([
+            'ok' => false,
+            'error' => 'This account is not supplied by this branch, so it cannot return stock here.',
+        ], 403);
+        return;
+    }
+
+    $stmt = $db->prepare(
+        'SELECT p.id AS product_id, p.name AS product_name, l.ledger_date, l.shift,'
+        . ' SUM(l.addtl - l.withdraw) AS custody'
+        . ' FROM dl_consignee_ledger l'
+        . ' INNER JOIN dl_products p ON p.id = l.product_id'
+        . ' WHERE l.consignee_id = :c'
+        . ' GROUP BY p.id, p.name, l.ledger_date, l.shift'
+        . ' HAVING SUM(l.addtl - l.withdraw) > 0'
+        . ' ORDER BY l.ledger_date, l.shift, p.name'
+    );
+    $stmt->execute([':c' => $consigneeId]);
+    $lockCache = [];
+    $lines = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r) {
+        $date = (string)$r['ledger_date'];
+        $shift = (string)$r['shift'];
+        $key = $date . '|' . $shift;
+        if (!array_key_exists($key, $lockCache)) {
+            $lockCache[$key] = dl_shiftIsFinalized($db, $branchId, $date, $shift);
+        }
+        $lines[] = [
+            'product_id' => (int)$r['product_id'],
+            'product_name' => (string)$r['product_name'],
+            'ledger_date' => $date,
+            'shift' => $shift,
+            'custody' => (int)$r['custody'],
+            'locked' => $lockCache[$key],
+        ];
+    }
+    $ctx->json(['ok' => true, 'accounts' => [], 'lines' => $lines]);
+}
+
 function apiRecordConsigneeReturn(array $params = []): void
 {
     $ctx = module();
     if (!$ctx) { http_response_code(500); return; }
     // Owner directive 2026-11-10: "allow cashiers". A cashier taking goods back from an account at
     // the counter is the normal case; requiring an admin made the counter stop and wait.
-    // NOTE this endpoint adjusts the CONSIGNEE ledger only - it does not credit branch stock.
-    // Office-only operations stay office-only: apiCorrectConsigneeDeliveryDiscrepancy below is
-    // still admin/supervisor, because correcting a delivery quantity is not a counter action
-    // (client concern #3: "kami ra diri sa office ang makausab").
+    // Both sides move: dl_recordConsigneeReturn() lowers the account's custody AND credits the
+    // supplying branch's stock, in this transaction. Office-only operations stay office-only:
+    // apiCorrectConsigneeDeliveryDiscrepancy below is still admin/supervisor, because correcting a
+    // delivery quantity is not a counter action (client concern #3: "kami ra diri sa office ang
+    // makausab").
     $user = dlCurrentUser(['admin', 'supervisor', 'cashier']);
     $actorId = dl_getActorUserId($user);
     $input = json_decode((string)file_get_contents('php://input'), true);
@@ -1994,24 +2106,55 @@ function apiRecordConsigneeReturn(array $params = []): void
     }
 
     $consigneeId = filter_var($input['consignee_id'] ?? null, FILTER_VALIDATE_INT);
-    $productId = filter_var($input['product_id'] ?? null, FILTER_VALIDATE_INT);
-    $quantity = filter_var($input['quantity'] ?? null, FILTER_VALIDATE_INT);
-    $ledgerDate = trim((string)($input['ledger_date'] ?? ''));
-    $shift = trim((string)($input['shift'] ?? ''));
     // Optional branch credit (client concern #2). When a branch is supplied the return is stock
     // ENTERING that branch, so it needs a DR and must go through the ledger — see the try block.
     $branchId = (int)(filter_var($input['branch_id'] ?? 0, FILTER_VALIDATE_INT) ?: 0);
     $drNumber = trim((string)($input['dr_number'] ?? ''));
-    $validDate = preg_match('/^\d{4}-\d{2}-\d{2}$/', $ledgerDate) === 1;
-    if ($validDate) {
-        [$year, $month, $day] = array_map('intval', explode('-', $ledgerDate));
-        $validDate = checkdate($month, $day, $year);
+
+    // A paper return slip usually covers SEVERAL products, and the whole slip has to land or not at
+    // all. `lines` is the real shape; the old scalar product_id/quantity/ledger_date/shift form is
+    // kept as sugar, because the admin dispatch report posts one row at a time and must keep working
+    // unchanged. Both normalise to one array here, so one transaction and one rule set cover both.
+    $rawLines = $input['lines'] ?? null;
+    if (!is_array($rawLines)) {
+        $rawLines = [[
+            'product_id' => $input['product_id'] ?? null,
+            'quantity' => $input['quantity'] ?? null,
+            'ledger_date' => $input['ledger_date'] ?? '',
+            'shift' => $input['shift'] ?? '',
+        ]];
     }
-    if ($consigneeId === false || $consigneeId <= 0
-        || $productId === false || $productId <= 0
-        || $quantity === false || $quantity < 0
-        || !$validDate || !in_array($shift, ['AM', 'PM'], true)) {
-        $ctx->json(['ok' => false, 'error' => 'Consignee, product, ledger date, AM/PM shift, and a non-negative quantity are required.'], 422);
+    $lines = [];
+    foreach ($rawLines as $raw) {
+        if (!is_array($raw)) { continue; }
+        $productId = filter_var($raw['product_id'] ?? null, FILTER_VALIDATE_INT);
+        $quantity = filter_var($raw['quantity'] ?? null, FILTER_VALIDATE_INT);
+        $ledgerDate = trim((string)($raw['ledger_date'] ?? ''));
+        $shift = trim((string)($raw['shift'] ?? ''));
+        $validDate = preg_match('/^\d{4}-\d{2}-\d{2}$/', $ledgerDate) === 1;
+        if ($validDate) {
+            [$year, $month, $day] = array_map('intval', explode('-', $ledgerDate));
+            $validDate = checkdate($month, $day, $year);
+        }
+        if ($productId === false || $productId <= 0
+            || $quantity === false || $quantity < 0
+            || !$validDate || !in_array($shift, ['AM', 'PM'], true)) {
+            $ctx->json(['ok' => false, 'error' => 'Each return line needs a product, a valid ledger date, an AM/PM shift, and a non-negative quantity.'], 422);
+            return;
+        }
+        $lines[] = [
+            'product_id' => (int)$productId,
+            'quantity' => (int)$quantity,
+            'ledger_date' => $ledgerDate,
+            'shift' => $shift,
+        ];
+    }
+    if ($consigneeId === false || $consigneeId <= 0) {
+        $ctx->json(['ok' => false, 'error' => 'A consignee account is required.'], 422);
+        return;
+    }
+    if ($lines === []) {
+        $ctx->json(['ok' => false, 'error' => 'At least one return line is required.'], 422);
         return;
     }
 
@@ -2039,43 +2182,52 @@ function apiRecordConsigneeReturn(array $params = []): void
                 return;
             }
 
-            // The "Rizal only, not other branches" rule without naming Rizal: an account may only
-            // return into a branch on its OWN supply line. Derived from data, so moving the account
-            // to another commissary moves the restriction with it.
-            $supply = $ctx->db()->prepare(
-                'SELECT c.assigned_commissary_id AS consignee_commi, b.assigned_commissary_id AS branch_commi'
-                . ' FROM dl_consignees c INNER JOIN dl_branches b ON b.id = :branch'
-                . ' WHERE c.id = :consignee LIMIT 1'
-            );
-            $supply->execute([':branch' => $branchId, ':consignee' => (int)$consigneeId]);
-            $line = $supply->fetch(PDO::FETCH_ASSOC);
-            if (!$line) {
+            // The account may return stock ONLY to the branch that supplied it - the consignee's own
+            // assigned_commissary_id.
+            //
+            // This was originally written as "same supply LINE" (consignee.assigned_commissary_id =
+            // branch.assigned_commissary_id) and that was wrong in both directions, measured on the
+            // live topology 2026-11-10: every account is supplied by RIZAL-COMMIS (#18), which is a
+            // commissary and therefore carries assigned_commissary_id NULL itself. A line comparison
+            // REJECTED #18 - the only branch that can legitimately take these returns - and ADMITTED
+            // ordinary Dipolog branches (#8-#19 share line 18) that never touched the goods, while
+            // the stock was credited to #18 regardless. Comparing against the supplier is the rule
+            // the client actually stated ("Rizal only, not other branches"), and it is the same
+            // branch dl_recordConsigneeReturn() will credit, so the two can never disagree.
+            $supply = $ctx->db()->prepare('SELECT assigned_commissary_id FROM dl_consignees WHERE id = :consignee LIMIT 1');
+            $supply->execute([':consignee' => (int)$consigneeId]);
+            $supplying = $supply->fetchColumn();
+            if ($supplying === false) {
                 if ($ownsTx && $ctx->db()->inTransaction()) { $ctx->db()->rollBack(); }
-                $ctx->json(['ok' => false, 'error' => 'Account or branch not found.'], 422);
+                $ctx->json(['ok' => false, 'error' => 'Account not found.'], 422);
                 return;
             }
-            if ($line['consignee_commi'] === null
-                || (int)$line['consignee_commi'] !== (int)$line['branch_commi']) {
+            if ($supplying === null || (int)$supplying !== $branchId) {
                 if ($ownsTx && $ctx->db()->inTransaction()) { $ctx->db()->rollBack(); }
                 $ctx->json([
                     'ok' => false,
-                    'error' => 'This account is not on the same supply line as this branch, so it cannot return stock here.',
+                    'error' => 'This account is not supplied by this branch, so it cannot return stock here.',
                 ], 403);
                 return;
             }
         }
 
-        $result = dl_recordConsigneeReturn(
-            $ctx->db(), (int)$consigneeId, (int)$productId,
-            $ledgerDate, $shift, (int)$quantity, $actorId
-        );
+        $applied = [];
+        foreach ($lines as $line) {
+            $applied[] = ['product_id' => $line['product_id'], 'ledger_date' => $line['ledger_date'], 'shift' => $line['shift']]
+                + dl_recordConsigneeReturn(
+                    $ctx->db(), (int)$consigneeId, $line['product_id'],
+                    $line['ledger_date'], $line['shift'], $line['quantity'], $actorId
+                );
+        }
 
+        $result = ['lines' => $applied];
         if ($branchId > 0) {
             // The branch credit itself is applied INSIDE dl_recordConsigneeReturn() above, so this
             // endpoint and the admin dispatch report share one implementation. $branch_id here
             // therefore means "this return was taken in at this branch": it selects the branch
-            // authorization and the supply-line rule, and names the result. Crediting again here
-            // would double the branch stock.
+            // authorization and the supplying-branch rule, and names the result. Crediting again
+            // here would double the branch stock.
             $result['branch_credited'] = $branchId;
             $result['dr_number'] = $drNumber;
         }
@@ -2092,7 +2244,8 @@ function apiRecordConsigneeReturn(array $params = []): void
         if (isset($ownsTx) && $ownsTx && $ctx->db()->inTransaction()) { $ctx->db()->rollBack(); }
         $ctx->log('apiRecordConsigneeReturn: ' . $e->getMessage(), 'error', [
             'consignee_id' => $consigneeId,
-            'product_id' => $productId,
+            'branch_id' => $branchId,
+            'line_count' => count($lines),
             'user_sub' => $user['sub'] ?? null,
         ]);
         $ctx->json(['ok' => false, 'error' => 'Database error'], 500);

@@ -81,11 +81,11 @@ $h->test(
     'branch inventory must not rise without a document'
 );
 $h->test(
-    'the supply-line restriction is derived from data, not hardcoded',
-    str_contains($returnBody, 'c.assigned_commissary_id')
-        && str_contains($returnBody, 'b.assigned_commissary_id')
-        && str_contains($returnBody, 'not on the same supply line as this branch'),
-    'the rule must compare the account\'s supply line with the branch\'s, so moving the account moves the restriction'
+    'an account may only return to the branch that SUPPLIED it',
+    str_contains($returnBody, 'SELECT assigned_commissary_id FROM dl_consignees')
+        && str_contains($returnBody, '(int)$supplying !== $branchId')
+        && str_contains($returnBody, 'is not supplied by this branch'),
+    'a supply-LINE comparison was wrong both ways on live data: RIZAL-COMMIS carries assigned_commissary_id NULL so it was rejected, and ordinary Dipolog branches on the same line were admitted'
 );
 /*
  * THE SPOILAGE FIX. A return used to adjust only the account, and the dispatch report valued it as
@@ -107,6 +107,25 @@ $h->test(
     'spoilage stays a separate, real fact',
     str_contains($core, "'spoilage' => 'Spoilage'"),
     'a return is stock back on the shelf; spoiled goods are a withdrawal with reason_code spoilage/damage'
+);
+
+$h->section('the panel is fed by what the account actually holds');
+$custodyBody = $bodyOf($tpl, 'apiConsigneeCustody');
+$h->test('cashiers can read the custody list', str_contains($custodyBody, "dlCurrentUser(['admin', 'supervisor', 'cashier'])")); 
+$h->test(
+    'the account list is scoped to the branch that supplies them',
+    str_contains($custodyBody, 'c.assigned_commissary_id = :b'),
+    'a branch must never be offered accounts it did not supply'
+);
+$h->test(
+    'only stock still held is offered',
+    substr_count($custodyBody, 'HAVING SUM(l.addtl - l.withdraw) > 0') >= 2,
+    'both the account totals and the line detail must exclude settled rows'
+);
+$h->test(
+    'a locked shift is shown before the cashier types',
+    str_contains($custodyBody, 'dl_shiftIsFinalized') && str_contains($custodyBody, "'locked' =>"),
+    'the write refuses a finalized shift, so the dead end must be visible up front'
 );
 
 $h->section('atomicity — the property the whole design rests on');
