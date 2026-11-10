@@ -172,6 +172,15 @@
         {/if}
         {/if}
         <button type="button" class="btn btn-accent" onclick="printCashierLedger()">Print</button>
+        {* Client concern #3: the branch must be able to settle a delivery discrepancy with the
+           branch that sent it, without waiting for the office. The capture lives on the variance
+           page, which is only linked from OFFICE screens - so a branch cashier had no route to
+           it and the feature was unreachable from where the discrepancy is actually noticed.
+           Branches only see their own access scope there, and every correction control on that
+           page stays gated to the office, so this is a way IN, not a way to change anything. *}
+        {if user_role == 'cashier' || user_role == 'supervisor' || user_role == 'production_in_charge'}
+        <a href="{base_url}/admin/variances?kind=delivery&reviewed=0" class="btn btn-accent" title="Delivery discrepancies involving this branch: add your branch's explanation">Delivery issues</a>
+        {/if}
     </div>
 </div>
 
