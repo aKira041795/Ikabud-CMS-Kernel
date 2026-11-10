@@ -1171,6 +1171,26 @@ function dl_forecastDemand(array $salesRows, array $varianceRows, array $invento
         $pid = (int)($row['product_id'] ?? 0);
         $shift = strtoupper((string)($row['shift'] ?? 'AM')) === 'PM' ? 'PM' : 'AM';
         $key = $bid . ':' . $pid . ':' . $shift;
+        if (array_key_exists('agg_sales_days', $row)) {
+            // SQL-aggregated input (dl_forecastRows): the day counts and the sales total are already
+            // reduced, so store them as counters instead of rebuilding a per-date series only to
+            // count and sum it again. Same numbers, a fraction of the memory.
+            $groups[$key]['branch_id'] = $bid;
+            $groups[$key]['branch_name'] = (string)($row['branch_name'] ?? '');
+            $groups[$key]['source_class'] = (string)($row['source_class'] ?? 'unknown');
+            $groups[$key]['source_label'] = (string)($row['source_label'] ?? 'source not declared');
+            $groups[$key]['product_id'] = $pid;
+            $groups[$key]['sku'] = (string)($row['sku'] ?? '');
+            $groups[$key]['product_name'] = (string)($row['product_name'] ?? '');
+            $groups[$key]['shift'] = $shift;
+            $groups[$key]['movement_rows'] = max((int)($groups[$key]['movement_rows'] ?? 0), (int)($row['movement_rows'] ?? 0));
+            $groups[$key]['has_availability'] = true;
+            $groups[$key]['agg_days'] = ($groups[$key]['agg_days'] ?? 0) + (int)$row['agg_sales_days'];
+            $groups[$key]['agg_available'] = ($groups[$key]['agg_available'] ?? 0) + (int)($row['agg_available_days'] ?? 0);
+            $groups[$key]['agg_zero'] = ($groups[$key]['agg_zero'] ?? 0) + (int)($row['agg_zero_days'] ?? 0);
+            $groups[$key]['agg_sales'] = ($groups[$key]['agg_sales'] ?? 0) + (float)($row['sales'] ?? 0);
+            continue;
+        }
         $groups[$key]['branch_id'] = $bid;
         $groups[$key]['branch_name'] = (string)($row['branch_name'] ?? '');
         $groups[$key]['source_class'] = (string)($row['source_class'] ?? 'unknown');
@@ -1213,13 +1233,16 @@ function dl_forecastDemand(array $salesRows, array $varianceRows, array $invento
         $dailySeries = is_array($group['daily'] ?? null) ? $group['daily'] : [];
         ksort($dailySeries);
         $daily = array_slice(array_values($dailySeries), -$window);
-        $productDays = count($daily);
+        $hasAggregate = array_key_exists('agg_days', $group);
+        $productDays = $hasAggregate ? (int)$group['agg_days'] : count($daily);
         // The branch's recorded cells for this shift, and this stream's own classification of them.
         // A date counted as available is never also censored, whatever order the rows arrived in.
         $cellKey = (int)$group['branch_id'] . ':' . $group['shift'];
         $recordedCount = count($recordedCells[$cellKey] ?? []);
-        $availableDays = count($group['available'] ?? []);
-        $censoredDays = count(array_diff_key($group['censored'] ?? [], $group['available'] ?? []));
+        $availableDays = $hasAggregate ? (int)$group['agg_available'] : count($group['available'] ?? []);
+        $censoredDays = $hasAggregate
+            ? max(0, (int)$group['agg_days'] - (int)$group['agg_available'])
+            : count(array_diff_key($group['censored'] ?? [], $group['available'] ?? []));
         // The DENOMINATOR is the days this product could actually be BOUGHT and its sale was
         // recorded - not the days the branch traded. Two earlier rules are both wrong, and the
         // module's own contract (docs/daily-ledger/unfinalized-shift-sales-semantics.md: a recorded
@@ -1244,13 +1267,13 @@ function dl_forecastDemand(array $salesRows, array $varianceRows, array $invento
         $days = max(1, $denominator);
         // Branch-recorded days this product has no row for. Reported, never counted as demand.
         $unknownDays = $hasAvailability ? max(0, $recordedCount - $availableDays - $censoredDays) : 0;
-        $zeroSaleDays = count($group['zero_sales'] ?? []);
+        $zeroSaleDays = $hasAggregate ? (int)$group['agg_zero'] : count($group['zero_sales'] ?? []);
         // The evidence gate, so a row says how much it is worth instead of implying it. The
         // thresholds are the chair's proposed engineering gates (2026-10-11), not statistics.
         $evidenceBase = $hasAvailability ? $availableDays : $days;
         $evidenceStatus = $evidenceBase >= 10 ? 'sufficient' : ($evidenceBase >= 5 ? 'provisional' : 'insufficient');
         $days = max(1, $denominator);
-        $average = array_sum($daily) / $days;
+        $average = ($hasAggregate ? (float)$group['agg_sales'] : (float)array_sum($daily)) / $days;
         $varianceValues = $variance[$key] ?? [];
         $varianceAdjustment = $varianceValues ? array_sum($varianceValues) / count($varianceValues) : 0.0;
         $stockKey = (int)$group['branch_id'] . ':' . (int)$group['product_id'];
@@ -1291,7 +1314,7 @@ function dl_forecastDemand(array $salesRows, array $varianceRows, array $invento
             // Why a row can carry no average: it is a movement-only key, so a 0 here means "no sales
             // were measured for this branch, product and shift in this window", NOT "demand was
             // measured as zero". The page states which, so a 0 suggestion is never ambiguous.
-            'sales_basis' => $daily === []
+            'sales_basis' => ($daily === [] && !$hasAggregate)
                 ? 'movement only: no measured sales for this branch, product and shift in this window'
                 : '',
             'movement_rows' => (int)($group['movement_rows'] ?? 0),
@@ -1403,13 +1426,75 @@ function dl_forecastRows(ModuleDB $db, array $filters, string $targetDate, int $
     $historyFilters = $filters;
     $historyFilters['date_from'] = $historyFrom;
     $historyFilters['date_to'] = $historyTo;
-    $sales = dl_reportSalesData($db, $historyFilters)['rows'];
-    $sales = array_values(array_filter($sales, static fn(array $row): bool => $row['status_label'] === 'official'));
+
+    // The forecast needs the OFFICIAL sales series and nothing else that the sales report carries.
+    // It used to take dl_reportSalesData()'s whole row set, which for a full window across every
+    // branch is ~179,000 ledger rows joined to products, branches and the price math: measured 331 MB
+    // on tenant 207 (2026-08-15..2026-11-10) against a 128 MB PHP limit, which is what killed
+    // /admin/overview with "Allowed memory size exhausted" at the fetchAll in dl_reportSalesData().
+    // dl_forecastDemand() reads only per-cell sales and per-cell availability, so this projects those
+    // columns and borrows the report's OWN official predicate and sales expression rather than
+    // re-deriving them - the same rows and the same numbers at a fraction of the memory.
+    // `bal_end IS NOT NULL` is not redundant: dl_salesRowStatusLabel() labels a missing ending
+    // 'pending ending', so the PHP filter it replaces also excluded those rows.
+    $salesIds = $filters['accessible_branch_ids'];
+    // No accessible branch means no history to learn from. Without this the aggregate below would be
+    // built as `IN ()`, which is a SQL error rather than an empty result, and the "inaccessible
+    // branch shows the empty analytics state" contract would surface as a 500 instead of a zero.
+    if ($salesIds === []) {
+        return [];
+    }
+    $salesMarks = implode(',', array_fill(0, count($salesIds), '?'));
+    $salesQty = dl_ledgerSalesQuantitySql('dl');
+    $availableExpr = '(COALESCE(dl.beg_bal,0) > 0 OR COALESCE(dl.addtl,0) > 0)';
+    // ONE row per branch+product+shift, not one per ledger cell. dl_forecastDemand() only ever uses
+    // the day COUNT, the sales SUM and the available/censored/zero-sale day counts, so the aggregation
+    // that used to happen per row in PHP happens in SQL instead. A 90-day window on this tenant is
+    // ~179,000 cells and ~8,700 keys, which is the difference between 200 MB and a page that loads.
+    $salesSql = 'SELECT dl.branch_id, dl.product_id, ANY_VALUE(dl.shift) AS shift,'
+        . ' SUM(' . $salesQty . ') AS sales,'
+        . ' COUNT(DISTINCT dl.ledger_date) AS agg_sales_days,'
+        . ' COUNT(DISTINCT CASE WHEN ' . $availableExpr . ' THEN dl.ledger_date END) AS agg_available_days,'
+        . ' COUNT(DISTINCT CASE WHEN ' . $availableExpr . ' AND COALESCE(' . $salesQty . ',0) = 0 THEN dl.ledger_date END) AS agg_zero_days'
+        . ' FROM dl_daily_ledger dl'
+        . ' LEFT JOIN dl_ledger_shift_status ss'
+        . '   ON ss.branch_id = dl.branch_id AND ss.ledger_date = dl.ledger_date'
+        . '  AND ss.shift = dl.shift COLLATE utf8mb4_unicode_ci'
+        . ' WHERE dl.branch_id IN (' . $salesMarks . ') AND dl.ledger_date BETWEEN ? AND ?'
+        . '   AND dl.bal_end IS NOT NULL'
+        . dl_officialOnlySqlPredicate('dl', 'ss')
+        // ANY_VALUE is the MySQL 5.7 escape from ONLY_FULL_GROUP_BY for a column that IS grouped but
+        // whose collation the join above coerces: selecting the bare column (or a CAST of it) was
+        // rejected with "Expression #3 of SELECT list is not in GROUP BY clause" on the fixture
+        // connection even though it is grouped, and the grouped value is the only possible one.
+        . ' GROUP BY dl.branch_id, dl.product_id, dl.shift';
+    $salesBind = array_merge($salesIds, [$historyFrom, $historyTo]);
+    if ($filters['branch_id'] > 0) {
+        $salesSql .= ' AND dl.branch_id = ?';
+        $salesBind[] = $filters['branch_id'];
+    }
+    if ($filters['product_id'] > 0) {
+        $salesSql .= ' AND dl.product_id = ?';
+        $salesBind[] = $filters['product_id'];
+    }
+    if ($filters['shift'] !== '') {
+        $salesSql .= ' AND dl.shift = ?';
+        $salesBind[] = $filters['shift'];
+    }
+    $salesStmt = $db->prepare($salesSql);
+    $salesStmt->execute($salesBind);
+    $sales = $salesStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
     // Say WHERE each suggestion acts and whether it is a production requirement or a supply
     // requirement. The classifier is the same evidence-based one the production-efficiency view
     // uses, so the two pages cannot disagree about what a branch is.
     $forecastSources = dl_efficiencySupplySources($db, $filters['accessible_branch_ids'], $historyFrom, $historyTo);
+    // Names are stamped onto the RESULT below instead of carried on every ledger row: repeating the
+    // same product sku/name and branch name 179,000 times was a large part of the old row set's cost.
+    $forecastProductNames = [];
+    foreach ($db->query('SELECT id, sku, name FROM dl_products')->fetchAll(PDO::FETCH_ASSOC) ?: [] as $nameRow) {
+        $forecastProductNames[(int)$nameRow['id']] = ['sku' => (string)($nameRow['sku'] ?? ''), 'name' => (string)($nameRow['name'] ?? '')];
+    }
     foreach ($sales as &$salesRow) {
         $sourceInfo = $forecastSources[(int)($salesRow['branch_id'] ?? 0)] ?? null;
         $salesRow['source_class'] = (string)($sourceInfo['class'] ?? 'unknown');
@@ -1583,6 +1668,23 @@ function dl_forecastRows(ModuleDB $db, array $filters, string $targetDate, int $
     }
 
     $forecastRows = dl_forecastDemand($sales, $variance, $inventory, $window, 0.10, $spoilageRates, $recordedCells);
+
+    // Stamp the names the projection deliberately left off the input rows. Only the surviving
+    // branch+product+shift groups pay for them now, so a whole-window read stays inside memory while
+    // every consumer of these rows still receives the sku/product_name/branch_name it expects.
+    foreach ($forecastRows as &$namedRow) {
+        $namedPid = (int)($namedRow['product_id'] ?? 0);
+        if ((string)($namedRow['sku'] ?? '') === '') {
+            $namedRow['sku'] = $forecastProductNames[$namedPid]['sku'] ?? '';
+        }
+        if ((string)($namedRow['product_name'] ?? '') === '') {
+            $namedRow['product_name'] = $forecastProductNames[$namedPid]['name'] ?? '';
+        }
+        if ((string)($namedRow['branch_name'] ?? '') === '') {
+            $namedRow['branch_name'] = (string)($forecastSources[(int)($namedRow['branch_id'] ?? 0)]['name'] ?? '');
+        }
+    }
+    unset($namedRow);
 
     // Stamp the age of the stock each row applied. An undated level cannot be judged stale or
     // current, which is why a 9-day-old count and a count from the day before the window were
