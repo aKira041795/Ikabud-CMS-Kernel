@@ -82,6 +82,7 @@
                 "/daily-ledger/api/v1/offline/status",
                 "/daily-ledger/api/v1/offline/bootstrap",
                 "/daily-ledger/api/v1/deliveries/consignee-custody",
+                "/daily-ledger/api/v1/variances/branch-issues",
                 "/daily-ledger/admin/reports/archive-download",
                 "/daily-ledger/admin/products/performance",
                 "/daily-ledger/admin/production-efficiency"

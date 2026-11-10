@@ -491,6 +491,10 @@ function dlCurrentUser(array $roles = ['cashier', 'supervisor', 'admin', 'produc
             '/daily-ledger/products',
             '/daily-ledger/api/v1/me',
             '/daily-ledger/admin/variances',
+            // The queue behind the red "Delivery issue" button. Without this the button renders and
+            // its fetch 403s, which looks like "no issues" forever - the exact silent-empty-state
+            // failure this allowlist has already produced once.
+            '/daily-ledger/api/v1/variances/branch-issues',
         ], true);
         if ($method === 'POST') {
             $input = module() ? module()->input() : [];
@@ -10670,7 +10674,28 @@ function apiGetIncomingDeliveries(array $params = []): void
         return strcmp((string)($left['group_key'] ?? ''), (string)($right['group_key'] ?? ''));
     });
 
-    $ctx->json(['ok' => true, 'deliveries' => $deliveries]);
+    // Reusable receiving reasons (owner direction 2026-11-10: "save the receiving reason so it can be
+    // reused when the same issue surfaces"). No new table and no admin-curated list: the vocabulary
+    // IS the wording this branch has already used on its delivery flags, most recent first. It costs
+    // nothing to start, and it improves with use instead of asking someone to guess the phrases in
+    // advance - which is usually how a fixed drop-down ends up with options nobody picks.
+    $reasonStmt = $ctx->db()->prepare(
+        "SELECT receiver_remark
+           FROM dl_variance_flags
+          WHERE branch_id = :branch AND kind = 'delivery'
+            AND receiver_remark IS NOT NULL AND receiver_remark <> ''
+          GROUP BY receiver_remark
+          ORDER BY MAX(id) DESC
+          LIMIT 12"
+    );
+    $reasonStmt->execute([':branch' => $branchId]);
+    $recentReasons = [];
+    foreach ($reasonStmt->fetchAll(PDO::FETCH_COLUMN) ?: [] as $reason) {
+        $reason = trim((string)$reason);
+        if ($reason !== '') { $recentReasons[] = $reason; }
+    }
+
+    $ctx->json(['ok' => true, 'deliveries' => $deliveries, 'recent_reasons' => $recentReasons]);
 }
 
 /**
@@ -10726,7 +10751,7 @@ function dl_markReceivingCountBasis($db, int $receivingId, string $basis): void
  *
  * @param array<int,int> $countsByDeliveryItem
  */
-function dl_acceptFormalDeliveryByItem($db, int $branchId, int $deliveryId, int $userId, string $receiveDate, array $countsByDeliveryItem, string $shift): int
+function dl_acceptFormalDeliveryByItem($db, int $branchId, int $deliveryId, int $userId, string $receiveDate, array $countsByDeliveryItem, string $shift, string $receiverRemark = ''): int
 {
     $stmt = $db->prepare('SELECT id, product_id, quantity FROM dl_delivery_items WHERE delivery_id = :delivery ORDER BY id');
     $stmt->execute([':delivery' => $deliveryId]);
@@ -10768,6 +10793,29 @@ function dl_acceptFormalDeliveryByItem($db, int $branchId, int $deliveryId, int 
     $db->prepare('DELETE FROM dl_delivery_variance_flags WHERE receiving_id = :receiving')
         ->execute([':receiving' => $receivingId]);
     dl_recordReceivingVariances($receivingId);
+
+    // Client concern #3 + owner direction 2026-11-10: the cashier explains the shortage AT THE MOMENT
+    // they discover it, in the receive modal, instead of being sent off to a separate page to find the
+    // row later. Those variance flags were created one line above, so this is where the words can be
+    // attached while the receiving is still known. Written as the RECEIVER side only - the sending
+    // branch answers through its own side, and neither can overwrite the other.
+    //
+    // The guard leaves an existing remark alone: a second receive of the same delivery must not wipe
+    // what the branch already said, and a blank note must never erase it either.
+    if ($receiverRemark !== '') {
+        $db->prepare(
+            "UPDATE dl_variance_flags
+                SET receiver_remark = :note, receiver_remark_by = :by,
+                    receiver_remark_branch_id = :branch, receiver_remarked_at = NOW()
+              WHERE receiving_id = :rcv AND kind = 'delivery'
+                AND (receiver_remark IS NULL OR receiver_remark = '')"
+        )->execute([
+            ':note' => $receiverRemark,
+            ':by' => $userId > 0 ? $userId : null,
+            ':branch' => $branchId,
+            ':rcv' => $receivingId,
+        ]);
+    }
     dl_markReceivingCountBasis($db, $receivingId, 'independently_counted');
     dl_auditBodegaReceiving($receivingId, $branchId);
     return $receivingId;
@@ -10798,6 +10846,13 @@ function apiReceiveDelivery(array $params = []): void
         return;
     }
     $ids = array_values(array_filter(array_map('intval', (array)($input['withdrawal_ids'] ?? []))));
+    // Optional explanation captured in the receive modal when a counted qty differs from the DR.
+    // CLAMPED, never rejected: losing a whole receipt because an explanation ran long would punish
+    // the cashier for using the feature, and the receive is the fact that matters.
+    $deliveryIssueNote = trim((string)($input['delivery_issue_note'] ?? ''));
+    if (mb_strlen($deliveryIssueNote) > DL_VARIANCE_NOTE_MAX) {
+        $deliveryIssueNote = mb_substr($deliveryIssueNote, 0, DL_VARIANCE_NOTE_MAX);
+    }
     $deliveryIds = array_values(array_filter(array_map('intval', (array)($input['delivery_ids'] ?? []))));
 
     if (!$branchId || (count($ids) === 0 && count($deliveryIds) === 0)) {
@@ -10834,7 +10889,7 @@ function apiReceiveDelivery(array $params = []): void
                         throw new \RuntimeException('A counted Received value is required for every line.');
                     }
                     $rcvId = dl_acceptFormalDeliveryByItem(
-                        $ctx->db(), $branchId, $deliveryId, $userId, $receiveDate, $providedCounts, $shift
+                        $ctx->db(), $branchId, $deliveryId, $userId, $receiveDate, $providedCounts, $shift, $deliveryIssueNote
                     );
                 } else {
                     // An untouched one-click confirmation is a MATCH: the receiver
@@ -19319,6 +19374,72 @@ function apiUpdateVarianceStatus(array $params = []): void
         $ctx->json(['ok' => false, 'error' => 'Server error'], 500);
         return;
     }
+}
+
+/**
+ * Delivery discrepancies where THIS branch was the sender and the receiving branch has already
+ * explained what went wrong - i.e. someone is waiting on us.
+ *
+ * Owner direction 2026-11-10: "at the production end, a delivery issue button shows in red color,
+ * prompts the production in-charge and opens as modal, user can respond to the cashier's saved
+ * feedback". The count behind that button must be the AWAITING REPLY set, not every variance: the
+ * Rizal commissary alone carries 482 delivery flags, and a badge that says 482 is wallpaper nobody
+ * reads. Replying removes the row from this queue, so the number means "work I have not answered".
+ */
+function apiBranchDeliveryIssues(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) { http_response_code(500); return; }
+    $user = dlCurrentUser(['admin', 'supervisor', 'cashier', 'production_in_charge']);
+    $input = $_GET;
+    $auth = dl_authorizeBranch($user, ['branch_id' => (int)($input['branch_id'] ?? 0) ?: null]);
+    if ((int)($auth['branch_id'] ?? -1) < 0) {
+        $ctx->json(['ok' => false, 'error' => 'Branch not authorized'], 403);
+        return;
+    }
+    $branchId = (int)$auth['branch_id'];
+    if ($branchId <= 0) {
+        $ctx->json(['ok' => true, 'count' => 0, 'issues' => []]);
+        return;
+    }
+
+    $stmt = $ctx->db()->prepare(
+        "SELECT vf.id, vf.sent_qty, vf.received_qty, vf.receiver_remark, vf.receiver_remarked_at,
+                vf.ledger_date, p.name AS product_name,
+                rb.code AS receiver_branch_code, rb.name AS receiver_branch_name,
+                ru.full_name AS receiver_name
+           FROM dl_variance_flags vf
+           INNER JOIN dl_deliveries d ON d.id = vf.delivery_id
+           INNER JOIN dl_products p ON p.id = vf.product_id
+           LEFT JOIN dl_branches rb ON rb.id = vf.branch_id
+           LEFT JOIN dl_users ru ON ru.id = vf.receiver_remark_by
+          WHERE vf.kind = 'delivery'
+            AND d.origin_type IN ('branch', 'commissary')
+            AND d.origin_id = :branch
+            AND vf.receiver_remark IS NOT NULL AND vf.receiver_remark <> ''
+            AND (vf.sender_remark IS NULL OR vf.sender_remark = '')
+          ORDER BY vf.id DESC
+          LIMIT 50"
+    );
+    $stmt->execute([':branch' => $branchId]);
+
+    $issues = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+        $issues[] = [
+            'id' => (int)$row['id'],
+            'product_name' => (string)$row['product_name'],
+            'sent_qty' => (int)$row['sent_qty'],
+            'received_qty' => (int)$row['received_qty'],
+            'short_by' => (int)$row['sent_qty'] - (int)$row['received_qty'],
+            'ledger_date' => (string)($row['ledger_date'] ?? ''),
+            'receiver_remark' => (string)$row['receiver_remark'],
+            'receiver_remarked_at' => (string)($row['receiver_remarked_at'] ?? ''),
+            'receiver_branch' => (string)($row['receiver_branch_name'] ?? ''),
+            'receiver_branch_code' => (string)($row['receiver_branch_code'] ?? ''),
+            'receiver_name' => (string)($row['receiver_name'] ?? ''),
+        ];
+    }
+    $ctx->json(['ok' => true, 'count' => count($issues), 'issues' => $issues]);
 }
 
 /**

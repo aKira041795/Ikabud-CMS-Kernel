@@ -1100,6 +1100,7 @@
                     <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Variances</span>
                 </a>
 
+
                 {if feature_cash_paper_check}
                 <a href="{base_url}/admin/reconciliation"
                    class="wb-nav-item flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'reconciliation'}bg-white/10 ring-1 ring-white/10{/if}"
@@ -1243,6 +1244,78 @@
                     <i class="fas fa-bars" aria-hidden="true"></i>
                 </button>
                 <div class="flex items-center gap-4">
+
+                {* Client concern #3, production end (owner direction 2026-11-10): "a delivery issue
+                   button shows in red color, prompts the production in-charge and opens as modal".
+
+                   Placed BEFORE the can_view_production_management guard on purpose. That guard is
+                   admin|supervisor only, and the people at a commissary are production_in_charge -
+                   so a control inside it renders for nobody who has work to do. Getting this wrong
+                   once already produced a button that existed in the template and never appeared.
+
+                   RED ONLY WHEN THERE IS WORK. The count is the AWAITING REPLY queue: discrepancies
+                   where this branch was the sender, the receiving branch has explained the shortage,
+                   and nobody here has answered. Not every variance - this commissary alone carries
+                   482 delivery flags and a badge reading 482 is wallpaper. Answering empties the row
+                   from the queue, so the number keeps meaning "nobody has answered this". *}
+                <div x-data="deliveryIssues()" x-init="load()">
+                    <button type="button"
+                            x-show="count > 0" x-cloak
+                            @click="open = true"
+                            class="btn btn-danger inline-flex items-center gap-2"
+                            aria-label="Delivery issues awaiting your reply">
+                        <i class="fas fa-triangle-exclamation" aria-hidden="true"></i>
+                        <span>Delivery issue</span>
+                        <span class="inline-flex min-w-[1.25rem] justify-center rounded-full bg-white px-1.5 text-[11px] font-bold text-rose-700" x-text="count"></span>
+                    </button>
+
+                    <div x-show="open" x-cloak class="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-gray-900/60 p-4" @keydown.escape.window="open = false">
+                        <div class="mt-16 w-full max-w-3xl rounded-xl bg-white shadow-xl" role="dialog" aria-modal="true" aria-label="Delivery issues">
+                            <div class="flex items-start justify-between border-b border-gray-200 px-4 py-3">
+                                <div>
+                                    <h3 class="text-base font-semibold text-gray-900">Delivery issues reported to us</h3>
+                                    <p class="mt-0.5 text-xs text-gray-500">The receiving branch says the delivery did not match. Answer here - the office sees both sides beside the variance.</p>
+                                </div>
+                                <button type="button" class="rounded-md p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700" @click="open = false" aria-label="Close">
+                                    <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z"/></svg>
+                                </button>
+                            </div>
+                            <div class="max-h-[60vh] overflow-y-auto px-4 py-3">
+                                <template x-if="loading"><div class="py-6 text-center text-sm text-gray-500">Loading...</div></template>
+                                <template x-if="!loading && issues.length === 0"><div class="py-6 text-center text-sm text-gray-500">Nothing is waiting on you.</div></template>
+                                <template x-for="issue in issues" :key="issue.id">
+                                    <div class="mb-3 rounded-lg border border-gray-200 p-3">
+                                        <div class="flex flex-wrap items-baseline justify-between gap-2">
+                                            <div class="text-sm font-semibold text-gray-900" x-text="issue.product_name"></div>
+                                            <div class="text-xs text-gray-500">
+                                                sent <span class="font-semibold tabular-nums" x-text="issue.sent_qty"></span>
+                                                · they counted <span class="font-semibold tabular-nums text-rose-700" x-text="issue.received_qty"></span>
+                                                <span x-show="issue.short_by > 0"> · <span class="tabular-nums" x-text="issue.short_by"></span> short</span>
+                                            </div>
+                                        </div>
+                                        <div class="mt-1 text-[11px] text-gray-500">
+                                            <span x-text="issue.receiver_branch"></span> · <span x-text="issue.ledger_date"></span>
+                                        </div>
+                                        <div class="mt-2 rounded-md bg-gray-50 px-2 py-1.5 text-sm text-gray-800" x-text="issue.receiver_remark"></div>
+                                        <div class="mt-1 text-[11px] text-gray-500">
+                                            <span x-text="issue.receiver_name"></span> · <span x-text="issue.receiver_remarked_at"></span>
+                                        </div>
+                                        <div class="mt-2 flex flex-col gap-2 sm:flex-row">
+                                            <input type="text" class="form-input mt-0 w-full text-sm" maxlength="500"
+                                                   placeholder="Your explanation, e.g. 6 ang na-load sa truck"
+                                                   x-model="replies[issue.id]">
+                                            <button type="button" class="btn btn-primary shrink-0"
+                                                    x-bind:disabled="savingId === issue.id || !(replies[issue.id] || '').trim()"
+                                                    @click="reply(issue)"
+                                                    x-text="savingId === issue.id ? 'Sending...' : 'Reply'">
+                                            </button>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
 {if !can_view_production_management}
 {if shift}
@@ -3445,6 +3518,79 @@ function wbSidebarPersist(open) {
    used rather than a CSS tooltip because the nav is a scroll container (overflow-y:auto), which
    would clip a pseudo-element. No braces here on purpose: braces in a DiSyL template are parsed. */
 document.querySelectorAll('#wb-sidebar .wb-nav-item[aria-label]').forEach(el => el.title = el.getAttribute('aria-label'));
+</script>
+<script>
+/* Client concern #3, production end: the red "Delivery issue" queue.
+   Reads only: discrepancies where THIS branch was the sender, the receiver has explained the
+   shortage, and nobody here has answered. The reply goes through the SAME two-sided endpoint the
+   receiving branch uses, with side='sender', so the two halves cannot drift apart. Nothing here can
+   change a quantity or a resolution - that stays an office decision. */
+function deliveryIssues() {
+    var BASE = '{base_url}';
+    /* This page's own selector, and the branch it was rendered for. It has no window.BASE and no
+       COMMISSARY_ID global, so relying on them silently produced requests to "undefined/...". */
+    var RENDERED_BRANCH = '{commissary_id}';
+    return {
+        open: false,
+        loading: false,
+        savingId: null,
+        count: 0,
+        issues: [],
+        replies: {},
+
+        branchId() {
+            var sel = document.querySelector('select[name="commissary_id"]');
+            if (sel && sel.value) return sel.value;
+            return RENDERED_BRANCH;
+        },
+
+        load() {
+            var self = this;
+            var bid = this.branchId();
+            if (!bid) { this.loading = false; return; }
+            var url = BASE + '/api/v1/variances/branch-issues?branch_id=' + encodeURIComponent(bid);
+            this.loading = true;
+            fetch(url, { credentials: 'same-origin' })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    self.loading = false;
+                    self.issues = (data && data.ok) ? (data.issues || []) : [];
+                    self.count = (data && data.ok) ? (data.count || 0) : 0;
+                })
+                .catch(function () {
+                    self.loading = false;
+                });
+        },
+
+        reply(issue) {
+            var self = this;
+            var text = (this.replies[issue.id] || '').trim();
+            if (!text) return;
+            this.savingId = issue.id;
+            window.dlWriteTimeout(BASE + '/api/v1/variances/delivery-remark', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ variance_id: issue.id, side: 'sender', remark: text })
+            }, 'your reply to ' + issue.receiver_branch).then(function (response) {
+                return response.json().catch(function () { return {}; }).then(function (body) {
+                    if (!response.ok || !body.ok) throw new Error(body.error || 'The reply was not saved.');
+                    self.savingId = null;
+                    self.replies[issue.id] = '';
+                    showToast('Reply sent to ' + issue.receiver_branch, 'success');
+                    self.load();
+                });
+            }).catch(function (error) {
+                self.savingId = null;
+                showToast(
+                    error && error.dlTimedOut
+                        ? window.dlWriteTimeoutMessage('your reply')
+                        : ((error && error.message) || 'The reply was not saved.'),
+                    'error'
+                );
+            });
+        }
+    };
+}
 </script>
 </body>
 </html>

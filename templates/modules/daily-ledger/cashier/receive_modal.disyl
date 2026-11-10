@@ -150,6 +150,11 @@
                                     <th class="px-2 py-2 text-right">Receive</th>
                                 </tr>
                             </thead>
+                            {* x-for needs ONE root element. It used to wrap two sibling <tr>s (the DR row and its
+                               checking area), and Alpine rendered only the first - so the checking area existed
+                               in the template and never appeared, with no error anywhere. The root is now a
+                               <tbody> per group, which holds both rows. Multiple tbodies are valid HTML. *}
+                            <template x-for="(g, gi) in filteredDeliveries" :key="g.group_key">
                             <tbody>
                                 {* One row per DR so the whole backlog is scannable instead of one tall
                                    card per delivery (branch 8 carried 219 pending rows on 2026-10-22).
@@ -157,7 +162,6 @@
                                    click - there is no bulk action, because these rows post stock and a
                                    mistaken mass-receipt could not be undone. Quantities stay editable
                                    per line inside the Qty cell; an untouched value is a match. *}
-                                <template x-for="(g, gi) in filteredDeliveries" :key="g.group_key">
                                     <tr class="border-t border-gray-100 align-top hover:bg-gray-50">
                                         <td class="px-2 py-2">
                                             <div class="inline-flex items-center rounded bg-slate-900 px-2 py-0.5 font-mono text-xs font-semibold tracking-[0.14em] text-white" x-text="g.dr_number || 'NO DR'"></div>
@@ -239,8 +243,51 @@
                                             </button>
                                         </td>
                                     </tr>
-                                </template>
+                                    {* Client concern #3 + owner direction 2026-11-10: the checking area is reached
+                                       AT THE MOMENT the cashier finds the mismatch. It appears as soon as a
+                                       counted qty differs from the DR, right here, instead of sending them to a
+                                       separate page to hunt the row afterwards.
+
+                                       Full-width row on purpose - squeezing it into the Qty cell would repeat
+                                       the 130px mistake that made the office remark box unreadable.
+
+                                       Never blocks the receive: a cashier may not know why, and a forced
+                                       explanation gets invented. *}
+                                    {* Trigger reuses hasCorrections(g): the box appears the moment a counted qty
+                                       differs from the DR and disappears only if they set it back to the sent
+                                       figure, which is a deliberate act rather than a stray keystroke. *}
+                                    <tr x-show="hasCorrections(g)" x-cloak class="bg-amber-50">
+                                        <td colspan="7" class="px-2 pb-3 pt-0">
+                                            <div class="rounded-md border border-amber-300 bg-white px-3 py-2">
+                                                <label class="block text-xs font-semibold text-amber-900">
+                                                    What is the issue with this delivery?
+                                                    <span class="font-normal text-amber-700">— optional, but the sending branch sees it right away</span>
+                                                </label>
+                                                <input type="text"
+                                                       class="form-input mt-1 w-full text-sm"
+                                                       maxlength="500"
+                                                       placeholder="e.g. 2 packs kulang pag-abot"
+                                                       :value="issueNotes[g.group_key] || ''"
+                                                       @input="issueNotes[g.group_key] = $event.target.value">
+                                                {* Reusable reasons: the wording THIS branch has already used, so the
+                                                   same shortage is not retyped at every delivery. Built from their own
+                                                   history rather than a list someone had to guess in advance. *}
+                                                <template x-if="recentReasons.length">
+                                                    <div class="mt-2 flex flex-wrap items-center gap-1">
+                                                        <span class="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Reuse:</span>
+                                                        <template x-for="r in recentReasons" :key="r">
+                                                            <button type="button"
+                                                                    class="rounded-full border border-gray-300 bg-gray-50 px-2 py-0.5 text-[11px] text-gray-700 hover:border-amber-300 hover:bg-amber-50"
+                                                                    @click="issueNotes[g.group_key] = r"
+                                                                    x-text="r"></button>
+                                                        </template>
+                                                    </div>
+                                                </template>
+                                            </div>
+                                        </td>
+                                    </tr>
                             </tbody>
+                            </template>
                         </table>
                     </div>
 
@@ -603,6 +650,10 @@ function receiveModal() {
         },
         // partialQtys: { group_key: { product_id: qty } }
         partialQtys: {},
+        // Concern #3: what the cashier says went wrong, per DR, plus the wording this branch has
+        // already used so the same shortage is not retyped every delivery.
+        issueNotes: {},
+        recentReasons: [],
         // Account return (client concern #2): the third door. `returnLines` IS the account's live
         // custody - one row per product x dispatch date x shift - so the cashier types only a
         // quantity and never a date.
@@ -1196,6 +1247,7 @@ function receiveModal() {
             .then(function(data) {
                 this.loading = false;
                 this.deliveries = (data && data.ok) ? (data.deliveries || []) : [];
+                this.recentReasons = (data && data.recent_reasons) ? data.recent_reasons : [];
                 this.prefillReceivingShift(this.deliveries);
                 if (data && !data.ok) this.errorMsg = data.error || 'Failed to load deliveries.';
             }.bind(this))
@@ -1251,6 +1303,11 @@ function receiveModal() {
             }
             var bid = this.currentBranchId();
             if (bid) payload.branch_id = bid;
+            // The cashier's explanation rides WITH the receive. The variance rows for this delivery do
+            // not exist until the receive lands, so there would be nothing to attach the words to if
+            // they were saved separately afterwards.
+            var issueNote = (this.issueNotes[g.group_key] || '').trim();
+            if (issueNote) payload.delivery_issue_note = issueNote;
 
             window.dlWriteTimeout(BASE + '/api/v1/cashier/ledger/receive-delivery', {
                 method: 'POST',

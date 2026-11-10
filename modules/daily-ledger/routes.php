@@ -116,6 +116,10 @@ return [
         // Feeds the "Return from account" panel: what an account still holds, per dispatch date
         // and shift, so the cashier never has to know (or guess) a date.
         '/daily-ledger/api/v1/deliveries/consignee-custody' => 'daily-ledger:apiConsigneeCustody',
+
+        // Delivery discrepancies where THIS branch was the sender and the receiver has already
+        // explained the shortage - the queue behind the red "Delivery issue" button.
+        '/daily-ledger/api/v1/variances/branch-issues' => 'daily-ledger:apiBranchDeliveryIssues',
     ],
     'POST' => [
         // Module-owned login (namespaced)
