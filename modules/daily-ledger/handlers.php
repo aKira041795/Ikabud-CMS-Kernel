@@ -15862,7 +15862,19 @@ function handleAdminVariances(array $params = []): void
         return;
     }
 
-    $user = dlCurrentUser(['admin', 'supervisor', 'auditor']);
+    // Concern #3: a branch must be able to record its own side of a delivery discrepancy, and
+    // the branch's people are CASHIERS and PRODUCTION_IN_CHARGE, not supervisors. Measured on this
+    // tenant 2026-11-10: 48 cashiers, 4 production_in_charge, 2 admins with ZERO branch
+    // assignments, and NOT ONE supervisor. So the previous ['admin','supervisor','auditor'] gate
+    // meant no branch user could reach the only page that captures a side remark, and the office
+    // read "No sender remark recorded." indefinitely.
+    //
+    // This does NOT widen correction power: every correction control on the page is gated on
+    // can_manage_variances (admin|supervisor) and can_decide_delivery (admin), and the data is
+    // scoped to the caller's accessible branches below. A cashier sees their own branch's
+    // discrepancies and can add their branch's words - exactly the client's "no need makausab ang
+    // branch ... kami ra diri sa office ang makausab".
+    $user = dlCurrentUser(['admin', 'supervisor', 'auditor', 'cashier', 'production_in_charge']);
     $role = (string)($user['role'] ?? '');
     $isSupervisor = ($role === 'supervisor');
 
@@ -16050,6 +16062,7 @@ function handleAdminVariances(array $params = []): void
         'SELECT vf.*, p.name AS product_name, p.sku AS product_sku, b.name AS branch_name, b.code AS branch_code,
                 COALESCE(reviewer.full_name, \'Unknown\') AS reviewer_name,
                 d.production_shift AS delivery_production_shift,
+                CASE WHEN d.origin_type IN (\'branch\', \'commissary\') THEN d.origin_id ELSE NULL END AS delivery_sender_branch_id,
                 r.received_shift AS delivery_received_shift,
                 sender_remarker.full_name AS sender_remarker_name,
                 receiver_remarker.full_name AS receiver_remarker_name,
@@ -16059,6 +16072,19 @@ function handleAdminVariances(array $params = []): void
     );
     $listStmt->execute($bindFiltered);
     $variances = $listStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    // A side remark is the named branch's own statement. Expose the branches this user may speak
+    // for, using the SAME roles apiSaveDeliveryVarianceRemark accepts (cashier, supervisor,
+    // production_in_charge) and direct branch assignment only - deliberately not the wider
+    // commissary-network view scope. Populated for every role, because gating it on 'supervisor'
+    // made it empty on a tenant with no supervisors, which silently hid the remark inputs from
+    // everyone and made concern #3 unreachable.
+    $remarkBranchIds = [];
+    if (in_array($role, ['cashier', 'supervisor', 'production_in_charge'], true)) {
+        $remarkBranchStmt = $ctx->db()->prepare('SELECT branch_id FROM dl_user_branches WHERE user_id = :uid');
+        $remarkBranchStmt->execute([':uid' => dl_getActorUserId($user)]);
+        $remarkBranchIds = array_map('intval', $remarkBranchStmt->fetchAll(PDO::FETCH_COLUMN) ?: []);
+    }
 
     // Annotate the delivery sent-vs-received rows so the resolve surface can
     // present the explicit two-way admin choice rather than a status flip.
@@ -16072,6 +16098,12 @@ function handleAdminVariances(array $params = []): void
         $varianceRow['choice_label'] = $deliveryChoiceLabels[(string)($varianceRow['resolution_choice'] ?? '')] ?? '';
         $varianceRow['decision_ready'] = $isDeliveryVariance
             && (string)($varianceRow['resolution_status'] ?? '') === 'investigated';
+        $senderBranchId = (int)($varianceRow['delivery_sender_branch_id'] ?? 0);
+        $receiverBranchId = (int)($varianceRow['branch_id'] ?? 0);
+        $varianceRow['can_remark_sender'] = $isDeliveryVariance
+            && in_array($senderBranchId, $remarkBranchIds, true);
+        $varianceRow['can_remark_receiver'] = $isDeliveryVariance
+            && in_array($receiverBranchId, $remarkBranchIds, true);
     }
     unset($varianceRow);
 
@@ -16232,6 +16264,7 @@ function handleAdminVariances(array $params = []): void
         'supervisor_branch_ids' => $supervisorBranchIds,
         'can_manage_variances' => in_array($role, ['admin', 'supervisor'], true),
         'can_decide_delivery' => $role === 'admin',
+        'variance_note_max' => DL_VARIANCE_NOTE_MAX,
         'integrity_notifications' => $notificationRows,
         // Aggregate stats
         'stats_total'        => $statsTotal,

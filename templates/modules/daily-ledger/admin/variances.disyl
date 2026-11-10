@@ -1262,8 +1262,14 @@
                                     <div class="mt-2 border-t border-gray-200 pt-1">
                                         <div class="font-semibold text-gray-700">Sender remark</div>
                                         {if v.sender_remark}<div class="text-gray-600">{v.sender_remark | esc_html}</div><div class="text-gray-500">{v.sender_remarker_name} · {v.sender_remark_branch_name} · {v.sender_remarked_at}</div>{else}<div class="text-gray-400">No sender remark recorded.</div>{/if}
+                                        {if v.can_remark_sender}
+                                        <input type="text" class="form-input mt-1 w-full text-xs py-0.5 px-1.5" data-delivery-remark-id="{v.id}" data-delivery-remark-side="sender" data-saved="{v.sender_remark | esc_html | default:''}" value="{v.sender_remark | esc_html | default:''}" maxlength="{variance_note_max}" placeholder="Your sending branch's explanation…" title="Sender words only. Saves on blur; Enter also saves.">
+                                        {/if}
                                         <div class="mt-1 font-semibold text-gray-700">Receiver remark</div>
                                         {if v.receiver_remark}<div class="text-gray-600">{v.receiver_remark | esc_html}</div><div class="text-gray-500">{v.receiver_remarker_name} · {v.receiver_remark_branch_name} · {v.receiver_remarked_at}</div>{else}<div class="text-gray-400">No receiver remark recorded.</div>{/if}
+                                        {if v.can_remark_receiver}
+                                        <input type="text" class="form-input mt-1 w-full text-xs py-0.5 px-1.5" data-delivery-remark-id="{v.id}" data-delivery-remark-side="receiver" data-saved="{v.receiver_remark | esc_html | default:''}" value="{v.receiver_remark | esc_html | default:''}" maxlength="{variance_note_max}" placeholder="Your receiving branch's explanation…" title="Receiver words only. Saves on blur; Enter also saves.">
+                                        {/if}
                                     </div>
                                     {if v.resolution_choice}
                                     <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset {if v.resolution_choice == 'accept_production'}bg-emerald-50 text-emerald-700 ring-emerald-200{/if}{if v.resolution_choice == 'keep_as_evidence'}bg-sky-50 text-sky-700 ring-sky-200{/if}">{v.choice_label}</span>
@@ -1400,8 +1406,14 @@
                                     <div class="mt-2 border-t border-gray-200 pt-1">
                                         <div class="font-semibold text-gray-700">Sender remark</div>
                                         {if v.sender_remark}<div class="text-gray-600">{v.sender_remark | esc_html}</div><div class="text-gray-500">{v.sender_remarker_name} · {v.sender_remark_branch_name} · {v.sender_remarked_at}</div>{else}<div class="text-gray-400">No sender remark recorded.</div>{/if}
+                                        {if v.can_remark_sender}
+                                        <input type="text" class="form-input mt-1 w-full text-xs py-0.5 px-1.5" data-delivery-remark-id="{v.id}" data-delivery-remark-side="sender" data-saved="{v.sender_remark | esc_html | default:''}" value="{v.sender_remark | esc_html | default:''}" maxlength="{variance_note_max}" placeholder="Your sending branch's explanation…" title="Sender words only. Saves on blur; Enter also saves.">
+                                        {/if}
                                         <div class="mt-1 font-semibold text-gray-700">Receiver remark</div>
                                         {if v.receiver_remark}<div class="text-gray-600">{v.receiver_remark | esc_html}</div><div class="text-gray-500">{v.receiver_remarker_name} · {v.receiver_remark_branch_name} · {v.receiver_remarked_at}</div>{else}<div class="text-gray-400">No receiver remark recorded.</div>{/if}
+                                        {if v.can_remark_receiver}
+                                        <input type="text" class="form-input mt-1 w-full text-xs py-0.5 px-1.5" data-delivery-remark-id="{v.id}" data-delivery-remark-side="receiver" data-saved="{v.receiver_remark | esc_html | default:''}" value="{v.receiver_remark | esc_html | default:''}" maxlength="{variance_note_max}" placeholder="Your receiving branch's explanation…" title="Receiver words only. Saves on blur; Enter also saves.">
+                                        {/if}
                                     </div>
                                     {if v.resolution_choice}
                                     <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset {if v.resolution_choice == 'accept_production'}bg-emerald-50 text-emerald-700 ring-emerald-200{/if}{if v.resolution_choice == 'keep_as_evidence'}bg-sky-50 text-sky-700 ring-sky-200{/if}">{v.choice_label}</span>
@@ -1713,12 +1725,72 @@
         });
     }
 
-    // Enter saves the note. Delegated on document for the same reason: this table re-renders
-    // over htmx, so a per-row inline handler would need rebinding after every swap.
+    // Save one branch's words only. The server independently verifies that the
+    // actor is directly assigned to the named delivery side; this control never
+    // calls a correction, decision, or status endpoint.
+    function updateDeliveryRemark(input) {
+        var remark = input.value.trim();
+        var saved = input.getAttribute('data-saved') || '';
+        if (remark === saved) { return; }
+        if (!remark) {
+            if (saved) {
+                input.value = saved;
+                showToast('A delivery remark cannot be empty.', 'error');
+            }
+            return;
+        }
+
+        var id = input.dataset.deliveryRemarkId;
+        var side = input.dataset.deliveryRemarkSide;
+        input.disabled = true;
+        window.dlWriteTimeout(BASE + '/api/v1/variances/delivery-remark', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                variance_id: parseInt(id),
+                side: side,
+                remark: remark
+            })
+        }, 'the ' + side + ' delivery remark')
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            input.disabled = false;
+            if (res.ok) {
+                input.setAttribute('data-saved', remark);
+                input.value = remark;
+                showToast((side === 'sender' ? 'Sender' : 'Receiver') + ' remark saved', 'success');
+                setTimeout(function() { window.refreshMainContent(); }, 800);
+            } else {
+                showToast(res.error || 'Remark save failed', 'error');
+                input.value = saved;
+            }
+        })
+        .catch(function(err) {
+            input.disabled = false;
+            input.value = saved;
+            showToast(err && err.dlTimedOut
+                ? window.dlWriteTimeoutMessage('the delivery remark')
+                : 'Network error', 'error');
+        });
+    }
+
+    // Blur and Enter save through delegated listeners because htmx replaces the
+    // table. Keeping the wiring here also avoids DiSyL's inline-brace parsing.
+    document.addEventListener('blur', function(e) {
+        var el = e.target;
+        if (!el || !el.dataset || !el.dataset.deliveryRemarkId) { return; }
+        updateDeliveryRemark(el);
+    }, true);
     document.addEventListener('keydown', function(e) {
         var el = e.target;
-        if (!el || !el.dataset || !el.dataset.noteId) { return; }
+        if (!el || !el.dataset) { return; }
         if (e.key !== 'Enter') { return; }
+        if (el.dataset.deliveryRemarkId) {
+            e.preventDefault();
+            updateDeliveryRemark(el);
+            return;
+        }
+        if (!el.dataset.noteId) { return; }
         e.preventDefault();
         el.blur();
         updateVarianceNote(el);
