@@ -29,5 +29,12 @@
     {foreach admin_view_scope.areas as scope_area}
     <option value="AREA:{scope_area.id}" {if scope_area.selected}selected{/if}>{scope_area.name}</option>
     {/foreach}
+    {* A branch created before its town existed in Manage Areas has area_id NULL, so before this
+       option it could ONLY be reached through All areas - picking any real area silently dropped it.
+       The count is shown so an empty-looking option is never a dead end: it says how many branches
+       are waiting to be assigned, which is the actual next action. *}
+    {if admin_view_scope.unassigned_count > 0}
+    <option value="NOAREA" {if admin_view_scope.noarea_selected}selected{/if}>No area assigned ({admin_view_scope.unassigned_count})</option>
+    {/if}
 </select>
 {/if}

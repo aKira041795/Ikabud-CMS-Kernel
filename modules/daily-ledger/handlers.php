@@ -2046,7 +2046,16 @@ function dl_autoCloseBranchDayAt($ctx, int $branchId, string $date, array $setti
         // (Superseded contract 2026-10-05 D1, which refused the close and left
         // the day open so the cashier kept the late-count window.)
         if (dl_isFullyManualDay($db, $branchId, $date)) {
-            $pmRow = dl_lockShiftStatusRow($db, $branchId, $date, 'PM');
+            // Ask about the shift that CLOSES this branch's day, not a hardcoded PM. A whole-day
+            // branch (single_shift_mode) has no PM lifecycle at all - its ledger is AM only and
+            // dl_dayEndingShift() already resolves AM as the day-ender. Hardcoding PM here made the
+            // question permanently unsatisfiable on those branches: it minted a phantom PM status
+            // row, flagged every such day "closed with PM still open", and told an admin to reopen a
+            // day whose only shift was already finalized. Measured on the whole-day branches
+            // (Manukan-Branch2AM&PM, SINDANGAN BRANCH 2 AM&PM): every day carried an open PM row and
+            // some had no AM row at all, so "no closed shift" was what the screen showed.
+            $endShift = dl_dayEndingShift($branchId);
+            $pmRow = dl_lockShiftStatusRow($db, $branchId, $date, $endShift);
             if ((string)($pmRow['status'] ?? 'open') !== 'finalized') {
                 // The day closes anyway: leaving it open is exactly what
                 // compounds the gap into the next day. Flag it and fall through
@@ -2054,9 +2063,9 @@ function dl_autoCloseBranchDayAt($ctx, int $branchId, string $date, array $setti
                 // idempotent, so re-running this path does not duplicate them.
                 $notify = $db->prepare(
                     'UPDATE dl_ledger_shift_status SET pending_notified_at = COALESCE(pending_notified_at, CURRENT_TIMESTAMP)
-                      WHERE branch_id = :bid AND ledger_date = :d AND shift = \'PM\''
+                      WHERE branch_id = :bid AND ledger_date = :d AND shift = :shift'
                 );
-                $notify->execute([':bid' => $branchId, ':d' => $date]);
+                $notify->execute([':bid' => $branchId, ':d' => $date, ':shift' => $endShift]);
 
                 // One audit row per day, not one per request: the aggregate
                 // close below is idempotent, but this path can re-run.
@@ -2064,9 +2073,9 @@ function dl_autoCloseBranchDayAt($ctx, int $branchId, string $date, array $setti
                     'SELECT COUNT(*) FROM audit_logs
                       WHERE module = "daily-ledger" AND action = "auto_close_day" AND entity_id = :eid'
                 );
-                $auditStmt->execute([':eid' => "{$branchId}-{$date}-PM"]);
+                $auditStmt->execute([':eid' => "{$branchId}-{$date}-{$endShift}"]);
                 if ((int)$auditStmt->fetchColumn() === 0) {
-                    dl_auditLog('auto_close_day', $branchId, 'dl_ledger_shift_status', "{$branchId}-{$date}-PM", null, [
+                    dl_auditLog('auto_close_day', $branchId, 'dl_ledger_shift_status', "{$branchId}-{$date}-{$endShift}", null, [
                         'status' => 'closed_without_pm_finalize',
                         'source' => 'auto_close_cutoff',
                         'close_of_day_time' => $settings['close_of_day_time'],
@@ -2085,8 +2094,8 @@ function dl_autoCloseBranchDayAt($ctx, int $branchId, string $date, array $setti
                         $branchId,
                         'dl_ledger_day_status',
                         null,
-                        'Business day closed with PM shift still open',
-                        'Branch #' . $branchId . ' business date ' . $date . ' reached the close-of-day cutoff while its PM shift was still open. The day WAS closed while its PM shift was still open, so pending endings still need completing. An admin must REOPEN the day so the encoder can complete the pending endings and finalize the PM shift.'
+                        'Business day closed with ' . $endShift . ' shift still open',
+                        'Branch #' . $branchId . ' business date ' . $date . ' reached the close-of-day cutoff while its ' . $endShift . ' shift was still open. The day WAS closed while its ' . $endShift . ' shift was still open, so pending endings still need completing. An admin must REOPEN the day so the encoder can complete the pending endings and finalize the ' . $endShift . ' shift.'
                     );
                 }
             } else {

@@ -100,8 +100,22 @@ final class AdminAreaScope
         // Missing is not a reset: use persisted valid state, then default ALL.
         $selection ??= 'ALL';
 
+        // Branches that were never given an area (a new branch created before its town exists in
+        // dl_areas) used to be reachable ONLY through "All areas". Picking any area silently dropped
+        // them - measured 2026-11-10 on Manukan, Sindangan, Liloy and Labason, whose area_id is NULL:
+        // the client reported exactly that as "I cannot see them in the area". A derived filter must
+        // not hide a record that exists, so unassigned branches get their own bucket.
+        $unassigned = 0;
+        if ($db) {
+            $unassigned = (int)($db->query('SELECT COUNT(*) FROM dl_branches WHERE is_active = 1 AND area_id IS NULL')->fetchColumn() ?: 0);
+        }
+
         if ($selection === 'ALL') {
-            return self::result('ALL', 0, 'All branches', [], 'ALL', $areas, $commissaries);
+            return self::result('ALL', 0, 'All branches', [], 'ALL', $areas, $commissaries, $unassigned);
+        }
+        if ($selection === 'NOAREA') {
+            $stmt = $db->query('SELECT id FROM dl_branches WHERE is_active = 1 AND area_id IS NULL ORDER BY id');
+            return self::result('NOAREA', 0, 'No area assigned', array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN) ?: []), 'NOAREA', $areas, $commissaries, $unassigned);
         }
         [$type, $rawId] = explode(':', $selection, 2);
         $id = (int)$rawId;
@@ -109,19 +123,19 @@ final class AdminAreaScope
             $stmt = $db->prepare('SELECT id FROM dl_branches WHERE is_active = 1 AND area_id = :id ORDER BY id');
             $stmt->execute([':id' => $id]);
             $name = self::nameFor($areas, $id);
-            return self::result('AREA', $id, 'Area: ' . $name, array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN) ?: []), $selection, $areas, $commissaries);
+            return self::result('AREA', $id, 'Area: ' . $name, array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN) ?: []), $selection, $areas, $commissaries, $unassigned);
         }
 
         // A commissary scope is its supply network, not its geographic area.
         $stmt = $db->prepare('SELECT id FROM dl_branches WHERE is_active = 1 AND (id = :id OR assigned_commissary_id = :assigned) ORDER BY id');
         $stmt->execute([':id' => $id, ':assigned' => $id]);
-        return self::result('COMMISSARY', $id, 'Commissary network: ' . self::nameFor($commissaries, $id), array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN) ?: []), $selection, $areas, $commissaries);
+        return self::result('COMMISSARY', $id, 'Commissary network: ' . self::nameFor($commissaries, $id), array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN) ?: []), $selection, $areas, $commissaries, $unassigned);
     }
 
     private static function validate(string $value, array $areas, array $commissaries): ?string
     {
-        if ($value === 'ALL') {
-            return 'ALL';
+        if ($value === 'ALL' || $value === 'NOAREA') {
+            return $value;
         }
         if (!preg_match('/^(AREA|COMMISSARY):(\d+)$/', $value, $m)) {
             return null;
@@ -146,7 +160,7 @@ final class AdminAreaScope
         return (string)$id;
     }
 
-    private static function result(string $type, int $id, string $label, array $branchIds, string $value, array $areas, array $commissaries): array
+    private static function result(string $type, int $id, string $label, array $branchIds, string $value, array $areas, array $commissaries, int $unassignedCount = 0): array
     {
         foreach ($areas as &$area) {
             $area['selected'] = $type === 'AREA' && (int)($area['id'] ?? 0) === $id;
@@ -156,7 +170,7 @@ final class AdminAreaScope
             $commissary['selected'] = $type === 'COMMISSARY' && (int)($commissary['id'] ?? 0) === $id;
         }
         unset($commissary);
-        return ['type' => $type, 'id' => $id, 'label' => $label, 'branch_ids' => $branchIds, 'value' => $value, 'areas' => $areas, 'commissaries' => $commissaries];
+        return ['type' => $type, 'id' => $id, 'label' => $label, 'branch_ids' => $branchIds, 'value' => $value, 'areas' => $areas, 'commissaries' => $commissaries, 'unassigned_count' => $unassignedCount, 'noarea_selected' => $type === 'NOAREA'];
     }
 }
 
