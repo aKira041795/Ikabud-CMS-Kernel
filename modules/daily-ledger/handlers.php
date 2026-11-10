@@ -549,13 +549,20 @@ function dl_allPermissionActions(): array
         'pos.fallback',
         'pos.report',
         'delivery.edit',
+        // Resolving a delivery discrepancy is an office decision. Admin-only by DEFAULT; an admin can
+        // grant it to supervisors from Admin > Settings > Permissions if they want that. It is a
+        // permission rather than a hardcoded role list precisely so the client can choose without a
+        // code change (owner direction 2026-11-10).
+        'variance.resolve',
     ];
 }
 
 function dl_defaultRolePermissions(): array
 {
     return [
-        'admin' => ['ledger.override', 'production.override', 'pos.sell', 'pos.void', 'pos.refund', 'pos.fallback', 'pos.report', 'delivery.edit'],
+        'admin' => ['ledger.override', 'production.override', 'pos.sell', 'pos.void', 'pos.refund', 'pos.fallback', 'pos.report', 'delivery.edit', 'variance.resolve'],
+        // Supervisors are NOT granted 'variance.resolve' by default. The client was explicit that
+        // resolving is "purely an admin task"; an admin can opt supervisor in via Settings > Permissions.
         'supervisor' => ['pos.sell', 'pos.void', 'pos.refund', 'pos.fallback', 'pos.report', 'delivery.edit'],
         'production_in_charge' => [],
         'cashier' => ['pos.sell'],
@@ -7563,7 +7570,8 @@ function dl_raiseDeliveryVariance(\Ikabud\Kernel\Contracts\DatabaseContract $db,
     }
 
     $variance = $receivedQty - $sentQty;
-    $sel = $db->prepare("SELECT id, resolution_status, resolution_choice, original_counted_qty, counted_by
+    $sel = $db->prepare("SELECT id, resolution_status, resolution_choice, original_counted_qty, counted_by,
+                               sent_qty, received_qty
                            FROM dl_variance_flags
                           WHERE kind = 'delivery' AND delivery_id = :delivery AND product_id = :product
                           LIMIT 1");
@@ -7578,17 +7586,33 @@ function dl_raiseDeliveryVariance(\Ikabud\Kernel\Contracts\DatabaseContract $db,
     // other shift's filter, which is exactly the visibility defect being fixed.
     if (is_array($existing)) {
         $flagId = (int)$existing['id'];
-        $wasCorrected = (string)($existing['resolution_status'] ?? '') === 'corrected';
+        $wasResolved = (string)($existing['resolution_status'] ?? 'unreviewed') !== 'unreviewed';
+        // REOPEN INTELLIGENTLY (owner direction 2026-11-10): a variance is reopened only when the
+        // NUMBERS IT WAS JUDGED ON actually change. There is no ordinary re-receive to guard against -
+        // the system refuses one outright ("Delivery has already been received and cannot be corrected
+        // here. Reverse the receiving first.") because the delivery is moot once the goods are on the
+        // branch. What does re-enter here is a PRODUCTION CORRECTION to the sent quantity
+        // (dl_correctDeliveryByDr / edit-by-DR). That is the one case where the office's earlier
+        // judgement was made on different figures and therefore must be made again.
+        //
+        // The old code reset unconditionally, so any re-raise silently dropped a settled exception out
+        // of the approved set with nothing on screen to say why. An unchanged figure is now a no-op:
+        // the decision, its reviewer and its note all survive. The two-sided branch remarks were never
+        // touched by this UPDATE and still are not.
+        $figuresChanged = (int)($existing['sent_qty'] ?? 0) !== $sentQty
+            || (int)($existing['received_qty'] ?? 0) !== $receivedQty;
+        $resetResolution = $figuresChanged
+            ? ", resolution_status = 'unreviewed', is_reviewed = 0,\n                    resolution_choice = NULL, reviewed_by = NULL, reviewed_at = NULL, review_note = NULL"
+            : '';
         $db->prepare(
             "UPDATE dl_variance_flags
                 SET branch_id = :bid, product_id = :pid, ledger_date = :d, shift = NULL,
                     delivery_id = :delivery, receiving_id = :rcv, sent_qty = :sent, received_qty = :received,
                     original_counted_qty = COALESCE(original_counted_qty, :orig),
                     counted_by = COALESCE(counted_by, :cby),
-                    expected_end_bal = :sent2, recorded_end_bal = :received2, variance = :var,
-                    resolution_status = 'unreviewed', is_reviewed = 0,
-                    resolution_choice = NULL, reviewed_by = NULL, reviewed_at = NULL, review_note = NULL
-              WHERE id = :id"
+                    expected_end_bal = :sent2, recorded_end_bal = :received2, variance = :var"
+            . $resetResolution
+            . " WHERE id = :id"
         )->execute([
             ':bid' => $branchId, ':pid' => $productId, ':d' => $ledgerDate,
             ':delivery' => $deliveryId, ':rcv' => $receivingId > 0 ? $receivingId : null,
@@ -7596,17 +7620,19 @@ function dl_raiseDeliveryVariance(\Ikabud\Kernel\Contracts\DatabaseContract $db,
             ':sent2' => $sentQty, ':received2' => $receivedQty, ':var' => $variance,
             ':id' => $flagId,
         ]);
-        if ($wasCorrected) {
+        if ($figuresChanged && $wasResolved) {
             dl_auditLog('delivery_variance_reopened', $branchId, 'dl_variance_flags', (string)$flagId, [
-                'resolution_status' => 'corrected',
+                'resolution_status' => $existing['resolution_status'],
                 'resolution_choice' => $existing['resolution_choice'],
                 'original_counted_qty' => $existing['original_counted_qty'],
+                'sent_qty' => (int)($existing['sent_qty'] ?? 0),
+                'received_qty' => (int)($existing['received_qty'] ?? 0),
             ], [
                 'resolution_status' => 'unreviewed',
                 'sent_qty' => $sentQty,
                 'received_qty' => $receivedQty,
                 'variance' => $variance,
-            ], 'a later production correction changed the sent quantity');
+            ], 'the figures the decision was made on changed, so it is reopened for re-review');
         }
     } else {
         // HAZARD: dl_variance_flags.kind is NOT NULL with DEFAULT 'overnight'.
@@ -15449,7 +15475,7 @@ function apiSaveRolePermissions(array $params = []): void
     // mirror dl_defaultRolePermissions(); delivery.edit for supervisor/cashier is
     // still controlled by the checkboxes below.
     $permissions = [
-        'admin' => ['ledger.override', 'production.override', 'pos.sell', 'pos.void', 'pos.refund', 'pos.fallback', 'pos.report', 'delivery.edit'],
+        'admin' => ['ledger.override', 'production.override', 'pos.sell', 'pos.void', 'pos.refund', 'pos.fallback', 'pos.report', 'delivery.edit', 'variance.resolve'],
         'supervisor' => ['pos.sell', 'pos.void', 'pos.refund', 'pos.fallback', 'pos.report'],
         'production_in_charge' => [],
         'cashier' => ['pos.sell'],
@@ -16332,7 +16358,7 @@ function handleAdminVariances(array $params = []): void
         'view_mode'     => $viewMode,
         'is_supervisor' => $isSupervisor,
         'supervisor_branch_ids' => $supervisorBranchIds,
-        'can_manage_variances' => in_array($role, ['admin', 'supervisor'], true),
+        'can_manage_variances' => in_array($role, ['admin', 'superadmin'], true) || dl_roleHasPermission($role, 'variance.resolve'),
         'can_decide_delivery' => $role === 'admin',
         'variance_note_max' => DL_VARIANCE_NOTE_MAX,
         'integrity_notifications' => $notificationRows,
