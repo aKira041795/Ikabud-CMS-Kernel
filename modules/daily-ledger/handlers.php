@@ -473,10 +473,24 @@ function dlCurrentUser(array $roles = ['cashier', 'supervisor', 'admin', 'produc
 
     if (($u['role'] ?? '') === 'production_in_charge' && str_starts_with($path, '/daily-ledger/')) {
         $method = strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET'));
+        // Concern #3 + owner decision 2026-11-10. These users are the ONLY staff at the two
+        // commissaries that originate most delivery discrepancies (measured: RIZAL-COMMIS1 482
+        // flags, PAG-COMMISARY1 381 - and those branches have production_in_charge users and no
+        // cashiers at all). Without these two entries the SENDING branch of a discrepancy has
+        // nobody who can reach the page, so "between Rizal and Prince they settle it themselves"
+        // is impossible and the office keeps doing it. The commissary sidebar already links to
+        // Variances for them; the link only ever produced a 403.
+        //
+        // This stays narrow on purpose: GET the variance page (which scopes rows to the caller's
+        // own accessible branches) and POST their branch's own side remark. It grants NO
+        // correction, decision or status power - the page gates those on can_manage_variances
+        // (admin|supervisor) and can_decide_delivery (admin), and the remark endpoint
+        // independently verifies the caller is directly assigned to the side being written.
         $allowed = $method === 'GET' && in_array($path, [
             '/daily-ledger/admin/commissary',
             '/daily-ledger/products',
             '/daily-ledger/api/v1/me',
+            '/daily-ledger/admin/variances',
         ], true);
         if ($method === 'POST') {
             $input = module() ? module()->input() : [];
@@ -487,6 +501,7 @@ function dlCurrentUser(array $roles = ['cashier', 'supervisor', 'admin', 'produc
                 || ($path === '/daily-ledger/api/v1/commissary/dispatch' && (!empty($input['sheet_entry']) || (string)($input['source'] ?? '') === 'daily_sheet'))
                 || $path === '/daily-ledger/api/v1/commissary/finalize-pm'
                 || $path === '/daily-ledger/api/v1/commissary/settle-endings'
+                || $path === '/daily-ledger/api/v1/variances/delivery-remark'
                 || $path === '/daily-ledger/api/v1/products/toggle';
         }
         if (!$allowed) {
