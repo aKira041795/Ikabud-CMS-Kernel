@@ -49,6 +49,7 @@ $ctx = modulePushContext('daily-ledger');
 $db = $ctx->db();
 
 $tpl = (string) file_get_contents($base . '/modules/daily-ledger/handlers-deliveries.php');
+$core = (string) file_get_contents($base . '/modules/daily-ledger/handlers.php');
 
 /** Extract one function body so assertions cannot leak into neighbouring functions. */
 $bodyOf = static function (string $src, string $fn): string {
@@ -59,8 +60,9 @@ $bodyOf = static function (string $src, string $fn): string {
     $next = strpos($src, "\nfunction ", $start + 10);
     return substr($src, $start, ($next === false ? strlen($src) : $next) - $start);
 };
-$returnBody   = $bodyOf($tpl, 'apiRecordConsigneeReturn');
-$correctBody  = $bodyOf($tpl, 'apiCorrectConsigneeDeliveryDiscrepancy');
+$returnBody  = $bodyOf($tpl, 'apiRecordConsigneeReturn');
+$correctBody = $bodyOf($tpl, 'apiCorrectConsigneeDeliveryDiscrepancy');
+$writerBody  = $bodyOf($core, 'dl_recordConsigneeReturn');
 
 $h->section('the endpoint is wired as designed');
 $h->test(
@@ -85,10 +87,26 @@ $h->test(
         && str_contains($returnBody, 'not on the same supply line as this branch'),
     'the rule must compare the account\'s supply line with the branch\'s, so moving the account moves the restriction'
 );
+/*
+ * THE SPOILAGE FIX. A return used to adjust only the account, and the dispatch report valued it as
+ * a write-off, so goods physically back on the shelf never reached branch inventory. The credit now
+ * lives in the ONE custody writer so every caller inherits it, and the endpoint must NOT add a
+ * second one - that would double the stock the moment the UI starts using it.
+ */
 $h->test(
-    'the branch credit reuses the audited ledger writer',
-    str_contains($returnBody, "dl_applyLedgerDelta(\$branchId, (int)\$productId, \$ledgerDate, (int)\$quantity, \$actorId, 'addtl', \$shift)"),
-    'a bespoke UPDATE would escape concern #1 attribution'
+    'the endpoint does not credit the branch itself',
+    !str_contains($returnBody, 'dl_applyLedgerDelta('),
+    'the writer already does it; a second credit here would double the branch stock'
+);
+$h->test(
+    'the ONE custody writer credits the supplying branch',
+    str_contains($writerBody, "dl_applyLedgerDelta((int)\$sourceBranchId, \$productId, \$ledgerDate, \$delta, \$actorId, 'addtl', \$shift)"),
+    'so the admin dispatch report and the cashier return panel cannot drift apart'
+);
+$h->test(
+    'spoilage stays a separate, real fact',
+    str_contains($core, "'spoilage' => 'Spoilage'"),
+    'a return is stock back on the shelf; spoiled goods are a withdrawal with reason_code spoilage/damage'
 );
 
 $h->section('atomicity — the property the whole design rests on');
@@ -141,6 +159,66 @@ try {
         $db->rollBack();
     }
     foreach ([
+        "DELETE FROM dl_daily_ledger WHERE branch_id IN (SELECT id FROM dl_branches WHERE code LIKE 'AR-%')",
+        "DELETE FROM audit_logs WHERE module = 'daily-ledger' AND branch_id IN (SELECT id FROM dl_branches WHERE code LIKE 'AR-%')",
+        "DELETE FROM dl_branches WHERE code LIKE 'AR-%'",
+    ] as $clean) {
+        $db->prepare($clean)->execute();
+    }
+}
+
+$h->section('a return puts the stock back on the branch shelf');
+/*
+ * The client-visible outcome of the spoilage fix, stated as an outcome and not a mechanism:
+ * the account owes 10, gives 4 back, so the branch holds 4 MORE than before the return. Before the
+ * fix that number stayed at 0 while the account's debt fell - the bread was back on the shelf and
+ * nowhere in branch inventory.
+ */
+$consignee = 1882000200 + random_int(1, 400);
+try {
+    $db->prepare(
+        'INSERT INTO dl_branches (id, code, name, default_supply_mode, is_commissary, is_active) VALUES (:id, "AR-SUP", "Account Return Supply", "commissary_supplied", 0, 1)'
+    )->execute([':id' => $branch]);
+    $db->prepare(
+        'INSERT INTO dl_consignees (id, code, name, assigned_commissary_id, is_active) VALUES (:id, "AR-ACC", "Account Return Test", :b, 1)'
+    )->execute([':id' => $consignee, ':b' => $branch]);
+    // Custody of 10 as if 10 had been dispatched to the account earlier today.
+    $db->prepare(
+        'INSERT INTO dl_consignee_ledger (consignee_id, product_id, ledger_date, shift, price_snapshot, addtl, withdraw, encoded_by, updated_by)
+         VALUES (:c, :p, :d, "AM", 0, 10, 0, 1, 1)'
+    )->execute([':c' => $consignee, ':p' => $product, ':d' => $date]);
+
+    $branchAddtl = static function () use ($db, $branch, $product, $date): int {
+        $s = $db->prepare('SELECT COALESCE(SUM(addtl),0) FROM dl_daily_ledger WHERE branch_id = :b AND product_id = :p AND ledger_date = :d AND shift = "AM"');
+        $s->execute([':b' => $branch, ':p' => $product, ':d' => $date]);
+        return (int) $s->fetchColumn();
+    };
+    $custody = static function () use ($db, $consignee, $product, $date): int {
+        $s = $db->prepare('SELECT COALESCE(SUM(addtl - withdraw),0) FROM dl_consignee_ledger WHERE consignee_id = :c AND product_id = :p AND ledger_date = :d AND shift = "AM"');
+        $s->execute([':c' => $consignee, ':p' => $product, ':d' => $date]);
+        return (int) $s->fetchColumn();
+    };
+
+    $db->beginTransaction();
+    dl_recordConsigneeReturn($db, $consignee, $product, $date, 'AM', 4, 1);
+    $db->commit();
+    $h->test('the branch gains the returned pieces', $branchAddtl() === 4, 'branch addtl=' . $branchAddtl() . ', expected 4');
+    $h->test('the account stops holding them', $custody() === 6, 'custody=' . $custody() . ', expected 6');
+
+    // A mistyped total, corrected DOWN from 4 to 1, must come off the branch symmetrically.
+    $db->beginTransaction();
+    dl_recordConsigneeReturn($db, $consignee, $product, $date, 'AM', 1, 1);
+    $db->commit();
+    $h->test('lowering a mistyped return takes the stock back off', $branchAddtl() === 1, 'branch addtl=' . $branchAddtl() . ', expected 1');
+    $h->test('the corrected custody is right too', $custody() === 9, 'custody=' . $custody() . ', expected 9');
+} finally {
+    if ($db->inTransaction()) {
+        $db->rollBack();
+    }
+    foreach ([
+        "DELETE FROM dl_consignee_ledger_effects WHERE consignee_id IN (SELECT id FROM dl_consignees WHERE code = 'AR-ACC')",
+        "DELETE FROM dl_consignee_ledger WHERE consignee_id IN (SELECT id FROM dl_consignees WHERE code = 'AR-ACC')",
+        "DELETE FROM dl_consignees WHERE code = 'AR-ACC'",
         "DELETE FROM dl_daily_ledger WHERE branch_id IN (SELECT id FROM dl_branches WHERE code LIKE 'AR-%')",
         "DELETE FROM audit_logs WHERE module = 'daily-ledger' AND branch_id IN (SELECT id FROM dl_branches WHERE code LIKE 'AR-%')",
         "DELETE FROM dl_branches WHERE code LIKE 'AR-%'",

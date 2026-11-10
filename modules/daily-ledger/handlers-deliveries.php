@@ -2070,10 +2070,12 @@ function apiRecordConsigneeReturn(array $params = []): void
             $ledgerDate, $shift, (int)$quantity, $actorId
         );
 
-        if ($branchId > 0 && (int)$quantity > 0) {
-            // Reuses the ONE audited ledger writer, so the credit appears in Activity as
-            // 'ledger_delta_applied' naming this actor (client concern #1).
-            dl_applyLedgerDelta($branchId, (int)$productId, $ledgerDate, (int)$quantity, $actorId, 'addtl', $shift);
+        if ($branchId > 0) {
+            // The branch credit itself is applied INSIDE dl_recordConsigneeReturn() above, so this
+            // endpoint and the admin dispatch report share one implementation. $branch_id here
+            // therefore means "this return was taken in at this branch": it selects the branch
+            // authorization and the supply-line rule, and names the result. Crediting again here
+            // would double the branch stock.
             $result['branch_credited'] = $branchId;
             $result['dr_number'] = $drNumber;
         }

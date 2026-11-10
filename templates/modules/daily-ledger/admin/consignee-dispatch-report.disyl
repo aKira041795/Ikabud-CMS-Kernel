@@ -122,7 +122,11 @@
                     <th class="text-right">Returns / Pullout</th>
                     <th class="text-right"><span class="block">Unit price</span><span class="block text-xs font-normal text-gray-500">(snapshot)</span></th>
                     <th class="text-right">Dispatch value</th>
-                    <th class="text-right">Spoilage value</th>
+                    {* Named "Value returned", not "Spoilage value". A return puts the goods back into
+                       branch stock, so calling it a write-off both understated inventory and
+                       overstated the loss. Real spoilage is a cashier withdrawal with reason_code
+                       spoilage/damage, recorded on its own surface. *}
+                    <th class="text-right">Value returned</th>
                     <th class="text-right">Still collectible</th>
                     <th><span class="block">Verification</span><span class="block text-xs font-normal text-gray-500">(DR / provenance)</span></th>
                     <th>Collection status</th>
@@ -155,8 +159,8 @@
                     <td class="text-right">{row.unit_price | number_format:2}</td>
                     <td class="text-right">{row.dispatch_value | number_format:2}</td>
                     <td class="text-right text-gray-600">
-                        {row.spoilage_value | number_format:2}
-                        {if row.returned_qty > 0}<div class="text-xs font-normal text-gray-500">written off as spoilage</div>{/if}
+                        {row.returned_value | number_format:2}
+                        {if row.returned_qty > 0}<div class="text-xs font-normal text-gray-500">back into branch stock</div>{/if}
                     </td>
                     <td class="text-right font-semibold">{row.net_value | number_format:2}</td>
                     <td>{row.verification}</td>

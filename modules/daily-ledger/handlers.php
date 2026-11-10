@@ -3526,7 +3526,34 @@ function dl_recordConsigneeReturn($db, int $consigneeId, int $productId, string 
                 ':u' => $actorId > 0 ? $actorId : null,
                 ':before' => $state['before_qty'], ':after' => $state['after_qty'],
             ]);
-            dl_auditLog('consignee_return_recorded', (int)$sourceBranchId, 'dl_consignee_ledger_effects', (string)$db->lastInsertId(),
+            $effectId = (string)$db->lastInsertId();
+
+            // Stock coming back from an account is BRANCH STOCK AGAIN, not spoilage. The dispatch
+            // took it out of this branch's `withdraw` (the delivery posting in handlers-deliveries
+            // calls dl_applyLedgerDelta(..., 'withdraw', ...)), so a return that does not put it
+            // back into `addtl` leaves the branch and the account disagreeing for ever. That
+            // disagreement IS the client's complaint: "there is no account in where the stock came
+            // from". Before this, a return was recorded only against the account and valued in the
+            // dispatch report as a write-off, so the bread physically back on the shelf was
+            // invisible to branch inventory.
+            //
+            // Written here, in the ONE custody writer, rather than at each call site, so the admin
+            // dispatch report and the cashier return panel cannot drift apart.
+            //
+            // Same date and shift as the custody row ON PURPOSE. dl_applyConsigneeLedgerDelta()
+            // above has already asserted this exact shift is mutable on the source branch, so the
+            // credit cannot fail for a reason the custody movement would not also hit. It also
+            // makes a correction symmetric: a mistyped total lowers $delta below zero and the
+            // branch credit comes straight back off, with no receipt date to store.
+            //
+            // Genuinely spoiled goods are NOT this. They are a cashier withdrawal with reason_code
+            // 'spoilage' or 'damage', which already deducts stock and feeds wastage and the
+            // forecast's spoilage rate. Two different facts, each recorded where it belongs.
+            if ((int)$sourceBranchId > 0) {
+                dl_applyLedgerDelta((int)$sourceBranchId, $productId, $ledgerDate, $delta, $actorId, 'addtl', $shift);
+            }
+
+            dl_auditLog('consignee_return_recorded', (int)$sourceBranchId, 'dl_consignee_ledger_effects', $effectId,
                 ['returned' => $alreadyReturned, 'custody' => $state['before_qty']],
                 ['returned' => $totalReturned, 'delta' => $delta, 'custody' => $state['after_qty']]);
         }
@@ -22442,7 +22469,7 @@ function dl_fetchProductionSheetConsigneeCells($db, string $date, int $commissar
  * NULL total (never 0 or "PHP 0.00", which would read as a real zero).
  *
  * Per row the payload keeps `dispatch_value` GROSS (the proof the delivery
- * happened), reports the `spoilage_value` written off against it, and the
+ * happened), reports the `returned_value` that came back against it, and the
  * `net_value` still collectible; `total_value` is the gross sum. A fully
  * returned line is deliberately NOT dropped - it is the evidence that a
  * delivery happened and was pulled out.
@@ -22475,9 +22502,17 @@ function dl_fetchConsigneeDispatchReport($db, array $filters = []): array
 
     // VALUATION SHAPE: `dispatch_value` stays GROSS — it is the proof the delivery happened,
     // and a frozen oracle pins it at addtl * price_snapshot. The custody-out side is reported
-    // SEPARATELY as `spoilage_value`, with `net_value` the honest still-collectible figure. A
+    // SEPARATELY as `returned_value`, with `net_value` the honest still-collectible figure. A
     // ledger that is the proof of deliveries AND pullouts must show them side by side; netting
     // the delivery figure away would destroy the delivery evidence.
+    //
+    // WHY NOT `spoilage_value`: this figure used to be labelled spoilage and the template said the
+    // goods were "written off as spoilage". Nothing in the data model said so - dl_daily_ledger has
+    // no spoilage column, and dl_recordConsigneeReturn() now puts the returned quantity BACK into
+    // the branch's `addtl`, so the stock is on the shelf, not written off. Spoilage is a real and
+    // separate fact in this module: a cashier withdrawal with reason_code 'spoilage'/'damage',
+    // which deducts stock and feeds wastage. Calling every return a write-off both understated
+    // branch inventory and mis-stated the loss.
     //
     // COMPENSATION: dl_consignee_ledger is a MOVEMENT ledger. `dl_recordConsigneeReturn()`
     // lowers a mistyped return total by applying a POSITIVE custody delta, which lands in
@@ -22496,7 +22531,7 @@ function dl_fetchConsigneeDispatchReport($db, array $filters = []): array
                    SUM(l.withdraw - COALESCE(cx.compensation_qty, 0)) AS returned_qty,
                    MAX(l.price_snapshot) AS unit_price,
                    SUM((l.addtl - COALESCE(cx.compensation_qty, 0)) * COALESCE(l.price_snapshot, 0)) AS dispatch_value,
-                   SUM((l.withdraw - COALESCE(cx.compensation_qty, 0)) * COALESCE(l.price_snapshot, 0)) AS spoilage_value,
+                   SUM((l.withdraw - COALESCE(cx.compensation_qty, 0)) * COALESCE(l.price_snapshot, 0)) AS returned_value,
                    SUM((l.addtl - l.withdraw) * COALESCE(l.price_snapshot, 0)) AS net_value,
                    MAX(d.dr_number) AS dr_number,
                    MAX(d.provenance_status) AS provenance_status,
@@ -22566,7 +22601,7 @@ function dl_fetchConsigneeDispatchReport($db, array $filters = []): array
         $returnedQty = (int)($r['returned_qty'] ?? 0);
         $unitPrice = (float)($r['unit_price'] ?? 0);
         $dispatchValue = (float)($r['dispatch_value'] ?? 0);
-        $spoilageValue = (float)($r['spoilage_value'] ?? 0);
+        $returnedValue = (float)($r['returned_value'] ?? 0);
         $netValue = (float)($r['net_value'] ?? 0);
         // The headline total is the GROSS dispatch valuation (the delivery evidence), which a
         // frozen oracle pins by asserting the rendered report carries `PHP 87.50`.
@@ -22591,7 +22626,7 @@ function dl_fetchConsigneeDispatchReport($db, array $filters = []): array
             'returned_qty' => $returnedQty,
             'unit_price' => $unitPrice,
             'dispatch_value' => $dispatchValue,
-            'spoilage_value' => $spoilageValue,
+            'returned_value' => $returnedValue,
             'net_value' => $netValue,
             'dr_number' => $r['dr_number'] ?? null,
             'provenance_status' => $r['provenance_status'] ?? null,
