@@ -9230,6 +9230,107 @@ function apiGetCashierWithdrawals(array $params = []): void
 }
 
 /**
+ * Withdrawals that exist in the ledger but that NO cashier row accounts for.
+ *
+ * Owner decision 2026-11-10, choosing between "debit at send" and "debit at receipt": keep the
+ * debit at send, but make it VISIBLE. A delivery debits the sending branch the moment it is
+ * recorded, and a paper DR captured by the RECEIVING branch debits the ORIGIN branch's ledger from
+ * another branch's action. Those writes never create a dl_cashier_withdrawals row, so the branch's
+ * own Daily Sheet showed a W/Draw figure larger than the entries listed underneath it - a withdrawal
+ * nobody there made, with nothing to click and nothing to explain it. That is the client report:
+ * "entry delivery ni commissary automatic ma-withdraw kang branch bisan wla pa silay gi-entry".
+ *
+ * This does NOT change any accounting. It reconciles the number the sheet already shows against the
+ * rows the sheet already lists, and names the delivery that produced the difference.
+ *
+ * @return array<int,array<string,mixed>> synthetic, read-only rows shaped like cashier rows
+ */
+function dl_unattributedWithdrawalRows($db, int $branchId, string $date, string $shift = ''): array
+{
+    if ($branchId <= 0 || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+        return [];
+    }
+    $ledgerSql = 'SELECT product_id, shift, withdraw FROM dl_daily_ledger WHERE branch_id = :bid AND ledger_date = :d AND withdraw <> 0';
+    $ledgerBind = [':bid' => $branchId, ':d' => $date];
+    if ($shift !== '') {
+        $ledgerSql .= ' AND shift = :shift';
+        $ledgerBind[':shift'] = $shift;
+    }
+    $stmt = $db->prepare($ledgerSql);
+    $stmt->execute($ledgerBind);
+    $ledger = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    if ($ledger === []) {
+        return [];
+    }
+
+    // Only the types that actually feed the withdraw column. adjustment_add and own_production feed
+    // the Addt'l column, so counting them here would invent a difference that does not exist.
+    $rowSql = "SELECT COALESCE(SUM(quantity), 0) AS q FROM dl_cashier_withdrawals
+                WHERE branch_id = :bid AND ledger_date = :d AND product_id = :pid
+                  AND withdrawal_type IN ('charge','pullout','used','correction')";
+    $rowStmt = $db->prepare($rowSql);
+
+    $synthetic = [];
+    foreach ($ledger as $cell) {
+        $pid = (int)$cell['product_id'];
+        $cellShift = ($cell['shift'] === null || (string)$cell['shift'] === '') ? null : (string)$cell['shift'];
+        $rowStmt->execute([':bid' => $branchId, ':d' => $date, ':pid' => $pid]);
+        $explained = (int)($rowStmt->fetchColumn() ?: 0);
+        $unexplained = (int)$cell['withdraw'] - $explained;
+        if ($unexplained <= 0) {
+            continue;
+        }
+        // Name the delivery that caused it, when one can be identified. A delivery to this branch on
+        // this date carrying this product IS the explanation; without it the row still appears, so an
+        // unexplained balance is never hidden - it just says so.
+        $delStmt = $db->prepare(
+            'SELECT d.id, d.dr_number, d.origin_type, d.origin_id, d.created_by_name_snapshot, ob.name AS origin_name
+               FROM dl_deliveries d
+               INNER JOIN dl_delivery_items di ON di.delivery_id = d.id AND di.product_id = :pid
+               LEFT JOIN dl_branches ob ON ob.id = d.origin_id AND d.origin_type IN ("branch", "commissary")
+              WHERE d.destination_id = :bid AND d.destination_type = "branch"
+                AND d.delivery_date = :d AND d.status <> "voided"
+              ORDER BY d.id DESC LIMIT 1'
+        );
+        $delStmt->execute([':pid' => $pid, ':bid' => $branchId, ':d' => $date]);
+        $delivery = $delStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+        $pnameStmt = $db->prepare('SELECT name FROM dl_products WHERE id = :id LIMIT 1');
+        $pnameStmt->execute([':id' => $pid]);
+        $productName = (string)($pnameStmt->fetchColumn() ?: '');
+
+        $synthetic[] = [
+            'id' => 0,
+            'product_id' => $pid,
+            'product_name' => $productName,
+            'withdrawal_type' => 'delivery_dispatch',
+            'reason_code' => null,
+            'reason_code_label' => $delivery
+                ? 'Delivery dispatch recorded by ' . (string)($delivery['origin_name'] ?? 'another branch')
+                  . ($delivery['dr_number'] !== null && (string)$delivery['dr_number'] !== '' ? ' · DR ' . (string)$delivery['dr_number'] : '')
+                : 'Recorded outside this branch; no delivery document found for this date',
+            'custom_reason' => null,
+            'dr_number' => $delivery['dr_number'] ?? null,
+            'target_branch_id' => null,
+            'quantity' => $unexplained,
+            'unit' => 'pcs',
+            'pack_qty' => null,
+            'liable_user_id' => null,
+            'liable_user_name' => '',
+            'encoded_by' => null,
+            'shift' => $cellShift,
+            'created_at' => null,
+            'received_at' => null,
+            // Read-only by construction: this row is a reconciliation of the ledger, not an entry. It
+            // must never be editable or deletable here, or the sheet would offer to remove a movement
+            // it does not own.
+            'editable' => false,
+            'attributed' => $delivery !== null,
+        ];
+    }
+    return $synthetic;
+}
+
+/**
  * GET /daily-ledger/api/v1/cashier/ledger/withdrawals/today
  *
  * Lists the current business date's cashier adjustments for the branch so a
@@ -9307,6 +9408,14 @@ function apiTodayCashierWithdrawals(array $params = []): void
             : ($editableDate && empty($r['received_at']) && ($r['target_branch_id'] ?? null) === null);
     }
     unset($r);
+
+    // Reconciliation (owner decision 2026-11-10): a delivery debits the sender when it is recorded,
+    // and a paper DR captured by the receiving branch debits the ORIGIN branch. Neither writes a
+    // cashier row, so without this the sheet shows a W/Draw figure larger than the list under it - a
+    // withdrawal the branch never made. Appended AFTER the cashier rows so they always read as an
+    // explanation of the remainder, never as one of the branch's own entries.
+    $rows = array_merge($rows, dl_unattributedWithdrawalRows($ctx->db(), $branchId, $date, $shift));
+
     $ctx->json(['ok' => true, 'date' => $date, 'withdrawals' => $rows]);
 }
 

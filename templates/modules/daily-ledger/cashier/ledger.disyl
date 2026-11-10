@@ -450,7 +450,11 @@
     // ── Today's Adjustments (cashier edit-own withdrawal) ───────────────
     var __dlTodayAdjCache = [];
     function dlAdjTypeLabel(t) {
-        return ({ charge: 'Charge', pullout: 'Pullout', used: 'Used', correction: 'Correction', adjustment_add: 'Add Stock', own_production: 'Own production' }[t] || t);
+        // `delivery_dispatch` is not one of this branch's own entries: it is the reconciliation row
+        // for a delivery that debited the ledger without a cashier row (a dispatch recorded by the
+        // sending branch, or a paper DR captured by the receiving branch). It is read-only and the
+        // label says so, so it is never mistaken for something the cashier typed.
+        return ({ charge: 'Charge', pullout: 'Pullout', used: 'Used', correction: 'Correction', adjustment_add: 'Add Stock', own_production: 'Own production', delivery_dispatch: 'Delivery (not entered here)' }[t] || t);
     }
     function dlEscHtml(s) {
         return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) {
