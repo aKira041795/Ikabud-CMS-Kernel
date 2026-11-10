@@ -1998,6 +1998,10 @@ function apiRecordConsigneeReturn(array $params = []): void
     $quantity = filter_var($input['quantity'] ?? null, FILTER_VALIDATE_INT);
     $ledgerDate = trim((string)($input['ledger_date'] ?? ''));
     $shift = trim((string)($input['shift'] ?? ''));
+    // Optional branch credit (client concern #2). When a branch is supplied the return is stock
+    // ENTERING that branch, so it needs a DR and must go through the ledger — see the try block.
+    $branchId = (int)(filter_var($input['branch_id'] ?? 0, FILTER_VALIDATE_INT) ?: 0);
+    $drNumber = trim((string)($input['dr_number'] ?? ''));
     $validDate = preg_match('/^\d{4}-\d{2}-\d{2}$/', $ledgerDate) === 1;
     if ($validDate) {
         [$year, $month, $day] = array_map('intval', explode('-', $ledgerDate));
@@ -2011,15 +2015,79 @@ function apiRecordConsigneeReturn(array $params = []): void
         return;
     }
 
+    if ($branchId > 0 && $drNumber === '') {
+        $ctx->json(['ok' => false, 'error' => 'A Delivery Receipt number is required when returned stock enters a branch.'], 422);
+        return;
+    }
+
     try {
+        // Stock entering a branch is a stock movement, not just a consignee-balance tweak. Two
+        // writes must land together: the account's outstanding balance falls AND the branch ledger
+        // rises. dl_recordConsigneeReturn() honours an already-open transaction ($ownsTransaction),
+        // so owning it here makes the pair atomic - no half-return that debits the account without
+        // giving the goods back to the branch (the defect class of concern #8).
+        $ownsTx = !$ctx->db()->inTransaction();
+        if ($ownsTx) {
+            $ctx->db()->beginTransaction();
+        }
+
+        if ($branchId > 0) {
+            $auth = dl_authorizeBranch($user, ['branch_id' => $branchId]);
+            if (($auth['branch_id'] ?? -1) < 0) {
+                if ($ownsTx && $ctx->db()->inTransaction()) { $ctx->db()->rollBack(); }
+                $ctx->json(['ok' => false, 'error' => 'Branch not authorized'], 403);
+                return;
+            }
+
+            // The "Rizal only, not other branches" rule without naming Rizal: an account may only
+            // return into a branch on its OWN supply line. Derived from data, so moving the account
+            // to another commissary moves the restriction with it.
+            $supply = $ctx->db()->prepare(
+                'SELECT c.assigned_commissary_id AS consignee_commi, b.assigned_commissary_id AS branch_commi'
+                . ' FROM dl_consignees c INNER JOIN dl_branches b ON b.id = :branch'
+                . ' WHERE c.id = :consignee LIMIT 1'
+            );
+            $supply->execute([':branch' => $branchId, ':consignee' => (int)$consigneeId]);
+            $line = $supply->fetch(PDO::FETCH_ASSOC);
+            if (!$line) {
+                if ($ownsTx && $ctx->db()->inTransaction()) { $ctx->db()->rollBack(); }
+                $ctx->json(['ok' => false, 'error' => 'Account or branch not found.'], 422);
+                return;
+            }
+            if ($line['consignee_commi'] === null
+                || (int)$line['consignee_commi'] !== (int)$line['branch_commi']) {
+                if ($ownsTx && $ctx->db()->inTransaction()) { $ctx->db()->rollBack(); }
+                $ctx->json([
+                    'ok' => false,
+                    'error' => 'This account is not on the same supply line as this branch, so it cannot return stock here.',
+                ], 403);
+                return;
+            }
+        }
+
         $result = dl_recordConsigneeReturn(
             $ctx->db(), (int)$consigneeId, (int)$productId,
             $ledgerDate, $shift, (int)$quantity, $actorId
         );
+
+        if ($branchId > 0 && (int)$quantity > 0) {
+            // Reuses the ONE audited ledger writer, so the credit appears in Activity as
+            // 'ledger_delta_applied' naming this actor (client concern #1).
+            dl_applyLedgerDelta($branchId, (int)$productId, $ledgerDate, (int)$quantity, $actorId, 'addtl', $shift);
+            $result['branch_credited'] = $branchId;
+            $result['dr_number'] = $drNumber;
+        }
+
+        if ($ownsTx && $ctx->db()->inTransaction()) {
+            $ctx->db()->commit();
+        }
         $ctx->json(['ok' => true] + $result);
     } catch (\InvalidArgumentException | \RuntimeException $e) {
+        if (isset($ownsTx) && $ownsTx && $ctx->db()->inTransaction()) { $ctx->db()->rollBack(); }
         $ctx->json(['ok' => false, 'error' => $e->getMessage()], 422);
     } catch (\Throwable $e) {
+        // Any unexpected failure must not leave the branch credit half-applied.
+        if (isset($ownsTx) && $ownsTx && $ctx->db()->inTransaction()) { $ctx->db()->rollBack(); }
         $ctx->log('apiRecordConsigneeReturn: ' . $e->getMessage(), 'error', [
             'consignee_id' => $consigneeId,
             'product_id' => $productId,
