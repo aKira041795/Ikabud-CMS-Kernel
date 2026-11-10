@@ -858,7 +858,7 @@
                     <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Commissary</span>
                 </a>
 
-                     {if feature_formal_delivery && (user_role == 'admin' || user_role == 'supervisor')}
+                     {if feature_formal_delivery && (user_role == 'admin' || user_role == 'supervisor' || user_role == 'production_in_charge')}
                      <a href="{base_url}/admin/deliveries"
                          class="wb-nav-item flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'deliveries'}bg-white/10 ring-1 ring-white/10{/if}"
                          aria-label="Deliveries">
@@ -1268,12 +1268,12 @@
                                         <div class="font-semibold text-gray-700">Sender remark</div>
                                         {if v.sender_remark}<div class="text-gray-600">{v.sender_remark | esc_html}</div><div class="text-gray-500">{v.sender_remarker_name} · {v.sender_remark_branch_name} · {v.sender_remarked_at}</div>{else}<div class="text-gray-400">No sender remark recorded.</div>{/if}
                                         {if v.can_remark_sender}
-                                        <input type="text" class="form-input mt-1 w-full text-xs py-0.5 px-1.5" data-delivery-remark-id="{v.id}" data-delivery-remark-side="sender" data-saved="{v.sender_remark | esc_html | default:''}" value="{v.sender_remark | esc_html | default:''}" maxlength="{variance_note_max}" placeholder="Your sending branch's explanation…" title="Sender words only. Saves on blur; Enter also saves.">
+                                        <input type="text" class="form-input mt-1 w-full text-xs py-0.5 px-1.5" data-delivery-remark-id="{v.id}" data-delivery-remark-side="sender" data-remark-saved="{v.sender_remark | esc_html | default:''}" value="{v.sender_remark | esc_html | default:''}" maxlength="{variance_note_max}" placeholder="Your sending branch's explanation…" title="Sender words only. Saves on blur; Enter also saves.">
                                         {/if}
                                         <div class="mt-1 font-semibold text-gray-700">Receiver remark</div>
                                         {if v.receiver_remark}<div class="text-gray-600">{v.receiver_remark | esc_html}</div><div class="text-gray-500">{v.receiver_remarker_name} · {v.receiver_remark_branch_name} · {v.receiver_remarked_at}</div>{else}<div class="text-gray-400">No receiver remark recorded.</div>{/if}
                                         {if v.can_remark_receiver}
-                                        <input type="text" class="form-input mt-1 w-full text-xs py-0.5 px-1.5" data-delivery-remark-id="{v.id}" data-delivery-remark-side="receiver" data-saved="{v.receiver_remark | esc_html | default:''}" value="{v.receiver_remark | esc_html | default:''}" maxlength="{variance_note_max}" placeholder="Your receiving branch's explanation…" title="Receiver words only. Saves on blur; Enter also saves.">
+                                        <input type="text" class="form-input mt-1 w-full text-xs py-0.5 px-1.5" data-delivery-remark-id="{v.id}" data-delivery-remark-side="receiver" data-remark-saved="{v.receiver_remark | esc_html | default:''}" value="{v.receiver_remark | esc_html | default:''}" maxlength="{variance_note_max}" placeholder="Your receiving branch's explanation…" title="Receiver words only. Saves on blur; Enter also saves.">
                                         {/if}
                                     </div>
                                     {if v.resolution_choice}
@@ -1417,12 +1417,12 @@
                                         <div class="font-semibold text-gray-700">Sender remark</div>
                                         {if v.sender_remark}<div class="text-gray-600">{v.sender_remark | esc_html}</div><div class="text-gray-500">{v.sender_remarker_name} · {v.sender_remark_branch_name} · {v.sender_remarked_at}</div>{else}<div class="text-gray-400">No sender remark recorded.</div>{/if}
                                         {if v.can_remark_sender}
-                                        <input type="text" class="form-input mt-1 w-full text-xs py-0.5 px-1.5" data-delivery-remark-id="{v.id}" data-delivery-remark-side="sender" data-saved="{v.sender_remark | esc_html | default:''}" value="{v.sender_remark | esc_html | default:''}" maxlength="{variance_note_max}" placeholder="Your sending branch's explanation…" title="Sender words only. Saves on blur; Enter also saves.">
+                                        <input type="text" class="form-input mt-1 w-full text-xs py-0.5 px-1.5" data-delivery-remark-id="{v.id}" data-delivery-remark-side="sender" data-remark-saved="{v.sender_remark | esc_html | default:''}" value="{v.sender_remark | esc_html | default:''}" maxlength="{variance_note_max}" placeholder="Your sending branch's explanation…" title="Sender words only. Saves on blur; Enter also saves.">
                                         {/if}
                                         <div class="mt-1 font-semibold text-gray-700">Receiver remark</div>
                                         {if v.receiver_remark}<div class="text-gray-600">{v.receiver_remark | esc_html}</div><div class="text-gray-500">{v.receiver_remarker_name} · {v.receiver_remark_branch_name} · {v.receiver_remarked_at}</div>{else}<div class="text-gray-400">No receiver remark recorded.</div>{/if}
                                         {if v.can_remark_receiver}
-                                        <input type="text" class="form-input mt-1 w-full text-xs py-0.5 px-1.5" data-delivery-remark-id="{v.id}" data-delivery-remark-side="receiver" data-saved="{v.receiver_remark | esc_html | default:''}" value="{v.receiver_remark | esc_html | default:''}" maxlength="{variance_note_max}" placeholder="Your receiving branch's explanation…" title="Receiver words only. Saves on blur; Enter also saves.">
+                                        <input type="text" class="form-input mt-1 w-full text-xs py-0.5 px-1.5" data-delivery-remark-id="{v.id}" data-delivery-remark-side="receiver" data-remark-saved="{v.receiver_remark | esc_html | default:''}" value="{v.receiver_remark | esc_html | default:''}" maxlength="{variance_note_max}" placeholder="Your receiving branch's explanation…" title="Receiver words only. Saves on blur; Enter also saves.">
                                         {/if}
                                     </div>
                                     {if v.resolution_choice}
@@ -1740,7 +1740,7 @@
     // calls a correction, decision, or status endpoint.
     function updateDeliveryRemark(input) {
         var remark = input.value.trim();
-        var saved = input.getAttribute('data-saved') || '';
+        var saved = input.getAttribute('data-remark-saved') || '';
         if (remark === saved) { return; }
         if (!remark) {
             if (saved) {
@@ -1766,7 +1766,7 @@
         .then(function(res) {
             input.disabled = false;
             if (res.ok) {
-                input.setAttribute('data-saved', remark);
+                input.setAttribute('data-remark-saved', remark);
                 input.value = remark;
                 showToast((side === 'sender' ? 'Sender' : 'Receiver') + ' remark saved', 'success');
                 setTimeout(function() { window.refreshMainContent(); }, 800);

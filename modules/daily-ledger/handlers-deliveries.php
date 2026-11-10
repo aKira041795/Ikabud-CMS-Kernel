@@ -2022,7 +2022,10 @@ function apiConsigneeCustody(array $params = []): void
             . ' WHERE c.is_active = 1 AND c.assigned_commissary_id = :b'
             . ' GROUP BY c.id, c.code, c.name'
             . ' HAVING SUM(l.addtl - l.withdraw) > 0'
-            . ' ORDER BY c.name'
+            // Deterministic order (c.code, not c.name): the branch-order guardrail forbids a bare
+            // name-order for consignees, because two accounts can share a name and the list would
+            // then reorder itself unpredictably between requests. Codes are unique.
+            . ' ORDER BY c.code'
         );
         $stmt->execute([':b' => $branchId]);
         $accounts = [];
