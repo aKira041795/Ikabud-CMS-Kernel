@@ -1208,7 +1208,7 @@
                     <span class="text-xs text-gray-400">Net: {if bg.net_variance >= 0}+{/if}{bg.net_variance}</span>
                 </div>
             </div>
-            <div class="variance-branch-group-body" :class="{ 'variance-branch-group-body--expanded': open }">
+            <div class="variance-branch-group-body overflow-x-auto" :class="{ 'variance-branch-group-body--expanded': open }">
                 <table>
                     <thead>
                         <tr>
@@ -1254,7 +1254,12 @@
                                     {if v.variance > 0}+{/if}{v.variance}
                                 </span>
                             </td>
-                            <td>
+                            {* Concern #3: the side-remark inputs live in this cell. Without a floor the
+                               column is the last one in a w-full table, so it collapsed to ~130px and
+                               the remark box rendered as "Your rece…" - the capture existed but was
+                               not readable or usable. The min-width forces the table wide and the
+                               wrapper (table-wrap / overflow-x-auto) scrolls instead of squeezing. *}
+                            <td class="align-top min-w-[340px]">
                                 {if v.is_delivery}
                                 <div class="text-xs" data-delivery-variance="{v.id}">
                                     <div class="font-medium text-gray-700">Sent {v.sent_qty} · cashier counted {v.original_counted_qty}</div>
@@ -1398,7 +1403,12 @@
                                     {if v.variance > 0}+{/if}{v.variance}
                                 </span>
                             </td>
-                            <td>
+                            {* Concern #3: the side-remark inputs live in this cell. Without a floor the
+                               column is the last one in a w-full table, so it collapsed to ~130px and
+                               the remark box rendered as "Your rece…" - the capture existed but was
+                               not readable or usable. The min-width forces the table wide and the
+                               wrapper (table-wrap / overflow-x-auto) scrolls instead of squeezing. *}
+                            <td class="align-top min-w-[340px]">
                                 {if v.is_delivery}
                                 <div class="text-xs" data-delivery-variance="{v.id}">
                                     <div class="font-medium text-gray-700">Sent {v.sent_qty} · cashier counted {v.original_counted_qty}</div>
