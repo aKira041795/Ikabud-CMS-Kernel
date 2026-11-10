@@ -12925,6 +12925,7 @@ function handleAdminDashboard(array $params = []): void
     $dashboardActionLabels = [
         'field_update' => 'Updated ledger field',
         'row_update' => 'Updated ledger row',
+        'ledger_delta_applied' => 'Changed ledger stock',
         'close_day' => 'Closed the day',
         'reopen_day' => 'Reopened the day',
         'create_product' => 'Added product',
@@ -14461,7 +14462,9 @@ function handleAdminSales(array $params = []): void
         'product' => ['create_product', 'update_product'],
         'user' => ['create_user', 'update_user', 'delete_user', 'restore_user'],
         'commissary' => ['create_commissary_run', 'update_commissary_run', 'delete_commissary_run', 'save_commissary_material'],
-        'ledger' => ['field_update', 'row_update', 'close_day', 'reopen_day'],
+        // Same category vocabulary as the Activity page: keep 'ledger_delta_applied' visible here
+        // too, or "Ledger" means two different things on two pages.
+        'ledger' => ['field_update', 'row_update', 'close_day', 'reopen_day', 'ledger_delta_applied'],
         'variance' => ['variance_status'],
     ];
     if ($actionFilter !== '' && !isset($actionFilterMap[$actionFilter])) {
@@ -17280,7 +17283,12 @@ function handleAdminActivity(array $params = []): void
         'product' => ['create_product', 'update_product'],
         'user' => ['create_user', 'update_user', 'delete_user', 'restore_user'],
         'commissary' => ['create_commissary_run', 'update_commissary_run', 'delete_commissary_run', 'save_commissary_material'],
-        'ledger' => ['field_update', 'row_update', 'close_day', 'reopen_day'],
+        // 'ledger_delta_applied' is written by dl_applyLedgerDelta() on every programmatic stock
+        // change (production output, receiving, office corrections). It was missing here, so the
+        // operator's own "Ledger" filter HID the rows answering "kinsay nagbutang sa additional" —
+        // the very question this action exists to answer. A filter that hides the evidence is
+        // worse than no filter, because it reads as "nothing happened".
+        'ledger' => ['field_update', 'row_update', 'close_day', 'reopen_day', 'ledger_delta_applied'],
         'variance' => ['variance_status'],
         // Actual writers include adjusted as well as applied/reversed. Keep the
         // assignment names here too so this family remains complete when those

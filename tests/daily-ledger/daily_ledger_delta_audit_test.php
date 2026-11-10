@@ -91,4 +91,21 @@ try {
     }
 }
 
+// An audit row an operator cannot FIND is not evidence. The Activity page filters by category
+// through a fixed action map; 'ledger_delta_applied' was missing from it, so choosing "Ledger"
+// hid exactly the rows that answer "kinsay nagbutang sa additional" — the question this action
+// was added for. Measured 2026-11-10; both pages that expose that category must list it.
+$h->section('the audit action is reachable from the Activity filter');
+$handlerSrc = (string) file_get_contents($base . '/modules/daily-ledger/handlers.php');
+$ledgerCategoryHits = preg_match_all(
+    "/'ledger'\s*=>\s*\[[^\]]*'ledger_delta_applied'/",
+    $handlerSrc
+);
+$h->test(
+    "every 'ledger' activity category exposes ledger_delta_applied",
+    $ledgerCategoryHits >= 2,
+    'found ' . (int) $ledgerCategoryHits . ' of 2 category maps carrying the action; a filter that '
+        . 'hides the evidence reads as "nothing happened"'
+);
+
 $h->done();
