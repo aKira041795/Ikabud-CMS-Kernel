@@ -674,6 +674,27 @@ function dlPersistModuleSettings(array $settings): bool
     return true;
 }
 
+/**
+ * The choices offered by "Where stock came from" on the receive form.
+ *
+ * Owner direction 2026-11-10: "make your fixes dynamic so that when we add sources, areas, branches,
+ * consignees these are dynamically fetched as ready selection where applicable". So this is ONE list
+ * the template iterates - adding a source later is a single entry here, not a hunt through markup.
+ * The branches, commissaries and accounts behind these choices are themselves read from the database
+ * at render time, so a new branch or consignee appears with no code change at all.
+ *
+ * @return array<int,array{value:string,label:string}>
+ */
+function dl_paperDrSourceTypes(): array
+{
+    return [
+        ['value' => 'commissary', 'label' => 'Commissary'],
+        ['value' => 'branch', 'label' => 'Branch'],
+        ['value' => 'account', 'label' => 'Account'],
+        ['value' => 'bodega', 'label' => 'Bodega (non-bread, out of town)'],
+    ];
+}
+
 function dl_rolePermissions(bool $refresh = false): array
 {
     static $cache = null;
@@ -8987,6 +9008,7 @@ function handleCashierLedger(array $params = []): void
         'server_now_offset' => $clockLabel['server_now_offset'],
         'server_epoch_ms' => $clockLabel['server_epoch_ms'],
         'all_branches' => $allBranches,
+        'source_types' => dl_paperDrSourceTypes(),
         'default_source_map_json' => json_encode($defaultSourceMap, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP),
         'consignees' => $consignees,
         'consignee_enabled' => dl_isConsigneeEnabled(),
@@ -11233,8 +11255,19 @@ function apiReceivePaperDelivery(array $params = []): void
         $ctx->json(['ok' => false, 'error' => 'Missing destination branch.'], 422);
         return;
     }
-    if (!in_array($originType, ['branch', 'commissary'], true)) {
+    if (!in_array($originType, ['branch', 'commissary', 'bodega', 'account'], true)) {
         $ctx->json(['ok' => false, 'error' => 'Invalid origin type.'], 422);
+        return;
+    }
+    // Client concerns #5 and #6 (2026-11-10): "where stock came from" must offer the ACCOUNTS and the
+    // BODEGA, not just a branch or a commissary. An account is an external party returning stock, and
+    // Bodega is the out-of-town non-bread source; neither is a branch, so neither carries a branch id.
+    if ($originType === 'account' && ($originId ?? 0) <= 0) {
+        $ctx->json(['ok' => false, 'error' => 'Select the account this stock came from.'], 422);
+        return;
+    }
+    if ($originType === 'account' && $drNumber === '' && !$autoDr) {
+        $ctx->json(['ok' => false, 'error' => 'Paper DR number is required.'], 422);
         return;
     }
     if (($originType === 'branch' && (($originId ?? 0) <= 0 || $originId === $destinationBranchId))
@@ -11407,6 +11440,14 @@ function apiReceivePaperDelivery(array $params = []): void
 
         $deliveryId = $existing ? (int)$existing['id'] : 0;
         if (!$existing) {
+            // dl_deliveries.origin_type is ENUM('commissary','branch','supplier','manual') - it has
+            // no 'bodega' or 'account' value, and a schema change this late would be a poor trade for
+            // two labels. Both ARE external parties, so they persist as 'supplier' and keep their
+            // true identity in origin_id: the consignee id for an account, NULL for Bodega.
+            // The line-level supply_origin still records 'bodega' for Bodega lines, so the reporting
+            // that already reads bodega is unaffected.
+            $persistedOriginType = in_array($originType, ['bodega', 'account'], true) ? 'supplier' : $originType;
+            $persistedOriginId = $originType === 'bodega' ? null : $originId;
             $priceGroupId = dl_defaultPriceGroupId();
             $ins = $ctx->db()->prepare(
                 'INSERT INTO dl_deliveries
@@ -11417,8 +11458,8 @@ function apiReceivePaperDelivery(array $params = []): void
                          :produced_by, :produced_at)'
             );
             $ins->execute([
-                ':ot' => $originType,
-                ':oid' => $originId,
+                ':ot' => $persistedOriginType,
+                ':oid' => $persistedOriginId,
                 ':dt' => 'branch',
                 ':did' => $destinationBranchId,
                 ':dr' => $drNumber,

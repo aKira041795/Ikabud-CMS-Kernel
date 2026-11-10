@@ -319,8 +319,13 @@
                                 <div>
                                     <label class="block text-xs font-medium text-indigo-900 mb-1">Where stock came from</label>
                                     <select x-model="paperForm.origin_type" @change="onOriginTypeChange()" class="form-input mt-0 w-full">
-                                        <option value="commissary">Commissary</option>
-                                        <option value="branch">Branch</option>
+                                        {* Iterated from the server's ONE source list (owner 2026-11-10:
+                                           "make your fixes dynamic so that when we add sources ... these
+                                           are dynamically fetched as ready selection"). Adding a source is
+                                           one entry in dl_paperDrSourceTypes(), never a hunt through markup. *}
+                                        {foreach source_types as st}
+                                        <option value="{st.value}">{st.label}</option>
+                                        {/foreach}
                                     </select>
                                 </div>
                                 <div x-show="paperForm.origin_type === 'branch'">
@@ -344,6 +349,23 @@
                                         {/if}
                                         {/foreach}
                                     </select>
+                                </div>
+                                {* Client concern #5: an ACCOUNT is a stock source too. The list is every consignee
+                                   on this branch's supply line, read from the database at render time - adding a
+                                   consignee needs no code change, and one created today is selectable today. *}
+                                <div x-show="paperForm.origin_type === 'account'">
+                                    <label class="block text-xs font-medium text-indigo-900 mb-1">Sending account <span class="text-rose-500">*</span></label>
+                                    <select x-model="paperForm.origin_id" class="form-input mt-0 w-full">
+                                        <option value="">-- Select account --</option>
+                                        {foreach consignees as c}
+                                        <option value="{c.id}">{c.name}{if c.code} ({c.code}){/if}</option>
+                                        {/foreach}
+                                    </select>
+                                </div>
+                                {* Client concern #6: Bodega as a source for out-of-town non-bread. It carries no
+                                   branch id - it is a warehouse, not a branch - so no picker follows. *}
+                                <div x-show="paperForm.origin_type === 'bodega'" class="text-xs leading-5 text-indigo-800 self-end pb-1">
+                                    Goods came from the <span class="font-semibold">Bodega</span>. Every line on this receipt will be stamped as Bodega stock.
                                 </div>
                                 <div>
                                     <label class="block text-xs font-medium text-indigo-900 mb-1">Production shift (from paper DR) <span class="text-rose-500">*</span></label>

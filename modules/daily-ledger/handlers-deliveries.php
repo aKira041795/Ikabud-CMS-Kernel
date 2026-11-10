@@ -107,6 +107,13 @@ function dl_branchHasProduction(int $branchId): bool
  */
 function dl_supplyOriginForProduct(int $productId, string $fallback = 'commissary'): string
 {
+    // dl_branch_receiving_items.supply_origin is an ENUM. A caller may legitimately pass an origin
+    // the column does not carry (the paper-DR form now offers "account", for instance), so sanitise
+    // here rather than let MySQL clip the value or throw. An account is an external party, so it
+    // falls back to 'supplier'; 'bodega' is already a column value and passes through untouched.
+    if (!in_array($fallback, ['bodega', 'commissary', 'branch', 'local_production', 'supplier', 'manual_adjustment'], true)) {
+        $fallback = 'supplier';
+    }
     if ($productId <= 0) {
         return $fallback;
     }
