@@ -101,10 +101,22 @@ final class FilterRegistry
                 ['\\\\', "\\'", '\\"', '\\n', '\\r', '<\\/', '\\u2028', '\\u2029'],
                 (string) $v
             ),
+            'escape_js' => fn($v) => str_replace(
+                ['\\', "'", '"', "\n", "\r", '</', "\xe2\x80\xa8", "\xe2\x80\xa9"],
+                ['\\\\', "\\'", '\\"', '\\n', '\\r', '<\\/', '\\u2028', '\\u2029'],
+                (string) $v
+            ),
             'raw' => fn($v) => $v,
             'upper' => fn($v) => strtoupper((string) $v),
             'lower' => fn($v) => strtolower((string) $v),
             'capitalize' => fn($v) => ucfirst((string) $v),
+            'ucfirst' => function($v) {
+                $value = (string) $v;
+                return $value === ''
+                    ? ''
+                    : mb_strtoupper(mb_substr($value, 0, 1, 'UTF-8'), 'UTF-8')
+                        . mb_substr($value, 1, null, 'UTF-8');
+            },
             'title' => fn($v) => ucwords(str_replace('_', ' ', (string) $v)),
             'trim' => fn($v) => trim((string) $v),
             'truncate' => fn($v, $a) => mb_strlen((string)$v) > (int)($a[0] ?? 100)
@@ -116,7 +128,14 @@ final class FilterRegistry
                 JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
                     | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT
             ),
-            'date' => fn($v, $a) => $v ? date($a[0] ?? 'Y-m-d', is_numeric($v) ? (int)$v : strtotime((string)$v)) : '',
+            'json_attr' => fn($v) => htmlspecialchars(
+                json_encode($v, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
+                ENT_QUOTES,
+                'UTF-8'
+            ),
+            'date' => fn($v, $a, $n) => $v ? date($n['format'] ?? ($a[0] ?? 'Y-m-d'), is_numeric($v) ? (int)$v : strtotime((string)$v)) : '',
+            'date_format' => fn($v, $a, $n) => $v ? date($n['format'] ?? ($a[0] ?? 'Y-m-d'), is_numeric($v) ? (int)$v : strtotime((string)$v)) : '',
+            'time_format' => fn($v, $a, $n) => $v ? date($n['format'] ?? ($a[0] ?? 'g:i A'), is_numeric($v) ? (int)$v : strtotime((string)$v)) : '',
             'default' => fn($v, $a) => ($v !== null && $v !== '') ? $v : ($a[0] ?? ''),
             'count' => fn($v) => is_countable($v) ? count($v) : 0,
             'join' => fn($v, $a) => is_array($v) ? implode($a[0] ?? ', ', $v) : $v,
@@ -137,11 +156,36 @@ final class FilterRegistry
                 ? array_slice($v, (int)($a[0] ?? 0), isset($a[1]) ? (int)$a[1] : null)
                 : mb_substr((string)$v, (int)($a[0] ?? 0), isset($a[1]) ? (int)$a[1] : null),
             'split' => fn($v, $a) => explode($a[0] ?? ',', (string)$v),
-            'replace' => fn($v, $a) => str_replace($a[0] ?? '', $a[1] ?? '', (string)$v),
+            'substr' => function($v, $a) {
+                $args = $a;
+                if (!isset($args[1]) && isset($args[0]) && preg_match('/^(-?\d+):(-?\d+)$/', (string) $args[0], $m)) {
+                    $args = [$m[1], $m[2]];
+                }
+                return mb_substr(
+                    (string) $v,
+                    (int) ($args[0] ?? 0),
+                    isset($args[1]) ? (int) $args[1] : null,
+                    'UTF-8'
+                );
+            },
+            'strpos' => fn($v, $a) => strpos((string) $v, (string) ($a[0] ?? '')),
+            'replace' => function($v, $a) {
+                $args = $a;
+                if (!isset($args[1]) && isset($args[0])) {
+                    $packed = preg_split('/[\'\"]\s*:\s*[\'\"]/', (string) $args[0], 2);
+                    if (count($packed) === 2) {
+                        $args = $packed;
+                    }
+                }
+                return str_replace($args[0] ?? '', $args[1] ?? '', (string) $v);
+            },
+            // Compatibility for the legacy call-style spelling still present in the corpus.
+            "replace('_', ' ')" => fn($v) => str_replace('_', ' ', (string) $v),
             'strip_tags' => fn($v) => strip_tags((string)$v),
             'url_encode' => fn($v) => urlencode((string)$v),
             'base64' => fn($v) => base64_encode((string)$v),
             'md5' => fn($v) => md5((string)$v),
+            'pluralize' => fn($v, $a) => (int)$v === 1 ? ($a[0] ?? '') : ($a[1] ?? (($a[0] ?? '') . 's')),
         ];
     }
 }

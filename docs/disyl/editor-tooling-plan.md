@@ -99,6 +99,18 @@ for the `source.view` shorthand, only the segment before the first dot is valida
 The stable codes are `DISYL_UNKNOWN_FILTER`, `DISYL_UNKNOWN_COMPONENT`, and
 `DISYL_UNKNOWN_SOURCE`.
 
+### F. Reconcile filter runtime and tooling surfaces
+**Shipped:** the interpreted engine and v4 `FilterRegistry` now both register `ucfirst`, `substr`,
+`strpos`, `replace`, `date_format`, `time_format`, and `escape_js`. `ucfirst` and `substr` operate on
+UTF-8 characters rather than bytes; `strpos` preserves PHP's `false` miss result; `date_format` and
+`escape_js` are aliases of `date` and `esc_js`; and argument-less `time_format` defaults to `g:i A`.
+The pre-existing drift was reconciled without removing working filters: `json_attr` and `pluralize`
+were added to the registry used by describe/lint/completion, while the registry's `escape`
+meta-filter was added to the engine and delegates to the existing HTML, attribute, JavaScript, or
+URL escaping semantics selected by its first argument. Both surfaces also retain the corpus's legacy
+`replace('_', ' ')` call-style spelling as a compatibility alias, while new templates use
+`replace:'_':' '`.
+
 ## Non-goals (deliberately excluded)
 
 - **No LSP migration.** Revisit only if a second editor needs it, measured CLI latency blocks

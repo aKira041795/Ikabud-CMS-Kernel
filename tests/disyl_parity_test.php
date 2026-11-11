@@ -338,6 +338,30 @@ parity('lower filter', $engine, $cache,
 parity('capitalize filter', $engine, $cache,
     '{name|capitalize}', ['name' => 'hello world']);
 
+parity('ucfirst filter is multibyte safe', $engine, $cache,
+    '{name|ucfirst}', ['name' => 'émile']);
+
+parity('substr filter is multibyte safe', $engine, $cache,
+    '{name|substr:0:1}', ['name' => 'Émile']);
+
+parity('strpos filter finds offset zero', $engine, $cache,
+    "{if scope|strpos:'ecommerce' === 0}yes{else}no{/if}", ['scope' => 'ecommerce-admin']);
+
+parity('strpos filter keeps absent distinct from zero', $engine, $cache,
+    "{if scope|strpos:'ecommerce' === 0}yes{else}no{/if}", ['scope' => 'admin']);
+
+parity('date_format aliases date filter', $engine, $cache,
+    "{d|date_format:'Y-m-d'}", ['d' => '2026-11-11']);
+
+parity('time_format with argument aliases date filter', $engine, $cache,
+    "{d|time_format:'H:i'}", ['d' => '2026-11-11 13:05:00']);
+
+parity('time_format defaults to time output', $engine, $cache,
+    '{d|time_format}', ['d' => '2026-11-11 13:05:00']);
+
+parity('escape_js aliases esc_js filter', $engine, $cache,
+    '{value|escape_js}', ['value' => "a'b"]);
+
 parity('trim filter', $engine, $cache,
     '[{val|trim}]', ['val' => '  spaced  ']);
 
