@@ -89,6 +89,12 @@ hardcoded lists. `validator.ts` remains the instant syntax-only fallback.
 
 Source/view completion is supplied by slice C above.
 
+**Shipped (hover coverage):** governed component hover coverage now comes from the same
+`disyl:describe --json` component list loaded at activation. The extension's existing documentation
+map enriches known components with category, description, and attributes; contract components without
+an enrichment entry receive an explicit governed-but-undocumented fallback rather than disappearing
+from hover.
+
 ### E. Semantic reference validation
 **Shipped:** `php ikabud disyl:lint` now reports warning-only diagnostics for unknown filters,
 governed components, and entity sources. Filter references come from `FilterNode` instances in the

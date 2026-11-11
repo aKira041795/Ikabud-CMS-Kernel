@@ -42,6 +42,7 @@ const fs = __importStar(require("fs"));
 const validator_1 = require("./validator");
 const symbols_1 = require("./symbols");
 const disylCli_1 = require("./disylCli");
+const componentDocs_1 = require("./componentDocs");
 const DIAGNOSTIC_COLLECTION = 'disyl';
 let disylFilters = [];
 let governedComponents = [];
@@ -266,9 +267,9 @@ async function activate(context) {
                     return new vscode.Hover(new vscode.MarkdownString(`**${word}** — Registered DiSyL Filter`));
                 }
             }
-            // Hover on governed components
+            // The describe contract controls coverage; the local catalogue only enriches it.
             if (governedComponents.includes(word)) {
-                return new vscode.Hover(new vscode.MarkdownString(`**${word}** — Governed DiSyL Component\n\nSee [ComponentRegistry docs](https://github.com/aKira041795/Ikabud-CMS-Kernel/blob/master/docs/kernel/disyl-component-system.md) for attribute schemas.`));
+                return new vscode.Hover(new vscode.MarkdownString((0, componentDocs_1.hoverForComponent)(word, GOVERNED_COMPONENT_DOCS)));
             }
             // Hover on block keywords (v4.8)
             if (BLOCK_KEYWORD_DOCS[word]) {
@@ -318,20 +319,6 @@ async function activate(context) {
                 md.appendMarkdown(BLOCK_KEYWORD_DOCS[keyword]);
                 if (keyword === 'if') {
                     md.appendMarkdown('\n\nSupported operators: `==`, `!=`, `>`, `<`, `>=`, `<=`, `&&`, `||`, `!`');
-                }
-                return new vscode.Hover(md, range);
-            }
-            // Component docs
-            const compInfo = GOVERNED_COMPONENT_DOCS[keyword];
-            if (compInfo) {
-                const md = new vscode.MarkdownString();
-                md.appendMarkdown(`**${keyword}** — ${compInfo.category}\n\n`);
-                md.appendMarkdown(compInfo.description);
-                if (compInfo.attributes.length > 0) {
-                    md.appendMarkdown('\n\n**Attributes:**\n');
-                    for (const attr of compInfo.attributes) {
-                        md.appendMarkdown(`\n- \`${attr}\``);
-                    }
                 }
                 return new vscode.Hover(md, range);
             }
@@ -582,5 +569,9 @@ const GOVERNED_COMPONENT_DOCS = {
     'ikb_signature_block': { category: 'Report', description: 'Signature lines by role for reports.', attributes: ['roles', 'label'] },
     'ikb_ai_summary': { category: 'AI', description: 'Governed AI summarization block with review badge.', attributes: ['source', 'model', 'max_tokens', 'review_badge'] },
     'ikb_ai_assist': { category: 'AI', description: 'Governed AI drafting block (draft_only/suggest/auto_publish modes).', attributes: ['mode', 'model', 'prompt', 'redaction'] },
+    'ikb_component': { category: 'Integration', description: 'Bridges a named client component to a rendering framework (alpine by default, htmx or custom). The data variable is resolved from context, including dot-paths, and serialised as JSON for the bridge.', attributes: ['name', 'data', 'bridge', 'class'] },
+    'ikb_entity_view': { category: 'Data', description: 'Registers an entity view contract declaratively — {field} and {action} children replace a PHP array. Config-only: renders no output. Views: table, compact, card_grid, detailed, summary, default, admin_row.', attributes: ['name', 'view', 'renderer', 'class', 'timeout_ms'] },
+    'ikb_region': { category: 'Structural', description: 'Governed theme region (header, footer, sidebar). Children render as fallback when the region has no HTML. Sidebar accepts position, width and gap overrides.', attributes: ['name', 'position', 'width', 'gap'] },
+    'ikb_slot': { category: 'Structural', description: 'Governed theme slot resolved from the SlotRegistry by entity type, view, route, role and capabilities. Children render as fallback when no contribution matches.', attributes: ['name'] },
 };
 //# sourceMappingURL=extension.js.map

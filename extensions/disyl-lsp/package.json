@@ -2,7 +2,7 @@
   "name": "disyl-lsp",
   "displayName": "DiSyL Language Support",
   "description": "Syntax highlighting, diagnostics, and autocomplete for DiSyL template files",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "publisher": "ikabud",
   "license": "MIT",
   "engines": {
