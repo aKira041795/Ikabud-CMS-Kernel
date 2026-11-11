@@ -51,9 +51,12 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.BLOCK_PAIRS = void 0;
 exports.validateDisylDocument = validateDisylDocument;
 const vscode = __importStar(require("vscode"));
-const BLOCK_PAIRS = [
+// Exported so structure.ts can share this list instead of keeping a second copy
+// that would drift out of sync with the validator.
+exports.BLOCK_PAIRS = [
     { open: '{if ', close: '{/if}', name: 'if' },
     { open: '{elseif ', close: null, name: 'elseif' }, // matches with if
     { open: '{else}', close: null, name: 'else' }, // matches with if
@@ -111,8 +114,8 @@ function validateDisylDocument(document) {
 function checkBlockBalance(text, lines, diagnostics) {
     const stack = [];
     // Build a combined regex that matches any block opener or closer
-    const allOpens = BLOCK_PAIRS.filter(p => p.close !== null).map(p => p.open);
-    const allCloses = BLOCK_PAIRS.filter(p => p.close !== null).map(p => p.close.replace('/', '\\/'));
+    const allOpens = exports.BLOCK_PAIRS.filter(p => p.close !== null).map(p => p.open);
+    const allCloses = exports.BLOCK_PAIRS.filter(p => p.close !== null).map(p => p.close.replace('/', '\\/'));
     const openRe = new RegExp(allOpens.join('|'), 'g');
     const closeRe = new RegExp(allCloses.join('|'), 'g');
     // Find all openers
@@ -122,14 +125,14 @@ function checkBlockBalance(text, lines, diagnostics) {
         let match;
         openRe.lastIndex = 0;
         while ((match = openRe.exec(line)) !== null) {
-            const found = BLOCK_PAIRS.find(p => p.close !== null && match[0].startsWith(p.open));
+            const found = exports.BLOCK_PAIRS.find(p => p.close !== null && match[0].startsWith(p.open));
             if (found) {
                 openMatches.push({ pair: found, line: i, col: match.index });
             }
         }
         closeRe.lastIndex = 0;
         while ((match = closeRe.exec(line)) !== null) {
-            const found = BLOCK_PAIRS.find(p => p.close !== null && match[0] === p.close);
+            const found = exports.BLOCK_PAIRS.find(p => p.close !== null && match[0] === p.close);
             if (!found)
                 continue;
             // Find matching opener

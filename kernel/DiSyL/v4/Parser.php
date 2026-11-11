@@ -557,8 +557,11 @@ final class Parser
             return true;
         }
 
-        // Bracket notation: {array[key]} or {array[key] | filter}
-        if ($baseExpr !== '' && str_contains($baseExpr, '[') && str_ends_with($baseExpr, ']')) {
+        // Bracket notation: {array[key]} or {array[key] | filter}, including a
+        // continuation after the bracket ({rows[0].total}). The previous form
+        // required the expression to end with `]`, so a continuation was rejected
+        // as non-processable and rendered as literal text.
+        if ($baseExpr !== '' && preg_match('/^[a-zA-Z_]\w*(?:(?:(?:\.|\?->)[a-zA-Z_]\w*)|(?:\[[^\]]+\]))+$/', $baseExpr)) {
             return true;
         }
 
@@ -567,7 +570,7 @@ final class Parser
             return true;
         }
 
-        return preg_match('/^[a-zA-Z_][\w.]*$/', $baseExpr) === 1;
+        return preg_match('/^[a-zA-Z_]\w*(?:(?:\.|\?->)[a-zA-Z_]\w*)*$/', $baseExpr) === 1;
     }
 
     private function containsArithmeticOperator(string $expr): bool
@@ -1528,6 +1531,42 @@ final class Parser
     }
 
     /**
+     * Lower unquoted nullsafe access to ordinary dot access.
+     */
+    private function normalizeNullsafeAccess(string $expr): string
+    {
+        $result = '';
+        $quote = null;
+        $length = strlen($expr);
+
+        for ($i = 0; $i < $length; $i++) {
+            $ch = $expr[$i];
+            if ($quote !== null) {
+                $result .= $ch;
+                if ($ch === '\\' && $i + 1 < $length) {
+                    $result .= $expr[++$i];
+                } elseif ($ch === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+            if ($ch === "'" || $ch === '"') {
+                $quote = $ch;
+                $result .= $ch;
+                continue;
+            }
+            if ($ch === '?' && substr($expr, $i, 3) === '?->') {
+                $result .= '.';
+                $i += 2;
+                continue;
+            }
+            $result .= $ch;
+        }
+
+        return $result;
+    }
+
+    /**
      * Desugar {cond ? trueExpr : falseExpr} into an if/else ControlNode.
      */
     private function buildTernary(string $content, int $qPos, int $colonPos): ControlNode
@@ -1566,6 +1605,11 @@ final class Parser
         if ($expr === '') {
             return new LiteralNode([], null);
         }
+
+        // Nullsafe access has the same null-tolerant semantics as dot access.
+        // Lower it once at expression-parser entry, before postfix, comparison,
+        // or arithmetic analysis. Quoted text is preserved by the normalizer.
+        $expr = $this->normalizeNullsafeAccess($expr);
 
         // Postfix ++ / -- : resolve before binary-op splitting so `i++` is not
         // mis-parsed as `i + '+'` (critical for C-style {for} increments used
@@ -1826,6 +1870,17 @@ final class Parser
             }
         }
 
+        // Continuation after bracket access: rows[0].total, items[0].name.
+        // The bracket branches below are anchored with `$`, so they match only
+        // expressions that END with `]`; anything following the bracket used to
+        // fall through to LiteralNode and be rendered as text.
+        if (preg_match('/^[a-zA-Z_]\w*(?:\[[^\]]+\])+\..+$/', $expr)) {
+            $chained = $this->buildAccessChain($expr);
+            if ($chained !== null) {
+                return $chained;
+            }
+        }
+
         // Bracket notation for computed property access: expr[key]
         // Must come before bare identifier check so "items[key]" is not treated as literal.
         if (preg_match('/^(.+)\[([^\]]+)\]$/', $expr, $bm)) {
@@ -1859,6 +1914,55 @@ final class Parser
 
         // Last resort: treat as string literal
         return new LiteralNode([], $expr);
+    }
+
+    /**
+     * Build an access chain from `base` followed by any mix of `.name` and `[key]`.
+     * Returns null when the expression is not a pure access chain, so callers can
+     * fall through to the other expression branches.
+     */
+    private function buildAccessChain(string $expr): ?AbstractNode
+    {
+        if (!preg_match('/^([a-zA-Z_]\w*)/', $expr, $m)) {
+            return null;
+        }
+
+        $node = new IdentifierNode([], $m[1]);
+        $i = strlen($m[1]);
+        $length = strlen($expr);
+
+        while ($i < $length) {
+            if ($expr[$i] === '.') {
+                $i++;
+                if (!preg_match('/^([a-zA-Z_]\w*)/', substr($expr, $i), $pm)) {
+                    return null;
+                }
+                $node = new PropertyAccessNode([], $node, $pm[1], false);
+                $i += strlen($pm[1]);
+                continue;
+            }
+
+            if ($expr[$i] === '[') {
+                $close = $this->findMatchingBracket($expr, $i);
+                if ($close === false) {
+                    return null;
+                }
+                $inner = trim(substr($expr, $i + 1, $close - $i - 1));
+                if ($inner === '') {
+                    return null;
+                }
+                // Always an AST node: compilePropertyAccess() passes the key to
+                // compileExpressionValue(), which rejects a raw scalar.
+                $keyNode = $this->parseExprValue($inner);
+                $node = new PropertyAccessNode([], $node, $keyNode, true);
+                $i = $close + 1;
+                continue;
+            }
+
+            return null;
+        }
+
+        return $node;
     }
 
     /**
@@ -2293,6 +2397,11 @@ final class Parser
                     $parenDepth--;
                 }
                 if ($ch === $char && $parenDepth === 0) {
+                    // The question mark in nullsafe access is not ternary.
+                    if ($char === '?' && substr($str, $i, 3) === '?->') {
+                        $i += 2;
+                        continue;
+                    }
                     return $i;
                 }
             }

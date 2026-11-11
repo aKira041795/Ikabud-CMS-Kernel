@@ -258,6 +258,73 @@ parity('missing nested key', $engine, $cache,
     '[{user.email}]', ['user' => ['name' => 'Alice']]);
 
 // ─────────────────────────────────────────────────────────
+// 2b. Bracket access
+// ─────────────────────────────────────────────────────────
+section('2b. Bracket access');
+
+parity('numeric index', $engine, $cache,
+    '{arr[0]}', ['arr' => ['X', 'Y']]);
+
+parity('quoted key', $engine, $cache,
+    '{user[\'name\']}', ['user' => ['name' => 'Alice']]);
+
+// Bracket access followed by a dot path. This regressed in BOTH directions
+// before it was covered: interpreted rejected it at the processability gate,
+// compiled anchored its bracket regex on `]` and rendered the tag as text.
+parity('bracket then dot path', $engine, $cache,
+    '{rows[0].total}', ['rows' => [['total' => 7]]]);
+
+parity('computed index from a variable', $engine, $cache,
+    '{items[i]}', ['items' => ['a', 'b'], 'i' => 1]);
+
+parity('bracket access through a filter', $engine, $cache,
+    '{items[0]|upper}', ['items' => ['a']]);
+
+parity('missing index falls back to default', $engine, $cache,
+    '{arr[9]|default:\'-\'}', ['arr' => ['X']]);
+
+// ─────────────────────────────────────────────────────────
+// 2c. Nullsafe access
+// ─────────────────────────────────────────────────────────
+section('2c. Nullsafe access');
+
+parity('simple nullsafe access', $engine, $cache,
+    '[{user?->name}]', ['user' => null]);
+
+parity('chained nullsafe access', $engine, $cache,
+    '[{user?->profile?->name}]', ['user' => ['profile' => null]]);
+
+parity('nullsafe access on present value', $engine, $cache,
+    '{user?->name}', ['user' => ['name' => 'Alice']]);
+
+parity('nullsafe access through a filter', $engine, $cache,
+    '{user?->name|upper}', ['user' => ['name' => 'alice']]);
+
+parity('nullsafe access on missing path', $engine, $cache,
+    '[{missing?->profile?->name}]', []);
+
+// Condition position is a separate expression path from output tags. Keep
+// nullsafe access paired with dot controls because both spellings intentionally
+// have identical null-tolerant traversal semantics.
+parity('nullsafe condition with present parent', $engine, $cache,
+    '{if user?->role}yes{else}no{/if}', ['user' => ['role' => 'admin']]);
+
+parity('nullsafe condition with null parent', $engine, $cache,
+    '{if user?->role}yes{else}no{/if}', ['user' => null]);
+
+parity('nullsafe condition with missing intermediate key', $engine, $cache,
+    '{if user?->profile?->role}yes{else}no{/if}', ['user' => []]);
+
+parity('dot condition with present parent', $engine, $cache,
+    '{if user.role}yes{else}no{/if}', ['user' => ['role' => 'admin']]);
+
+parity('dot condition with null parent', $engine, $cache,
+    '{if user.role}yes{else}no{/if}', ['user' => null]);
+
+parity('dot condition with missing intermediate key', $engine, $cache,
+    '{if user.profile.role}yes{else}no{/if}', ['user' => []]);
+
+// ─────────────────────────────────────────────────────────
 // 3. Filters
 // ─────────────────────────────────────────────────────────
 section('3. Filters');

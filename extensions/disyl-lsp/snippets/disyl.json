@@ -1,0 +1,168 @@
+{
+    "DiSyL if": {
+        "prefix": [
+            "iff"
+        ],
+        "body": [
+            "{if ${1:condition}}",
+            "\t$0",
+            "{/if}"
+        ],
+        "description": "Conditional block closed with {/if}"
+    },
+    "DiSyL if / else": {
+        "prefix": [
+            "ife"
+        ],
+        "body": [
+            "{if ${1:condition}}",
+            "\t$2",
+            "{else}",
+            "\t$0",
+            "{/if}"
+        ],
+        "description": "Conditional with an else branch"
+    },
+    "DiSyL if / elseif / else": {
+        "prefix": [
+            "ifei"
+        ],
+        "body": [
+            "{if ${1:condition}}",
+            "\t$2",
+            "{elseif ${3:condition}}",
+            "\t$4",
+            "{else}",
+            "\t$0",
+            "{/if}"
+        ],
+        "description": "Conditional with elseif and else branches"
+    },
+    "DiSyL foreach": {
+        "prefix": [
+            "forel",
+            "foreach"
+        ],
+        "body": [
+            "{foreach ${1:items} as ${2:item}}",
+            "\t$0",
+            "{/foreach}"
+        ],
+        "description": "Loop over a collection"
+    },
+    "DiSyL foreach with empty state": {
+        "prefix": [
+            "forelempty"
+        ],
+        "body": [
+            "{foreach ${1:items} as ${2:item}}",
+            "\t$3",
+            "{empty}",
+            "\t${4:No items.}",
+            "{/foreach}"
+        ],
+        "description": "Loop that renders an empty state when the collection is empty"
+    },
+    "DiSyL for in": {
+        "prefix": [
+            "forin"
+        ],
+        "body": [
+            "{for ${1:item} in ${2:items}}",
+            "\t$0",
+            "{/for}"
+        ],
+        "description": "Iterate a list with {/for}"
+    },
+    "DiSyL for range": {
+        "prefix": [
+            "forrange"
+        ],
+        "body": [
+            "{for ${1:i} in range(${2:1}, ${3:10})}",
+            "\t$0",
+            "{/for}"
+        ],
+        "description": "Numeric range loop"
+    },
+    "DiSyL block": {
+        "prefix": [
+            "blockd"
+        ],
+        "body": [
+            "{block ${1:name}}",
+            "\t$0",
+            "{/block}"
+        ],
+        "description": "Named block overridden by a child template"
+    },
+    "DiSyL extends": {
+        "prefix": [
+            "extends"
+        ],
+        "body": [
+            "{extends \"${1:layouts/default.disyl}\"}"
+        ],
+        "description": "Inherit a layout"
+    },
+    "DiSyL include": {
+        "prefix": [
+            "include"
+        ],
+        "body": [
+            "{include \"${1:partials/name.disyl}\"}"
+        ],
+        "description": "Inline another template"
+    },
+    "DiSyL set": {
+        "prefix": [
+            "setv"
+        ],
+        "body": [
+            "{set ${1:name} = ${2:value}}"
+        ],
+        "description": "Assign a computed variable"
+    },
+    "DiSyL comment": {
+        "prefix": [
+            "disc"
+        ],
+        "body": [
+            "{!-- ${1:comment} --}"
+        ],
+        "description": "DiSyL comment, stripped at render time"
+    },
+    "DiSyL entity list": {
+        "prefix": [
+            "elist",
+            "ikb_entity_list"
+        ],
+        "body": [
+            "{ikb_entity_list source=\"${1:source}\" view=\"${2:table}\" limit=\"${3:20}\" empty=\"${4:No records.}\" /}"
+        ],
+        "description": "Render an entity list from a registered source and view"
+    },
+    "DiSyL section": {
+        "prefix": [
+            "isection",
+            "ikb_section"
+        ],
+        "body": [
+            "{ikb_section padding=\"${1:md}\"}",
+            "\t$0",
+            "{/ikb_section}"
+        ],
+        "description": "Governed section wrapper"
+    },
+    "DiSyL cache": {
+        "prefix": [
+            "cacheb"
+        ],
+        "body": [
+            "{cache key=\"${1:key}\"}",
+            "\t$0",
+            "{/cache}"
+        ],
+        "description": "Cache a rendered region"
+    }
+}

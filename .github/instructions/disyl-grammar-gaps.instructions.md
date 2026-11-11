@@ -9,6 +9,28 @@ applyTo: "**/*.php **/*.disyl"
 
 **If DiSyL has undefined filters, silent pass-through, or any observed weakness (missing aliases, broken edge cases, poor error messages) — fix DiSyL at the engine level, not the template.** Every template workaround that could have been a DiSyL engine fix is technical debt. When in doubt, fix the engine.
 
+### Restrictions are not a solution (owner policy, 2026-11-11)
+
+**If a policy restricts DiSyL, improve DiSyL rather than keep the restriction.**
+
+This forbids one specific anti-pattern: turning an unimplemented capability into a permanent
+editor or lint rule. A rule such as "DiSyL forbids `?->`" makes the restriction TRUE the moment
+it is written — the grammar then looks complete and the gap is never closed. Order of preference
+is always: (1) implement the construct in `kernel/DiSyL/` with parser + interpreted + compiled
+parity, then (2) only if it is genuinely unsupportable, document why.
+
+Corollaries:
+
+- Entries in `config/disyl-feature-inventory.json` carrying `lsp: false` are **engine work items by
+  default, not lint work items.** Do not build editor diagnostics that reject a construct DiSyL
+  should gain. Example: adding a lint error for nullsafe `?->` would entrench a missing feature.
+- The exception is constructs the engine **already supports** where only tooling is missing —
+  `{break}`, `{continue}`, `{!-- --}`. Those are correctly editor work, because the restriction is
+  in the tooling, not the language.
+- The one boundary that stays is **arbitrary raw PHP execution** inside templates. "Improving
+  DiSyL" there means providing governed escape hatches (`{trusted}`, `{sandbox}`, registered
+  helper functions), **not** removing the boundary. Removing it makes DiSyL PHP with none of PHP's
+  tooling, and forfeits the validation that makes the language worth using.
 ## PHP syntax supported by DiSyL
 
 | Construct | Syntax | Example |

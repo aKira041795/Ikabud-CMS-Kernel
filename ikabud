@@ -22,6 +22,7 @@
  *   php ikabud event:list                List registered event listeners
  *   php ikabud routes                    List all registered routes
  *   php ikabud disyl:lint [path]         Lint templates for errors
+ *   php ikabud disyl:describe [--json]   Describe DiSyL capabilities
  *   php ikabud disyl:list-sources        List registered entity sources for entity views
  *   php ikabud entity:list               List operational EntityViewResolver contracts
  *   php ikabud entity:context <source>   Show resolved context for a source
@@ -1056,8 +1057,10 @@ switch ($command) {
         out('    ' . green('platform:describe') . '           Full platform manifest (JSON)');
         out('');
         out('  ' . bold('Templates'));
-        out('    ' . green('disyl:lint') . ' [path]           Lint templates for syntax errors');
+        out('    ' . green('disyl:lint') . ' [path] [--json]  Lint templates for syntax errors');
         out('    ' . green('disyl:lint') . ' --verbose        Show passing files too');
+        out('    ' . dim('  └─ ') . '--json             JSON diagnostics use 0-based lines; character is 0 (line-only analyzer)');
+        out('    ' . green('disyl:describe') . ' [--json]     Describe filters, governed components, and constructs');
         out('    ' . green('disyl:list-sources') . '         List registered entity sources for entity views');
         out('    ' . green('disyl:inspect') . ' <file>       Inspect template variables, components, sources');
         out('    ' . green('cache:clear') . '                 Clear all runtime caches (DiSyL compiled, file cache, APCu)');
@@ -7402,8 +7405,76 @@ PHP;
         out('');
         break;
 
+    // ── disyl:describe ───────────────────────────────────────────
+    case 'disyl:describe':
+        $jsonMode = hasFlag('--json');
+        if ($jsonMode) {
+            // Match disyl:lint JSON mode: absorb banner/output noise so stdout
+            // remains a single machine-readable document.
+            ob_start();
+        }
+
+        banner();
+
+        try {
+            $filterRegistry = new \Ikabud\Kernel\DiSyL\v4\FilterRegistry();
+            $filters = $filterRegistry->names();
+
+            $components = \Ikabud\Kernel\DiSyL\Component\ComponentRenderer::BUILT_IN_GOVERNED_COMPONENTS;
+
+            $inventoryPath = BASE_PATH . '/config/disyl-feature-inventory.json';
+            $constructs = json_decode(
+                (string)file_get_contents($inventoryPath),
+                true,
+                512,
+                JSON_THROW_ON_ERROR
+            );
+            if (!is_array($constructs) || !array_is_list($constructs)) {
+                throw new \RuntimeException('DiSyL feature inventory must be a JSON list');
+            }
+        } catch (\Throwable $e) {
+            if ($jsonMode) {
+                ob_end_clean();
+                fwrite(STDERR, "Unable to describe DiSyL capabilities: {$e->getMessage()}\n");
+            } else {
+                out('  ' . red('✗ Unable to describe DiSyL capabilities: ') . $e->getMessage());
+                out('');
+            }
+            exit(1);
+        }
+
+        $description = [
+            'schemaVersion' => 1,
+            'tool' => 'disyl:describe',
+            'filters' => $filters,
+            'components' => $components,
+            'constructs' => $constructs,
+        ];
+
+        if ($jsonMode) {
+            ob_end_clean();
+            echo json_encode(
+                $description,
+                JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
+            ) . "\n";
+        } else {
+            out('  ' . bold('DiSyL Capabilities'));
+            out('');
+            out('  ' . bold('Filters') . ' (' . count($filters) . '): ' . implode(', ', $filters));
+            out('');
+            out('  ' . bold('Governed components') . ' (' . count($components) . '): ' . implode(', ', $components));
+            out('');
+            out('  ' . bold('Constructs') . ' (' . count($constructs) . '): ' . implode(', ', array_column($constructs, 'id')));
+            out('');
+        }
+        break;
+
     // ── disyl:lint ───────────────────────────────────────────────
     case 'disyl:lint':
+        $jsonMode = hasFlag('--json');
+        if ($jsonMode) {
+            ob_start();
+        }
         banner();
         $clean = paramsWithoutFlags($params);
         $targetPath = $clean[0] ?? '';
@@ -7415,7 +7486,12 @@ PHP;
         if ($targetPath !== '') {
             $fullPath = realpath(BASE_PATH . '/' . $targetPath) ?: realpath($targetPath);
             if (!$fullPath) {
-                out(red("  ✗ Path not found: {$targetPath}"));
+                if ($jsonMode) {
+                    ob_end_clean();
+                    fwrite(STDERR, "Path not found: {$targetPath}\n");
+                } else {
+                    out(red("  ✗ Path not found: {$targetPath}"));
+                }
                 exit(1);
             }
             if (is_file($fullPath) && str_ends_with($fullPath, '.disyl')) {
@@ -7430,7 +7506,12 @@ PHP;
                     }
                 }
             } else {
-                out(red("  ✗ Not a .disyl file or directory: {$targetPath}"));
+                if ($jsonMode) {
+                    ob_end_clean();
+                    fwrite(STDERR, "Not a .disyl file or directory: {$targetPath}\n");
+                } else {
+                    out(red("  ✗ Not a .disyl file or directory: {$targetPath}"));
+                }
                 exit(1);
             }
         } else {
@@ -7608,6 +7689,7 @@ PHP;
         $totalErrors = 0;
         $totalWarnings = 0;
         $filesWithIssues = 0;
+        $jsonDiagnostics = [];
 
         // Tag pairs that must be balanced
         $tagPairs = [
@@ -7646,12 +7728,14 @@ PHP;
                     $lastOpen = end($openMatches[0]);
                     $lineNum = $lastOpen ? substr_count($content, "\n", 0, $lastOpen[1]) + 1 : 0;
                     $issues[] = ['type' => 'error', 'line' => $lineNum,
+                        'code' => 'DISYL_UNCLOSED_BLOCK',
                         'msg' => "{$diff} unclosed {" . $open . "} tag(s) — missing {" . $close . "}"];
                 } elseif ($closeCount > $openCount) {
                     $diff = $closeCount - $openCount;
                     $lastClose = end($closeMatches[0]);
                     $lineNum = $lastClose ? substr_count($content, "\n", 0, $lastClose[1]) + 1 : 0;
                     $issues[] = ['type' => 'error', 'line' => $lineNum,
+                        'code' => 'DISYL_EXTRA_CLOSE_TAG',
                         'msg' => "{$diff} extra {" . $close . "} tag(s) without matching {" . $open . "}"];
                 }
             }
@@ -7675,6 +7759,7 @@ PHP;
                         $lineNum = substr_count($content, "\n", 0, $pos) + 1;
                         $tag = trim($em[0], '{}');
                         $issues[] = ['type' => 'error', 'line' => $lineNum,
+                            'code' => 'DISYL_ELSEIF_OUTSIDE_IF',
                             'msg' => "{{$tag}} appears outside any {if} block"];
                     }
                 }
@@ -7694,6 +7779,7 @@ PHP;
 
                     if ($opens > $closes) {
                         $issues[] = ['type' => 'warning', 'line' => 0,
+                            'code' => 'DISYL_UNCLOSED_COMPONENT',
                             'msg' => ($opens - $closes) . " unclosed {{$comp}} component(s) — missing {/{$comp}}"];
                     }
                 }
@@ -7716,6 +7802,7 @@ PHP;
                     }
                     if (!$found) {
                         $issues[] = ['type' => 'warning', 'line' => 0,
+                            'code' => 'DISYL_INCLUDE_NOT_FOUND',
                             'msg' => "Include not found: \"{$incRef}\" — file may be missing or in a module template dir"];
                     }
                 }
@@ -7728,6 +7815,7 @@ PHP;
                 if (!str_ends_with($layoutPath, '.disyl')) $layoutPath .= '.disyl';
                 if (!file_exists($layoutPath)) {
                     $issues[] = ['type' => 'warning', 'line' => 1,
+                        'code' => 'DISYL_LAYOUT_NOT_FOUND',
                         'msg' => "Layout not found: \"{$layoutRef}\""];
                 }
             }
@@ -7739,6 +7827,7 @@ PHP;
                     foreach ($emptyMatches[0] as $em) {
                         $lineNum = substr_count($content, "\n", 0, $em[1]) + 1;
                         $issues[] = ['type' => 'warning', 'line' => $lineNum,
+                            'code' => 'DISYL_EMPTY_CONTROL_BODY',
                             'msg' => "Empty {{$tag}} body — control structure has no content"];
                     }
                 }
@@ -7753,6 +7842,7 @@ PHP;
                 if (count($cMatches[0]) > 0 && count($oMatches[0]) === 0) {
                     $lineNum = substr_count($content, "\n", 0, $cMatches[0][0][1]) + 1;
                     $issues[] = ['type' => 'warning', 'line' => $lineNum,
+                        'code' => 'DISYL_MISMATCHED_CLOSE_TAG',
                         'msg' => "{/{$closeTag}} found but no {{$closeTag}} — did you mean {/{$confusedWith}}?"];
                 }
             }
@@ -7823,6 +7913,7 @@ PHP;
                     $issues[] = [
                         'type' => 'warning',
                         'line' => 0,
+                        'code' => 'DISYL_UNDECLARED_VARIABLE_ROOT',
                         'msg'  => "Variable root \"{$root}\" is not declared in the matched render contract (not in required/defaults)",
                     ];
                 }
@@ -7840,6 +7931,7 @@ PHP;
                     $issues[] = [
                         'type' => 'error',
                         'line' => $lineNum,
+                        'code' => 'DISYL_NESTED_BLOCK',
                         'msg'  => "Nested {block} inside '{$blockMatch[1]}' — the DiSyL compiler does not support nested blocks",
                     ];
                 }
@@ -7855,6 +7947,18 @@ PHP;
                     $lineLabel = $issue['line'] > 0 ? dim("L{$issue['line']}") . ' ' : '';
                     $typeLabel = $issue['type'] === 'error' ? red('error') : yellow('warn');
                     out("    {$icon} {$lineLabel}{$typeLabel}: {$issue['msg']}");
+
+                    $jsonLine = max(0, $issue['line'] - 1);
+                    $jsonDiagnostics[] = [
+                        'file' => $relPath,
+                        'range' => [
+                            'start' => ['line' => $jsonLine, 'character' => 0],
+                            'end' => ['line' => $jsonLine, 'character' => 0],
+                        ],
+                        'severity' => $issue['type'],
+                        'code' => $issue['code'],
+                        'message' => $issue['msg'],
+                    ];
 
                     if ($issue['type'] === 'error') $totalErrors++;
                     else $totalWarnings++;
@@ -7929,7 +8033,18 @@ PHP;
                     if (!empty($missing)) {
                         $relView = str_replace(BASE_PATH . '/', '', $evInfo['file']);
                         $relHdlr = str_replace(BASE_PATH . '/', '', $handlerColMap[$capId]['file']);
-                        $xrefIssues[] = "  " . yellow('⚠') . " warn: entity view '{$evKey}' fields [" . implode(', ', $missing) . "] not in handler column map (view: {$relView}, handler: {$relHdlr})";
+                        $xrefMessage = "entity view '{$evKey}' fields [" . implode(', ', $missing) . "] not in handler column map (view: {$relView}, handler: {$relHdlr})";
+                        $xrefIssues[] = "  " . yellow('⚠') . " warn: {$xrefMessage}";
+                        $jsonDiagnostics[] = [
+                            'file' => $relView,
+                            'range' => [
+                                'start' => ['line' => 0, 'character' => 0],
+                                'end' => ['line' => 0, 'character' => 0],
+                            ],
+                            'severity' => 'warning',
+                            'code' => 'DISYL_ENTITY_VIEW_FIELD_MISSING',
+                            'message' => $xrefMessage,
+                        ];
                         $totalWarnings++;
                     }
                 }
@@ -7959,10 +8074,26 @@ PHP;
             out('  Files with issues: ' . bold((string)$filesWithIssues));
         }
         out('');
+
+        if ($jsonMode) {
+            ob_end_clean();
+            echo json_encode([
+                'schemaVersion' => 1,
+                'tool' => 'disyl:lint',
+                'status' => $totalErrors > 0 ? 'invalid' : 'ok',
+                'diagnostics' => $jsonDiagnostics,
+            ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";
+        }
         exit($totalErrors > 0 ? 1 : 0);
 
     // ── disyl:list-sources ─────────────────────────────────────────
     case 'disyl:list-sources':
+        $jsonMode = hasFlag('--json');
+        if ($jsonMode) {
+            // Match the other DiSyL JSON contracts: absorb bootstrap and
+            // human-output noise so stdout contains only the envelope.
+            ob_start();
+        }
         banner();
         out('  ' . bold('Registered Entity Sources') . "\n");
 
@@ -7987,6 +8118,7 @@ PHP;
 
         // Collect entity sources from capability registrations
         $sources = [];
+        $jsonDiscoveredSources = [];
         $modulesDir = BASE_PATH . '/modules';
         foreach (glob($modulesDir . '/*/module.json') as $manifestPath) {
             $modId = basename(dirname($manifestPath));
@@ -7995,6 +8127,18 @@ PHP;
 
             $exposes = $manifest['capabilities']['exposes'] ?? [];
             foreach ($exposes as $capId => $capVer) {
+                // Current manifests use list entries with an `id`; retain the
+                // legacy associative handling below for byte-compatible human
+                // output while making both shapes discoverable in JSON.
+                $exposedId = is_array($capVer)
+                    ? (string)($capVer['id'] ?? '')
+                    : (is_string($capId) ? $capId : '');
+                if (str_starts_with($exposedId, 'entity.list.')) {
+                    $entityType = substr($exposedId, strlen('entity.list.'));
+                    $entityType = (string)preg_replace('/@[^@]+$/', '', $entityType);
+                    if ($entityType !== '') $jsonDiscoveredSources[$entityType] = true;
+                }
+
                 if (str_starts_with((string)$capId, 'entity.list.')) {
                     $entityType = substr((string)$capId, strlen('entity.list.'));
                     $entityType = str_replace('@' . $capVer, '', $entityType);
@@ -8016,9 +8160,51 @@ PHP;
             }
         }
 
-        // Query EntityViewResolver for view contract details
+        // registeredViewContracts() returns a map keyed by the resolver's
+        // composite "<entity_type>.<view>" key. Use the explicit entity_type
+        // and view fields in each contract so dotted source names remain
+        // unambiguous.
+        $resolver = null;
+        $registeredContracts = [];
         if (class_exists('Ikabud\\Kernel\\EntityContext\\EntityViewResolver', true)) {
             $resolver = \Ikabud\Kernel\EntityContext\EntityViewResolver::getInstance();
+            $registeredContracts = $resolver->registeredViewContracts();
+        }
+
+        if ($jsonMode) {
+            $sourceViews = array_fill_keys(
+                array_values(array_unique(array_merge(array_keys($sources), array_keys($jsonDiscoveredSources)))),
+                []
+            );
+            foreach ($registeredContracts as $contract) {
+                if (!is_array($contract)) continue;
+                $entityType = $contract['entity_type'] ?? null;
+                $view = $contract['view'] ?? null;
+                if (!is_string($entityType) || $entityType === '' || !is_string($view) || $view === '') continue;
+                $sourceViews[$entityType] ??= [];
+                $sourceViews[$entityType][] = $view;
+            }
+            ksort($sourceViews);
+            $jsonSources = [];
+            foreach ($sourceViews as $name => $views) {
+                $views = array_values(array_unique($views));
+                sort($views);
+                $jsonSources[] = ['name' => $name, 'views' => $views];
+            }
+
+            ob_end_clean();
+            echo json_encode([
+                'schemaVersion' => 1,
+                'tool' => 'disyl:list-sources',
+                'sources' => $jsonSources,
+            ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . "\n";
+            exit(0);
+        }
+
+        // Keep the established human report byte-compatible. Its historical
+        // display probes these five resolved/fallback views; JSON above uses
+        // only operationally registered contracts.
+        if ($resolver !== null) {
             foreach ($sources as $type => &$info) {
                 foreach (['table', 'compact', 'card_grid', 'detailed', 'summary'] as $view) {
                     $contract = $resolver->viewContract($type, $view);

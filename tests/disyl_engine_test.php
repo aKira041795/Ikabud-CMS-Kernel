@@ -1339,9 +1339,21 @@ check(
 );
 
 check(
-    'variables in script are raw (no HTML-escape)',
-    '<script>const x = "Tom & Jerry";</script>',
-    $engine->renderString('<script>const x = "{title}";</script>', ['title' => 'Tom & Jerry'])
+    'variables use hardened script escaping by default, with raw as an explicit escape hatch',
+    implode("\n", [
+        '<script>const x = "Tom \\u0026 Jerry";</script>',
+        '<script>const x = "\\u005C\\u003C\\u003E\\u0026\\u0027\\u0022";</script>',
+        '<script>const x = "\\u003C/script\\u003E";</script>',
+        '<script>const x = "</script>";</script>',
+        '&lt;/script&gt;',
+    ]),
+    implode("\n", [
+        $engine->renderString('<script>const x = "{value}";</script>', ['value' => 'Tom & Jerry']),
+        $engine->renderString('<script>const x = "{value}";</script>', ['value' => '\\<>&\'"']),
+        $engine->renderString('<script>const x = "{value}";</script>', ['value' => '</script>']),
+        $engine->renderString('<script>const x = "{value | raw}";</script>', ['value' => '</script>']),
+        $engine->renderString('{value}', ['value' => '</script>']),
+    ])
 );
 
 check(
@@ -2832,7 +2844,7 @@ if ($current_section && ($section_pass + $section_fail > 0)) {
 echo "══════════════════════════════════════════════════════════\n";
 $total = $pass + $fail;
 if ($fail === 0) {
-    echo "  ✓ ALL {$pass} TESTS PASSED\n";
+    echo "  Result: {$pass} passed\n";
 } else {
     echo "  Result: {$pass} passed, {$fail} FAILED (out of {$total})\n";
 }

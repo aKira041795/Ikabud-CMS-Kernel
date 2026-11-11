@@ -76,6 +76,11 @@ class ExpressionEvaluator
             return $qm[1];
         }
 
+        // Nullsafe access is an explicit spelling of DiSyL's already
+        // null-tolerant dot walk. Lower it before any operator analysis; the
+        // quote-aware normalizer leaves literal text containing ?-> untouched.
+        $path = $this->normalizeNullsafeAccess($path);
+
         $prevExpr = $this->currentExpression;
         $this->currentExpression = $path;
 
@@ -246,22 +251,155 @@ class ExpressionEvaluator
             }
         }
 
-        $parts = explode('.', $path);
+        // Dot notation plus optional bracket access. Bracket access must resolve the
+        // same way the compiled path does (RenderContext::getProperty): null in,
+        // null out; arrays by key; objects by property then getter; anything else
+        // yields null. Interpreted previously ran explode('.') here, so `items[0]`
+        // was a single unresolvable segment and the tag rendered as literal text.
+        $steps = $this->splitAccessPath($path);
         $value = $context;
 
-        foreach ($parts as $part) {
-            if (is_array($value) && array_key_exists($part, $value)) {
-                $value = $value[$part];
-            } elseif (is_object($value) && isset($value->$part)) {
-                $value = $value->$part;
-            } else {
+        foreach ($steps as $step) {
+            $key = $step['value'];
+
+            if ($step['computed']) {
+                $raw = trim((string) $key);
+                if ($raw === '') {
+                    $this->currentExpression = $prevExpr;
+                    return null;
+                }
+                if (preg_match('/^["\'](.*)["\']$/s', $raw, $qm)) {
+                    $key = $qm[1];
+                } elseif (is_numeric($raw)) {
+                    $key = str_contains($raw, '.') ? (float) $raw : (int) $raw;
+                } else {
+                    // A nested variable path, e.g. items[index].
+                    $key = $this->resolveValue($raw, $context);
+                }
+            }
+
+            if ($value === null) {
                 $this->currentExpression = $prevExpr;
                 return null;
             }
+
+            if (is_array($value)) {
+                if (!is_int($key) && !is_string($key)) {
+                    // Non-scalar key cannot address an array; behaves as missing.
+                    $this->currentExpression = $prevExpr;
+                    return null;
+                }
+                if (!array_key_exists($key, $value)) {
+                    $this->currentExpression = $prevExpr;
+                    return null;
+                }
+                $value = $value[$key];
+                continue;
+            }
+
+            if (is_object($value)) {
+                $prop = (string) $key;
+                if (isset($value->$prop)) {
+                    $value = $value->$prop;
+                    continue;
+                }
+                $getter = 'get' . ucfirst($prop);
+                if (method_exists($value, $getter)) {
+                    $value = $value->$getter();
+                    continue;
+                }
+            }
+
+            $this->currentExpression = $prevExpr;
+            return null;
         }
 
         $this->currentExpression = $prevExpr;
         return $value;
+    }
+
+    /**
+     * Lower unquoted nullsafe access to ordinary dot access.
+     */
+    private function normalizeNullsafeAccess(string $expr): string
+    {
+        $result = '';
+        $quote = null;
+        $length = strlen($expr);
+
+        for ($i = 0; $i < $length; $i++) {
+            $ch = $expr[$i];
+            if ($quote !== null) {
+                $result .= $ch;
+                if ($ch === '\\' && $i + 1 < $length) {
+                    $result .= $expr[++$i];
+                } elseif ($ch === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+            if ($ch === "'" || $ch === '"') {
+                $quote = $ch;
+                $result .= $ch;
+                continue;
+            }
+            if ($ch === '?' && substr($expr, $i, 3) === '?->') {
+                $result .= '.';
+                $i += 2;
+                continue;
+            }
+            $result .= $ch;
+        }
+
+        return $result;
+    }
+
+    /**
+     * Split `a.b[0]['k'].c` into access steps.
+     *
+     * Each step is ['computed' => bool, 'value' => string]: dot segments are
+     * literal keys, bracket segments are resolved by the caller (numeric -> int,
+     * quoted -> string, other -> nested variable path).
+     *
+     * @return list<array{computed: bool, value: string}>
+     */
+    private function splitAccessPath(string $path): array
+    {
+        $steps = [];
+        $length = strlen($path);
+        $i = 0;
+
+        while ($i < $length) {
+            if ($path[$i] === '.' || ctype_space($path[$i])) {
+                $i++;
+                continue;
+            }
+
+            if ($path[$i] === '[') {
+                $close = $this->findMatchingBracket($path, '[', ']', $i);
+                if ($close === false) {
+                    return [];
+                }
+                $steps[] = [
+                    'computed' => true,
+                    'value' => substr($path, $i + 1, $close - $i - 1),
+                ];
+                $i = $close + 1;
+                continue;
+            }
+
+            $start = $i;
+            while ($i < $length && $path[$i] !== '.' && $path[$i] !== '[') {
+                $i++;
+            }
+            $segment = trim(substr($path, $start, $i - $start));
+            if ($segment === '') {
+                return [];
+            }
+            $steps[] = ['computed' => false, 'value' => $segment];
+        }
+
+        return $steps;
     }
 
     /**
@@ -272,9 +410,17 @@ class ExpressionEvaluator
      */
     public function isDefined(string $path, array $context): bool
     {
-        $parts = explode('.', $path);
         $value = $context;
-        foreach ($parts as $part) {
+
+        foreach ($this->splitAccessPath($path) as $step) {
+            // A computed index (`items[i]`) depends on runtime values. Refusing to
+            // prove absence is better than emitting a false undefined-variable
+            // warning in strict mode.
+            if ($step['computed']) {
+                return true;
+            }
+
+            $part = $step['value'];
             if (is_array($value) && array_key_exists($part, $value)) {
                 $value = $value[$part];
             } elseif (is_object($value) && property_exists($value, $part)) {
@@ -668,6 +814,11 @@ class ExpressionEvaluator
         $condition = trim($condition);
         if ($condition === '') { return false; }
 
+        // Lower nullsafe access before condition operators are parsed. Without
+        // this, the `>` in `?->` is mistaken for a comparison operator and an
+        // unresolved nullsafe path can become a truthy raw operand.
+        $condition = $this->normalizeNullsafeAccess($condition);
+
         if (preg_match('/^\((.+)\)$/', $condition, $pm)) {
             $inner = $pm[1];
             $depth = 0;
@@ -757,7 +908,7 @@ class ExpressionEvaluator
 
     public function evaluateTernary(string $expr, array $context): string
     {
-        $qPos = strpos($expr, '?');
+        $qPos = $this->findUnquotedChar($expr, '?');
         if ($qPos === false) { return ''; }
 
         $condition = trim(substr($expr, 0, $qPos));
@@ -1019,6 +1170,11 @@ class ExpressionEvaluator
                 continue;
             }
             if (!$inSingle && !$inDouble && $ch === $char) {
+                // The question mark in nullsafe access is not a ternary marker.
+                if ($char === '?' && substr($str, $i, 3) === '?->') {
+                    $i += 2;
+                    continue;
+                }
                 return $i;
             }
         }

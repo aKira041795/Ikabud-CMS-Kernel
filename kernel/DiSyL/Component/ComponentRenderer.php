@@ -91,6 +91,45 @@ final class ComponentRenderer
         };
     }
 
+    /** Built-in governed component names handled by renderComponent(). */
+    public const BUILT_IN_GOVERNED_COMPONENTS = [
+        'ikb_section',
+        'ikb_container',
+        'ikb_grid',
+        'ikb_card',
+        'ikb_text',
+        'ikb_button',
+        'ikb_badge',
+        'ikb_input',
+        'ikb_textarea',
+        'ikb_select',
+        'ikb_icon',
+        'ikb_image',
+        'ikb_link',
+        'ikb_table',
+        'ikb_modal',
+        'ikb_alert',
+        'ikb_spinner',
+        'ikb_component',
+        'ikb_entity_view',
+        'ikb_entity_list',
+        'ikb_entity_detail',
+        'ikb_export_button',
+        'ikb_form',
+        'ikb_stat_card',
+        'ikb_timeline',
+        'ikb_confirm_action',
+        'ikb_panel',
+        'ikb_drawer',
+        'ikb_audit_log',
+        'ikb_ai_summary',
+        'ikb_ai_assist',
+        'ikb_report',
+        'ikb_signature_block',
+        'ikb_region',
+        'ikb_slot',
+    ];
+
     /** @var array<string>|null Lazily-built list of known governed component names for typo suggestions */
     private static ?array $knownGovernedComponents = null;
 
@@ -103,44 +142,7 @@ final class ComponentRenderer
             return self::$knownGovernedComponents;
         }
 
-        // Built-in governed components from the renderComponent match block
-        $governed = [
-            'ikb_section',
-            'ikb_container',
-            'ikb_grid',
-            'ikb_card',
-            'ikb_text',
-            'ikb_button',
-            'ikb_badge',
-            'ikb_input',
-            'ikb_textarea',
-            'ikb_select',
-            'ikb_icon',
-            'ikb_image',
-            'ikb_link',
-            'ikb_table',
-            'ikb_modal',
-            'ikb_alert',
-            'ikb_spinner',
-            'ikb_component',
-            'ikb_entity_view',
-            'ikb_entity_list',
-            'ikb_entity_detail',
-            'ikb_export_button',
-            'ikb_form',
-            'ikb_stat_card',
-            'ikb_timeline',
-            'ikb_confirm_action',
-            'ikb_panel',
-            'ikb_drawer',
-            'ikb_audit_log',
-            'ikb_ai_summary',
-            'ikb_ai_assist',
-            'ikb_report',
-            'ikb_signature_block',
-            'ikb_region',
-            'ikb_slot',
-        ];
+        $governed = self::BUILT_IN_GOVERNED_COMPONENTS;
 
         // Add any custom registered components
         foreach (array_keys($this->engine->internalComponents()) as $custom) {

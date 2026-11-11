@@ -21,13 +21,15 @@ import * as vscode from 'vscode';
 
 // ── Block pair definitions ───────────────────────────────────────────────
 
-interface BlockPair {
+export interface BlockPair {
     open: string;      // Opening pattern (used as regex substring)
     close: string;     // Closing pattern
     name: string;      // Display name for errors
 }
 
-const BLOCK_PAIRS: BlockPair[] = [
+// Exported so structure.ts can share this list instead of keeping a second copy
+// that would drift out of sync with the validator.
+export const BLOCK_PAIRS: BlockPair[] = [
     { open: '{if ', close: '{/if}', name: 'if' },
     { open: '{elseif ', close: null as any, name: 'elseif' },  // matches with if
     { open: '{else}', close: null as any, name: 'else' },       // matches with if

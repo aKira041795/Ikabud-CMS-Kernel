@@ -4685,8 +4685,10 @@ class TemplateEngine
                     return json_encode($fields, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
                 }
 
-                // 1. Ternary: {condition ? trueVal : falseVal}
-                if (str_contains($expr, '?') && str_contains($expr, ':')) {
+                // 1. Ternary: {condition ? trueVal : falseVal}. Nullsafe ?->
+                // is access syntax, not a ternary question mark.
+                $ternaryQuestion = $this->findUnquotedChar($expr, '?');
+                if ($ternaryQuestion !== false && $this->findUnquotedChar($expr, ':', $ternaryQuestion + 1) !== false) {
                     return $this->evaluateTernary($expr, $context);
                 }
 
@@ -4734,7 +4736,9 @@ class TemplateEngine
                 // 2. Arithmetic/expression: contains operators or parentheses.
                 //    Supports bare {a + b}, parenthesized {(a + b) * c}, and
                 //    arithmetic with filters: {a + b | number_format:2}.
-                if (strpbrk($expr, '+-*/%()') !== false) {
+                //    The '-' in nullsafe access is not arithmetic.
+                $operatorProbe = str_replace('?->', '', $expr);
+                if (strpbrk($operatorProbe, '+-*/%()') !== false) {
                     $pipePos = strpos($expr, '|');
                     if ($pipePos === false) {
                         // No filters: evaluate and return directly
@@ -4906,8 +4910,9 @@ class TemplateEngine
             return true;
         }
 
-        // Arithmetic expression: accept with or without filters
-        if (strpbrk($expr, '+-*/%()') !== false) {
+        // Arithmetic expression: accept with or without filters. Nullsafe's
+        // `?->` token must not make an otherwise non-arithmetic tag processable.
+        if (strpbrk(str_replace('?->', '', $expr), '+-*/%()') !== false) {
             return true;
         }
 
@@ -4938,9 +4943,25 @@ class TemplateEngine
         return $this->isValidTemplateVariablePath($varPath);
     }
 
+    /**
+     * A variable path is dot/nullsafe notation plus optional bracket access, so
+     * `items[0]`, `user?->name` and `rows[0]?->total` are all processable.
+     *
+     * Bracket access used to be rejected here. That did not error: the tag was
+     * simply left as literal text in interpreted mode while compiled mode
+     * resolved it, so the same template rendered two different pages with no
+     * diagnostic anywhere.
+     */
     private function isValidTemplateVariablePath(string $varPath): bool
     {
-        return preg_match('/^[a-zA-Z_][\w.]*$/', $varPath) === 1;
+        if (preg_match('/^[a-zA-Z_][\w.]*$/', $varPath) === 1) {
+            return true;
+        }
+
+        return preg_match(
+            '/^[a-zA-Z_]\w*(?:(?:(?:\.|\?->)[a-zA-Z_]\w*)|(?:\[(?:-?\d+|\'[^\']*\'|"[^"]*"|[a-zA-Z_]\w*)\]))*$/',
+            $varPath
+        ) === 1;
     }
     
     /**

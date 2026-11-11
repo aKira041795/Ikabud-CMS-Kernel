@@ -40,11 +40,19 @@ const path = __importStar(require("path"));
 const cp = __importStar(require("child_process"));
 const fs = __importStar(require("fs"));
 const validator_1 = require("./validator");
+const symbols_1 = require("./symbols");
+const disylCli_1 = require("./disylCli");
 const DIAGNOSTIC_COLLECTION = 'disyl';
-function activate(context) {
+let disylFilters = [];
+let governedComponents = [];
+let entitySources = [];
+async function activate(context) {
     console.log('DiSyL language support activated');
     const diagCollection = vscode.languages.createDiagnosticCollection(DIAGNOSTIC_COLLECTION);
     context.subscriptions.push(diagCollection);
+    // Load completion catalogues once. A failed CLI lookup deliberately leaves
+    // them empty rather than falling back to a stale extension-side copy.
+    await Promise.all([loadCliDescription(), loadCliSources()]);
     // ── Lint on save ──
     const lintOnSave = vscode.workspace.getConfiguration('disyl').get('lintOnSave', true);
     if (lintOnSave) {
@@ -82,6 +90,8 @@ function activate(context) {
             lintDocument(editor.document, diagCollection);
         }
     });
+    // ── Outline + folding (shared structural scanner, no PHP) ──
+    context.subscriptions.push(vscode.languages.registerDocumentSymbolProvider('disyl', new symbols_1.DisylDocumentSymbolProvider()), vscode.languages.registerFoldingRangeProvider('disyl', new symbols_1.DisylFoldingRangeProvider()));
     // ── Commands ──
     context.subscriptions.push(vscode.commands.registerCommand('disyl.lint', () => {
         const editor = vscode.window.activeTextEditor;
@@ -159,12 +169,53 @@ function activate(context) {
         provideCompletionItems(document, position) {
             const line = document.lineAt(position).text;
             const lineBefore = line.substring(0, position.character);
-            // Filter autocomplete after |
-            if (lineBefore.endsWith('|') || lineBefore.match(/\|\s*$/)) {
-                return DISYL_FILTERS.map((f) => {
-                    const item = new vscode.CompletionItem(f.label, vscode.CompletionItemKind.Function);
-                    item.detail = f.detail;
-                    item.documentation = new vscode.MarkdownString(f.docs);
+            // Filter autocomplete: after a bare `|`, or while typing a partial
+            // name such as `|up`. The typed prefix is replaced, not appended.
+            const partialFilter = lineBefore.match(/\|\s*([a-zA-Z_]\w*)$/);
+            if (partialFilter || /\|\s*$/.test(lineBefore)) {
+                const typed = partialFilter ? partialFilter[1] : '';
+                const replaceRange = typed
+                    ? new vscode.Range(position.line, position.character - typed.length, position.line, position.character)
+                    : undefined;
+                return disylFilters
+                    .filter((filter) => filter.startsWith(typed))
+                    .map((filter) => {
+                    const item = new vscode.CompletionItem(filter, vscode.CompletionItemKind.Function);
+                    item.detail = 'Registered DiSyL filter';
+                    if (replaceRange)
+                        item.range = replaceRange;
+                    return item;
+                });
+            }
+            // Entity source/view values inside list and detail components.
+            // The CLI catalogue is authoritative; no names live in the extension.
+            const entityTag = lineBefore.match(/\{ikb_entity_(?:list|detail)\b[^{}]*$/);
+            const entityAttribute = entityTag?.[0].match(/\b(source|view)\s*=\s*"([^"]*)$/);
+            if (entityTag && entityAttribute) {
+                const attribute = entityAttribute[1];
+                const typed = entityAttribute[2];
+                const replaceRange = new vscode.Range(position.line, position.character - typed.length, position.line, position.character);
+                let names;
+                if (attribute === 'source') {
+                    names = entitySources.map((source) => source.name);
+                }
+                else {
+                    const tagStart = lineBefore.lastIndexOf(entityTag[0]);
+                    const tagEnd = line.indexOf('}', tagStart);
+                    const fullTag = line.substring(tagStart, tagEnd === -1 ? line.length : tagEnd);
+                    const selectedSource = fullTag.match(/\bsource\s*=\s*["']([^"']+)["']/)?.[1];
+                    names = selectedSource !== undefined
+                        ? (entitySources.find((source) => source.name === selectedSource)?.views ?? [])
+                        : Array.from(new Set(entitySources.flatMap((source) => source.views))).sort();
+                }
+                return names
+                    .filter((name) => name.startsWith(typed))
+                    .map((name) => {
+                    const item = new vscode.CompletionItem(name, vscode.CompletionItemKind.Value);
+                    item.detail = attribute === 'source'
+                        ? 'Registered entity source'
+                        : 'Registered entity view';
+                    item.range = replaceRange;
                     return item;
                 });
             }
@@ -172,7 +223,7 @@ function activate(context) {
             const compMatch = lineBefore.match(/\{(ikb_[a-zA-Z_]*)$/);
             if (compMatch) {
                 const prefix = compMatch[1];
-                return GOVERNED_COMPONENTS
+                return governedComponents
                     .filter((c) => c.startsWith(prefix))
                     .map((c) => {
                     const item = new vscode.CompletionItem(c, vscode.CompletionItemKind.Class);
@@ -200,7 +251,7 @@ function activate(context) {
             }
             return [];
         }
-    }, '{', '|', ' '));
+    }, '{', '|', ' ', '"'));
     // ── Hover: filter documentation ──
     context.subscriptions.push(vscode.languages.registerHoverProvider('disyl', {
         provideHover(document, position) {
@@ -211,13 +262,12 @@ function activate(context) {
             const line = document.lineAt(position).text;
             // Hover on filters after |
             if (line.includes('|')) {
-                const filter = DISYL_FILTERS.find((f) => f.label === word);
-                if (filter) {
-                    return new vscode.Hover(new vscode.MarkdownString(`**${filter.label}** — DiSyL Filter\n\n${filter.docs}`));
+                if (disylFilters.includes(word)) {
+                    return new vscode.Hover(new vscode.MarkdownString(`**${word}** — Registered DiSyL Filter`));
                 }
             }
             // Hover on governed components
-            if (GOVERNED_COMPONENTS.includes(word)) {
+            if (governedComponents.includes(word)) {
                 return new vscode.Hover(new vscode.MarkdownString(`**${word}** — Governed DiSyL Component\n\nSee [ComponentRegistry docs](https://github.com/aKira041795/Ikabud-CMS-Kernel/blob/master/docs/kernel/disyl-component-system.md) for attribute schemas.`));
             }
             // Hover on block keywords (v4.8)
@@ -324,70 +374,77 @@ async function lintDocument(doc, collection) {
         return;
     }
     const relativePath = path.relative(workspaceRoot, doc.uri.fsPath);
+    let output;
     try {
-        const { stdout } = await execCommand(phpCmd, [ikabudPath, 'disyl:lint', relativePath, '--verbose'], { cwd: workspaceRoot });
-        const phpDiagnostics = parseLintOutput(stdout, doc);
+        const result = await execCommand(phpCmd, [ikabudPath, 'disyl:lint', relativePath, '--json'], { cwd: workspaceRoot });
+        output = result.stdout;
+    }
+    catch (err) {
+        // Invalid templates produce a non-zero exit code but still return the JSON contract.
+        output = err.stdout || '';
+    }
+    try {
+        const phpDiagnostics = (0, disylCli_1.parseLint)(output).map((diagnostic) => {
+            const lineText = diagnostic.line < doc.lineCount ? doc.lineAt(diagnostic.line).text : '';
+            const endCharacter = Math.max(diagnostic.character + 1, lineText.length);
+            const range = new vscode.Range(diagnostic.line, diagnostic.character, diagnostic.line, endCharacter);
+            const item = new vscode.Diagnostic(range, diagnostic.message, diagnostic.severity === 'error'
+                ? vscode.DiagnosticSeverity.Error
+                : vscode.DiagnosticSeverity.Warning);
+            item.code = diagnostic.code;
+            item.source = 'DiSyL';
+            return item;
+        });
         // Merge: EBNF catches structure, PHP catches semantics
         collection.set(doc.uri, [...ebnfDiagnostics, ...phpDiagnostics]);
     }
-    catch (err) {
-        const output = err.stdout || err.stderr || '';
-        const phpDiagnostics = parseLintOutput(output, doc);
-        collection.set(doc.uri, [...ebnfDiagnostics, ...phpDiagnostics]);
+    catch (error) {
+        console.warn('Unable to parse disyl:lint JSON; using syntax diagnostics only.', error);
+        collection.set(doc.uri, ebnfDiagnostics);
     }
 }
-// ── Parse linter output into VS Code diagnostics ──
-function parseLintOutput(output, doc) {
-    const diagnostics = [];
-    const lines = output.split('\n');
-    for (const line of lines) {
-        // Pattern: "  ✗ L42 error: message" or "  ⚠ L15 warn: message" or "  ⚠ warn: message"
-        const diagMatch = line.match(/^\s*[✗⚠]\s*(L(\d+)\s*)?\s*(error|warn):\s+(.+)/);
-        if (diagMatch) {
-            const severity = diagMatch[3] === 'error'
-                ? vscode.DiagnosticSeverity.Error
-                : vscode.DiagnosticSeverity.Warning;
-            const message = diagMatch[4].trim();
-            const lineNum = diagMatch[2] ? parseInt(diagMatch[2], 10) - 1 : 0;
-            const lineText = lineNum < doc.lineCount ? doc.lineAt(lineNum).text : '';
-            const range = new vscode.Range(lineNum, 0, lineNum, lineText.length || 1);
-            diagnostics.push({ message, range, severity, source: 'DiSyL' });
-            continue;
-        }
-        // Legacy pattern: "  ⚠ warn: N unclosed ..."
-        const warnMatch = line.match(/warn:\s+(.+)/);
-        if (warnMatch) {
-            const message = warnMatch[1].trim();
-            const range = new vscode.Range(0, 0, 0, doc.lineAt(0).text.length);
-            // Try to find the unclosed component in the file
-            const compName = message.match(/unclosed \{(\w+)\}/);
-            if (compName) {
-                const openTag = `{${compName[1]}`;
-                for (let i = 0; i < doc.lineCount; i++) {
-                    const text = doc.lineAt(i).text;
-                    if (text.includes(openTag) && !text.includes(`{/${compName[1]}`)) {
-                        const range = new vscode.Range(i, text.indexOf(openTag), i, text.indexOf(openTag) + openTag.length);
-                        diagnostics.push({
-                            message: `Unclosed component: ${message}`,
-                            range,
-                            severity: vscode.DiagnosticSeverity.Warning,
-                            source: 'DiSyL'
-                        });
-                        break;
-                    }
-                }
-            }
-            else {
-                diagnostics.push({
-                    message,
-                    range,
-                    severity: vscode.DiagnosticSeverity.Warning,
-                    source: 'DiSyL'
-                });
-            }
-        }
+async function loadCliDescription() {
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    if (!workspaceRoot) {
+        vscode.window.showWarningMessage('DiSyL CLI catalogue unavailable: no workspace folder is open. Completions will be empty.');
+        return;
     }
-    return diagnostics;
+    const phpCmd = vscode.workspace.getConfiguration('disyl').get('phpCommand', 'php');
+    const ikabudPath = resolveIkabudPath(workspaceRoot);
+    if (!ikabudPath)
+        return;
+    try {
+        const { stdout } = await execCommand(phpCmd, [ikabudPath, 'disyl:describe', '--json'], { cwd: workspaceRoot });
+        const description = (0, disylCli_1.parseDescribe)(stdout);
+        disylFilters = description.filters;
+        governedComponents = description.components;
+    }
+    catch (error) {
+        disylFilters = [];
+        governedComponents = [];
+        const detail = error instanceof Error ? error.message : String(error);
+        vscode.window.showWarningMessage(`DiSyL CLI catalogue unavailable: ${detail}. Completions will be empty.`);
+    }
+}
+async function loadCliSources() {
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    if (!workspaceRoot) {
+        entitySources = [];
+        return;
+    }
+    const phpCmd = vscode.workspace.getConfiguration('disyl').get('phpCommand', 'php');
+    const ikabudPath = resolveIkabudPath(workspaceRoot);
+    if (!ikabudPath)
+        return;
+    try {
+        const { stdout } = await execCommand(phpCmd, [ikabudPath, 'disyl:list-sources', '--json'], { cwd: workspaceRoot });
+        entitySources = (0, disylCli_1.parseSources)(stdout);
+    }
+    catch (error) {
+        entitySources = [];
+        const detail = error instanceof Error ? error.message : String(error);
+        vscode.window.showWarningMessage(`DiSyL entity catalogue unavailable: ${detail}. Source/view completions will be empty.`);
+    }
 }
 // ── Resolve the ikabud CLI script path ──
 function resolveIkabudPath(workspaceRoot) {
@@ -438,42 +495,6 @@ function resolveTemplatePath(document, target) {
     return null;
 }
 // ── Autocomplete data ──
-const DISYL_FILTERS = [
-    { label: 'upper', detail: 'Convert to uppercase', docs: 'Converts the value to uppercase.\n\n`{"hello"|upper}` → `"HELLO"`' },
-    { label: 'lower', detail: 'Convert to lowercase', docs: 'Converts the value to lowercase.\n\n`{"HELLO"|lower}` → `"hello"`' },
-    { label: 'raw', detail: 'Output without HTML escaping', docs: 'Outputs the value without HTML escaping. Use carefully.\n\n`{$html|raw}`' },
-    { label: 'default', detail: 'Fallback value', docs: 'Returns the value if truthy, otherwise the fallback.\n\n`{$name|default:"Guest"}`' },
-    { label: 'json', detail: 'JSON encode', docs: 'Encodes the value as JSON. Output is raw (not HTML-escaped).\n\n`{$data|json}`' },
-    { label: 'date', detail: 'Format date', docs: 'Formats a date string/timestamp.\n\n`{$created|date:"M d, Y"}`' },
-    { label: 'length', detail: 'Array/string length', docs: 'Returns the length of an array or string.\n\n`{$items|length}`' },
-    { label: 'trim', detail: 'Trim whitespace', docs: 'Trims whitespace from both ends of a string.\n\n`{$name|trim}`' },
-    { label: 'nl2br', detail: 'Newlines to <br>', docs: 'Converts newlines to `<br>` tags.\n\n`{$text|nl2br}`' },
-    { label: 'number_format', detail: 'Format number', docs: 'Formats a number with grouped thousands.\n\n`{$price|number_format}`' },
-    { label: 'first', detail: 'First element', docs: 'Returns the first element of an array.\n\n`{$items|first}`' },
-    { label: 'last', detail: 'Last element', docs: 'Returns the last element of an array.\n\n`{$items|last}`' },
-    { label: 'keys', detail: 'Array keys', docs: 'Returns the keys of an array.\n\n`{$data|keys}`' },
-    { label: 'values', detail: 'Array values', docs: 'Returns the values of an array (re-indexed).\n\n`{$data|values}`' },
-    { label: 'sort', detail: 'Sort array', docs: 'Sorts an array by values.\n\n`{$items|sort}`' },
-    { label: 'reverse', detail: 'Reverse array', docs: 'Reverses an array.\n\n`{$items|reverse}`' },
-    { label: 'slice', detail: 'Slice array', docs: 'Extracts a slice of an array.\n\n`{$items|slice:0:5}`' },
-    { label: 'escape', detail: 'HTML escape', docs: 'HTML-escapes the value (default behaviour).\n\n`{$html|escape}`' },
-    { label: 'url_encode', detail: 'URL encode', docs: 'URL-encodes the value.\n\n`{$slug|url_encode}`' },
-    { label: 'strip_tags', detail: 'Strip HTML tags', docs: 'Strips HTML and PHP tags from a string.\n\n`{$html|strip_tags}`' },
-    { label: 'truncate', detail: 'Truncate text', docs: 'Truncates text to a specified length. Named arg support (v4.8).\n\n`{$body|truncate:100}` or `{$body|truncate:length=100}`' },
-    { label: 'date', detail: 'Format date', docs: 'Formats a date string/timestamp. Named arg support (v4.8).\n\n`{$created|date:"M d, Y"}` or `{$created|date:format="M d, Y"}`' },
-    { label: 'json_attr', detail: 'JSON + HTML-escape for attributes', docs: 'JSON-encodes then HTML-escapes for safe use in HTML attributes (e.g. x-data).\n\n`{$data|json_attr}`' },
-];
-const GOVERNED_COMPONENTS = [
-    'ikb_section', 'ikb_container', 'ikb_grid', 'ikb_panel',
-    'ikb_entity_list', 'ikb_entity_detail', 'ikb_stat_card', 'ikb_timeline',
-    'ikb_audit_log', 'ikb_table', 'ikb_badge',
-    'ikb_form', 'ikb_input', 'ikb_textarea', 'ikb_select',
-    'ikb_button', 'ikb_export_button', 'ikb_confirm_action',
-    'ikb_card', 'ikb_modal', 'ikb_drawer', 'ikb_alert', 'ikb_spinner',
-    'ikb_text', 'ikb_image', 'ikb_icon', 'ikb_link',
-    'ikb_report', 'ikb_signature_block',
-    'ikb_ai_summary', 'ikb_ai_assist',
-];
 const BLOCK_KEYWORDS = [
     'extends', 'block', '/block', 'parent',
     'if', 'elseif', 'else', '/if',

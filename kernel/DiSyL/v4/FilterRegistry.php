@@ -30,6 +30,12 @@ final class FilterRegistry
         return isset($this->filters[$name]);
     }
 
+    /** @return list<string> */
+    public function names(): array
+    {
+        return array_keys($this->filters);
+    }
+
     public function apply(string $name, mixed $value, array $args = []): mixed
     {
         if (!isset($this->filters[$name])) {

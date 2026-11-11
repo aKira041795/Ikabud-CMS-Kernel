@@ -1,8 +1,8 @@
 {
   "comments": {
     "blockComment": [
-      "{!",
-      "!}"
+      "{!--",
+      "--}"
     ]
   },
   "brackets": [
@@ -43,10 +43,6 @@
     {
       "open": "{",
       "close": "}"
-    },
-    {
-      "open": "{!",
-      "close": "!}"
     },
     {
       "open": "\"",
