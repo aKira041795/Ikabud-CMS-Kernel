@@ -422,6 +422,29 @@ parity('unique filter', $engine, $cache,
 parity('slice filter', $engine, $cache,
     '{items|slice:1:2|join:","}', ['items' => ['a', 'b', 'c', 'd']]);
 
+$predicateItems = [
+    ['source_type' => 'quotation', 'amt' => 10, 'active' => true, 'note' => null],
+    ['source_type' => 'sales', 'amt' => 20, 'active' => false, 'note' => 'set'],
+    ['source_type' => 'quotation', 'amt' => 30, 'active' => true],
+];
+parity('predicate filter with quoted string equality', $engine, $cache,
+    "{items|filter:item=>item.source_type=='quotation'|count}", ['items' => $predicateItems]);
+
+parity('predicate filter binds a non-item variable and compares numbers', $engine, $cache,
+    '{items|filter:row=>row.amt>=20|count}', ['items' => $predicateItems]);
+
+parity('predicate filter excludes elements with a missing path', $engine, $cache,
+    '{items|filter:entry=>entry.note==null|count}', ['items' => $predicateItems]);
+
+parity('predicate filter supports boolean literals', $engine, $cache,
+    '{items|filter:entry=>entry.active==true|count}', ['items' => $predicateItems]);
+
+parity('predicate filter reindexes its result', $engine, $cache,
+    "{items|filter:item=>item.source_type!='sales'|json}", ['items' => $predicateItems]);
+
+parity('unsupported predicate filter passes the collection through', $engine, $cache,
+    "{items|filter:item=>item.amt>10&&item.active==true|count}", ['items' => $predicateItems]);
+
 parity('split filter', $engine, $cache,
     '{text|split:","|join:" "}', ['text' => 'a,b,c']);
 

@@ -61,6 +61,63 @@ final class FilterRegistry
 
     private function registerDefaults(): void
     {
+        $predicateFilter = static function ($value, array $positional, array $named = []) {
+            $predicate = $positional[0] ?? null;
+            if ($predicate === null && count($named) === 1) {
+                $variable = (string) array_key_first($named);
+                $predicate = $variable . '=' . (string) reset($named);
+            }
+
+            $pattern = '/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=>\s*\\1((?:\.[A-Za-z_][A-Za-z0-9_]*)+)\s*(==|!=|<=|>=|<|>)\s*(?:\'([^\']*)\'|"([^"]*)"|(-?(?:\d+(?:\.\d+)?|\.\d+))|(true|false|null))\s*$/sD';
+            if (!is_array($value) || !is_string($predicate)
+                || preg_match($pattern, $predicate, $match, PREG_UNMATCHED_AS_NULL) !== 1) {
+                if (function_exists('write_log')) {
+                    write_log('disyl.filter.invalid: unsupported predicate passed through unchanged', 'warning');
+                }
+                return $value;
+            }
+
+            if ($match[4] !== null) {
+                $literal = $match[4];
+            } elseif ($match[5] !== null) {
+                $literal = $match[5];
+            } elseif ($match[6] !== null) {
+                $literal = str_contains($match[6], '.') ? (float) $match[6] : (int) $match[6];
+            } else {
+                $literal = match ($match[7]) {
+                    'true' => true,
+                    'false' => false,
+                    default => null,
+                };
+            }
+
+            $path = explode('.', ltrim($match[2], '.'));
+            $operator = $match[3];
+            $filtered = array_filter($value, static function ($element) use ($path, $operator, $literal): bool {
+                $actual = $element;
+                foreach ($path as $segment) {
+                    if (is_array($actual) && array_key_exists($segment, $actual)) {
+                        $actual = $actual[$segment];
+                    } elseif (is_object($actual) && property_exists($actual, $segment)) {
+                        $actual = $actual->{$segment};
+                    } else {
+                        return false;
+                    }
+                }
+
+                return match ($operator) {
+                    '==' => $actual == $literal,
+                    '!=' => $actual != $literal,
+                    '<' => $actual < $literal,
+                    '>' => $actual > $literal,
+                    '<=' => $actual <= $literal,
+                    '>=' => $actual >= $literal,
+                };
+            });
+
+            return array_values($filtered);
+        };
+
         $this->filters = [
             'escape' => function($v, $args) {
                 $mode = $args[0] ?? 'html';
@@ -152,6 +209,7 @@ final class FilterRegistry
             'reverse' => fn($v) => is_array($v) ? array_reverse($v) : strrev((string)$v),
             'sort' => function ($v) { if (is_array($v)) { sort($v); return $v; } return $v; },
             'unique' => fn($v) => is_array($v) ? array_unique($v) : $v,
+            'filter' => $predicateFilter,
             'slice' => fn($v, $a) => is_array($v)
                 ? array_slice($v, (int)($a[0] ?? 0), isset($a[1]) ? (int)$a[1] : null)
                 : mb_substr((string)$v, (int)($a[0] ?? 0), isset($a[1]) ? (int)$a[1] : null),

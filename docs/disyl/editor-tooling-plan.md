@@ -109,7 +109,11 @@ were added to the registry used by describe/lint/completion, while the registry'
 meta-filter was added to the engine and delegates to the existing HTML, attribute, JavaScript, or
 URL escaping semantics selected by its first argument. Both surfaces also retain the corpus's legacy
 `replace('_', ' ')` call-style spelling as a compatibility alias, while new templates use
-`replace:'_':' '`.
+`replace:'_':' '`. The `filter` collection filter is also registered on both surfaces and supports
+only a simple predicate: `<variable>=><variable>.<dotted_path> <operator> <literal>`, where the
+operator is `==`, `!=`, `<`, `>`, `<=`, or `>=` and the literal is a quoted string, number,
+`true`, `false`, or `null`. Missing paths do not match, results are reindexed, and unsupported
+predicates leave the collection unchanged rather than becoming a general expression evaluator.
 
 ## Non-goals (deliberately excluded)
 
