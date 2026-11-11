@@ -97,6 +97,105 @@ function paramsWithoutFlags(array $params): array
     return array_values(array_filter($params, fn($p) => !is_string($p) || !str_starts_with($p, '--')));
 }
 
+/**
+ * Build the registered DiSyL entity-source catalogue used by both source
+ * discovery and semantic linting.
+ *
+ * @return array<string, list<string>> source name => registered view names
+ */
+function disylRegisteredSourceCatalogue(): array
+{
+    static $catalogue = null;
+    if ($catalogue !== null) {
+        return $catalogue;
+    }
+
+    if (function_exists('app') && ($app = app()) !== null) {
+        $app->boot();
+    }
+    if (class_exists('Ikabud\\Kernel\\DiSyL\\TemplateEngine', true)) {
+        foreach (glob(BASE_PATH . '/modules/*/helpers/views/') as $viewsDir) {
+            \Ikabud\Kernel\DiSyL\TemplateEngine::loadViewConfigs($viewsDir);
+        }
+    }
+    if (function_exists('loadModuleRoutes')) {
+        loadModuleRoutes(['GET' => [], 'POST' => [], 'PUT' => [], 'DELETE' => []]);
+    }
+
+    $catalogue = [];
+    foreach (glob(BASE_PATH . '/modules/*/module.json') as $manifestPath) {
+        $manifest = json_decode((string)file_get_contents($manifestPath), true);
+        if (!is_array($manifest)) continue;
+        foreach (($manifest['capabilities']['exposes'] ?? []) as $capId => $capVersion) {
+            $exposedId = is_array($capVersion)
+                ? (string)($capVersion['id'] ?? '')
+                : (is_string($capId) ? $capId : '');
+            if (!str_starts_with($exposedId, 'entity.list.')) continue;
+            $source = (string)preg_replace('/@[^@]+$/', '', substr($exposedId, strlen('entity.list.')));
+            if ($source !== '') $catalogue[$source] ??= [];
+        }
+    }
+
+    foreach (glob(BASE_PATH . '/modules/*/helpers/views/*.disyl') as $viewFile) {
+        $viewSource = (string)file_get_contents($viewFile);
+        if (preg_match('/\{ikb_entity_view\s+name="([^"]+)"/', $viewSource, $match)) {
+            $catalogue[$match[1]] ??= [];
+        }
+    }
+
+    if (class_exists('Ikabud\\Kernel\\EntityContext\\EntityViewResolver', true)) {
+        $contracts = \Ikabud\Kernel\EntityContext\EntityViewResolver::getInstance()->registeredViewContracts();
+        foreach ($contracts as $contract) {
+            if (!is_array($contract)) continue;
+            $source = $contract['entity_type'] ?? null;
+            $view = $contract['view'] ?? null;
+            if (!is_string($source) || $source === '' || !is_string($view) || $view === '') continue;
+            $catalogue[$source] ??= [];
+            $catalogue[$source][] = $view;
+        }
+    }
+
+    ksort($catalogue);
+    foreach ($catalogue as &$views) {
+        $views = array_values(array_unique($views));
+        sort($views);
+    }
+    unset($views);
+    return $catalogue;
+}
+
+/**
+ * Walk a v4 parser AST and collect FilterNode names. Reflection keeps this
+ * visitor complete as new AST node containers are added without interpreting
+ * template text (in particular, logical || can never become a filter).
+ *
+ * @param list<string> $names
+ * @param array<int, true> $seen
+ */
+function disylCollectAstFilterNames(mixed $value, array &$names, array &$seen = []): void
+{
+    if (is_array($value)) {
+        foreach ($value as $child) disylCollectAstFilterNames($child, $names, $seen);
+        return;
+    }
+    if (!is_object($value)) return;
+
+    $id = spl_object_id($value);
+    if (isset($seen[$id])) return;
+    $seen[$id] = true;
+
+    if ($value instanceof \Ikabud\Kernel\DiSyL\v4\AST\FilterNode) {
+        $names[] = $value->getName();
+    }
+    if (!str_starts_with($value::class, 'Ikabud\\Kernel\\DiSyL\\v4\\AST\\')) return;
+
+    $reflection = new \ReflectionObject($value);
+    foreach ($reflection->getProperties() as $property) {
+        if (!$property->isInitialized($value)) continue;
+        disylCollectAstFilterNames($property->getValue($value), $names, $seen);
+    }
+}
+
 function getFlagValue(string $prefix): ?string
 {
     global $params;
@@ -7681,6 +7780,19 @@ PHP;
         }
 
         $contractMap = disylBuildContractMap();
+        $filterRegistry = new \Ikabud\Kernel\DiSyL\v4\FilterRegistry();
+        $componentCatalogue = \Ikabud\Kernel\DiSyL\Component\ComponentRenderer::BUILT_IN_GOVERNED_COMPONENTS;
+        // state and island share the engine's component tag shape and are
+        // renderer-handled special forms, though describe's governed list is ikb_* only.
+        $rendererHandledComponents = array_merge($componentCatalogue, ['island', 'state']);
+        $sourceCatalogue = disylRegisteredSourceCatalogue();
+
+        // ComponentRenderer owns the typo threshold and matching algorithm.
+        // Its helper is intentionally private to rendering, so invoke that same
+        // implementation for lint suggestions rather than maintaining a copy.
+        $rendererReflection = new \ReflectionClass(\Ikabud\Kernel\DiSyL\Component\ComponentRenderer::class);
+        $suggestionRenderer = $rendererReflection->newInstanceWithoutConstructor();
+        $closestComponent = $rendererReflection->getMethod('findClosestComponent');
 
         out('  ' . bold('DiSyL Template Linter'));
         out('  Scanning ' . cyan((string)$fileCount) . ' template(s)...');
@@ -7937,6 +8049,80 @@ PHP;
                 }
             }
 
+            // ── Check 10: Semantic references ──
+            // Filters are derived exclusively from the v4 parser AST. This is
+            // deliberately not a pipe regex: BinaryOpNode logical OR (`||`)
+            // contains no FilterNode and therefore cannot trigger this check.
+            try {
+                $ast = (new \Ikabud\Kernel\DiSyL\v4\Parser())->parse($content, $relPath);
+                $filterNames = [];
+                $seenAstNodes = [];
+                disylCollectAstFilterNames($ast, $filterNames, $seenAstNodes);
+                foreach ($filterNames as $filterName) {
+                    if (!$filterRegistry->has($filterName)) {
+                        $issues[] = [
+                            'type' => 'warning',
+                            'line' => 0,
+                            'code' => 'DISYL_UNKNOWN_FILTER',
+                            'msg' => "Unknown filter \"{$filterName}\" — not registered in FilterRegistry",
+                        ];
+                    }
+                }
+            } catch (\Throwable) {
+                // Existing syntax checks remain authoritative for templates the
+                // v4 parser cannot parse; semantic validation adds no parse error.
+            }
+
+            // Use the exact opening-tag shape consumed by TemplateEngine.
+            if (preg_match_all('/\{(ikb_\w+|island|state)[\s}]/', $lintContent, $componentMatches, PREG_OFFSET_CAPTURE)) {
+                foreach ($componentMatches[1] as $componentMatch) {
+                    [$componentName, $componentOffset] = $componentMatch;
+                    if (in_array($componentName, $rendererHandledComponents, true)) continue;
+
+                    $suggestion = $closestComponent->invoke(
+                        $suggestionRenderer,
+                        $componentName,
+                        $componentCatalogue
+                    );
+                    $suffix = is_string($suggestion) ? " Did you mean '{$suggestion}'?" : '';
+                    $issues[] = [
+                        'type' => 'warning',
+                        'line' => substr_count($lintContent, "\n", 0, $componentOffset) + 1,
+                        'code' => 'DISYL_UNKNOWN_COMPONENT',
+                        'msg' => "Unknown component '{$componentName}' — not in the rendering catalogue.{$suffix}",
+                    ];
+                }
+            }
+
+            // Entity sources are attributes of the two rendering components.
+            // source.view is shorthand, but source names may themselves contain
+            // dots. Resolve against registered sources from longest prefix to
+            // shortest; any remaining segments form the shorthand view.
+            if (preg_match_all('/\{(?:ikb_entity_list|ikb_entity_detail)\b[^}]*\}/', $lintContent, $entityTags, PREG_OFFSET_CAPTURE)) {
+                foreach ($entityTags[0] as [$entityTag, $entityOffset]) {
+                    if (!preg_match('/\bsource\s*=\s*"([^"]+)"/', $entityTag, $sourceMatch)) continue;
+                    $sourceReference = $sourceMatch[1];
+                    $sourceParts = explode('.', $sourceReference);
+                    $sourceName = null;
+                    for ($prefixLength = count($sourceParts); $prefixLength >= 1; $prefixLength--) {
+                        $candidate = implode('.', array_slice($sourceParts, 0, $prefixLength));
+                        if (isset($sourceCatalogue[$candidate])) {
+                            $sourceName = $candidate;
+                            break;
+                        }
+                    }
+                    if ($sourceName !== null) continue;
+
+                    $sourceName = $sourceParts[0];
+                    $issues[] = [
+                        'type' => 'warning',
+                        'line' => substr_count($lintContent, "\n", 0, $entityOffset) + 1,
+                        'code' => 'DISYL_UNKNOWN_SOURCE',
+                        'msg' => "Unknown entity source '{$sourceName}' (from '{$sourceReference}') — not registered",
+                    ];
+                }
+            }
+
             // ── Report ──
             if (!empty($issues)) {
                 $filesWithIssues++;
@@ -7969,7 +8155,7 @@ PHP;
             }
         }
 
-        // ── Check 10: Entity view ↔ handler field cross-reference ──
+        // ── Check 11: Entity view ↔ handler field cross-reference ──
         // After scanning all templates, cross-check entity view field
         // declarations against EntityListQuery column maps.
         {
@@ -8172,23 +8358,8 @@ PHP;
         }
 
         if ($jsonMode) {
-            $sourceViews = array_fill_keys(
-                array_values(array_unique(array_merge(array_keys($sources), array_keys($jsonDiscoveredSources)))),
-                []
-            );
-            foreach ($registeredContracts as $contract) {
-                if (!is_array($contract)) continue;
-                $entityType = $contract['entity_type'] ?? null;
-                $view = $contract['view'] ?? null;
-                if (!is_string($entityType) || $entityType === '' || !is_string($view) || $view === '') continue;
-                $sourceViews[$entityType] ??= [];
-                $sourceViews[$entityType][] = $view;
-            }
-            ksort($sourceViews);
             $jsonSources = [];
-            foreach ($sourceViews as $name => $views) {
-                $views = array_values(array_unique($views));
-                sort($views);
+            foreach (disylRegisteredSourceCatalogue() as $name => $views) {
                 $jsonSources[] = ['name' => $name, 'views' => $views];
             }
 

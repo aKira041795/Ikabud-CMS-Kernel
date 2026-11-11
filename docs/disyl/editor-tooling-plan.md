@@ -89,6 +89,16 @@ hardcoded lists. `validator.ts` remains the instant syntax-only fallback.
 
 Source/view completion is supplied by slice C above.
 
+### E. Semantic reference validation
+**Shipped:** `php ikabud disyl:lint` now reports warning-only diagnostics for unknown filters,
+governed components, and entity sources. Filter references come from `FilterNode` instances in the
+v4 parser AST, so logical OR (`||`) is never interpreted as a filter pipe. Component discovery uses
+the renderer's `/\{(ikb_\w+|island|state)[\s}]/` tag shape, its governed catalogue, and its existing
+closest-match algorithm. Entity source validation shares the `disyl:list-sources --json` catalogue;
+for the `source.view` shorthand, only the segment before the first dot is validated as the source.
+The stable codes are `DISYL_UNKNOWN_FILTER`, `DISYL_UNKNOWN_COMPONENT`, and
+`DISYL_UNKNOWN_SOURCE`.
+
 ## Non-goals (deliberately excluded)
 
 - **No LSP migration.** Revisit only if a second editor needs it, measured CLI latency blocks
