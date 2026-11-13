@@ -1338,6 +1338,18 @@
                         <span class="inline-flex min-w-[1.25rem] justify-center rounded-full bg-white px-1.5 text-[11px] font-bold text-rose-700" x-text="count"></span>
                     </button>
 
+                    {* The overlay is TELEPORTED to <body>, and both halves of that matter.
+
+                       WHY IT MUST MOVE: this overlay lived inside the page header, and the header carries
+                       backdrop-blur - which makes it a stacking context AND a containing block for
+                       position:fixed. So the "full screen" overlay laid itself out INSIDE the header, at
+                       80px from the top with the page content painted over it, and "Open the variance
+                       notices" looked dead while the modal was open in the DOM the entire time.
+
+                       WHY IT IS A <template>: Alpine only teleports the children of a template element.
+                       Putting x-teleport on a <div> is silently ignored - the attribute survives in the
+                       HTML and nothing moves, which is exactly how the first attempt failed. *}
+                    <template x-teleport="body">
                     <div x-show="open" x-cloak class="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-gray-900/60 p-4" @keydown.escape.window="open = false">
                         <div class="mt-16 w-full max-w-3xl rounded-xl bg-white shadow-xl" role="dialog" aria-modal="true" aria-label="Delivery issues">
                             <div class="flex items-start justify-between border-b border-gray-200 px-4 py-3">
@@ -1384,6 +1396,7 @@
                             </div>
                         </div>
                     </div>
+                    </template>
                 </div>
 
 {if !can_view_production_management}
@@ -1416,7 +1429,7 @@
    opens the same modal the header badge uses (rather than a second one) through a window event, so
    there is exactly one queue implementation and its reply field. *}
 {if pending_delivery_issue_count > 0}
-<div class="mb-5 rounded-xl border border-rose-300 bg-rose-50 px-4 py-3 print-hidden" role="status" aria-live="polite">
+<div id="dl-pending-issues-notice" class="mb-5 rounded-xl border border-rose-300 bg-rose-50 px-4 py-3 print-hidden" role="status" aria-live="polite">
     <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div class="min-w-0">
             <p class="text-sm font-semibold text-rose-900">
@@ -3673,6 +3686,15 @@ function deliveryIssues() {
                     self.loading = false;
                     self.issues = (data && data.ok) ? (data.issues || []) : [];
                     self.count = (data && data.ok) ? (data.count || 0) : 0;
+                    // The notice in the page body is server-rendered (it must not depend on a fetch to
+                    // appear), so it cannot react on its own. Once the queue is empty it describes work
+                    // that no longer exists - remove it rather than leave a stale red banner under a
+                    // "Reply sent" toast. Same idea in reverse: it is NOT re-created here, because a
+                    // reply this browser just sent is already shown to them.
+                    if (self.count === 0) {
+                        var notice = document.getElementById('dl-pending-issues-notice');
+                        if (notice) { notice.remove(); }
+                    }
                 })
                 .catch(function () {
                     self.loading = false;

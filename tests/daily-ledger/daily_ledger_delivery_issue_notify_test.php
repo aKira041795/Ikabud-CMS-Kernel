@@ -184,6 +184,23 @@ try {
         str_contains($sheetTemplate, "window.dispatchEvent(new CustomEvent('dl-open-delivery-issues'))")
             && str_contains($sheetTemplate, '@dl-open-delivery-issues.window="open = true"')
     );
+    // The overlay MUST leave the header. The header carries backdrop-blur, which makes it a stacking
+    // context and a containing block for position:fixed, so a "full screen" overlay left inside it
+    // lays itself out within the header with the page painted over it - the modal was open in the DOM
+    // and invisible, and the button looked dead (owner report 2026-11-13). Alpine also only teleports
+    // the CHILDREN OF A TEMPLATE: x-teleport on a plain <div> survives in the HTML and moves nothing,
+    // which is how the first fix failed. Both halves are pinned here.
+    $h->test(
+        'the issues overlay is teleported out of the blurred header, through a template',
+        str_contains($sheetTemplate, '<template x-teleport="body">')
+            && !preg_match('/<div[^>]*\sx-teleport=/', $sheetTemplate),
+        'x-teleport on a <div> is silently ignored; it must be on a <template>'
+    );
+    $h->test(
+        'the server-rendered notice is removed once its queue is empty',
+        str_contains($sheetTemplate, "getElementById('dl-pending-issues-notice')")
+            && str_contains($sheetTemplate, 'id="dl-pending-issues-notice"')
+    );
     $handlersSource = (string)file_get_contents($base . '/modules/daily-ledger/handlers.php');
     $h->test(
         'handler and API share one queue reader',
