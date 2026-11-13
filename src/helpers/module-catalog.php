@@ -217,7 +217,15 @@ function moduleCatalogEntry(string $moduleId): ?array
         return $catalog[$moduleId];
     }
 
-    return moduleCatalogEntryRefresh($moduleId);
+    // The registry was just read in full, so an id it does not contain is NOT in the
+    // catalog. Re-querying per uncatalogued module answered null and cost one
+    // control-plane SELECT for every module on every request — measured 2026-11-13:
+    // 68 of the 78 queries on a ledger page, because this install's catalog holds 2
+    // rows for 70 manifests. Every catalog write goes through
+    // invalidateModuleCatalogCache(), so a row added mid-request is picked up by the
+    // next call through a fresh registry read; moduleCatalogEntryRefresh() stays
+    // available for the install flow that must bypass the cache explicitly.
+    return null;
 }
 
 function moduleCatalogIsApproved(string $moduleId): bool

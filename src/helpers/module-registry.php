@@ -99,6 +99,31 @@ function moduleRegistryRawModuleManifests(): array
         return $cache;
     }
 
+    // Cross-request cache for the recursive walk + json_decode below.
+    //
+    // MEASURED 2026-11-13 on a real ledger request: 141-148 ms of a ~215 ms page, with 70
+    // manifests. isModuleEnabled() falls back here (via moduleRegistryDefaultEnabledState())
+    // for every discovered module, so the walk ran once per request - while discoverModules()
+    // already keeps a cross-request scan of the same tree. This copy exists separately ONLY
+    // because it must also contain manifests that fail schema validation: it answers "does this
+    // module id exist", not "is this module loadable".
+    //
+    // The key is that same manifest fingerprint (mtime+size of every module.json, plus the
+    // watched directory mtimes, so an add/remove is seen). A stale copy is exactly what the
+    // 2026-10-09 owns_tables hard-500 taught us not to trust, so the fingerprint is mandatory
+    // here rather than an optional optimisation.
+    $fingerprint = function_exists('moduleManifestScanFingerprint')
+        ? (string)moduleManifestScanFingerprint()
+        : 'nofp';
+    $sharedKey = $fingerprint . '-raw-manifests';
+    if (function_exists('moduleScanSharedCacheRead')) {
+        $shared = moduleScanSharedCacheRead($sharedKey);
+        if (is_array($shared)) {
+            $cache = $shared;
+            return $cache;
+        }
+    }
+
     $result = [];
     $manifestPaths = [];
 
@@ -150,6 +175,9 @@ function moduleRegistryRawModuleManifests(): array
     }
 
     $cache = $result;
+    if (function_exists('moduleScanSharedCacheWrite')) {
+        moduleScanSharedCacheWrite($sharedKey, $result);
+    }
     return $cache;
 }
 
