@@ -1360,6 +1360,16 @@ function dl_resolveBaseProductPrice(int $productId, ?string $atDate = null): flo
     }
 
     $atDate = $atDate ?: date('Y-m-d');
+
+    // Served from the batch preload when the caller had the full product list
+    // (dl_applyLedgerDisplayPrices does). Without this the sheet resolved a price per
+    // row: measured 196 dl_product_price_history queries / 87 ms on a 198-row page.
+    $cacheKey = $productId . '|' . $atDate;
+    if (is_array($GLOBALS['_dl_effective_price_cache'] ?? null)
+        && array_key_exists($cacheKey, $GLOBALS['_dl_effective_price_cache'])) {
+        return (float)$GLOBALS['_dl_effective_price_cache'][$cacheKey];
+    }
+
     $stmt = $ctx->db()->prepare(
         'SELECT price FROM dl_product_price_history
           WHERE product_id = :p AND effective_at < DATE_ADD(:d, INTERVAL 1 DAY)
@@ -1375,6 +1385,130 @@ function dl_resolveBaseProductPrice(int $productId, ?string $atDate = null): flo
     $stmt = $ctx->db()->prepare('SELECT current_price FROM dl_products WHERE id = :p');
     $stmt->execute([':p' => $productId]);
     return (float)($stmt->fetchColumn() ?: 0.0);
+}
+
+/**
+ * Resolve the effective base price for MANY products at once.
+ *
+ * The ledger sheet asks for one price per row, and dl_resolveBaseProductPrice answered with
+ * up to two queries per product (history, then the current_price fallback). On a 198-row
+ * page that was 196 identical history queries costing ~87 ms — the largest single query
+ * family on the page. Two batched queries replace them.
+ *
+ * MySQL 5.7-safe: no window functions. The inner aggregate takes the newest effective_at per
+ * product; ORDER BY ph.id makes the highest id the LAST row for a tie, which is the same
+ * tie-break as `ORDER BY effective_at DESC, id DESC LIMIT 1` — so every value matches the
+ * per-product path exactly.
+ *
+ * Values are cached per product+date; a failure leaves the cache unfilled so the caller falls
+ * back to the per-product path rather than reading a wrong price.
+ *
+ * @param array<int|string,mixed> $productIds
+ */
+function dl_preloadEffectivePrices(array $productIds, ?string $atDate = null): void
+{
+    $ctx = module();
+    if (!$ctx) {
+        return;
+    }
+
+    $atDate = $atDate ?: date('Y-m-d');
+    $want = [];
+    foreach ($productIds as $id) {
+        $id = (int)$id;
+        if ($id > 0) {
+            $want[$id] = true;
+        }
+    }
+    if ($want === []) {
+        return;
+    }
+
+    if (!is_array($GLOBALS['_dl_effective_price_cache'] ?? null)) {
+        $GLOBALS['_dl_effective_price_cache'] = [];
+    }
+    $cache = &$GLOBALS['_dl_effective_price_cache'];
+
+    $missing = [];
+    foreach (array_keys($want) as $id) {
+        if (!array_key_exists($id . '|' . $atDate, $cache)) {
+            $missing[] = $id;
+        }
+    }
+    if ($missing === []) {
+        return;
+    }
+
+    $params = [':d' => $atDate];
+    $names = [];
+    foreach ($missing as $i => $id) {
+        $name = ':p' . $i;
+        $names[] = $name;
+        $params[$name] = $id;
+    }
+    $inList = implode(', ', $names);
+
+    $resolved = [];
+    try {
+        $stmt = $ctx->db()->prepare(
+            'SELECT ph.product_id, ph.price'
+            . ' FROM dl_product_price_history ph'
+            . ' INNER JOIN ('
+            . '   SELECT product_id, MAX(effective_at) AS max_at'
+            . '     FROM dl_product_price_history'
+            . '    WHERE product_id IN (' . $inList . ')'
+            . '      AND effective_at < DATE_ADD(:d, INTERVAL 1 DAY)'
+            . '    GROUP BY product_id'
+            . ' ) latest'
+            . ' ON latest.product_id = ph.product_id AND ph.effective_at = latest.max_at'
+            . ' ORDER BY ph.product_id, ph.id'
+        );
+        $stmt->execute($params);
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+            if (is_array($row)) {
+                $resolved[(int)$row['product_id']] = (float)$row['price'];
+            }
+        }
+    } catch (\Throwable $e) {
+        return;
+    }
+
+    $fallback = [];
+    foreach ($missing as $id) {
+        if (!array_key_exists($id, $resolved)) {
+            $fallback[] = $id;
+        }
+    }
+    if ($fallback !== []) {
+        $params2 = [];
+        $names2 = [];
+        foreach ($fallback as $i => $id) {
+            $name = ':q' . $i;
+            $names2[] = $name;
+            $params2[$name] = $id;
+        }
+        try {
+            $stmt = $ctx->db()->prepare(
+                'SELECT id, current_price FROM dl_products WHERE id IN (' . implode(', ', $names2) . ')'
+            );
+            $stmt->execute($params2);
+            $current = [];
+            foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+                if (is_array($row)) {
+                    $current[(int)$row['id']] = (float)($row['current_price'] ?? 0.0);
+                }
+            }
+            foreach ($fallback as $id) {
+                $resolved[$id] = $current[$id] ?? 0.0;
+            }
+        } catch (\Throwable $e) {
+            return;
+        }
+    }
+
+    foreach ($missing as $id) {
+        $cache[$id . '|' . $atDate] = $resolved[$id] ?? 0.0;
+    }
 }
 
 function dl_resolveProductPrice(int $productId, ?int $priceGroupId = null, ?string $atDate = null): float

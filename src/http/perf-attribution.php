@@ -357,7 +357,7 @@ if (!function_exists('kernelPerfProbeRequestAttribution')) {
             }
         }
 
-        return [
+        $summary = [
             'phase_ms' => [
                 'boot' => $ms($phases['boot'] ?? null),
                 'session' => $ms($phases['session'] ?? null),
@@ -382,6 +382,20 @@ if (!function_exists('kernelPerfProbeRequestAttribution')) {
                 'ms' => round(max(0.0, (float)($db['total_ms'] ?? 0.0)), 1),
             ],
         ];
+
+        if (!empty($_ENV['KERNEL_DB_PROFILE'])) {
+            $shapes = $GLOBALS['kernel_perf_request_attribution']['db']['shapes'] ?? null;
+            if (is_array($shapes)) {
+                uasort($shapes, static fn(array $a, array $b): int => $b['n'] <=> $a['n']);
+                $top = [];
+                foreach (array_slice($shapes, 0, 8, true) as $shape => $agg) {
+                    $top[] = $agg['n'] . 'x ' . $agg['ms'] . 'ms :: ' . $shape;
+                }
+                $summary['db']['top'] = $top;
+            }
+        }
+
+        return $summary;
     }
 
     try {
@@ -410,6 +424,13 @@ if (!function_exists('kernelPerfProbeRequestAttribution')) {
                         $state['db']['ddl_tables'][$table] = (int)($state['db']['ddl_tables'][$table] ?? 0) + 1;
                     }
                     $state['db']['slowest'][] = ['ms' => $duration, 'sql' => $sql];
+                    if (!empty($_ENV['KERNEL_DB_PROFILE'])) {
+                        $shape = preg_replace("/'[^']*'/", '?', $sql);
+                        $shape = preg_replace('/\b\d+\b/', '?', (string)$shape);
+                        $shape = substr((string)$shape, 0, 180);
+                        $agg = $state['db']['shapes'][$shape] ?? ['n' => 0, 'ms' => 0.0];
+                        $state['db']['shapes'][$shape] = ['n' => $agg['n'] + 1, 'ms' => round($agg['ms'] + $duration, 1)];
+                    }
                     usort(
                         $state['db']['slowest'],
                         static fn(array $left, array $right): int => $right['ms'] <=> $left['ms']

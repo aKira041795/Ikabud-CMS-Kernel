@@ -339,6 +339,18 @@ function dl_repriceProductLedgerRows(\Ikabud\Kernel\Contracts\ModuleDB $db, int 
 /** @param array<int,array<string,mixed>> $rows */
 function dl_applyLedgerDisplayPrices(array $rows, int $branchId, string $ledgerDate): array
 {
+    // Resolve the prices in TWO queries instead of two per row. Only the rows without a
+    // snapshot need one, so only those products are preloaded.
+    $needsPrice = [];
+    foreach ($rows as $row) {
+        if (!isset($row['price_snapshot']) || $row['price_snapshot'] === null) {
+            $needsPrice[] = (int)($row['product_id'] ?? 0);
+        }
+    }
+    if ($needsPrice !== [] && function_exists('dl_preloadEffectivePrices')) {
+        dl_preloadEffectivePrices($needsPrice, $ledgerDate);
+    }
+
     foreach ($rows as &$row) {
         $row['current_price'] = isset($row['price_snapshot']) && $row['price_snapshot'] !== null
             ? (float)$row['price_snapshot']
