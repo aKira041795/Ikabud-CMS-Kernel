@@ -7846,6 +7846,70 @@ function dlCookieName(): string
     return 'daily_ledger_token';
 }
 
+/**
+ * The long-lived credential, kept out of JavaScript on purpose.
+ *
+ * Login already minted a 30-day refresh token but only returned it in the JSON
+ * body, which this web client never stored: when the ACCESS token reached the end
+ * of its JWT_EXPIRATION (4 hours by default) the cashier was bounced to the login
+ * screen mid-shift with a perfectly healthy connection. Holding the refresh token
+ * in an HttpOnly, SameSite=Strict cookie lets the SERVER renew the session on the
+ * request that discovers the expiry, with no JS-visible long-lived token.
+ */
+function dlRefreshCookieName(): string
+{
+    return 'daily_ledger_refresh';
+}
+
+/**
+ * Cookie path for the refresh credential.
+ *
+ * Scoped to the module (not '/') so it is not sent to CMS/ecommerce requests, but
+ * it MUST include the install's subpath: shared hosting runs the app under e.g.
+ * /kernelappos, where a plain '/daily-ledger' path would never match the request
+ * and the cookie would silently never be sent back.
+ */
+function dlRefreshCookiePath(): string
+{
+    $base = function_exists('kernel_request_base_path') ? (string)kernel_request_base_path() : '';
+    $base = rtrim($base, '/');
+    // A CLI/worker context has no web SCRIPT_NAME, and the resolver can then hand
+    // back a filesystem path. Only accept something that reads as a URL prefix -
+    // a wrong cookie path silently drops the credential on every request.
+    if ($base === '' || !str_starts_with($base, '/') || str_contains($base, '.php')) {
+        $base = '';
+    }
+    return $base . '/daily-ledger';
+}
+
+function dlSetRefreshCookie(string $token, int $expiresInSeconds = 2592000): void
+{
+    if ($token === '' || headers_sent()) {
+        return;
+    }
+    setcookie(dlRefreshCookieName(), $token, [
+        'expires' => time() + max(60, $expiresInSeconds),
+        'path' => dlRefreshCookiePath(),
+        'httponly' => true,
+        'secure' => is_https(),
+        'samesite' => 'Strict',
+    ]);
+}
+
+function dlClearRefreshCookie(): void
+{
+    if (headers_sent()) {
+        return;
+    }
+    setcookie(dlRefreshCookieName(), '', [
+        'expires' => time() - 3600,
+        'path' => dlRefreshCookiePath(),
+        'httponly' => true,
+        'secure' => is_https(),
+        'samesite' => 'Strict',
+    ]);
+}
+
 function dlSetAuthCookie(string $token, int $expiresInSeconds = 86400): void
 {
     $expiry = time() + max(60, $expiresInSeconds);
@@ -7908,6 +7972,13 @@ function dlUserFromRequest(): ?array
         $candidates[] = $cookieToken;
     }
     if ($candidates === []) {
+        // A navigation that arrives after the access cookie expired falls here first:
+        // the cookie and the token share a lifetime, so both are gone at the same
+        // moment. Renew from the refresh cookie before concluding 'not signed in'.
+        $refreshed = dl_tryRollingSessionRefresh();
+        if (is_array($refreshed)) {
+            return $refreshed;
+        }
         $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
         if (str_starts_with($path, '/daily-ledger/api/')) {
             $authHeaderPresent = false;
@@ -7961,6 +8032,14 @@ function dlUserFromRequest(): ?array
         }
     }
 
+    // A token WAS presented but none verified (expired access token, rotated key,
+    // forged value). A valid refresh cookie still means a live session, so try it
+    // before reporting the request as unauthenticated.
+    $refreshed = dl_tryRollingSessionRefresh();
+    if (is_array($refreshed)) {
+        return $refreshed;
+    }
+
     $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
     if (str_starts_with($path, '/daily-ledger/api/')) {
         write_log('daily-ledger api auth invalid jwt', 'error', [
@@ -7971,6 +8050,46 @@ function dlUserFromRequest(): ?array
         ]);
     }
     return null;
+}
+
+/**
+ * Renew an expired access token from the module refresh cookie.
+ *
+ * Called only when no access token verified, so at most once per access-token
+ * lifetime (JWT_EXPIRATION, 4h by default) per session. The refresh token is NOT
+ * rotated here: every tab of one browser shares the cookie, and a rotating token
+ * would make the loser of a concurrent refresh look signed out - the exact failure
+ * this removes. It stays valid until logout or its own 30-day expiry.
+ */
+function dl_tryRollingSessionRefresh(): ?array
+{
+    if (headers_sent()) {
+        return null;
+    }
+    $refreshToken = (string)kernelCookie(dlRefreshCookieName(), '');
+    if ($refreshToken === '') {
+        return null;
+    }
+    $payload = dl_verifyRefreshToken($refreshToken);
+    if (!is_array($payload)) {
+        // Expired, revoked or not ours: drop it so the browser stops presenting it.
+        dlClearRefreshCookie();
+        return null;
+    }
+    $tokens = dl_generateAuthTokens($payload);
+    dlSetAuthCookie($tokens['token'], (int)$tokens['expires_in']);
+    // Re-arm the SAME refresh token so its 30-day window is not shortened by use.
+    dlSetRefreshCookie($refreshToken, (int)$tokens['refresh_expires_in']);
+    // kernelCookie() reads $_COOKIE, which still holds the dead token for THIS
+    // request. Without this the page would render the expired token into DL_TOKEN
+    // and every call until the next navigation would fall back to the cookie.
+    $_COOKIE[dlCookieName()] = $tokens['token'];
+    write_log('daily-ledger session auto-refreshed', 'info', [
+        'user_id' => $payload['sub'] ?? null,
+        'role' => $payload['role'] ?? null,
+        'path' => parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/',
+    ]);
+    return $payload;
 }
 
 function dlRequireAuth(array $roles = ['cashier', 'supervisor', 'admin']): array
@@ -8361,6 +8480,8 @@ function dailyLedgerAuthLogin(): void
 
     $tokens = dl_generateAuthTokens($payload);
     dlSetAuthCookie($tokens['token'], (int)$tokens['expires_in']);
+    // The refresh token is what keeps a 4h access token from ending a 12h shift.
+    dlSetRefreshCookie($tokens['refresh_token'], (int)$tokens['refresh_expires_in']);
 
     // D4: record each successful login as its own audit event. There is no session
     // for this request yet, so install the just-authenticated payload before
@@ -8591,6 +8712,13 @@ function dailyLedgerAuthRefresh(): void
 
     $input = dlInput();
     $refreshToken = trim((string)($input['refresh_token'] ?? ''));
+    // The browser has no JS-visible refresh token any more: it presents the HttpOnly
+    // cookie instead. A body token still works for the mobile/offline clients.
+    $fromCookie = false;
+    if ($refreshToken === '') {
+        $refreshToken = (string)kernelCookie(dlRefreshCookieName(), '');
+        $fromCookie = $refreshToken !== '';
+    }
     if ($refreshToken === '') {
         http_response_code(422);
         echo json_encode(['ok' => false, 'error' => 'refresh_token is required.']);
@@ -8599,14 +8727,21 @@ function dailyLedgerAuthRefresh(): void
 
     $payload = dl_verifyRefreshToken($refreshToken);
     if (!is_array($payload)) {
+        dlClearRefreshCookie();
         http_response_code(401);
         echo json_encode(['ok' => false, 'error' => 'Invalid refresh token.']);
         return;
     }
 
-    dl_revokeRefreshToken($refreshToken);
+    // A body-supplied token is a one-shot client credential, so it is rotated. The
+    // shared cookie is not: tabs share it, and revoking it would sign out every
+    // other tab on the next request.
+    if (!$fromCookie) {
+        dl_revokeRefreshToken($refreshToken);
+    }
     $tokens = dl_generateAuthTokens($payload);
     dlSetAuthCookie($tokens['token'], (int)$tokens['expires_in']);
+    dlSetRefreshCookie($fromCookie ? $refreshToken : $tokens['refresh_token'], (int)$tokens['refresh_expires_in']);
 
     echo json_encode([
         'ok' => true,
@@ -8619,7 +8754,11 @@ function dailyLedgerAuthRefresh(): void
 
 function dailyLedgerLogout(): void
 {
+    // Revoke the long-lived credential too, otherwise 'log out' only ends the 4h
+    // access token and the next request would silently renew the session.
+    dl_revokeRefreshToken((string)kernelCookie(dlRefreshCookieName(), ''));
     dlClearAuthCookie();
+    dlClearRefreshCookie();
     dlRedirect('/daily-ledger/login');
 }
 

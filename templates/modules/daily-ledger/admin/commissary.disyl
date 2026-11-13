@@ -527,10 +527,76 @@
             window.dlUpdateDailySheetHScroll();
         };
 
+        // Row-point persistence - mirrors layouts/app.disyl. These two views inline
+        // the shell (compiled renderer), so the helpers must exist here too.
+        window.dlScrollMemoryKey = function() {
+            return 'daily-ledger:scroll:' + window.location.pathname + window.location.search;
+        };
+        window.dlCaptureScroll = function() {
+            var main = document.getElementById('main-content');
+            if (!main) return null;
+            var key = window.dlScrollMemoryKey();
+            var state = { top: main.scrollTop || 0 };
+            var product = window.DL_SCROLL_ANCHOR_PRODUCT || '';
+            if (product) state.product = String(product);
+            var sheets = document.querySelectorAll('.dl-sheet-scroll');
+            if (sheets.length) {
+                state.sheets = [];
+                for (var i = 0; i < sheets.length; i++) {
+                    state.sheets.push({ top: sheets[i].scrollTop || 0, left: sheets[i].scrollLeft || 0 });
+                }
+            }
+            try { sessionStorage.setItem(key, JSON.stringify(state)); } catch (e) {}
+            return key;
+        };
+        window.dlRestoreScroll = function(key) {
+            var main = document.getElementById('main-content');
+            if (!main) return;
+            key = key || window.dlScrollMemoryKey();
+            var raw = null;
+            try { raw = sessionStorage.getItem(key); } catch (e) {}
+            if (!raw) return;
+            try { sessionStorage.removeItem(key); } catch (e) {}
+            var state = null;
+            try { state = JSON.parse(raw); } catch (e) { state = null; }
+            if (!state) return;
+            var apply = function() {
+                var sheets = document.querySelectorAll('.dl-sheet-scroll');
+                if (state.sheets && sheets.length === state.sheets.length) {
+                    for (var i = 0; i < sheets.length; i++) {
+                        if (state.sheets[i].top > 0) sheets[i].scrollTop = state.sheets[i].top;
+                        if (state.sheets[i].left > 0) sheets[i].scrollLeft = state.sheets[i].left;
+                    }
+                }
+                if (state.product) {
+                    var row = main.querySelector('tr[data-product-id="' + String(state.product) + '"]');
+                    if (row) {
+                        var delta = row.getBoundingClientRect().top - main.getBoundingClientRect().top;
+                        var target = main.scrollTop + delta - (main.clientHeight / 2) + (row.offsetHeight / 2);
+                        main.scrollTop = target > 0 ? target : 0;
+                        return;
+                    }
+                }
+                if (typeof state.top === 'number' && state.top > 0) main.scrollTop = state.top;
+            };
+            requestAnimationFrame(function() { requestAnimationFrame(apply); });
+        };
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', function() { window.dlRestoreScroll(); });
+        } else {
+            window.dlRestoreScroll();
+        }
+
         window.dlLoadUrl = function(url, usePush) {
             // The ledger owns page-level state and timers outside #main-content.
             // Replacing only its markup leaves the old date/branch and callbacks live.
-            var nextPath = new URL(url, window.location.href).pathname;
+            var nextUrl = new URL(url, window.location.href);
+            var nextPath = nextUrl.pathname;
+            // Same view = refresh (keep the operator where they were on the sheet).
+            // A move to a DIFFERENT view must not inherit the old scroll offset.
+            var sameView = (nextUrl.pathname + nextUrl.search)
+                === (window.location.pathname + window.location.search);
+            var scrollKey = sameView ? window.dlCaptureScroll() : null;
             if (/\/daily-ledger\/ledger\/?$/.test(nextPath)
                 || /\/daily-ledger\/ledger\/?$/.test(window.location.pathname)) {
                 window.location.assign(url);
@@ -575,6 +641,9 @@
                 window.dlScheduleDailySheetStickyOffsets();
                 window.dlInitDailySheetPan();
                 window.dlInitDailySheetHScroll();
+                // Put the operator back on the row they were working on: the swap
+                // above replaces every child, so #main-content would sit at the top.
+                if (scrollKey) window.dlRestoreScroll(scrollKey);
                 // Keep the URL in sync (back/forward + shareable filters)
                 if (window.history) {
                     if (usePush && window.history.pushState) {

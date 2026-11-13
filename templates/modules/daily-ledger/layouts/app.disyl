@@ -407,6 +407,88 @@
         });
 
         /**
+         * Row-point persistence.
+         *
+         * #main-content is the scroll container of the shell (the page itself is
+         * h-screen with overflow-hidden), so replacing its markup - or any full
+         * navigation - silently returns the operator to the TOP of the sheet.
+         * Measured complaint: after saving a withdrawal / additional entry the
+         * sheet jumped back to the top and every entry cost a scroll back down.
+         *
+         * The position is kept in sessionStorage because the ledger view refreshes
+         * with a real navigation, and it is ONE-SHOT: read it, delete it, so the
+         * next ordinary visit to the same URL still starts at the top.
+         *
+         * When a modal records which row it was opened on
+         * (window.DL_SCROLL_ANCHOR_PRODUCT), that row wins over the pixel offset:
+         * the row is what the operator needs back, and its offset moves when the
+         * sheet re-renders with different values.
+         */
+        window.dlScrollMemoryKey = function() {
+            return 'daily-ledger:scroll:' + window.location.pathname + window.location.search;
+        };
+        window.dlCaptureScroll = function() {
+            var main = document.getElementById('main-content');
+            if (!main) return null;
+            var key = window.dlScrollMemoryKey();
+            var state = { top: main.scrollTop || 0 };
+            var product = window.DL_SCROLL_ANCHOR_PRODUCT || '';
+            if (product) state.product = String(product);
+            // The daily sheets scroll a SECOND box inside #main-content
+            // (.dl-sheet-scroll). Without it the page looks restored while the
+            // sheet itself is back at its first row.
+            var sheets = document.querySelectorAll('.dl-sheet-scroll');
+            if (sheets.length) {
+                state.sheets = [];
+                for (var i = 0; i < sheets.length; i++) {
+                    state.sheets.push({ top: sheets[i].scrollTop || 0, left: sheets[i].scrollLeft || 0 });
+                }
+            }
+            try { sessionStorage.setItem(key, JSON.stringify(state)); } catch (e) {}
+            return key;
+        };
+        window.dlRestoreScroll = function(key) {
+            var main = document.getElementById('main-content');
+            if (!main) return;
+            key = key || window.dlScrollMemoryKey();
+            var raw = null;
+            try { raw = sessionStorage.getItem(key); } catch (e) {}
+            if (!raw) return;
+            try { sessionStorage.removeItem(key); } catch (e) {}
+            var state = null;
+            try { state = JSON.parse(raw); } catch (e) { state = null; }
+            if (!state) return;
+            var apply = function() {
+                var sheets = document.querySelectorAll('.dl-sheet-scroll');
+                if (state.sheets && sheets.length === state.sheets.length) {
+                    for (var i = 0; i < sheets.length; i++) {
+                        if (state.sheets[i].top > 0) sheets[i].scrollTop = state.sheets[i].top;
+                        if (state.sheets[i].left > 0) sheets[i].scrollLeft = state.sheets[i].left;
+                    }
+                }
+                if (state.product) {
+                    var row = main.querySelector('tr[data-product-id="' + String(state.product) + '"]');
+                    if (row) {
+                        // Centre the row inside the scroll container without relying on
+                        // scrollIntoView's options object.
+                        var delta = row.getBoundingClientRect().top - main.getBoundingClientRect().top;
+                        var target = main.scrollTop + delta - (main.clientHeight / 2) + (row.offsetHeight / 2);
+                        main.scrollTop = target > 0 ? target : 0;
+                        return;
+                    }
+                }
+                if (typeof state.top === 'number' && state.top > 0) main.scrollTop = state.top;
+            };
+            // Two frames so the swapped markup has settled before we measure it.
+            requestAnimationFrame(function() { requestAnimationFrame(apply); });
+        };
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', function() { window.dlRestoreScroll(); });
+        } else {
+            window.dlRestoreScroll();
+        }
+
+        /**
          * Deterministic in-place page load: fetch a URL (full page), extract
          * #main-content via DOMParser, and swap it into the live #main-content.
          * Re-runs inline scripts and rebinds htmx. On failure (login redirect,
@@ -424,7 +506,13 @@
         window.dlLoadUrl = function(url, usePush) {
             // The ledger owns page-level state and timers outside #main-content.
             // Replacing only its markup leaves the old date/branch and callbacks live.
-            var nextPath = new URL(url, window.location.href).pathname;
+            var nextUrl = new URL(url, window.location.href);
+            var nextPath = nextUrl.pathname;
+            // Same view = refresh (keep the operator where they were). A move to a
+            // DIFFERENT view must not inherit the old scroll offset.
+            var sameView = (nextUrl.pathname + nextUrl.search)
+                === (window.location.pathname + window.location.search);
+            var scrollKey = sameView ? window.dlCaptureScroll() : null;
             if (/\/daily-ledger\/ledger\/?$/.test(nextPath)
                 || /\/daily-ledger\/ledger\/?$/.test(window.location.pathname)) {
                 window.location.assign(url);
@@ -466,6 +554,9 @@
                 if (typeof htmx !== 'undefined') {
                     htmx.process(target);
                 }
+                // Put the operator back on the row they were working on. The swap
+                // above replaces every child, so scrollTop would otherwise be 0.
+                if (scrollKey) window.dlRestoreScroll(scrollKey);
                 // Keep the URL in sync (back/forward + shareable filters)
                 if (window.history) {
                     if (usePush && window.history.pushState) {

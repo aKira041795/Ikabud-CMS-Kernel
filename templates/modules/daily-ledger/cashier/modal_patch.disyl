@@ -2,6 +2,8 @@
 <div x-data="withdrawalModal()"
      x-cloak
      x-on:open-withdrawal-modal.window="openModal($event.detail)"
+     @keydown.window.ctrl.s="isOpen && ($event.preventDefault(), saveChanges())"
+     @keydown.window.meta.s="isOpen && ($event.preventDefault(), saveChanges())"
      class="relative z-50" aria-labelledby="modal-title" role="dialog" aria-modal="true" x-show="isOpen">
     <div x-show="isOpen" x-transition.opacity class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"></div>
     <div class="fixed inset-0 z-10 overflow-y-auto">
@@ -13,10 +15,10 @@
                  x-transition:leave="ease-in duration-200"
                  x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
                  x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
-                 @click.away="closeModal()"
-                 class="relative transform overflow-hidden rounded-lg bg-white px-4 pb-4 pt-5 text-left shadow-xl transition-all sm:my-8 w-full sm:max-w-2xl sm:p-6">
+                 @click.away="!saving && closeModal()"
+                 class="relative transform overflow-hidden rounded-lg bg-white px-4 pb-4 pt-5 text-left shadow-xl transition-all sm:my-8 w-full sm:max-w-2xl sm:p-6 flex max-h-[calc(100vh-2rem)] flex-col sm:max-h-[calc(100vh-4rem)]">
 
-                <div>
+                <div class="min-h-0 flex-1 overflow-y-auto pr-1">
                     <h3 class="text-lg font-semibold leading-6 text-gray-900" id="modal-title">Stock Adjustment</h3>
                     <p class="text-sm text-gray-500 mb-4">Record branch-side stock corrections: <span class="font-semibold">charge</span> (cashier accountability), <span class="font-semibold">pullout</span> (unsold goods returning to commissary), <span class="font-semibold">used</span> (packaging/items consumed to make or fill a product), <span class="font-semibold">correction</span> (fixing a wrongly-recorded entry), or <span class="font-semibold">add stock</span> (stock that was missed or undercounted<span x-show="window.BRANCH_HAS_PRODUCTION"> — or produced by the branch itself, via Add Stock (own production)</span>). <span class="font-semibold">Pullout items are automatically sent back to the commissary</span> — they will appear as incoming stock on the commissary ledger.</p>
                     <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">
@@ -196,7 +198,7 @@
                     </div>
                 </div>
 
-                <div class="mt-5 sm:mt-6 sm:flex sm:flex-row-reverse border-t border-gray-200 pt-4">
+                <div class="mt-4 shrink-0 border-t border-gray-200 bg-white pt-4 sm:flex sm:flex-row-reverse">
                     <button type="button" @click="saveChanges()" class="inline-flex w-full items-center justify-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 sm:ml-3 sm:w-auto" x-bind:disabled="saving">
                         <svg x-show="saving" class="mr-2 h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -239,6 +241,12 @@ function withdrawalModal() {
             detail = detail || {};
             this.errorMsg = '';
             this.editId = detail.id ? parseInt(detail.id, 10) : null;
+            // Remember WHICH row this modal was opened on. The ledger refreshes
+            // with a real navigation after the save, so without this the operator
+            // lands at the top of the sheet and re-scrolls for every entry. An
+            // entry opened from a row always carries its product; the action-card
+            // entry point carries none, and then the pixel offset is used instead.
+            window.DL_SCROLL_ANCHOR_PRODUCT = detail.product_id ? String(detail.product_id) : '';
             this.loadProducts();
             if (this.editId) {
                 var e = detail;
@@ -288,6 +296,8 @@ function withdrawalModal() {
                     window.refreshMainContent();
                 }
             }
+            // One-shot: the next modal must not inherit this row.
+            window.DL_SCROLL_ANCHOR_PRODUCT = '';
         },
 
         // The withdrawal type the SERVER sees. "Correction — Additional" is not a
@@ -462,6 +472,11 @@ function withdrawalModal() {
         },
 
         saveChanges() {
+            // Ctrl+S / Cmd+S and the Save button both land here; a held key or a
+            // second click while the first request is in flight must not create a
+            // second attempt (the idempotency key would replay it, but the operator
+            // would see two busy cycles and no clear outcome).
+            if (this.saving) return;
             if (!this.validate()) return;
             this.saving = true;
             if (window.dlSetBusy) window.dlSetBusy(true, 'Saving adjustment…');
