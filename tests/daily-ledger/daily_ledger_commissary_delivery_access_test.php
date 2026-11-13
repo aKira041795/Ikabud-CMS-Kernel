@@ -40,15 +40,26 @@ $h->test(
     str_contains($deliveries, "'can_create_delivery_docs' => in_array(\$role, ['admin', 'supervisor', 'production_in_charge'], true)")
 );
 $h->test(
-    'Deliveries nav includes production-in-charge, aligned with creation rights',
-    // The nav now asks the SAME predicate the request gate enforces instead of naming roles inline,
-    // so the menu cannot offer a page the server refuses (it did: Deliveries was shown to this role
-    // and answered 403). The role must still be granted the page - asserted at the predicate.
+    'the Deliveries MENU no longer offers this office page to production-in-charge',
+    // SUPERSEDED 2026-11-13 by owner direction from the production in-charge's own sidebar:
+    // "Deliveries and Production Delivery audit links are showing ... if it's not the concern of PIC,
+    // don't show it". The MENU no longer offers these office pages to that role, while the document
+    // CREATION right stays with it (asserted above) because creating DRs happens on the Daily Sheet,
+    // not on this page. Creation and navigation are different questions and must not be tied again.
     str_contains($template, 'feature_formal_delivery && nav_can_deliveries')
         && str_contains(
             (string)file_get_contents($base . '/modules/daily-ledger/helpers.php'),
-            "'/daily-ledger/admin/deliveries' => ['admin', 'supervisor', 'production_in_charge']"
+            "'deliveries' => ['admin', 'supervisor'],"
         )
+);
+$h->test(
+    'the page and the menu answer to ONE decision, so a hidden page cannot half-load',
+    // Measured 2026-11-13: the page was allowed while its nine api/v1/deliveries* endpoints were not,
+    // so it rendered with the refusal text inside its own table and four 403s in the console.
+    str_contains(
+        (string)file_get_contents($base . '/modules/daily-ledger/helpers.php'),
+        "if (isset(\$menuKeys[\$path])) {"
+    )
 );
 $h->test(
     'cashier and viewer still cannot create delivery documents',

@@ -1646,21 +1646,20 @@ function dl_roleMayOpenPage(string $role, string $path): bool
 
     $path = (string)(parse_url($path, PHP_URL_PATH) ?: $path);
 
-    // The production desk pages answer to the role list of the HANDLER that serves them - that is the
-    // authority on who may use them, and it already names these roles (handleAdminDeliveries and
-    // handleAdminUsage authorise admin/supervisor/production_in_charge; handleAdminTrace adds auditor).
-    // A second, narrower rule here used to block supervisor and auditor from all four and
-    // production_in_charge from three, which silently subtracted what those handlers grant: the
-    // commissary sidebar showed Deliveries to a production in-charge and the URL answered 403.
-    // Owner direction 2026-11-13: a role restriction must not block a page the role can use.
-    $pageRoles = [
-        '/daily-ledger/admin/deliveries' => ['admin', 'supervisor', 'production_in_charge'],
-        '/daily-ledger/admin/usage' => ['admin', 'supervisor', 'production_in_charge'],
-        '/daily-ledger/admin/production-output' => ['admin', 'supervisor', 'production_in_charge'],
-        '/daily-ledger/admin/trace' => ['admin', 'supervisor', 'auditor', 'production_in_charge'],
+    // The four office/production surfaces answer to the SAME decision that decides whether the menu
+    // offers them. They must: those pages cannot run on a shell alone - Deliveries alone calls nine
+    // api/v1/deliveries* endpoints (create, post, void, change-destination...), so letting the PAGE
+    // through while its APIs stay refused produced a real, worse state than a refusal - the page
+    // loaded with the refusal text rendered inside its own table and four 403s in the console
+    // (measured 2026-11-13). A role either works on these pages or it does not see them.
+    $menuKeys = [
+        '/daily-ledger/admin/deliveries' => 'deliveries',
+        '/daily-ledger/admin/usage' => 'usage',
+        '/daily-ledger/admin/production-output' => 'production_output',
+        '/daily-ledger/admin/trace' => 'trace',
     ];
-    if (isset($pageRoles[$path])) {
-        return in_array($role, $pageRoles[$path], true);
+    if (isset($menuKeys[$path])) {
+        return dl_roleMenuShows($role, $menuKeys[$path]);
     }
 
     if ($role === 'production_in_charge' && str_starts_with($path, '/daily-ledger/')) {
@@ -1677,6 +1676,44 @@ function dl_roleMayOpenPage(string $role, string $path): bool
     }
 
     return true;
+}
+
+/**
+ * What a role's MENU offers — deliberately a different question from what the server PERMITS.
+ *
+ * Conflating the two broke both directions within one day, so they are now separate on purpose:
+ *
+ *  - dl_roleMayOpenPage() asks "may this REQUEST proceed?". Its job is to stop the product offering
+ *    a link the server then refuses (measured: Deliveries was shown and answered 403).
+ *  - dl_roleMenuShows() asks "is this page part of this ROLE'S JOB?". Its job is to keep a workspace
+ *    free of pages the person does not work with.
+ *
+ * Owner direction 2026-11-13, looking at the production in-charge's own sidebar: "Deliveries and
+ * Production Delivery audit links are showing ... if it's not the concern of PIC, don't show it".
+ * The pages themselves still authorise that role (handleAdminDeliveries and friends list it, and
+ * document creation stays a production right), so reaching one by URL works — it is simply not part
+ * of this workspace's navigation. Showing LESS than the server allows is safe; showing MORE is the
+ * defect this pair exists to prevent.
+ *
+ * A resolved role is required for a real answer. An empty one (CLI, export, render harness) keeps the
+ * historical full menu rather than hiding admin items from non-request renders.
+ */
+function dl_roleMenuShows(string $role, string $menuKey): bool
+{
+    if ($role === '') {
+        return true;
+    }
+    $menus = [
+        // Network-wide office surfaces: not a commissary's job.
+        'deliveries' => ['admin', 'supervisor'],
+        'usage' => ['admin', 'supervisor'],
+        'production_output' => ['admin', 'supervisor'],
+        'trace' => ['admin', 'supervisor', 'auditor'],
+        // The workspace the production in-charge actually runs.
+        'commissary' => ['admin', 'supervisor', 'production_in_charge'],
+        'variances' => ['admin', 'supervisor', 'production_in_charge'],
+    ];
+    return in_array($role, $menus[$menuKey] ?? [], true);
 }
 
 /**

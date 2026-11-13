@@ -3996,14 +3996,15 @@ function dl_layoutFlags(): array
         'feature_consignee'         => function_exists('dl_isConsigneeEnabled')
             ? dl_isConsigneeEnabled()
             : dl_settingToBool($s['consignee_enabled'] ?? false),
-        // Menu visibility comes from the SAME predicate the request gate enforces, so a shell can
-        // never offer a page the server would refuse. They diverged once already: the commissary
-        // sidebar showed Deliveries to production_in_charge, supervisor and auditor, and the server
-        // answered 403 to all three (measured 2026-11-13).
-        'nav_can_deliveries'        => dl_roleMayOpenPage(dl_navRole(), '/daily-ledger/admin/deliveries'),
-        'nav_can_usage'             => dl_roleMayOpenPage(dl_navRole(), '/daily-ledger/admin/usage'),
-        'nav_can_trace'             => dl_roleMayOpenPage(dl_navRole(), '/daily-ledger/admin/trace'),
-        'nav_can_production_output' => dl_roleMayOpenPage(dl_navRole(), '/daily-ledger/admin/production-output'),
+        // Menu visibility asks a DIFFERENT question from the request gate: not "may this role open
+        // it" but "is it this role's job". Owner direction 2026-11-13 from the production in-charge's
+        // own sidebar: Deliveries and the Production Delivery Audit are network-wide office surfaces
+        // and must not be offered there. dl_roleMenuShows() owns that answer; dl_roleMayOpenPage()
+        // owns authorization, and the two are deliberately separate - see the docblocks.
+        'nav_can_deliveries'        => dl_roleMenuShows(dl_navRole(), 'deliveries'),
+        'nav_can_usage'             => dl_roleMenuShows(dl_navRole(), 'usage'),
+        'nav_can_trace'             => dl_roleMenuShows(dl_navRole(), 'trace'),
+        'nav_can_production_output' => dl_roleMenuShows(dl_navRole(), 'production_output'),
     ];
 }
 
