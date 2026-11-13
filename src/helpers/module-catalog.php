@@ -28,6 +28,7 @@ function invalidateModuleCatalogCache(): void
         $GLOBALS['_kernel_module_entitlement_cache'],
         $GLOBALS['_kernel_module_access_request_cache']
     );
+    $GLOBALS['_kernel_module_catalog_failed'] = false;
 }
 
 function moduleCatalogWithKernelDbEscalation(callable $callback): mixed
@@ -135,6 +136,11 @@ function readModuleCatalogRegistry(): array
 
     if (!moduleControlPlaneEnsureCatalogTables()) {
         $GLOBALS[$cacheKey] = [];
+        // An empty registry that came from a FAILED read is not evidence that nothing is
+        // catalogued. Recorded so moduleCatalogEntry() does not turn a transient control-plane
+        // failure into "this module is uncatalogued" (and, through the entitlement checks,
+        // into skipping a module that is in fact governed by the catalog).
+        $GLOBALS['_kernel_module_catalog_failed'] = true;
         return [];
     }
 
@@ -160,9 +166,11 @@ function readModuleCatalogRegistry(): array
             $catalog[$moduleId] = $row;
         }
         $GLOBALS[$cacheKey] = $catalog;
+        $GLOBALS['_kernel_module_catalog_failed'] = false;
         return $catalog;
     } catch (Throwable $e) {
         $GLOBALS[$cacheKey] = [];
+        $GLOBALS['_kernel_module_catalog_failed'] = true;
         return [];
     }
 }
@@ -225,6 +233,12 @@ function moduleCatalogEntry(string $moduleId): ?array
     // invalidateModuleCatalogCache(), so a row added mid-request is picked up by the
     // next call through a fresh registry read; moduleCatalogEntryRefresh() stays
     // available for the install flow that must bypass the cache explicitly.
+    if (!empty($GLOBALS['_kernel_module_catalog_failed'])) {
+        // The bulk read FAILED, so "absent" proves nothing. Fall back to the per-row retry
+        // that this call used to always do — the failure case is the only one that needs it.
+        return moduleCatalogEntryRefresh($moduleId);
+    }
+
     return null;
 }
 

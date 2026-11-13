@@ -1636,10 +1636,15 @@ function moduleManifestTreeState(string $dir): array
             if (is_file($manifest) && preg_match('#\.bak_\d{8}_\d{6}#', $manifest) !== 1) {
                 $mtime = @filemtime($manifest);
                 $size = @filesize($manifest);
-                if ($mtime === false || $size === false) {
+                $ctime = @filectime($manifest);
+                if ($mtime === false || $size === false || $ctime === false) {
                     $manifestUnstatable = true;
                 } else {
-                    $files[$childRelative . '/module.json'] = $mtime . ':' . $size;
+                    // ctime is part of the stamp because a deploy can PRESERVE mtime (rsync -t,
+                    // tar -x, most artifact extractors), which left mtime+size identical for a
+                    // changed manifest - the stale-owns_tables hard-500 path. Writing the file
+                    // always moves ctime, so the change is visible without a content hash.
+                    $files[$childRelative . '/module.json'] = $mtime . ':' . $size . ':' . $ctime;
                 }
             }
 
@@ -1716,7 +1721,8 @@ function moduleManifestStateIsCurrent(string $dir, array $state): bool
             return false;
         }
         $size = @filesize($path);
-        if ($size === false || $mtime . ':' . $size !== $stamp) {
+        $ctime = @filectime($path);
+        if ($size === false || $ctime === false || $mtime . ':' . $size . ':' . $ctime !== $stamp) {
             return false;
         }
     }
@@ -1860,8 +1866,13 @@ function moduleScanSharedCacheWrite(string $fingerprint, array $modules): bool
     $staleCutoff = time() - 3600;
     // Also matches the legacy `modules_*.cache` name so an upgrade cleans up the file that the old
     // build wrote (and that Cache's sweep would otherwise keep deleting).
+    //
+    // The companion file for THIS fingerprint is spared: the raw-manifest cache and the validated
+    // scan are two files for one fingerprint, and deleting the sibling because it is an hour old
+    // would throw away a cache that is still exactly as current as the one just written.
+    $companion = moduleScanSharedCacheFile($fingerprint . '-raw-manifests');
     foreach (glob($dir . '/modules_*') ?: [] as $stale) {
-        if ($stale === $file) {
+        if ($stale === $file || $stale === $companion) {
             continue;
         }
         $staleMtime = @filemtime($stale);
