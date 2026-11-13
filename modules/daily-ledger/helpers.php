@@ -1466,7 +1466,13 @@ function dl_preloadEffectivePrices(array $productIds, ?string $atDate = null): v
         $stmt->execute($params);
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
             if (is_array($row)) {
-                $resolved[(int)$row['product_id']] = (float)$row['price'];
+                // Rows arrive in id order, so the last one wins the effective_at tie.
+                // A NULL price is recorded AS NULL, not as 0.0: the per-product query treats
+                // a NULL latest price as "no history price" and falls back to
+                // dl_products.current_price, and 0.0 here made the batch disagree with it
+                // (a real price of 125 rendered as 0).
+                $price = $row['price'] ?? null;
+                $resolved[(int)$row['product_id']] = ($price === null) ? null : (float)$price;
             }
         }
     } catch (\Throwable $e) {
@@ -1475,7 +1481,7 @@ function dl_preloadEffectivePrices(array $productIds, ?string $atDate = null): v
 
     $fallback = [];
     foreach ($missing as $id) {
-        if (!array_key_exists($id, $resolved)) {
+        if (!array_key_exists($id, $resolved) || $resolved[$id] === null) {
             $fallback[] = $id;
         }
     }
@@ -1510,7 +1516,6 @@ function dl_preloadEffectivePrices(array $productIds, ?string $atDate = null): v
         $cache[$id . '|' . $atDate] = $resolved[$id] ?? 0.0;
     }
 }
-
 function dl_resolveProductPrice(int $productId, ?int $priceGroupId = null, ?string $atDate = null): float
 {
     $ctx = module();

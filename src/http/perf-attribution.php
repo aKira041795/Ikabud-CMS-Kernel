@@ -425,11 +425,25 @@ if (!function_exists('kernelPerfProbeRequestAttribution')) {
                     }
                     $state['db']['slowest'][] = ['ms' => $duration, 'sql' => $sql];
                     if (!empty($_ENV['KERNEL_DB_PROFILE'])) {
-                        $shape = preg_replace("/'[^']*'/", '?', $sql);
+                        // Redact literals on the WHOLE statement first, then truncate: doing it
+                        // the other way round cut a quoted value in half, the redaction regex no
+                        // longer matched, and up to 180 bytes of the value reached the log line.
+                        $shape = preg_replace("/'(?:[^'\\\\]|\\\\.)*'/s", '?', $sql);
+                        $shape = preg_replace('/"(?:[^"\\\\]|\\\\.)*"/s', '?', (string)$shape);
                         $shape = preg_replace('/\b\d+\b/', '?', (string)$shape);
                         $shape = substr((string)$shape, 0, 180);
-                        $agg = $state['db']['shapes'][$shape] ?? ['n' => 0, 'ms' => 0.0];
-                        $state['db']['shapes'][$shape] = ['n' => $agg['n'] + 1, 'ms' => round($agg['ms'] + $duration, 1)];
+                        $shapes = &$state['db']['shapes'];
+                        if (!is_array($shapes)) {
+                            $shapes = [];
+                        }
+                        // Bounded: a request issuing many distinct statements must not keep an
+                        // unbounded map alive until shutdown.
+                        if (!isset($shapes[$shape]) && count($shapes) >= 200) {
+                            $shape = '__other__';
+                        }
+                        $agg = $shapes[$shape] ?? ['n' => 0, 'ms' => 0.0];
+                        $shapes[$shape] = ['n' => $agg['n'] + 1, 'ms' => round($agg['ms'] + $duration, 1)];
+                        unset($shapes);
                     }
                     usort(
                         $state['db']['slowest'],

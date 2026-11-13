@@ -157,6 +157,24 @@ $displayWithoutSnapshot = dl_applyLedgerDisplayPrices([
 $h->test('ledger display prefers its stored snapshot', $displayWithSnapshot[0]['current_price'] === 10.0);
 $h->test('ledger display resolves the viewed date when no row snapshot exists', $displayWithoutSnapshot[0]['current_price'] === 20.0);
 
+// The batched preload (dl_preloadEffectivePrices) answers the whole sheet in two queries. This
+// pins that it agrees with the per-product query on BOTH sides of a price boundary: a fold bug
+// (tie-break, a NULL price treated as 0, or a missed current_price fallback) would otherwise
+// surface as a wrong money figure on a rendered page, not here.
+$h->section('Batched price preload matches the per-product path');
+foreach (['2031-01-10', '2031-01-14', '2031-01-15', '2031-01-20'] as $probeDate) {
+    unset($GLOBALS['_dl_effective_price_cache']);
+    dl_preloadEffectivePrices([$productId], $probeDate);
+    $batchedPrice = dl_resolveBaseProductPrice($productId, $probeDate);
+    unset($GLOBALS['_dl_effective_price_cache']);
+    $perProductPrice = dl_resolveBaseProductPrice($productId, $probeDate);
+    $h->test(
+        "batched base price matches the per-product path on {$probeDate}",
+        abs($batchedPrice - $perProductPrice) < 0.000001,
+        "batched={$batchedPrice} per_product={$perProductPrice}"
+    );
+}
+
 $db->execute('DELETE FROM dl_product_price_history WHERE product_id = :p', [':p' => $productId]);
 $db->execute('UPDATE dl_products SET current_price = 33.00 WHERE id = :p', [':p' => $productId]);
 $h->test('effective-price expression falls back to current_price without history', $readEffective('2031-01-15') === 33.0);
