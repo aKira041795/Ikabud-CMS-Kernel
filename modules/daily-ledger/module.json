@@ -183,7 +183,8 @@
     "database/migrations/095_rename_paperless_dr_column.sql",
     "database/migrations/096_branch_has_production.sql",
     "database/migrations/097_receiving_item_supply_origin.sql",
-    "database/migrations/098_product_categories.sql"
+    "database/migrations/098_product_categories.sql",
+    "database/migrations/100_receiving_supply_origin_cake_correction.sql"
   ],
   "capabilities": {
     "exposes": [

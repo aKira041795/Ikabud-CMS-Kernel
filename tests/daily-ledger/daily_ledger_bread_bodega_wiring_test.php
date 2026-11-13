@@ -94,6 +94,24 @@ try {
             && ($column['Default'] ?? null) === 'commissary',
         'register/apply migration 097 with the required default'
     );
+    // The historical stamps written before the cake exclusion existed are corrected by 100;
+    // registering it is what makes the correction reach a tenant DB at all.
+    $h->test(
+        'migration 100 correcting cake stamps is registered',
+        str_contains($moduleJson, 'database/migrations/100_receiving_supply_origin_cake_correction.sql'),
+        'unregistered migrations never run'
+    );
+    $staleCake = $db->query(
+        "SELECT COUNT(*) FROM dl_branch_receiving_items ri
+           INNER JOIN dl_products p ON p.id = ri.product_id
+           LEFT JOIN dl_product_categories c ON c.id = p.category_id
+          WHERE ri.supply_origin = 'bodega' AND (c.code = 'cake' OR p.product_category = 'cake')"
+    )->fetchColumn();
+    $h->test(
+        'no cake line is stamped as Bodega stock',
+        (int)$staleCake === 0,
+        'cake rows still labelled bodega: ' . (int)$staleCake
+    );
     $h->test(
         'the live resolver maps non-bread to bodega and bread to its fallback',
         dl_supplyOriginForProduct($productIds['bread'], 'branch') === 'branch'
