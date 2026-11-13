@@ -124,5 +124,58 @@ phaseBreakdownAssert(
     var_export($elapsedWithoutState, true)
 );
 
+// The slow_request log line is the only live evidence anyone can read. Before this the
+// line said THAT a request was slow and nothing about WHERE the time went, so a 2s page
+// could not be split between boot, route registration, the handler and the database.
+$summary = kernelPerfSlowRequestSummary();
+phaseBreakdownAssert(
+    'slow-request summary reports the phase marks that were taken',
+    $summary['phase_ms']['boot'] !== null && $summary['phase_ms']['dispatch'] !== null,
+    json_encode($summary)
+);
+phaseBreakdownAssert(
+    'slow-request summary reports the segment deltas',
+    $summary['segment_ms']['module_routes'] !== null && $summary['segment_ms']['route_match'] !== null,
+    json_encode($summary['segment_ms'])
+);
+phaseBreakdownAssert(
+    'slow-request summary names the slowest module-registration segment',
+    is_string($summary['slowest_registration']) && str_ends_with($summary['slowest_registration'], 'ms'),
+    var_export($summary['slowest_registration'], true)
+);
+phaseBreakdownAssert(
+    'slow-request summary carries the database aggregate',
+    array_key_exists('queries', $summary['db']) && array_key_exists('ms', $summary['db'])
+);
+
+// null, never 0 — an unmarked phase was not measured. This is what keeps a log reader from
+// concluding "boot cost nothing" when boot was simply never marked.
+unset($GLOBALS['kernel_perf_request_attribution']);
+$summaryWithoutState = kernelPerfSlowRequestSummary();
+$GLOBALS['kernel_perf_request_attribution'] = $savedAttributionState;
+phaseBreakdownAssert(
+    'slow-request summary keeps unmeasured phases null, not zero',
+    $summaryWithoutState['phase_ms']['boot'] === null
+        && $summaryWithoutState['segment_ms']['module_routes'] === null
+        && $summaryWithoutState['slowest_registration'] === null
+        && $summaryWithoutState['db']['queries'] === 0,
+    json_encode($summaryWithoutState)
+);
+
+// A bounded payload: this line is written with FILE_APPEND|LOCK_EX, so an unbounded
+// attribution dump would serialize every concurrent slow request behind the log file.
+phaseBreakdownAssert(
+    'slow-request summary stays small enough for a locked log line',
+    strlen(json_encode($summary)) < 900,
+    (string)strlen(json_encode($summary)) . ' bytes'
+);
+
+$indexSourceForSlowRequest = (string)file_get_contents(__DIR__ . '/../public/index.php');
+phaseBreakdownAssert(
+    'the front controller emits the attribution inside slow_request',
+    str_contains($indexSourceForSlowRequest, 'kernelPerfSlowRequestSummary')
+        && (bool)preg_match('/write_log\(\'slow_request\',[^;]*\'perf\'/s', $indexSourceForSlowRequest)
+);
+
 echo 'Total: ' . ($pass + $fail) . " PASS: {$pass} FAIL: {$fail}" . PHP_EOL;
 exit($fail === 0 ? 0 : 1);

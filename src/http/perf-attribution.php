@@ -320,6 +320,70 @@ if (!function_exists('kernelPerfProbeRequestAttribution')) {
         }
     }
 
+    /**
+     * Compact boot-vs-handler attribution for the `slow_request` log line.
+     *
+     * `slow_request` reported only the total, so a 2s page could not be attributed to
+     * module boot, route registration, the handler, or the database from the log alone -
+     * every live investigation started by guessing. The full probe is far too large for a
+     * line written under a global file lock, so this keeps the few numbers that answer
+     * "where did it go": cumulative phase marks, the segment deltas between them, and the
+     * database aggregate.
+     *
+     * Null stays null: an unmarked phase was not measured, and 0 would report that it
+     * cost nothing.
+     */
+    function kernelPerfSlowRequestSummary(): array
+    {
+        $probe = kernelPerfProbeRequestAttribution();
+        $phases = is_array($probe['phases'] ?? null) ? $probe['phases'] : [];
+        $deltas = is_array($probe['phase_deltas'] ?? null) ? $probe['phase_deltas'] : [];
+        $moduleDeltas = is_array($probe['module_route_deltas'] ?? null) ? $probe['module_route_deltas'] : [];
+        $db = is_array($probe['db'] ?? null) ? $probe['db'] : [];
+
+        $ms = static function ($value): ?float {
+            return is_int($value) || is_float($value) ? round((float)$value, 1) : null;
+        };
+
+        $slowestRegistration = null;
+        $slowestValue = -1.0;
+        foreach ($moduleDeltas as $name => $value) {
+            if (!is_int($value) && !is_float($value)) {
+                continue;
+            }
+            if ((float)$value > $slowestValue) {
+                $slowestValue = (float)$value;
+                $slowestRegistration = $name;
+            }
+        }
+
+        return [
+            'phase_ms' => [
+                'boot' => $ms($phases['boot'] ?? null),
+                'session' => $ms($phases['session'] ?? null),
+                'module_routes' => $ms($phases['module_routes'] ?? null),
+                'dispatch' => $ms($phases['dispatch'] ?? null),
+                'render' => $ms($phases['render'] ?? null),
+            ],
+            'segment_ms' => [
+                'session' => $ms($deltas['session'] ?? null),
+                'core_routes' => $ms($deltas['core_routes'] ?? null),
+                'settings' => $ms($deltas['settings_preload'] ?? null),
+                'module_routes' => $ms($deltas['module_routes'] ?? null),
+                'hooks' => $ms($deltas['dispatch_hooks'] ?? null),
+                'route_match' => $ms($deltas['route_match'] ?? null),
+                'dispatch_tail' => $ms($deltas['dispatch_tail'] ?? null),
+            ],
+            'slowest_registration' => $slowestRegistration === null
+                ? null
+                : $slowestRegistration . '=' . round($slowestValue, 1) . 'ms',
+            'db' => [
+                'queries' => max(0, (int)($db['queries'] ?? 0)),
+                'ms' => round(max(0.0, (float)($db['total_ms'] ?? 0.0)), 1),
+            ],
+        ];
+    }
+
     try {
         \Ikabud\Kernel\EventBus::getInstance()->listen(
             'kernel.database.query.after',

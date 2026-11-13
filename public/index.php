@@ -254,6 +254,19 @@ register_shutdown_function(static function (): void {
             $endpointTag = 'health';
         }
 
+        // Boot vs handler vs database. Without this a slow_request line says only THAT
+        // the request was slow, so every live investigation starts by guessing which
+        // half to look at. The summary is a handful of numbers on purpose - this line is
+        // written under a global file lock.
+        $perf = null;
+        if (function_exists('kernelPerfSlowRequestSummary')) {
+            try {
+                $perf = kernelPerfSlowRequestSummary();
+            } catch (Throwable $ignored) {
+                $perf = null;
+            }
+        }
+
         write_log('slow_request', 'warning', [
             'duration_ms' => round($duration * 1000, 1),
             'method' => $_SERVER['REQUEST_METHOD'] ?? '',
@@ -263,6 +276,7 @@ register_shutdown_function(static function (): void {
             'tenant_id' => $tenantId,
             'entry_module_id' => $entryModuleId,
             'endpoint_tag' => $endpointTag,
+            'perf' => $perf,
             'request_id' => function_exists('request_id') ? request_id() : null,
             'ip' => $_SERVER['REMOTE_ADDR'] ?? '',
         ]);
