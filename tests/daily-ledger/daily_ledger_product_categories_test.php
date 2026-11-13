@@ -69,11 +69,13 @@ try {
     $h->test('per-code counts equal the legacy mirror counts without magic numbers', $legacyCounts === $newCounts, json_encode(['legacy' => $legacyCounts, 'new' => $newCounts]));
 
     $ids = $db->query("SELECT c.code, MIN(p.id) id FROM dl_product_categories c INNER JOIN dl_products p ON p.category_id = c.id WHERE c.code IN ('bread','cake','other') GROUP BY c.code")->fetchAll(PDO::FETCH_KEY_PAIR) ?: [];
+    // Bodega supplies what is NEITHER bread NOR cake (client rule 2026-11-13), so only 'other'
+    // sources from Bodega; bread and cake both fall back to the caller's origin.
     $originOk = isset($ids['bread'], $ids['cake'], $ids['other'])
         && dl_supplyOriginForProduct((int)$ids['bread'], 'branch') === 'branch'
-        && dl_supplyOriginForProduct((int)$ids['cake']) === 'bodega'
-        && dl_supplyOriginForProduct((int)$ids['other']) === 'bodega';
-    $h->test('supply origin remains Bodega for cake/other and falls back for bread', $originOk, json_encode($ids));
+        && dl_supplyOriginForProduct((int)$ids['cake'], 'branch') === 'branch'
+        && dl_supplyOriginForProduct((int)$ids['other'], 'branch') === 'bodega';
+    $h->test('supply origin is Bodega only for other non-bread, and bread/cake fall back', $originOk, json_encode($ids));
 
     $h->section('new category whole chain');
     $db->prepare('INSERT INTO dl_product_categories (code,label,`grouping`,sort_order) VALUES (:code,:label,"non_bread",99871)')

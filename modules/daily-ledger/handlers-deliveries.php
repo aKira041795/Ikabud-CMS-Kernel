@@ -123,7 +123,7 @@ function dl_supplyOriginForProduct(int $productId, string $fallback = 'commissar
             return $fallback;
         }
         $stmt = $ctx->db()->prepare(
-            'SELECT c.grouping, p.product_category
+            'SELECT c.grouping, c.code AS category_code, p.product_category
                FROM dl_products p
                LEFT JOIN dl_product_categories c ON c.id = p.category_id
               WHERE p.id = :product_id LIMIT 1'
@@ -139,7 +139,12 @@ function dl_supplyOriginForProduct(int $productId, string $fallback = 'commissar
             $grouping = in_array((string)($row['product_category'] ?? ''), ['cake', 'other'], true)
                 ? 'non_bread' : 'bread';
         }
-        return $grouping === 'non_bread' ? 'bodega' : $fallback;
+        // Bodega supplies what is NEITHER bread NOR cake. Cakes are grouped non_bread (they are
+        // not bread), so grouping alone stamped a cake as Bodega stock and the receive screen
+        // labelled it that way. Must mirror the supply_origin expression in
+        // apiGetIncomingDeliveries().
+        $categoryCode = strtolower(trim((string)($row['category_code'] ?? $row['product_category'] ?? '')));
+        return ($grouping === 'non_bread' && $categoryCode !== 'cake') ? 'bodega' : $fallback;
     } catch (\Throwable $e) {
         return $fallback;
     }

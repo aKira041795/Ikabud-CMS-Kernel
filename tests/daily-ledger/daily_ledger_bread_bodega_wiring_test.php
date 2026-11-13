@@ -97,9 +97,16 @@ try {
     $h->test(
         'the live resolver maps non-bread to bodega and bread to its fallback',
         dl_supplyOriginForProduct($productIds['bread'], 'branch') === 'branch'
-            && dl_supplyOriginForProduct($productIds['cake']) === 'bodega'
             && dl_supplyOriginForProduct($productIds['other']) === 'bodega',
         'product_category was not read live or non-bread was not mapped to Bodega'
+    );
+    // Client rule 2026-11-13: Bodega supplies what is NEITHER bread NOR cake - both bakery
+    // groups are produced in-house and arrive from the commissary. Cakes are grouped
+    // non_bread (they are not bread), so grouping alone put a cake in Bodega stock.
+    $h->test(
+        'a cake comes from the commissary, not the Bodega',
+        dl_supplyOriginForProduct($productIds['cake'], 'branch') === 'branch',
+        'cake resolved to ' . dl_supplyOriginForProduct($productIds['cake'], 'branch')
     );
     $h->test(
         'an unknown product fails closed to the supplied fallback',
@@ -135,8 +142,8 @@ try {
         $stored[(string)$row['product_category']] = (string)$row['supply_origin'];
     }
     $h->test(
-        'one posted mixed DR stores bread as commissary and every non-bread line as bodega',
-        $stored === ['bread' => 'commissary', 'cake' => 'bodega', 'other' => 'bodega'],
+        'one posted mixed DR stores bread and cake as commissary and only other non-bread as bodega',
+        $stored === ['bread' => 'commissary', 'cake' => 'commissary', 'other' => 'bodega'],
         json_encode($stored)
     );
 
@@ -150,8 +157,9 @@ try {
             && (int)($auditData['receiving_id'] ?? 0) === $receivingId
             && (int)($auditData['delivery_id'] ?? 0) === $deliveryId
             && ($auditData['dr_number'] ?? '') === 'DR-BODEGA-99871'
-            && (int)($auditData['bodega_line_count'] ?? 0) === 2
-            && (int)($auditData['bodega_total_qty'] ?? 0) === 7,
+            // Only the 'other' line is Bodega stock now; the cake line is commissary.
+            && (int)($auditData['bodega_line_count'] ?? 0) === 1
+            && (int)($auditData['bodega_total_qty'] ?? 0) === 4,
         json_encode(['rows' => count($auditRows), 'data' => $auditData])
     );
 

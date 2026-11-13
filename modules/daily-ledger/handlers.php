@@ -10864,7 +10864,11 @@ function apiGetIncomingDeliveries(array $params = []): void
                    ob.name AS origin_branch_name, cw.product_id, p.name AS product_name,
                    cw.encoded_by AS dispatching_cashier_id,
                    COALESCE(NULLIF(cw.encoded_by_name_snapshot,\'\'), NULLIF(u.full_name,\'\'), u.username, \'\') AS dispatching_cashier_name,
-                   IF(pc.`grouping` = \'non_bread\', \'bodega\', \'commissary\') AS supply_origin
+                   -- Bodega supplies what is NEITHER bread NOR cake; both bakery groups are produced
+                   -- in-house and always arrive from the commissary. The Cake category is grouped
+                   -- non_bread (it is not bread), so grouping alone sent cakes to Bodega - hence the
+                   -- code exclusion. Keep in sync with dl_supplyOriginForProduct().
+                   IF(pc.`grouping` = \'non_bread\' AND pc.code <> \'cake\', \'bodega\', \'commissary\') AS supply_origin
             FROM dl_cashier_withdrawals cw
             INNER JOIN dl_branches ob ON ob.id = cw.branch_id
             INNER JOIN dl_products p ON p.id = cw.product_id
@@ -10924,7 +10928,7 @@ function apiGetIncomingDeliveries(array $params = []): void
                              COALESCE(NULLIF(d.created_by_name_snapshot,\'\'), NULLIF(u.full_name,\'\'), u.username, \'\') AS dispatching_cashier_name,
                              di.id AS delivery_item_id,
                              di.product_id, p.name AS product_name, di.quantity,
-                             IF(pc.`grouping` = "non_bread", "bodega", "commissary") AS supply_origin
+                             IF(pc.`grouping` = "non_bread" AND pc.code <> "cake", "bodega", "commissary") AS supply_origin
                       FROM dl_deliveries d
                       INNER JOIN dl_delivery_items di ON di.delivery_id = d.id
                       INNER JOIN dl_products p ON p.id = di.product_id
