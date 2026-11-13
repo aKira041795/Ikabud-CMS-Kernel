@@ -154,13 +154,13 @@ $clock = dl_operatingClockLabel();
 $h->test('clock label helper exposes the server time', isset($clock['server_now_label'], $clock['server_now_offset'], $clock['server_epoch_ms']));
 
 $parsed = \DateTimeImmutable::createFromFormat(
-    'D, M j, Y, h:i:s A',
+    'D, M j, Y, h:i A',
     (string)($clock['server_now_label'] ?? ''),
     new \DateTimeZone((string)($clock['operating_timezone'] ?? 'UTC'))
 );
 $h->test(
     'the clock reads the current time in the business timezone',
-    $parsed instanceof \DateTimeImmutable && abs($parsed->getTimestamp() - time()) <= 5,
+    $parsed instanceof \DateTimeImmutable && abs($parsed->getTimestamp() - time()) <= 60,
     (string)($clock['server_now_label'] ?? '')
 );
 $h->test('the clock is anchored to the server clock, not the browser', abs(((int)($clock['server_epoch_ms'] ?? 0) / 1000) - microtime(true)) < 5);
@@ -168,6 +168,20 @@ $h->test('the offset is rendered next to the timezone', (bool)preg_match('/^[+-]
 
 $clockPartial = $read('templates/modules/daily-ledger/cashier/partials/server-clock.disyl');
 $h->test('the clock partial targets the business timezone', str_contains($clockPartial, 'data-server-timezone="{operating_timezone}"'));
+// Regression guard: a 1s tick made the runtime Tailwind compiler rescan the page every
+// second (~17 ms measured). The clock must not go back to it.
+$h->test(
+    'the clock does not tick every second',
+    !str_contains($clockPartial, 'setInterval(tick, 1000)') && str_contains($clockPartial, 'setInterval(tick, 15000)')
+);
+$h->test(
+    'the clock skips writes that would not change the text',
+    str_contains($clockPartial, 'if (el.textContent !== text)')
+);
+$h->test(
+    'the clock pauses while the tab is hidden',
+    str_contains($clockPartial, 'visibilitychange')
+);
 $h->test('the clock partial formats in an explicit timezone (never the viewer default)', str_contains($clockPartial, 'timeZone: zone'));
 $h->test('the clock partial keeps the server-rendered text when JS cannot format', str_contains($clockPartial, 'keep the server-rendered string'));
 $h->test('the clock compares the viewer zone with the business zone', str_contains($clockPartial, 'resolvedOptions().timeZone'));

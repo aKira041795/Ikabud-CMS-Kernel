@@ -2445,7 +2445,12 @@ function dl_operatingClockLabel(): array
         // ever falling back to the viewer's own timezone. The label format matches
         // the client formatter exactly, so taking over for the tick does not
         // visibly change the rendering.
-        'server_now_label' => $now->format('D, M j, Y, h:i:s A'),
+        // Minute precision: the top-bar clock answers "which business date/shift is it" and
+        // "is this device on the wrong zone". Seconds forced a DOM write every second, and
+        // each write makes the self-hosted Tailwind compiler rescan the page (~17 ms measured),
+        // so the sheet burnt CPU continuously while open. Keep this in sync with the JS
+        // formatter in partials/server-clock.disyl.
+        'server_now_label' => $now->format('D, M j, Y, h:i A'),
         'server_now_offset' => $now->format('P'),
         'server_epoch_ms' => (int) round(microtime(true) * 1000),
     ];

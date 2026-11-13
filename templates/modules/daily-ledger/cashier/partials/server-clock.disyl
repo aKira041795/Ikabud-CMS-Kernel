@@ -51,11 +51,18 @@
     var skew = Date.now() - serverEpoch;
     var formatter = null;
     try {
-        // Must mirror server_now_label's PHP format ('D, M j, Y, h:i:s A') so the
+        // Must mirror server_now_label's PHP format ('D, M j, Y, h:i A') so the
         // first tick does not change the rendering.
+        //
+        // MINUTE precision on purpose. This clock answers "which business date/shift is it"
+        // and "is this device on the wrong zone" — seconds add nothing. They cost a lot:
+        // every DOM write makes the self-hosted Tailwind compiler rescan the page, measured
+        // at ~17 ms per tick, so a 1s tick burnt ~1.7% of a core for as long as the sheet was
+        // open (and on an office PC far more). A minute tick is 60x cheaper and the value
+        // changes no more often than it needs to.
         formatter = new Intl.DateTimeFormat('en-US', {
             timeZone: zone, weekday: 'short', day: '2-digit', month: 'short',
-            year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true
+            year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true
         });
     } catch (e) {
         formatter = null; // unknown timezone: fall back to the epoch's UTC text
@@ -63,10 +70,25 @@
 
     function tick() {
         var now = new Date(Date.now() - skew);
-        el.textContent = formatter ? formatter.format(now) : now.toUTCString();
+        var text = formatter ? formatter.format(now) : now.toUTCString();
+        // An identical write is still a mutation the compiler observes, so never write one.
+        if (el.textContent !== text) {
+            el.textContent = text;
+        }
     }
     tick();
-    setInterval(tick, 1000);
+    var clockTimer = setInterval(tick, 15000);
+    // A hidden tab needs no repaint at all: stop the timer and resync on return.
+    document.addEventListener('visibilitychange', function() {
+        if (document.hidden) {
+            if (clockTimer !== null) { clearInterval(clockTimer); clockTimer = null; }
+            return;
+        }
+        if (clockTimer === null) {
+            tick();
+            clockTimer = setInterval(tick, 15000);
+        }
+    });
 
     // Compare the viewer's own zone with the business zone. The business zone wins
     // (it drives shifts and the business date); this only makes a difference
@@ -84,26 +106,32 @@
     var MISMATCH_CLASS = 'rounded px-2 py-0.5 text-[10px] font-semibold leading-tight text-right text-amber-800 bg-amber-100 ring-1 ring-inset ring-amber-300';
 
     function paintNote() {
+        var text;
+        var cls;
         if (deviceZone === zone) {
-            note.className = MATCH_CLASS;
-            note.classList.remove('hidden');
-            note.textContent = 'matches this device';
-            return;
+            // MATCH_CLASS still carries `hidden` (the pre-JS state); strip it to show the note.
+            cls = MATCH_CLASS.replace(/\bhidden\s*/, '');
+            text = 'matches this device';
+        } else {
+            var local = '';
+            try {
+                local = new Intl.DateTimeFormat('en-US', {
+                    timeZone: deviceZone, hour: '2-digit', minute: '2-digit', hour12: true
+                }).format(new Date(Date.now() - skew));
+            } catch (e) {
+                local = '';
+            }
+            cls = MISMATCH_CLASS;
+            text = '\u26a0 this device is on ' + deviceZone + (local ? ' (' + local + ')' : '') +
+                ' \u2014 shifts and dates follow ' + zone + '. Check the Settings timezone.';
         }
-        var local = '';
-        try {
-            local = new Intl.DateTimeFormat('en-US', {
-                timeZone: deviceZone, hour: '2-digit', minute: '2-digit', hour12: true
-            }).format(new Date(Date.now() - skew));
-        } catch (e) {
-            local = '';
-        }
-        note.className = MISMATCH_CLASS;
-        note.textContent = '\u26a0 this device is on ' + deviceZone + (local ? ' (' + local + ')' : '') +
-            ' \u2014 shifts and dates follow ' + zone + '. Check the Settings timezone.';
+        // Same rule as the clock: a write the compiler would observe for no visible change
+        // buys nothing and costs a full-page rescan.
+        if (note.className !== cls) { note.className = cls; }
+        if (note.textContent !== text) { note.textContent = text; }
     }
     paintNote();
-    setInterval(paintNote, 30000);
+    setInterval(paintNote, 60000);
 })();
 </script>
 {/if}
