@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{page_title}</title>
+    <link rel="icon" href="{resolved_favicon_url}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/assets/tailwind/app.css">
+    <style>
+        {* Same design system as the sign-in screen: a warm amber field, one raised card and the
+           Fraunces display face. An access refusal is a dead end the person did not ask for, so it
+           must read as a deliberate answer from the product rather than a raw server string. *}
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background: linear-gradient(145deg, #fff7ed 0%, #fef3c7 46%, #fde68a 100%);
+            min-height: 100vh;
+        }
+        body::before {
+            content: "";
+            position: fixed;
+            inset: 0;
+            background:
+                radial-gradient(circle at top left, rgba(251,191,36,.22), transparent 36%),
+                radial-gradient(circle at bottom right, rgba(217,119,6,.16), transparent 34%);
+            pointer-events: none;
+        }
+        .denied-card {
+            background: rgba(255, 252, 247, 0.97);
+            border: 1px solid rgba(180, 83, 9, .18);
+            box-shadow: 0 28px 80px rgba(120, 53, 15, .18);
+        }
+        .denied-title {
+            font-family: 'Fraunces', Georgia, serif;
+            letter-spacing: -.03em;
+            color: #422006;
+            line-height: 1.12;
+        }
+        .micro-label {
+            text-transform: uppercase;
+            letter-spacing: .08em;
+            font-size: 11px;
+            font-weight: 600;
+            color: #7c5a32;
+        }
+        .denied-icon {
+            background: linear-gradient(135deg, #b45309 0%, #d97706 100%);
+            box-shadow: 0 8px 24px rgba(180, 83, 9, .28);
+        }
+        .btn-home {
+            background: #b45309;
+            color: #fff;
+            font-weight: 600;
+            box-shadow: 0 14px 30px rgba(180, 83, 9, .22);
+        }
+        .btn-home:hover { background: #92400e; }
+        .can-row:hover { background: rgba(251, 191, 36, .14); }
+        .path-chip {
+            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+            word-break: break-all;
+        }
+    </style>
+</head>
+<body class="flex min-h-screen items-start justify-center p-5 sm:items-center sm:p-8">
+    <main class="denied-card relative z-10 w-full max-w-xl rounded-2xl p-6 sm:p-8">
+
+        <div class="flex items-start gap-4">
+            <div class="denied-icon flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" style="color:#fff" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+                </svg>
+            </div>
+            <div class="min-w-0">
+                <p class="micro-label">{eyebrow}</p>
+                <h1 class="denied-title mt-1 text-2xl sm:text-[1.7rem]" style="font-family:'Fraunces',Georgia,serif">{headline}</h1>
+            </div>
+        </div>
+
+        <p class="mt-4 text-sm leading-relaxed" style="color:#6b4a24">{reason}</p>
+
+        {* Who asked and what they asked for: both are the person's OWN identity and the URL they
+           just typed, so stating them costs nothing and removes "why me?" from the conversation.
+           Laid out as a two-column grid so every label starts on one edge and every value on
+           another - the same measured-alignment rule the sheets follow, not centred prose.
+           The grid is INLINE on purpose: this page loads the compiled stylesheet, which carries
+           only the utility classes that were in the source at build time, so an arbitrary
+           grid-template class would silently collapse to a single ragged column. *}
+        <div class="mt-4 rounded-xl border px-4 py-3" style="border-color:rgba(180,83,9,.16);background:rgba(255,255,255,.72)">
+            <dl class="m-0" style="display:grid;grid-template-columns:8rem 1fr;column-gap:1rem;row-gap:.5rem;align-items:baseline">
+                {if user_display}
+                <dt class="micro-label m-0">Signed in as</dt>
+                <dd class="m-0 text-sm font-semibold" style="color:#422006;min-width:0">
+                    <span style="overflow-wrap:anywhere">{user_display}</span>
+                    {if role_label}<span class="ml-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-semibold" style="background:rgba(180,83,9,.1);color:#92400e">{role_label}</span>{/if}
+                </dd>
+                {/if}
+                {if attempted_path}
+                <dt class="micro-label m-0">Page requested</dt>
+                <dd class="m-0" style="min-width:0">
+                    <span class="path-chip rounded px-1.5 py-0.5 text-[12px]" style="background:rgba(66,32,6,.06);color:#5c3d1a">{attempted_path}</span>
+                </dd>
+                {/if}
+            </dl>
+        </div>
+
+        {if can_links}
+        <div class="mt-5">
+            <p class="micro-label">What your role can open</p>
+            <ul class="mt-2 space-y-1.5">
+                {foreach can_links as link}
+                <li>
+                    <a href="{link.url}" class="can-row flex items-center justify-between gap-3 rounded-lg border px-3 py-2 no-underline transition-colors" style="border-color:rgba(180,83,9,.14)">
+                        <span class="min-w-0">
+                            <span class="block text-sm font-semibold" style="color:#422006">{link.label}</span>
+                            {if link.hint}<span class="block text-[12px]" style="color:#8a6a44">{link.hint}</span>{/if}
+                        </span>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="color:#b45309" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                        </svg>
+                    </a>
+                </li>
+                {/foreach}
+            </ul>
+        </div>
+        {/if}
+
+        {if remedy}
+        <div class="mt-5 rounded-xl px-4 py-3 text-[13px] leading-relaxed" style="background:rgba(251,191,36,.16);border:1px solid rgba(180,83,9,.18);color:#7c4a11">
+            <span class="font-semibold">Need this page?</span> {remedy}
+        </div>
+        {/if}
+
+        <div class="mt-6 flex flex-col gap-2 sm:flex-row-reverse sm:items-center">
+            {if home_url}
+            <a href="{home_url}" class="btn-home inline-flex items-center justify-center rounded-lg px-4 py-2.5 text-sm no-underline transition-colors">{home_label}</a>
+            {/if}
+            <a href="{logout_url}" class="inline-flex items-center justify-center rounded-lg border px-4 py-2.5 text-sm font-semibold no-underline" style="border-color:rgba(180,83,9,.28);color:#92400e">Sign out</a>
+        </div>
+
+        <p class="mt-5 text-center text-[11px]" style="color:#a08a6a">{app_name} · access is set by the role on your account</p>
+    </main>
+</body>
+</html>

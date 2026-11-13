@@ -41,7 +41,14 @@ $h->test(
 );
 $h->test(
     'Deliveries nav includes production-in-charge, aligned with creation rights',
-    str_contains($template, "{if feature_formal_delivery && (user_role == 'admin' || user_role == 'supervisor' || user_role == 'production_in_charge')}")
+    // The nav now asks the SAME predicate the request gate enforces instead of naming roles inline,
+    // so the menu cannot offer a page the server refuses (it did: Deliveries was shown to this role
+    // and answered 403). The role must still be granted the page - asserted at the predicate.
+    str_contains($template, 'feature_formal_delivery && nav_can_deliveries')
+        && str_contains(
+            (string)file_get_contents($base . '/modules/daily-ledger/helpers.php'),
+            "'/daily-ledger/admin/deliveries' => ['admin', 'supervisor', 'production_in_charge']"
+        )
 );
 $h->test(
     'cashier and viewer still cannot create delivery documents',

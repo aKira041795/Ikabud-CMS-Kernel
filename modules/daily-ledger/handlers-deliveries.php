@@ -3996,6 +3996,14 @@ function dl_layoutFlags(): array
         'feature_consignee'         => function_exists('dl_isConsigneeEnabled')
             ? dl_isConsigneeEnabled()
             : dl_settingToBool($s['consignee_enabled'] ?? false),
+        // Menu visibility comes from the SAME predicate the request gate enforces, so a shell can
+        // never offer a page the server would refuse. They diverged once already: the commissary
+        // sidebar showed Deliveries to production_in_charge, supervisor and auditor, and the server
+        // answered 403 to all three (measured 2026-11-13).
+        'nav_can_deliveries'        => dl_roleMayOpenPage(dl_navRole(), '/daily-ledger/admin/deliveries'),
+        'nav_can_usage'             => dl_roleMayOpenPage(dl_navRole(), '/daily-ledger/admin/usage'),
+        'nav_can_trace'             => dl_roleMayOpenPage(dl_navRole(), '/daily-ledger/admin/trace'),
+        'nav_can_production_output' => dl_roleMayOpenPage(dl_navRole(), '/daily-ledger/admin/production-output'),
     ];
 }
 

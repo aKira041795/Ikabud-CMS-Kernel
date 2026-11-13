@@ -1623,6 +1623,190 @@ function dlRender(string $template, array $context = []): string
 }
 
 /**
+ * The ONE answer to "may this role open this page?".
+ *
+ * The refusal gate and the sidebar both ask this, because they used to answer it separately: the
+ * server kept a hardcoded allowlist while each shell decided its own menu, and the two disagreed.
+ * Measured 2026-11-13 with a production in-charge account: the commissary sidebar offered
+ * /daily-ledger/admin/deliveries and the server answered 403, so the product advertised a page it
+ * refused. A menu may only offer what this returns true for.
+ *
+ * Two rules are encoded, both unchanged in substance from what the gate enforced inline:
+ *  - the four production desk views are admin-only (supervisor and auditor are refused too);
+ *  - a production in-charge account reaches its Daily Sheet and the pages that feed it, nothing else.
+ */
+function dl_roleMayOpenPage(string $role, string $path): bool
+{
+    // No resolved role (CLI, a render harness, a background job) is not a refusal: authentication is
+    // the gate's job, and inventing a restriction from an empty session would hide admin menu items
+    // from every non-request render.
+    if ($role === '') {
+        return true;
+    }
+
+    $path = (string)(parse_url($path, PHP_URL_PATH) ?: $path);
+
+    // The production desk pages answer to the role list of the HANDLER that serves them - that is the
+    // authority on who may use them, and it already names these roles (handleAdminDeliveries and
+    // handleAdminUsage authorise admin/supervisor/production_in_charge; handleAdminTrace adds auditor).
+    // A second, narrower rule here used to block supervisor and auditor from all four and
+    // production_in_charge from three, which silently subtracted what those handlers grant: the
+    // commissary sidebar showed Deliveries to a production in-charge and the URL answered 403.
+    // Owner direction 2026-11-13: a role restriction must not block a page the role can use.
+    $pageRoles = [
+        '/daily-ledger/admin/deliveries' => ['admin', 'supervisor', 'production_in_charge'],
+        '/daily-ledger/admin/usage' => ['admin', 'supervisor', 'production_in_charge'],
+        '/daily-ledger/admin/production-output' => ['admin', 'supervisor', 'production_in_charge'],
+        '/daily-ledger/admin/trace' => ['admin', 'supervisor', 'auditor', 'production_in_charge'],
+    ];
+    if (isset($pageRoles[$path])) {
+        return in_array($role, $pageRoles[$path], true);
+    }
+
+    if ($role === 'production_in_charge' && str_starts_with($path, '/daily-ledger/')) {
+        return in_array($path, [
+            '/daily-ledger/admin/commissary',
+            '/daily-ledger/products',
+            '/daily-ledger/admin/variances',
+            // Signing out is not a privilege, and a refusal page whose only exit is dead would trap
+            // the session. Listed here so the predicate can never become such a trap.
+            '/daily-ledger/logout',
+            '/daily-ledger/api/v1/me',
+            '/daily-ledger/api/v1/variances/branch-issues',
+        ], true);
+    }
+
+    return true;
+}
+
+/**
+ * The current role for navigation decisions, resolved once per request. Memoised because every
+ * render asks for it (partials included) and verifying the same JWT repeatedly is pure waste.
+ */
+function dl_navRole(): string
+{
+    static $role = null;
+    if ($role !== null) {
+        return $role;
+    }
+    $user = function_exists('dlUserFromRequest') ? dlUserFromRequest() : null;
+    $role = is_array($user) ? (string)($user['role'] ?? '') : '';
+    return $role;
+}
+
+/**
+ * Refuse access the way the product speaks, not the way the server does.
+ *
+ * A bare `echo 'Forbidden: Daily Sheet access only'` is a dead end the person did not ask for: it
+ * does not say which role they hold, what they CAN open, or who to ask. Every HTML 403 in this
+ * module renders this page instead. API paths keep their JSON shape, because a machine reads those
+ * and a web page is not an answer to them.
+ *
+ * Deliberately dependency-light: it is called from dlCurrentUser() and dl_denyBranch(), i.e. before
+ * any handler has run, so anything it cannot resolve (a home route, the current user) degrades to a
+ * missing button rather than an error on top of an error.
+ *
+ * @param array{path?:string,remedy?:string,status?:int,eyebrow?:string,can?:array<int,array{label?:string,url?:string,hint?:string}>,home_url?:string,home_label?:string,headline?:string} $options
+ */
+function dl_forbiddenPage(string $headline, string $reason, array $options = []): void
+{
+    $status = (int)($options['status'] ?? 403);
+    if ($status < 400 || $status > 599) {
+        $status = 403;
+    }
+    if (!headers_sent()) {
+        http_response_code($status);
+        header('Content-Type: text/html; charset=utf-8');
+    }
+
+    $user = function_exists('dlUserFromRequest') ? dlUserFromRequest() : null;
+    $role = is_array($user) ? (string)($user['role'] ?? '') : '';
+    $display = '';
+    if (is_array($user)) {
+        $display = trim((string)($user['full_name'] ?? $user['name'] ?? ''));
+        $username = trim((string)($user['username'] ?? ''));
+        if ($display === '') {
+            $display = $username;
+        } elseif ($username !== '' && $username !== $display) {
+            $display .= ' · ' . $username;
+        }
+    }
+
+    $roleLabels = [
+        'admin' => 'Administrator',
+        'supervisor' => 'Supervisor',
+        'cashier' => 'Cashier',
+        'production_in_charge' => 'Production in-charge',
+        'auditor' => 'Auditor',
+        'viewer' => 'Viewer',
+    ];
+
+    $path = (string)($options['path'] ?? (parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/'));
+    // Echoed back to the person who typed it, so keep it to what a URL can legitimately carry: a
+    // crafted request URI must not be able to inject markup into this page.
+    $rawPath = $path;
+    $path = (string)preg_replace('/[^A-Za-z0-9\/._~%?=&#;+-]/', '', $path);
+    if (strlen($path) > 200) {
+        $path = substr($path, 0, 200) . '…';
+    }
+
+    // An API caller cannot read a page. Keep the JSON contract every fetch in this module already
+    // expects, and let the UI show it; only a human navigation gets the designed page.
+    if (str_starts_with($rawPath, '/daily-ledger/api/')) {
+        if (!headers_sent()) {
+            header('Content-Type: application/json; charset=utf-8');
+        }
+        echo json_encode(['ok' => false, 'error' => $reason, 'code' => 'forbidden'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    $homeUrl = array_key_exists('home_url', $options)
+        ? (string)$options['home_url']
+        : (function_exists('dlAuthenticatedHomeRedirect') ? (string)(dlAuthenticatedHomeRedirect() ?? '') : '');
+    $homeLabels = [
+        'cashier' => 'Open my ledger',
+        'production_in_charge' => 'Open my Daily Sheet',
+        'viewer' => 'Open the overview',
+        'auditor' => 'Open the variances',
+        'supervisor' => 'Open my dashboard',
+        'admin' => 'Open the dashboard',
+    ];
+
+    $canLinks = [];
+    foreach ((array)($options['can'] ?? []) as $link) {
+        if (!is_array($link)) {
+            continue;
+        }
+        $url = trim((string)($link['url'] ?? ''));
+        $label = trim((string)($link['label'] ?? ''));
+        if ($url === '' || $label === '') {
+            continue;
+        }
+        $canLinks[] = [
+            'label' => $label,
+            'url' => $url,
+            'hint' => trim((string)($link['hint'] ?? '')),
+        ];
+    }
+
+    echo dlRender('modules/daily-ledger/pages/forbidden.disyl', [
+        'page_title' => ((string)($options['eyebrow'] ?? 'Access denied')) . ' · ' . dlAppName(),
+        'eyebrow' => (string)($options['eyebrow'] ?? ($status === 403 ? '403 · Access denied' : 'Not available')),
+        'headline' => $headline,
+        'reason' => $reason,
+        'remedy' => trim((string)($options['remedy'] ?? '')),
+        'role_label' => $roleLabels[$role] ?? ucfirst(str_replace('_', ' ', $role)),
+        'user_display' => $display,
+        'attempted_path' => $path,
+        'can_links' => $canLinks,
+        'home_url' => $homeUrl,
+        'home_label' => (string)($options['home_label'] ?? ($homeLabels[$role] ?? 'Back to my workspace')),
+        'logout_url' => '/daily-ledger/logout',
+    ]);
+    exit;
+}
+
+/**
  * Inject top-nav display identity (user_username / user_full_name) into a
  * render context, derived from the authenticated daily-ledger JWT payload.
  * Existing context values win; safe to call on unauthenticated pages (login).
@@ -1735,6 +1919,35 @@ kernelRegisterRenderContextContract('daily-ledger.page.login', [
     'template' => 'modules/daily-ledger/pages/login.disyl',
     'priority' => 20,
     'normalize' => 'dlNormalizeLoginRenderContext',
+    'log_event' => 'daily-ledger.render_context.contract_mismatch',
+]);
+
+function dlNormalizeForbiddenRenderContext(array $context, string $template, array &$missingKeys = [], array &$typeMismatches = []): array
+{
+    return kernelApplyRenderContextShape($context, [
+        'page_title' => 'Access denied',
+        'app_name' => 'Daily Ledger',
+        'logo_url' => '',
+        'favicon_url' => '',
+        'resolved_favicon_url' => dlDefaultFaviconUrl(),
+        'eyebrow' => '403 · Access denied',
+        'headline' => 'This page is not open to your role',
+        'reason' => '',
+        'remedy' => '',
+        'role_label' => '',
+        'user_display' => '',
+        'attempted_path' => '',
+        'can_links' => [],
+        'home_url' => '',
+        'home_label' => 'Back to my workspace',
+        'logout_url' => '/daily-ledger/logout',
+    ], ['page_title', 'app_name', 'eyebrow', 'headline', 'reason'], $missingKeys, $typeMismatches);
+}
+
+kernelRegisterRenderContextContract('daily-ledger.page.forbidden', [
+    'template' => 'modules/daily-ledger/pages/forbidden.disyl',
+    'priority' => 20,
+    'normalize' => 'dlNormalizeForbiddenRenderContext',
     'log_event' => 'daily-ledger.render_context.contract_mismatch',
 ]);
 

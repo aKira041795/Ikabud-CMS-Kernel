@@ -265,8 +265,23 @@ try {
     );
 
     $handlers = file_get_contents($base . '/modules/daily-ledger/handlers.php');
+    $helpersSource = file_get_contents($base . '/modules/daily-ledger/helpers.php');
     $template = file_get_contents($base . '/templates/modules/daily-ledger/admin/commissary.disyl');
-    $h->test('production role has a server-side path allowlist (revert makes direct restricted URLs reachable)', str_contains($handlers, 'Forbidden: Daily Sheet access only'));
+    // The narrow production allowlist is still enforced, but it now renders the designed refusal page
+    // instead of a bare string, and its answer comes from the SAME predicate the menus use - so a menu
+    // can never offer a page the server refuses (that drift showed a production in-charge a Deliveries
+    // link the server answered 403 to).
+    $h->test(
+        'production role still has a server-side page allowlist, enforced through the shared predicate',
+        str_contains($handlers, "dl_roleMayOpenPage((string)(\$u['role'] ?? ''), \$path)")
+            && str_contains($helpersSource, 'function dl_roleMayOpenPage(')
+            && !str_contains($handlers, 'Forbidden: Daily Sheet access only')
+    );
+    $h->test(
+        'a refusal renders the designed page, never a bare server string',
+        str_contains($handlers, 'dl_forbiddenPage(')
+            && str_contains($helpersSource, "'modules/daily-ledger/pages/forbidden.disyl'")
+    );
     $h->test('variance and management markup are admin-gated (revert exposes variance/notes to production)', str_contains($template, '{if can_view_production_variance}') && str_contains($template, '{if can_view_production_management}'));
 
     $legacy = $db->prepare('INSERT INTO dl_commissary_product_ledger (commissary_branch_id, product_id, ledger_date, shift, beg_qty, produced_qty, dispatched_qty, wastage_qty) VALUES (:b, :p, "2020-07-06", NULL, 0, 9, 0, 0)');

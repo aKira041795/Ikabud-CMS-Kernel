@@ -461,9 +461,16 @@ function dlCurrentUser(array $roles = ['cashier', 'supervisor', 'admin', 'produc
         $settings = getModuleSettings('daily-ledger');
         $allowed = (string)($settings['allow_kernel_admin'] ?? '0');
         if (!in_array($allowed, ['1', 'true', 'yes', 'on'], true)) {
-            http_response_code(403);
-            echo 'Forbidden';
-            exit;
+            // No home link on purpose: every Daily Ledger route sits behind this same switch, so a
+            // "back to my workspace" button would drop them straight back onto this page.
+            dl_forbiddenPage(
+                'Kernel admin access to this module is switched off',
+                'You are signed in as a kernel administrator. Daily Ledger only accepts kernel admin sessions when that is switched on for this module, and it is currently off for this site.',
+                [
+                    'remedy' => 'An administrator can switch on “Allow kernel admin” for Daily Ledger in Admin → Modules.',
+                    'home_url' => '',
+                ]
+            );
         }
     }
 
@@ -472,16 +479,11 @@ function dlCurrentUser(array $roles = ['cashier', 'supervisor', 'admin', 'produc
     // boundary, not a navigation convenience; direct URLs and unrelated APIs
     // are refused here even if an individual handler still lists the role.
     $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
-    if (in_array((string)($u['role'] ?? ''), ['supervisor', 'auditor'], true) && in_array($path, [
-        '/daily-ledger/admin/usage',
-        '/daily-ledger/admin/production-output',
-        '/daily-ledger/admin/deliveries',
-        '/daily-ledger/admin/trace',
-    ], true)) {
-        http_response_code(403);
-        echo 'Forbidden: admin-only production view';
-        exit;
-    }
+    // A supervisor-only page restriction used to sit here and refuse four production desk views to
+    // supervisor and auditor. Those pages' OWN handlers authorise those roles, so the rule subtracted
+    // access the product grants - the commissary sidebar offered Deliveries and the URL answered 403.
+    // Owner direction 2026-11-13: a role restriction must not block a page the role can use. The
+    // handler's role list is now the single authority; dl_roleMayOpenPage() mirrors it for the menus.
 
     if (($u['role'] ?? '') === 'production_in_charge' && str_starts_with($path, '/daily-ledger/')) {
         $method = strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET'));
@@ -498,16 +500,7 @@ function dlCurrentUser(array $roles = ['cashier', 'supervisor', 'admin', 'produc
         // correction, decision or status power - the page gates those on can_manage_variances
         // (admin|supervisor) and can_decide_delivery (admin), and the remark endpoint
         // independently verifies the caller is directly assigned to the side being written.
-        $allowed = $method === 'GET' && in_array($path, [
-            '/daily-ledger/admin/commissary',
-            '/daily-ledger/products',
-            '/daily-ledger/api/v1/me',
-            '/daily-ledger/admin/variances',
-            // The queue behind the red "Delivery issue" button. Without this the button renders and
-            // its fetch 403s, which looks like "no issues" forever - the exact silent-empty-state
-            // failure this allowlist has already produced once.
-            '/daily-ledger/api/v1/variances/branch-issues',
-        ], true);
+        $allowed = $method === 'GET' && dl_roleMayOpenPage((string)($u['role'] ?? ''), $path);
         if ($method === 'POST') {
             $input = module() ? module()->input() : [];
             $entity = (string)($input['entity'] ?? '');
@@ -521,14 +514,26 @@ function dlCurrentUser(array $roles = ['cashier', 'supervisor', 'admin', 'produc
                 || $path === '/daily-ledger/api/v1/products/toggle';
         }
         if (!$allowed) {
-            http_response_code(403);
-            if (str_starts_with($path, '/daily-ledger/api/')) {
-                header('Content-Type: application/json');
-                echo json_encode(['ok' => false, 'error' => 'Forbidden: Daily Sheet access only']);
-            } else {
-                echo 'Forbidden: Daily Sheet access only';
+            // The allowlist IS the answer to "where do I go instead", so the page lists exactly
+            // those destinations rather than making the person guess which URLs still work.
+            // Products is offered only while the site actually runs branch product self-management:
+            // with that switch off the route answers 404, and a shortcut into a 404 is worse than
+            // no shortcut at all.
+            $canReach = [
+                ['label' => 'Commissary Daily Sheet', 'url' => '/daily-ledger/admin/commissary', 'hint' => 'Beginnings, production, dispatches, endings'],
+            ];
+            if (dl_branchProductSelfManagementEnabled()) {
+                $canReach[] = ['label' => 'Products', 'url' => '/daily-ledger/products', 'hint' => 'The catalogue this sheet draws from'];
             }
-            exit;
+            $canReach[] = ['label' => 'Variances', 'url' => '/daily-ledger/admin/variances', 'hint' => 'Delivery issues you can answer for your branch'];
+            dl_forbiddenPage(
+                'Your role opens the Daily Sheet, not this page',
+                'A production in-charge account is limited to the Daily Sheet it works from and the pages that feed it. This page is outside that set, so it is refused even when the URL is typed directly.',
+                [
+                    'remedy' => 'Access follows the role on your account. An administrator can change your role in Admin → Users if your job now needs this page.',
+                    'can' => $canReach,
+                ]
+            );
         }
     }
 
@@ -2924,10 +2929,13 @@ function dl_denyBranch(string $message = 'Branch not authorized'): void
     if (str_starts_with($path, '/daily-ledger/api/')) {
         header('Content-Type: application/json');
         echo json_encode(['ok' => false, 'error' => $message]);
-    } else {
-        echo $message;
+        exit;
     }
-    exit;
+    dl_forbiddenPage(
+        'That branch is not one of yours',
+        'Daily Ledger scopes every screen to the branches on your account. The branch this page asked for is not among them, so nothing was loaded.',
+        ['remedy' => 'An administrator assigns branches in Admin → Users. Until then, open a branch from the selector in your own workspace.']
+    );
 }
 
 function dl_generateMovementUuid(): string
@@ -4162,7 +4170,7 @@ function dl_respondThenFlushMail(array $payload, int $status = 200): void
 }
 
 /** Record one integrity finding and address it to active admins/supervisors with authority over the branch. */
-function dl_raiseIntegrityNotification($db, string $key, string $type, ?int $branchId, ?string $entityType, ?int $entityId, string $title, string $detail = '', bool $email = false): ?int
+function dl_raiseIntegrityNotification($db, string $key, string $type, ?int $branchId, ?string $entityType, ?int $entityId, string $title, string $detail = '', bool $email = false, array $extraBranchRoles = []): ?int
 {
     // ON DUPLICATE KEY UPDATE, not INSERT IGNORE. aggregate_key is UNIQUE and finding_count exists
     // precisely so a repeated finding collapses into one row whose count increments; INSERT IGNORE
@@ -4190,9 +4198,32 @@ function dl_raiseIntegrityNotification($db, string $key, string $type, ?int $bra
                        FROM dl_users u
                        LEFT JOIN dl_user_branches ub ON ub.user_id = u.id
                       WHERE u.is_active = 1 AND u.deleted_at IS NULL
-                        AND (u.role = 'admin' OR (u.role = 'supervisor' AND ub.branch_id = :branch))";
+                        AND (u.role = 'admin' OR (u.role = 'supervisor' AND ub.branch_id = :branch)";
+    $recipientBind = [':branch' => $branchId ?? 0];
+    // Callers may widen WHICH branch-confined roles are addressed - the delivery-variance findings
+    // add the production in-charge, because that is the person who actually has to answer a shortage
+    // at a commissary (its sites have production_in_charge users and no cashiers or supervisors).
+    // Off by default so no other finding type starts mailing a role that never received it before.
+    $extraRoles = [];
+    foreach ($extraBranchRoles as $extraRole) {
+        $extraRole = trim((string)$extraRole);
+        if ($extraRole !== '' && in_array($extraRole, ['supervisor', 'production_in_charge', 'cashier', 'auditor', 'viewer'], true) && !in_array($extraRole, $extraRoles, true)) {
+            $extraRoles[] = $extraRole;
+        }
+    }
+    if ($extraRoles !== []) {
+        $rolePlaceholders = [];
+        foreach ($extraRoles as $i => $extraRole) {
+            $param = ':extra_role_' . $i;
+            $rolePlaceholders[] = $param;
+            $recipientBind[$param] = $extraRole;
+        }
+        $recipientSql .= ' OR (u.role IN (' . implode(',', $rolePlaceholders) . ') AND ub.branch_id = :extra_branch)';
+        $recipientBind[':extra_branch'] = $branchId ?? 0;
+    }
+    $recipientSql .= ')';
     $recipients = $db->prepare($recipientSql);
-    $recipients->execute([':branch' => $branchId ?? 0]);
+    $recipients->execute($recipientBind);
     $recipientRows = $recipients->fetchAll(PDO::FETCH_ASSOC) ?: [];
     // One statement for the whole recipient set instead of one per recipient. This path runs once per
     // finding during a recompute and the fan-out reaches 27 rows, so the old loop issued up to 27
@@ -8122,12 +8153,20 @@ function dlRequireAuth(array $roles = ['cashier', 'supervisor', 'admin']): array
     }
     $role = (string)($u['role'] ?? '');
     if (!in_array($role, $roles, true)) {
+        // A SIGNED-IN user with the wrong role is not a session expiry. Redirecting them to the login
+        // screen said "you were logged out", so they logged in again and landed on the same wall -
+        // every role mismatch in this module looked like the session dropping (owner report
+        // 2026-11-13, production in-charge). Say what actually happened and offer the way out.
         $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
         if (str_starts_with($path, '/daily-ledger/api/')) {
-            dlJson(['ok' => false, 'error' => 'Auth required', 'code' => 'session_expired'], 401);
+            dlJson(['ok' => false, 'error' => 'This page is not open to your role.', 'code' => 'forbidden'], 403);
             exit;
         }
-        dlRedirect('/daily-ledger/login');
+        dl_forbiddenPage(
+            'This page is not open to your role',
+            'Your session is valid - you are still signed in. This particular page is limited to other roles, so it was not loaded.',
+            ['remedy' => 'Access follows the role on your account. An administrator can change it in Admin → Users if you need this page for your job.']
+        );
     }
     return $u;
 }
@@ -11167,6 +11206,59 @@ function dl_acceptFormalDeliveryByItem($db, int $branchId, int $deliveryId, int 
                 ':branch' => $branchId,
                 ':rcv' => $receivingId,
                 ':pid' => $noteProductId,
+            ]);
+        }
+
+        // Tell the SENDING branch, at the moment the reason exists. The office sees every variance,
+        // but the people who actually have to answer a shortage are at the commissary that loaded the
+        // truck - and those sites run production_in_charge users, who were never a notification
+        // recipient. Without this the reason sat in a queue nobody there was told about (owner
+        // direction 2026-11-13: the production in-charge must be notified for easy viewing).
+        try {
+            $head = $db->prepare('SELECT origin_type, origin_id, dr_number FROM dl_deliveries WHERE id = :id LIMIT 1');
+            $head->execute([':id' => $deliveryId]);
+            $deliveryHead = $head->fetch(PDO::FETCH_ASSOC) ?: null;
+            $senderBranchId = ($deliveryHead && in_array((string)$deliveryHead['origin_type'], ['branch', 'commissary'], true))
+                ? (int)($deliveryHead['origin_id'] ?? 0)
+                : 0;
+            if ($senderBranchId > 0) {
+                $branchNameStmt = $db->prepare('SELECT name FROM dl_branches WHERE id = :id LIMIT 1');
+                $branchNameStmt->execute([':id' => $branchId]);
+                $receiverBranchName = (string)($branchNameStmt->fetchColumn() ?: ('branch #' . $branchId));
+                $productNameStmt = $db->prepare('SELECT name FROM dl_products WHERE id = :id LIMIT 1');
+                foreach ($notesByProduct as $noteProductId => $noteText) {
+                    $productNameStmt->execute([':id' => (int)$noteProductId]);
+                    $noteProductName = (string)($productNameStmt->fetchColumn() ?: ('product #' . (int)$noteProductId));
+                    $sentRow = $db->prepare(
+                        "SELECT sent_qty, received_qty FROM dl_variance_flags
+                          WHERE receiving_id = :rcv AND kind = 'delivery' AND product_id = :pid LIMIT 1"
+                    );
+                    $sentRow->execute([':rcv' => $receivingId, ':pid' => (int)$noteProductId]);
+                    $figures = $sentRow->fetch(PDO::FETCH_ASSOC) ?: [];
+                    dl_raiseIntegrityNotification(
+                        $db,
+                        'delivery-issue-answer-' . $receivingId . '-' . (int)$noteProductId,
+                        'variance',
+                        $senderBranchId,
+                        'dl_variance_flags',
+                        null,
+                        'A delivery you sent was short - answer it',
+                        $noteProductName . ': sent ' . (int)($figures['sent_qty'] ?? 0)
+                            . ', ' . $receiverBranchName . ' counted ' . (int)($figures['received_qty'] ?? 0)
+                            . '. Reason given: ' . $noteText
+                            . (($deliveryHead['dr_number'] ?? '') !== '' ? ' (DR ' . (string)$deliveryHead['dr_number'] . ')' : ''),
+                        false,
+                        ['production_in_charge']
+                    );
+                }
+            }
+        } catch (\Throwable $notifyError) {
+            // Notifying must never undo a receipt that already landed: the goods are booked, and the
+            // variance row still carries the reason for anyone who opens the queue.
+            write_log('daily-ledger delivery variance notification failed', 'warning', [
+                'delivery_id' => $deliveryId,
+                'receiving_id' => $receivingId,
+                'error' => $notifyError->getMessage(),
             ]);
         }
     }
@@ -16209,9 +16301,14 @@ function handleAdminReconciliation(array $params = []): void
     // hidden when it is off; this refuses a direct URL as well, so hiding the link is not the only
     // guard. Placed AFTER the auth check so an unauthorised caller learns nothing about the setting.
     if (!dl_settingToBool(dlModuleSettings()['cash_paper_check_enabled'] ?? false)) {
-        http_response_code(403);
-        echo 'Cash &amp; Paper Check is disabled for this tenant.';
-        return;
+        dl_forbiddenPage(
+            'Cash & Paper Check is switched off',
+            'This page is the administrator’s comparison of the paper sheet and the cash remitted. The feature is optional and is currently switched off for this site, so the page is not part of this workspace.',
+            [
+                'status' => 403,
+                'remedy' => 'An administrator can switch it on under Admin → Settings → Features & permissions.',
+            ]
+        );
     }
     $role = (string)($user['role'] ?? '');
     $canManage = in_array($role, ['admin', 'supervisor'], true);
@@ -19031,8 +19128,17 @@ function dl_requireBranchProductSelfManagement($ctx, array $user, bool $json): ?
         if ($json) {
             $ctx->json(['ok' => false, 'error' => 'Branch product self-management is disabled.'], 404);
         } else {
-            http_response_code(404);
-            echo 'Branch product self-management is disabled.';
+            dl_forbiddenPage(
+                'Branch product self-management is switched off',
+                'This page lets a branch keep its own product list. It is an optional feature and it is currently switched off for this site, so there is nothing here to manage.',
+                [
+                    'status' => 404,
+                    'can' => [
+                        ['label' => 'Commissary Daily Sheet', 'url' => '/daily-ledger/admin/commissary', 'hint' => 'The sheet your products feed'],
+                    ],
+                    'remedy' => 'An administrator can switch it on under Admin → Settings → Features & permissions → Branch product self-management.',
+                ]
+            );
         }
         return null;
     }
@@ -19041,8 +19147,15 @@ function dl_requireBranchProductSelfManagement($ctx, array $user, bool $json): ?
         if ($json) {
             $ctx->json(['ok' => false, 'error' => 'Your user account has no active branch assignment.'], 422);
         } else {
-            http_response_code(422);
-            echo 'Your user account has no active branch assignment.';
+            dl_forbiddenPage(
+                'Your account has no branch yet',
+                'Branch products are managed per branch, and this account is not assigned to an active one, so there is no list to open.',
+                [
+                    'status' => 422,
+                    'eyebrow' => 'Not set up yet',
+                    'remedy' => 'An administrator assigns your branch in Admin → Users.',
+                ]
+            );
         }
         return null;
     }
@@ -19830,10 +19943,32 @@ function apiBranchDeliveryIssues(array $params = []): void
         $ctx->json(['ok' => true, 'count' => 0, 'issues' => []]);
         return;
     }
+    $issues = dl_pendingDeliveryIssues($ctx->db(), $branchId);
+    $ctx->json(['ok' => true, 'count' => count($issues), 'issues' => $issues]);
+}
 
-    $stmt = $ctx->db()->prepare(
+/**
+ * The delivery discrepancies THIS branch sent and has not answered yet.
+ *
+ * One reader for two surfaces: the red "Delivery issue" modal on the sheet (which fetches it) and the
+ * notice the production in-charge sees when they land. They must not compute this differently - a
+ * badge saying 3 above a list of 2 is the kind of disagreement that makes an operator stop trusting
+ * both.
+ *
+ * Shape: id, product_name, sent_qty, received_qty, short_by, ledger_date, receiver_remark,
+ * receiver_remarked_at, receiver_branch, receiver_branch_code, receiver_name, dr_number.
+ *
+ * @return array<int,array<string,mixed>>
+ */
+function dl_pendingDeliveryIssues($db, int $branchId, int $limit = 50): array
+{
+    if ($branchId <= 0) {
+        return [];
+    }
+    $limit = max(1, min(200, $limit));
+    $stmt = $db->prepare(
         "SELECT vf.id, vf.sent_qty, vf.received_qty, vf.receiver_remark, vf.receiver_remarked_at,
-                vf.ledger_date, p.name AS product_name,
+                vf.ledger_date, p.name AS product_name, d.dr_number,
                 rb.code AS receiver_branch_code, rb.name AS receiver_branch_name,
                 ru.full_name AS receiver_name
            FROM dl_variance_flags vf
@@ -19847,7 +19982,7 @@ function apiBranchDeliveryIssues(array $params = []): void
             AND vf.receiver_remark IS NOT NULL AND vf.receiver_remark <> ''
             AND (vf.sender_remark IS NULL OR vf.sender_remark = '')
           ORDER BY vf.id DESC
-          LIMIT 50"
+          LIMIT " . $limit
     );
     $stmt->execute([':branch' => $branchId]);
 
@@ -19860,6 +19995,7 @@ function apiBranchDeliveryIssues(array $params = []): void
             'received_qty' => (int)$row['received_qty'],
             'short_by' => (int)$row['sent_qty'] - (int)$row['received_qty'],
             'ledger_date' => (string)($row['ledger_date'] ?? ''),
+            'dr_number' => (string)($row['dr_number'] ?? ''),
             'receiver_remark' => (string)$row['receiver_remark'],
             'receiver_remarked_at' => (string)($row['receiver_remarked_at'] ?? ''),
             'receiver_branch' => (string)($row['receiver_branch_name'] ?? ''),
@@ -19867,7 +20003,7 @@ function apiBranchDeliveryIssues(array $params = []): void
             'receiver_name' => (string)($row['receiver_name'] ?? ''),
         ];
     }
-    $ctx->json(['ok' => true, 'count' => count($issues), 'issues' => $issues]);
+    return $issues;
 }
 
 /**
@@ -24199,9 +24335,20 @@ function handleAdminCommissary(): void
     }
     unset($bs);
 
+    // The production in-charge's landing page IS this sheet, so the delivery discrepancies waiting on
+    // this branch are read HERE rather than only behind a badge. Server-rendered because a notice the
+    // operator must act on should not depend on a fetch succeeding first, and read through the same
+    // dl_pendingDeliveryIssues() the modal calls so the count and the list can never disagree.
+    $pendingDeliveryIssues = [];
+    if ($selectedCommissaryId > 0) {
+        $pendingDeliveryIssues = dl_pendingDeliveryIssues($db, (int)$selectedCommissaryId, 8);
+    }
+
     echo dlRender('modules/daily-ledger/admin/commissary.disyl', [
         'page_title' => 'Commissary',
         'base_url' => dlGetBaseUrl(),
+        'pending_delivery_issues' => $pendingDeliveryIssues,
+        'pending_delivery_issue_count' => count($pendingDeliveryIssues),
         'dl_token' => (string)kernelCookie(dlCookieName(), ''),
         'csrf_token' => app()->csrfToken(),
         'current_page' => 'commissary',

@@ -1216,7 +1216,7 @@
                     <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Commissary</span>
                 </a>
 
-                     {if feature_formal_delivery && (user_role == 'admin' || user_role == 'supervisor' || user_role == 'production_in_charge')}
+                     {if feature_formal_delivery && nav_can_deliveries}
                      <a href="{base_url}/admin/deliveries"
                          class="wb-nav-item flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'deliveries'}bg-white/10 ring-1 ring-white/10{/if}"
                          aria-label="Deliveries">
@@ -1225,7 +1225,7 @@
                      </a>
                      {/if}
 
-                {if user_role == 'admin' || user_role == 'supervisor'}
+                {if nav_can_usage}
                 <a href="{base_url}/admin/usage"
                    class="wb-nav-item flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'usage'}bg-white/10 ring-1 ring-white/10{/if}"
                    aria-label="Commissary Usage">
@@ -1235,7 +1235,7 @@
                 {/if}
                 {/if}
 
-                {if user_role == 'admin' || user_role == 'supervisor' || user_role == 'auditor'}
+                {if nav_can_trace}
                 <a href="{base_url}/admin/trace"
                    class="wb-nav-item flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'trace'}bg-white/10 ring-1 ring-white/10{/if}"
                    aria-label="Production Delivery Audit">
@@ -1326,7 +1326,8 @@
                    and nobody here has answered. Not every variance - this commissary alone carries
                    482 delivery flags and a badge reading 482 is wallpaper. Answering empties the row
                    from the queue, so the number keeps meaning "nobody has answered this". *}
-                <div x-data="deliveryIssues()" x-init="load()">
+                <div x-data="deliveryIssues()" x-init="load()"
+                     @dl-open-delivery-issues.window="open = true">
                     <button type="button"
                             x-show="count > 0" x-cloak
                             @click="open = true"
@@ -1405,6 +1406,54 @@
             </header>
 
             <main class="flex-1 overflow-auto p-6" id="main-content">
+
+{* Owner direction 2026-11-13: a delivery the receiving branch found short must reach the production
+   in-charge where they LAND, not only behind a badge they have to notice. This is the landing page
+   for that role, so the discrepancies waiting on this branch are listed here, server-rendered.
+
+   The rows are the real variance items - product, what was sent, what was counted, and the reason
+   the receiving branch wrote - because "3 issues" tells nobody which truck to check. The button
+   opens the same modal the header badge uses (rather than a second one) through a window event, so
+   there is exactly one queue implementation and its reply field. *}
+{if pending_delivery_issue_count > 0}
+<div class="mb-5 rounded-xl border border-rose-300 bg-rose-50 px-4 py-3 print-hidden" role="status" aria-live="polite">
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div class="min-w-0">
+            <p class="text-sm font-semibold text-rose-900">
+                A delivery you sent did not match - <span class="tabular-nums">{pending_delivery_issue_count}</span> waiting for your answer
+            </p>
+            <p class="mt-0.5 text-xs text-rose-800">The receiving branch explained the difference. Add your side so the office can settle it.</p>
+        </div>
+        <button type="button"
+                class="btn btn-danger shrink-0"
+                onclick="window.dispatchEvent(new CustomEvent('dl-open-delivery-issues'))">
+            <i class="fas fa-triangle-exclamation" aria-hidden="true"></i>
+            Open the variance notices
+        </button>
+    </div>
+    <ul class="mt-3 space-y-1.5">
+        {foreach pending_delivery_issues as issue}
+        <li class="rounded-lg border border-rose-200 bg-white px-3 py-2">
+            <div class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                <span class="text-sm font-semibold text-gray-900">{issue.product_name}</span>
+                <span class="text-xs text-gray-600">
+                    sent <span class="font-semibold tabular-nums">{issue.sent_qty}</span>
+                    · they counted <span class="font-semibold tabular-nums text-rose-700">{issue.received_qty}</span>
+                    {if issue.short_by > 0}<span> · <span class="tabular-nums">{issue.short_by}</span> short</span>{/if}
+                    · {issue.receiver_branch}
+                </span>
+            </div>
+            <p class="mt-1 text-sm text-gray-800">{issue.receiver_remark}</p>
+            <p class="mt-0.5 text-[11px] text-gray-500">
+                {issue.receiver_name} · {issue.receiver_remarked_at}
+                {if issue.dr_number} · DR {issue.dr_number}{/if}
+                {if issue.ledger_date} · {issue.ledger_date}{/if}
+            </p>
+        </li>
+        {/foreach}
+    </ul>
+</div>
+{/if}
 
 <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6 print-hidden">
     <div>

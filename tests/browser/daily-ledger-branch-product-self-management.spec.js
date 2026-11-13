@@ -62,7 +62,10 @@ test.describe.serial('Daily Ledger — branch product self-management gate', () 
         await setFeature(page, false);
         await login(page, CASHIER);
         await page.goto('/daily-ledger/products', { waitUntil: 'domcontentloaded' });
-        expect(await page.locator('body').innerText()).toContain('Branch product self-management is disabled.');
-        expect(await page.locator('.wb-nav-item[aria-label="Branch Products"]').count()).toBe(0);
+        // The refusal is a designed page, not a bare server string: it names the feature, says the
+        // switch is off, and points at where an admin turns it on.
+        await expect(page.getByRole('heading', { name: 'Branch product self-management is switched off' })).toBeVisible();
+        expect(await page.locator('body').innerText()).not.toContain('is disabled.');
+        await expect(page.locator('.wb-nav-item[aria-label="Branch Products"]')).toHaveCount(0);
     });
 });
