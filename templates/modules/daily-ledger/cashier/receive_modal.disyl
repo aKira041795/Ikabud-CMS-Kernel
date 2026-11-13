@@ -150,135 +150,134 @@
                                     <th class="px-2 py-2 text-right">Receive</th>
                                 </tr>
                             </thead>
-                            {* x-for needs ONE root element. It used to wrap two sibling <tr>s (the DR row and its
-                               checking area), and Alpine rendered only the first - so the checking area existed
-                               in the template and never appeared, with no error anywhere. The root is now a
-                               <tbody> per group, which holds both rows. Multiple tbodies are valid HTML. *}
-                            <template x-for="(g, gi) in filteredDeliveries" :key="g.group_key">
+                            {* Owner direction 2026-11-13: the explanation belongs UNDER THE ITEM that is short.
+                               A DR with three short lines used to get ONE box explaining all of it, placed at the
+                               bottom of the delivery, so the cashier typed a paragraph about line 2 thirty rows
+                               below line 2. Each item with a variance now gets its own field, directly beneath it.
+
+                               That forces a structural change worth stating: the grid used to align four
+                               independently looping columns on a shared 28px pitch, which works only while every
+                               row is exactly one line tall. A field under one item makes one line taller than the
+                               others, so the pitch cannot survive. The rows are now real table rows - one <tr>
+                               per item with its own cells - and alignment comes from the table itself. A note row
+                               can no longer push the columns out of line, because there are no columns to push.
+
+                               Each rendered row is its own <tbody> because Alpine's x-for needs exactly one root
+                               element per iteration and an item plus its optional note row are two <tr>s
+                               (multiple tbodies are valid HTML - the group row already relied on this). *}
+                            <template x-for="row in displayRows" :key="row.key">
                             <tbody>
-                                {* One row per DR so the whole backlog is scannable instead of one tall
-                                   card per delivery (branch 8 carried 219 pending rows on 2026-10-22).
-                                   Each row carries its own Receive button and is completed on its own
-                                   click - there is no bulk action, because these rows post stock and a
-                                   mistaken mass-receipt could not be undone. Quantities stay editable
-                                   per line inside the Qty cell; an untouched value is a match. *}
-                                    <tr class="border-t border-gray-100 align-top hover:bg-gray-50">
+                                {* DR header: one per delivery so the whole backlog stays scannable instead of one
+                                   tall card per delivery (branch 8 carried 219 pending rows on 2026-10-22).
+                                   Completed on its own click - there is no bulk action, because these rows post
+                                   stock and a mistaken mass-receipt could not be undone. *}
+                                <template x-if="row.type === 'header'">
+                                    <tr class="border-t border-gray-100 align-top bg-gray-50">
                                         <td class="px-2 py-2">
-                                            <div class="inline-flex items-center rounded bg-slate-900 px-2 py-0.5 font-mono text-xs font-semibold tracking-[0.14em] text-white" x-text="g.dr_number || 'NO DR'"></div>
-                                            <div class="mt-1 text-[11px] text-gray-500" x-text="g.ledger_date"></div>
-                                            <template x-if="g.provenance_status === 'none'">
-                                                <div class="text-[11px] text-gray-600">Sent by <span class="font-semibold" x-text="g.dispatching_cashier_name || 'not recorded'"></span></div>
+                                            <div class="inline-flex items-center rounded bg-slate-900 px-2 py-0.5 font-mono text-xs font-semibold tracking-[0.14em] text-white" x-text="row.g.dr_number || 'NO DR'"></div>
+                                            <div class="mt-1 text-[11px] text-gray-500" x-text="row.g.ledger_date"></div>
+                                            <template x-if="row.g.provenance_status === 'none'">
+                                                <div class="text-[11px] text-gray-600">Sent by <span class="font-semibold" x-text="row.g.dispatching_cashier_name || 'not recorded'"></span></div>
                                             </template>
-                                            <template x-if="g.provenance_status === 'paper_dr_pending'">
+                                            <template x-if="row.g.provenance_status === 'paper_dr_pending'">
                                                 <div class="text-[11px] font-semibold text-amber-800">paper DR</div>
                                             </template>
                                         </td>
-                                        <td class="px-2 py-2 text-gray-800" x-text="g.origin_branch_name"></td>
+                                        <td class="px-2 py-2 text-gray-800" x-text="row.g.origin_branch_name"></td>
                                         <td class="px-2 py-2">
-                                            {* Each item line and its qty input share the same 28px row
-                                               pitch, so line N of the names lies level with input N. Without
-                                               a fixed pitch the input's own height and padding made the two
-                                               columns drift apart down a long DR. *}
-                                            <template x-for="(it, ii) in g.items" :key="'n' + it.id">
-                                                {* Alternating band per line, indexed over the SAME array as
-                                                   the qty cell, so a name and its input always share a tint.
-                                                   -mx-2 px-2 lets the tint fill the cell so the band reads as
-                                                   one continuous stripe across both columns. *}
-                                                <div class="-mx-2 flex h-7 items-center px-2 text-xs text-gray-800"
-                                                     :class="ii % 2 === 1 ? 'bg-gray-100' : ''"
-                                                     x-text="it.product_name"></div>
-                                            </template>
-                                            <template x-if="isPartial(g)">
-                                                <span class="mt-1 inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700 ring-1 ring-inset ring-amber-200">Partial</span>
+                                            <span class="text-xs text-gray-600" x-text="row.g.items.length + (row.g.items.length === 1 ? ' item' : ' items')"></span>
+                                            <template x-if="isPartial(row.g)">
+                                                <span class="ml-1 inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700 ring-1 ring-inset ring-amber-200">Partial</span>
                                             </template>
                                         </td>
-                                        <td class="px-1 py-2">
-                                            {* One chip per line, on the SAME 28px pitch and the same alternating
-                                               band index as the name and qty cells, so line N of all three
-                                               columns stays level. *}
-                                            <template x-for="(it, si) in g.items" :key="'s' + it.id">
-                                                <div class="-mx-1 flex h-7 items-center px-1"
-                                                     :class="si % 2 === 1 ? 'bg-gray-100' : ''">
-                                                    <span class="inline-flex items-center rounded-full px-1.5 py-0.5 text-[11px] font-semibold ring-1 ring-inset"
-                                                          :class="it.supply_origin === 'bodega' ? 'bg-teal-50 text-teal-800 ring-teal-200' : 'bg-gray-50 text-gray-600 ring-gray-200'"
-                                                          x-text="it.supply_origin === 'bodega' ? 'Bodega' : 'Commissary'"></span>
-                                                </div>
-                                            </template>
-                                        </td>
+                                        <td class="px-1 py-2"></td>
+                                        <td class="px-2 py-2"></td>
                                         <td class="px-2 py-2">
-                                            <template x-for="(it, qi) in g.items" :key="'q' + it.id">
-                                                <div class="-mx-2 flex h-7 items-center justify-end gap-1 px-2"
-                                                     :class="qi % 2 === 1 ? 'bg-gray-100' : ''">
-                                                    <input type="number"
-                                                           class="h-6 w-16 rounded border border-gray-300 px-1.5 py-0 text-right text-sm tabular-nums focus:border-indigo-500 focus:ring-indigo-500"
-                                                           :min="0"
-                                                           :value="receivedQty(g, it)"
-                                                           placeholder="Count"
-                                                           @input="setReceivedQty(g, it, $event.target.value)">
-                                                    {* The "of N" suffix has a FIXED width. While it sized to its own
-                                                       text ("of 5" vs "of 300"), the right-aligned input was pushed
-                                                       left or right by a different amount on every line, so the qty
-                                                       fields never formed a straight vertical column. *}
-                                                    <span class="inline-block w-10 shrink-0 text-left text-[11px] tabular-nums text-gray-400" x-text="'of ' + it.quantity"></span>
-                                                </div>
-                                            </template>
-                                        </td>
-                                        <td class="px-2 py-2">
-                                            <select x-model="g.production_shift" class="form-input mt-0 w-20 py-0.5 text-xs">
+                                            <select x-model="row.g.production_shift" class="form-input mt-0 w-20 py-0.5 text-xs">
                                                 <option value="">--</option>
                                                 <option value="AM">AM</option>
                                                 <option value="PM">PM</option>
                                             </select>
-                                            <template x-if="receiptShiftMismatch(g)">
+                                            <template x-if="receiptShiftMismatch(row.g)">
                                                 <div class="mt-1 text-[10px] font-semibold text-amber-800" title="The sender expected a different receiving shift. You can still receive it.">shift differs</div>
                                             </template>
                                         </td>
                                         <td class="px-2 py-2 text-right">
                                             <button type="button"
                                                     class="btn btn-primary btn-sm"
-                                                    x-bind:disabled="busyKey === g.group_key || hasInvalidCorrection(g)"
-                                                    x-effect="$el.disabled = busyKey === g.group_key || hasInvalidCorrection(g) || !canAcceptGroup(g)"
-                                                    @click="acceptGroup(g)">
-                                                <span x-text="busyKey === g.group_key ? 'Receiving…' : 'Receive'"></span>
+                                                    x-bind:disabled="busyKey === row.g.group_key || hasInvalidCorrection(row.g)"
+                                                    x-effect="$el.disabled = busyKey === row.g.group_key || hasInvalidCorrection(row.g) || !canAcceptGroup(row.g)"
+                                                    @click="acceptGroup(row.g)">
+                                                <span x-text="busyKey === row.g.group_key ? 'Receiving…' : 'Receive'"></span>
                                             </button>
                                         </td>
                                     </tr>
-                                    {* Client concern #3 + owner direction 2026-11-10: the checking area is reached
-                                       AT THE MOMENT the cashier finds the mismatch. It appears as soon as a
-                                       counted qty differs from the DR, right here, instead of sending them to a
-                                       separate page to hunt the row afterwards.
-
-                                       Full-width row on purpose - squeezing it into the Qty cell would repeat
-                                       the 130px mistake that made the office remark box unreadable.
-
-                                       Never blocks the receive: a cashier may not know why, and a forced
-                                       explanation gets invented. *}
-                                    {* Trigger reuses hasCorrections(g): the box appears the moment a counted qty
-                                       differs from the DR and disappears only if they set it back to the sent
-                                       figure, which is a deliberate act rather than a stray keystroke. *}
-                                    <tr x-show="hasCorrections(g)" x-cloak class="bg-amber-50">
-                                        <td colspan="7" class="px-2 pb-3 pt-0">
+                                </template>
+                                {* One row per item line. An untouched qty is a match; a counted qty that differs
+                                   is a variance and the item's own field appears directly beneath it. *}
+                                <template x-if="row.type === 'item'">
+                                    <tr class="align-middle" :class="row.ii % 2 === 1 ? 'bg-gray-50' : ''">
+                                        <td class="px-2 py-1"></td>
+                                        <td class="px-2 py-1"></td>
+                                        <td class="px-2 py-1 text-xs text-gray-800" x-text="row.it.product_name"></td>
+                                        <td class="px-1 py-1">
+                                            <span class="inline-flex items-center rounded-full px-1.5 py-0.5 text-[11px] font-semibold ring-1 ring-inset"
+                                                  :class="row.it.supply_origin === 'bodega' ? 'bg-teal-50 text-teal-800 ring-teal-200' : 'bg-gray-50 text-gray-600 ring-gray-200'"
+                                                  x-text="row.it.supply_origin === 'bodega' ? 'Bodega' : 'Commissary'"></span>
+                                        </td>
+                                        <td class="px-2 py-1">
+                                            <div class="flex items-center justify-end gap-1">
+                                                <input type="number"
+                                                       class="h-6 w-16 rounded border border-gray-300 px-1.5 py-0 text-right text-sm tabular-nums focus:border-indigo-500 focus:ring-indigo-500"
+                                                       :min="0"
+                                                       :value="receivedQty(row.g, row.it)"
+                                                       placeholder="Count"
+                                                       @input="setReceivedQty(row.g, row.it, $event.target.value)">
+                                                {* The "of N" suffix has a FIXED width so the right-aligned input
+                                                   forms one straight column down the list. *}
+                                                <span class="inline-block w-10 shrink-0 text-left text-[11px] tabular-nums text-gray-400" x-text="'of ' + row.it.quantity"></span>
+                                            </div>
+                                        </td>
+                                        <td class="px-2 py-1"></td>
+                                        <td class="px-2 py-1"></td>
+                                    </tr>
+                                </template>
+                                {* The per-item explanation. Appears the moment a counted qty differs from the DR and
+                                   disappears only if they set it back to the sent figure, which is a deliberate act
+                                   rather than a stray keystroke. Never blocks the receive: a cashier may not know
+                                   why, and a forced explanation gets invented. Full width on purpose - squeezing it
+                                   into the Qty cell would repeat the 130px mistake that made the office remark box
+                                   unreadable. *}
+                                <template x-if="row.type === 'note'">
+                                    <tr class="bg-amber-50">
+                                        <td colspan="7" class="px-2 pb-2 pt-0">
                                             <div class="rounded-md border border-amber-300 bg-white px-3 py-2">
                                                 <label class="block text-xs font-semibold text-amber-900">
-                                                    What is the issue with this delivery?
-                                                    <span class="font-normal text-amber-700">— optional, but the sending branch sees it right away</span>
+                                                    What is the issue with <span x-text="row.it.product_name"></span>?
+                                                    <span class="font-normal text-amber-700">
+                                                        — counted <span class="tabular-nums" x-text="receivedQty(row.g, row.it)"></span>
+                                                        of <span class="tabular-nums" x-text="row.it.quantity"></span>,
+                                                        optional but the sending branch sees it right away
+                                                    </span>
                                                 </label>
                                                 <input type="text"
                                                        class="form-input mt-1 w-full text-sm"
                                                        maxlength="500"
                                                        placeholder="e.g. 2 packs kulang pag-abot"
-                                                       :value="issueNotes[g.group_key] || ''"
-                                                       @input="issueNotes[g.group_key] = $event.target.value">
+                                                       :value="issueNote(row.g, row.it)"
+                                                       @input="setIssueNote(row.g, row.it, $event.target.value)">
                                                 {* Reusable reasons: the wording THIS branch has already used, so the
                                                    same shortage is not retyped at every delivery. Built from their own
-                                                   history rather than a list someone had to guess in advance. *}
-                                                <template x-if="recentReasons.length">
+                                                   history rather than a list someone had to guess in advance. Shown once
+                                                   per delivery (on its first short line) so a DR with five short lines
+                                                   does not print the same row of chips five times. *}
+                                                <template x-if="row.isFirstNote && recentReasons.length">
                                                     <div class="mt-2 flex flex-wrap items-center gap-1">
                                                         <span class="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Reuse:</span>
                                                         <template x-for="r in recentReasons" :key="r">
                                                             <button type="button"
                                                                     class="rounded-full border border-gray-300 bg-gray-50 px-2 py-0.5 text-[11px] text-gray-700 hover:border-amber-300 hover:bg-amber-50"
-                                                                    @click="issueNotes[g.group_key] = r"
+                                                                    @click="setIssueNote(row.g, row.it, r)"
                                                                     x-text="r"></button>
                                                         </template>
                                                     </div>
@@ -286,6 +285,7 @@
                                             </div>
                                         </td>
                                     </tr>
+                                </template>
                             </tbody>
                             </template>
                         </table>
@@ -698,6 +698,59 @@ function receiveModal() {
             return this.deliveries.filter(function(g) {
                 return (g.dr_number || '').toLowerCase().includes(q);
             });
+        },
+
+        // Flattened render model for the receiving table: one descriptor per VISUAL row.
+        // A delivery contributes a header row, one item row per line, and - only for a line
+        // whose counted qty differs from the DR - that line's own note row directly beneath it.
+        // The template renders each descriptor as its own <tbody>/<tr>, so an item and the
+        // explanation under it are never out of step and several short lines each keep their
+        // own field. Reading partialQtys here makes the getter re-evaluate when a count is
+        // edited, which is what makes the field appear under the line being typed in.
+        get displayRows() {
+            var self = this;
+            var rows = [];
+            this.filteredDeliveries.forEach(function(g) {
+                rows.push({ key: 'h|' + g.group_key, type: 'header', g: g });
+                var firstNote = true;
+                (g.items || []).forEach(function(it, ii) {
+                    rows.push({ key: 'i|' + g.group_key + '|' + it.id, type: 'item', g: g, it: it, ii: ii });
+                    if (self.hasItemVariance(g, it)) {
+                        rows.push({
+                            key: 'n|' + g.group_key + '|' + it.id,
+                            type: 'note',
+                            g: g,
+                            it: it,
+                            isFirstNote: firstNote
+                        });
+                        firstNote = false;
+                    }
+                });
+            });
+            return rows;
+        },
+
+        // The variance of ONE line, which is what decides whether that line carries a note field.
+        // hasCorrections(g) stays the delivery-level question (button state, Partial badge).
+        hasItemVariance(g, it) {
+            var map = this.partialQtys[g.group_key];
+            if (!map) return false;
+            return Number.isInteger(map[it.id]) && map[it.id] !== it.quantity;
+        },
+
+        // Notes are keyed by delivery group + item, never by item id alone: an informal
+        // transfer's id and a delivery item's id come from different tables and could
+        // collide, which would carry one line's words onto another.
+        noteKey(g, it) {
+            return g.group_key + '|' + it.id;
+        },
+
+        issueNote(g, it) {
+            return this.issueNotes[this.noteKey(g, it)] || '';
+        },
+
+        setIssueNote(g, it, val) {
+            this.issueNotes[this.noteKey(g, it)] = val;
         },
 
         openModal() {
@@ -1325,11 +1378,20 @@ function receiveModal() {
             }
             var bid = this.currentBranchId();
             if (bid) payload.branch_id = bid;
-            // The cashier's explanation rides WITH the receive. The variance rows for this delivery do
-            // not exist until the receive lands, so there would be nothing to attach the words to if
-            // they were saved separately afterwards.
-            var issueNote = (this.issueNotes[g.group_key] || '').trim();
-            if (issueNote) payload.delivery_issue_note = issueNote;
+            // Each short line carries its OWN explanation, collected by the item it belongs to.
+            // The variance rows for this delivery do not exist until the receive lands, so there
+            // would be nothing to attach the words to if they were saved separately afterwards.
+            // Only lines that are STILL short are sent: a note typed and then abandoned by putting
+            // the count back must not ride along and attach itself to the same product's real
+            // shortage on another line of this DR.
+            var notesSelf = this;
+            var itemNotes = {};
+            g.items.forEach(function(it) {
+                if (!notesSelf.hasItemVariance(g, it)) return;
+                var note = (notesSelf.issueNote(g, it) || '').trim();
+                if (note) { itemNotes[it.id] = note; }
+            });
+            if (Object.keys(itemNotes).length) payload.delivery_issue_notes = itemNotes;
 
             window.dlWriteTimeout(BASE + '/api/v1/cashier/ledger/receive-delivery', {
                 method: 'POST',

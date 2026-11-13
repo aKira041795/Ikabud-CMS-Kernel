@@ -11077,7 +11077,7 @@ function dl_markReceivingCountBasis($db, int $receivingId, string $basis): void
  *
  * @param array<int,int> $countsByDeliveryItem
  */
-function dl_acceptFormalDeliveryByItem($db, int $branchId, int $deliveryId, int $userId, string $receiveDate, array $countsByDeliveryItem, string $shift, string $receiverRemark = ''): int
+function dl_acceptFormalDeliveryByItem($db, int $branchId, int $deliveryId, int $userId, string $receiveDate, array $countsByDeliveryItem, string $shift, string $receiverRemark = '', array $remarksByItem = []): int
 {
     $stmt = $db->prepare('SELECT id, product_id, quantity FROM dl_delivery_items WHERE delivery_id = :delivery ORDER BY id');
     $stmt->execute([':delivery' => $deliveryId]);
@@ -11128,6 +11128,48 @@ function dl_acceptFormalDeliveryByItem($db, int $branchId, int $deliveryId, int 
     //
     // The guard leaves an existing remark alone: a second receive of the same delivery must not wipe
     // what the branch already said, and a blank note must never erase it either.
+    // Per-LINE remarks first (owner direction 2026-11-13: each item that came up short carries its own
+    // field, shown directly under that item, so a DR with several short lines is explained line by line
+    // instead of by one paragraph covering all of them). The variance EVIDENCE is one flag per
+    // (delivery, product), so two short lines of the SAME product collapse into one flag: their words are
+    // joined rather than one silently winning. Keyed by delivery item id, because that is what the modal
+    // counts and what the cashier's field belongs to.
+    $notesByProduct = [];
+    foreach ($lines as $line) {
+        $itemId = (int)$line['id'];
+        $note = trim((string)($remarksByItem[$itemId] ?? $remarksByItem[(string)$itemId] ?? ''));
+        if ($note === '') {
+            continue;
+        }
+        if (mb_strlen($note) > DL_VARIANCE_NOTE_MAX) {
+            $note = mb_substr($note, 0, DL_VARIANCE_NOTE_MAX);
+        }
+        $noteProductId = (int)$line['product_id'];
+        $notesByProduct[$noteProductId] = isset($notesByProduct[$noteProductId])
+            ? $notesByProduct[$noteProductId] . ' / ' . $note
+            : $note;
+    }
+    if ($notesByProduct !== []) {
+        $noteStmt = $db->prepare(
+            "UPDATE dl_variance_flags
+                SET receiver_remark = :note, receiver_remark_by = :by,
+                    receiver_remark_branch_id = :branch, receiver_remarked_at = NOW()
+              WHERE receiving_id = :rcv AND kind = 'delivery' AND product_id = :pid
+                AND (receiver_remark IS NULL OR receiver_remark = '')"
+        );
+        foreach ($notesByProduct as $noteProductId => $noteText) {
+            if (mb_strlen($noteText) > DL_VARIANCE_NOTE_MAX) {
+                $noteText = mb_substr($noteText, 0, DL_VARIANCE_NOTE_MAX);
+            }
+            $noteStmt->execute([
+                ':note' => $noteText,
+                ':by' => $userId > 0 ? $userId : null,
+                ':branch' => $branchId,
+                ':rcv' => $receivingId,
+                ':pid' => $noteProductId,
+            ]);
+        }
+    }
     if ($receiverRemark !== '') {
         $db->prepare(
             "UPDATE dl_variance_flags
@@ -11179,6 +11221,23 @@ function apiReceiveDelivery(array $params = []): void
     if (mb_strlen($deliveryIssueNote) > DL_VARIANCE_NOTE_MAX) {
         $deliveryIssueNote = mb_substr($deliveryIssueNote, 0, DL_VARIANCE_NOTE_MAX);
     }
+    // One explanation per SHORT LINE, keyed by the line it was typed under: {item_id: note}. Clamped
+    // per note and never rejected, for the same reason as the delivery-level note above. A note whose
+    // line is not part of this receive is simply not applied to anything, so a stale key cannot attach
+    // words to the wrong product.
+    $deliveryIssueNotesByItem = [];
+    if (isset($input['delivery_issue_notes']) && is_array($input['delivery_issue_notes'])) {
+        foreach ($input['delivery_issue_notes'] as $noteItemKey => $rawNoteText) {
+            $noteItemId = (int)$noteItemKey;
+            $noteText = trim((string)$rawNoteText);
+            if ($noteItemId <= 0 || $noteText === '') {
+                continue;
+            }
+            $deliveryIssueNotesByItem[$noteItemId] = mb_strlen($noteText) > DL_VARIANCE_NOTE_MAX
+                ? mb_substr($noteText, 0, DL_VARIANCE_NOTE_MAX)
+                : $noteText;
+        }
+    }
     $deliveryIds = array_values(array_filter(array_map('intval', (array)($input['delivery_ids'] ?? []))));
 
     if (!$branchId || (count($ids) === 0 && count($deliveryIds) === 0)) {
@@ -11215,7 +11274,8 @@ function apiReceiveDelivery(array $params = []): void
                         throw new \RuntimeException('A counted Received value is required for every line.');
                     }
                     $rcvId = dl_acceptFormalDeliveryByItem(
-                        $ctx->db(), $branchId, $deliveryId, $userId, $receiveDate, $providedCounts, $shift, $deliveryIssueNote
+                        $ctx->db(), $branchId, $deliveryId, $userId, $receiveDate, $providedCounts, $shift,
+                        $deliveryIssueNote, $deliveryIssueNotesByItem
                     );
                 } else {
                     // An untouched one-click confirmation is a MATCH: the receiver
@@ -11306,6 +11366,10 @@ function apiReceiveDelivery(array $params = []): void
             $markIndiv->execute([$userId, $receiveDate, $shift, $receivedQty, $rid]);
             $foundIds[] = $rid;
             if ($receivedQty !== $sentQty) {
+                // The per-line explanation rides with the line it was typed under. Informal transfers
+                // carry no delivery variance flag, so this notification is where the words live - before
+                // this the modal collected them and the server dropped them silently.
+                $informalLineNote = trim((string)($deliveryIssueNotesByItem[$rid] ?? ''));
                 dl_raiseIntegrityNotification(
                     $ctx->db(),
                     'informal-receipt-mismatch-' . $rid,
@@ -11314,7 +11378,8 @@ function apiReceiveDelivery(array $params = []): void
                     'dl_cashier_withdrawals',
                     $rid,
                     'Branch transfer receipt differs from dispatch',
-                    'Withdrawal #' . $rid . ' was sent as ' . $sentQty . ' and received as ' . $receivedQty . '.',
+                    'Withdrawal #' . $rid . ' was sent as ' . $sentQty . ' and received as ' . $receivedQty . '.'
+                        . ($informalLineNote !== '' ? ' Reason given: ' . $informalLineNote : ''),
                     false
                 );
             }
