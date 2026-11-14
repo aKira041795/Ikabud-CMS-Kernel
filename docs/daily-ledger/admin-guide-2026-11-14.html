@@ -1,104 +1,274 @@
 <!doctype html>
 <html lang="en">
+
 <head>
-<meta charset="utf-8">
-<title>Daily Ledger — Guide to the new stock and ledger rules (14 November 2026)</title>
-<style>
-    @page { margin: 16mm 15mm 14mm 15mm; }
-    body { font-family: "DejaVu Sans", Arial, sans-serif; font-size: 10pt; color: #111827; line-height: 1.36; }
-    h1 { font-size: 18pt; color: #1e3a8a; margin: 0 0 1.5mm 0; }
-    .sub { font-size: 9.5pt; color: #4b5563; margin: 0 0 5mm 0; }
-    h2 { font-size: 12pt; color: #1e3a8a; margin: 5mm 0 1.6mm 0; padding-bottom: 1mm; border-bottom: 0.4pt solid #c7d2fe; }
-    p { margin: 0 0 2mm 0; }
-    ul { margin: 0 0 2.4mm 0; padding-left: 5mm; }
-    li { margin: 0 0 1.2mm 0; }
-    table { width: 100%; border-collapse: collapse; margin: 0 0 3mm 0; font-size: 9.2pt; }
-    th { background: #eef2ff; text-align: left; padding: 1.6mm; border: 0.4pt solid #c7d2fe; color: #1e3a8a; }
-    td { padding: 1.6mm; border: 0.4pt solid #d1d5db; vertical-align: top; }
-    .callout { background: #fffbeb; border-left: 3pt solid #f59e0b; padding: 2.6mm 3.4mm; margin: 0 0 3mm 0; }
-    .callout strong { color: #92400e; }
-    .check td { padding: 2mm 1.6mm; }
-    .box { display: inline-block; width: 3.2mm; height: 3.2mm; border: 0.6pt solid #6b7280; margin-right: 2mm; }
-    .foot { margin-top: 5mm; padding-top: 3mm; border-top: 0.4pt solid #e5e7eb; font-size: 8.5pt; color: #6b7280; }
-    .nowrap { white-space: nowrap; }
-</style>
+    <meta charset="utf-8">
+    <title>Daily Ledger — Guide to the new stock and ledger rules (14 November 2026)</title>
+    <style>
+        @page {
+            margin: 16mm 15mm 14mm 15mm;
+        }
+
+        body {
+            font-family: "DejaVu Sans", Arial, sans-serif;
+            font-size: 10pt;
+            color: #111827;
+            line-height: 1.36;
+        }
+
+        h1 {
+            font-size: 18pt;
+            color: #1e3a8a;
+            margin: 0 0 1.5mm 0;
+        }
+
+        .sub {
+            font-size: 9.5pt;
+            color: #4b5563;
+            margin: 0 0 5mm 0;
+        }
+
+        h2 {
+            font-size: 12pt;
+            color: #1e3a8a;
+            margin: 5mm 0 1.6mm 0;
+            padding-bottom: 1mm;
+            border-bottom: 0.4pt solid #c7d2fe;
+        }
+
+        p {
+            margin: 0 0 2mm 0;
+        }
+
+        ul {
+            margin: 0 0 2.4mm 0;
+            padding-left: 5mm;
+        }
+
+        li {
+            margin: 0 0 1.2mm 0;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 0 0 3mm 0;
+            font-size: 9.2pt;
+        }
+
+        th {
+            background: #eef2ff;
+            text-align: left;
+            padding: 1.6mm;
+            border: 0.4pt solid #c7d2fe;
+            color: #1e3a8a;
+        }
+
+        td {
+            padding: 1.6mm;
+            border: 0.4pt solid #d1d5db;
+            vertical-align: top;
+        }
+
+        .callout {
+            background: #fffbeb;
+            border-left: 3pt solid #f59e0b;
+            padding: 2.6mm 3.4mm;
+            margin: 0 0 3mm 0;
+            /* Keep the whole box on one page: split, it left a single orphaned word at the top
+               of the next page. */
+            page-break-inside: avoid;
+        }
+
+        /* Headings must not be stranded at the foot of a page, and a table row must never be cut
+           in half across pages. */
+        h2 {
+            page-break-after: avoid;
+        }
+
+        tr {
+            page-break-inside: avoid;
+        }
+
+        .callout strong {
+            color: #92400e;
+        }
+
+        .check td {
+            padding: 2mm 1.6mm;
+        }
+
+        .box {
+            display: inline-block;
+            width: 3.2mm;
+            height: 3.2mm;
+            border: 0.6pt solid #6b7280;
+            margin-right: 2mm;
+        }
+
+        .foot {
+            margin-top: 5mm;
+            padding-top: 3mm;
+            border-top: 0.4pt solid #e5e7eb;
+            font-size: 8.5pt;
+            color: #6b7280;
+        }
+
+        .nowrap {
+            white-space: nowrap;
+        }
+    </style>
 </head>
+
 <body>
 
-<h1>Daily Ledger — Guide to the new stock and ledger rules</h1>
-<p class="sub">14 November 2026 &nbsp;·&nbsp; For branch administrators &nbsp;·&nbsp; Please read before the next business day</p>
+    <h1>Daily Ledger — Guide to the new stock and ledger rules</h1>
+    <p class="sub">14 November 2026 &nbsp;·&nbsp; For branch administrators &nbsp;·&nbsp; Please read before the next
+        business day</p>
 
-<h2>1. What changed</h2>
-<table>
-    <tr><th style="width:33%">Before</th><th>Now</th></tr>
-    <tr><td>Any cashier could add stock with no DR at any branch.</td><td>A cashier cannot add stock without a paper DR. Their only DR-free route is <strong>Own production</strong>, and only for products the branch makes.</td></tr>
-    <tr><td>A cashier could tick <em>“No paper DR — auto-generate”</em> when receiving.</td><td>That option is no longer offered to cashiers. The DR number printed on the delivery is entered instead.</td></tr>
-    <tr><td>Every product looked like it was made by the branch.</td><td>You mark which products a branch actually makes. Everything else is treated as delivered.</td></tr>
-    <tr><td>An admin could post into a finished day without reopening it.</td><td>A closed day is shut to everyone until it is reopened. Reopening is recorded.</td></tr>
-    <tr><td>A branch found out about a correction by noticing the numbers changed.</td><td>The branch is shown a notice on its own ledger, naming the day, the person and what moved.</td></tr>
-</table>
+    <h2>1. What changed</h2>
+    <table>
+        <tr>
+            <th style="width:33%">Before</th>
+            <th>Now</th>
+        </tr>
+        <tr>
+            <td>Any cashier could add stock with no DR at any branch.</td>
+            <td>A cashier cannot add stock without a paper DR. Their only DR-free route is <strong>Own
+                    production</strong>, and only for products the branch makes.</td>
+        </tr>
+        <tr>
+            <td>A cashier could tick <em>“No paper DR — auto-generate”</em> when receiving.</td>
+            <td>That option is no longer offered to cashiers. The DR number printed on the delivery is entered instead.
+            </td>
+        </tr>
+        <tr>
+            <td>Every product looked like it was made by the branch.</td>
+            <td>You mark which products a branch actually makes. Everything else is treated as delivered.</td>
+        </tr>
+        <tr>
+            <td>An admin could post into a finished day without reopening it.</td>
+            <td>A closed day is shut to everyone until it is reopened. Reopening is recorded.</td>
+        </tr>
+        <tr>
+            <td>A branch found out about a correction by noticing the numbers changed.</td>
+            <td>The branch is shown a notice on its own ledger, naming the day, the person and what moved.</td>
+        </tr>
+    </table>
 
-<h2>2. Own production — tell the system what each branch makes</h2>
-<p>Go to <strong>Branches</strong>, find the branch, and press <strong>“Products &amp; own production”</strong> on that row. You will see a product list with two tick boxes. They mean two different things.</p>
-<table>
-    <tr><th style="width:30%">Column</th><th>What it means</th></tr>
-    <tr><td><strong>“In ledger”</strong></td><td>Show this product on the branch&rsquo;s cashier ledger at all. Turning it off removes it from the ledger, the Daily Sheet and every receiving screen.</td></tr>
-    <tr><td><strong>“Own produced here”</strong> (the box marked <strong>“Makes it”</strong>)</td><td>This branch <strong>makes</strong> the product. A ticked product can be added by the cashier with <strong>no DR</strong>, through <em>Own production</em>. Anything left unticked is treated as <strong>delivered</strong> and must be received against its paper DR.</td></tr>
-</table>
+    <h2>2. Own production — tell the system what each branch makes</h2>
+    <p>Go to <strong>Branches</strong>, find the branch, and press <strong>“Products &amp; own production”</strong> on
+        that row. You will see a product list with two tick boxes. They mean two different things.</p>
+    <table>
+        <tr>
+            <th style="width:30%">Column</th>
+            <th>What it means</th>
+        </tr>
+        <tr>
+            <td><strong>“In ledger”</strong></td>
+            <td>Show this product on the branch&rsquo;s cashier ledger at all. Turning it off removes it from the
+                ledger, the Daily Sheet and every receiving screen.</td>
+        </tr>
+        <tr>
+            <td><strong>“Own produced here”</strong> (the box marked <strong>“Makes it”</strong>)</td>
+            <td>This branch <strong>makes</strong> the product. A ticked product can be added by the cashier with
+                <strong>no DR</strong>, through <em>Own production</em>. Anything left unticked is treated as
+                <strong>delivered</strong> and must be received against its paper DR.
+            </td>
+        </tr>
+    </table>
 
-<div class="callout">
-    <strong>This is the task that needs your attention first.</strong>
-    <p style="margin:2mm 0 0 0">The own-production tick is currently ON for <strong>every product at every branch</strong>, so the system still believes every branch makes everything. One branch was claiming all 217 of its products as made in-store. Until you untick the products a branch does not make, the new rule has nothing to act on.</p>
-    <p style="margin:2mm 0 0 0"><strong>Recommended:</strong> do one branch at a time. Untick the products that arrive on a delivery to that branch, then save. Start with the products your staff know are supplied from the commissary or Bodega.</p>
-</div>
+    <div class="callout">
+        <strong>This is the task that needs your attention first.</strong>
+        <p style="margin:2mm 0 0 0">The own-production tick is currently ON for <strong>every product at every
+                branch</strong>, so the system still believes every branch makes everything. One branch was claiming all
+            217 of its products as made in-store. Until you untick the products a branch does not make, the new rule has
+            nothing to act on.</p>
+        <p style="margin:2mm 0 0 0"><strong>Recommended:</strong> do one branch at a time. Untick the products that
+            arrive on a delivery to that branch, then save. Start with the products your staff know are supplied from
+            the commissary or Bodega.</p>
+    </div>
 
-<h2>3. No DR is only for what the branch makes</h2>
-<ul>
-    <li>A cashier can no longer choose <em>Add Stock (missed entry / variance)</em>, and can no longer tick <em>No paper DR — auto-generate</em>.</li>
-    <li>A cashier&rsquo;s only DR-free route is <strong>Own production</strong>, and only for products ticked as made at that branch.</li>
-    <li>Everything else is received against the DR number printed on the paper delivery.</li>
-    <li>If a delivery was genuinely missed earlier, it is still received against <strong>its paper DR</strong> — that is the correction, not an adjustment.</li>
-    <li>Supervisors can still add stock without a paper DR, but only where the branch permits it: <strong>Branches → edit the branch → “No paper DR (add stock)”</strong>. Admin always can.</li>
-</ul>
-<p><strong>Why this changed.</strong> Over 60 days, cashiers booked 15,902 stock additions with no DR against only 590 deliveries received with a real DR. Most of those additions were filed as an “encoder omission”, which in practice means a delivery being entered late — and a delivery entered late still has a DR.</p>
+    <h2>3. No DR is only for what the branch makes</h2>
+    <ul>
+        <li>A cashier can no longer choose <em>Add Stock (missed entry / variance)</em>, and can no longer tick <em>No
+                paper DR — auto-generate</em>.</li>
+        <li>A cashier&rsquo;s only DR-free route is <strong>Own production</strong>, and only for products ticked as
+            made at that branch.</li>
+        <li>Everything else is received against the DR number printed on the paper delivery.</li>
+        <li>If a delivery was genuinely missed earlier, it is still received against <strong>its paper DR</strong> —
+            that is the correction, not an adjustment.</li>
+        <li>Supervisors can still add stock without a paper DR, but only where the branch permits it: <strong>Branches →
+                edit the branch → “No paper DR (add stock)”</strong>. Admin always can.</li>
+    </ul>
+    <p><strong>Why this changed.</strong> Over 60 days, cashiers booked 15,902 stock additions with no DR against only
+        590 deliveries received with a real DR. Most of those additions were filed as an “encoder omission”, which in
+        practice means a delivery being entered late — and a delivery entered late still has a DR.</p>
 
-<h2>4. A closed day must be reopened before it can be corrected</h2>
-<ul>
-    <li>No one can post into a closed day any more — not even an admin.</li>
-    <li>To correct a closed day: <strong>reopen it first</strong> (<em>Reopen Day</em>, top bar), make the correction, then close it again.</li>
-    <li>Reopening is recorded, and the branch is then told what changed (see section 5).</li>
-    <li>By default only an admin can reopen. This can be granted to supervisors in <strong>Settings → Permissions</strong> using <em>“Allow reopening a closed day to correct it”</strong>.</li>
-</ul>
+    <h2>4. A closed day must be reopened before it can be corrected</h2>
+    <ul>
+        <li>No one can post into a closed day any more — not even an admin.</li>
+        <li>To correct a closed day: <strong>reopen it first</strong> (<em>Reopen Day</em>, top bar), make the
+            correction, then close it again.</li>
+        <li>Reopening is recorded, and the branch is then told what changed (see section 5).</li>
+        <li>By default only an admin can reopen. This can be granted to supervisors in <strong>Settings →
+                Permissions</strong> using <em>“Allow reopening a closed day to correct it”</strong>.</li>
+    </ul>
 
-<h2>5. The branch is told when a finished day is corrected</h2>
-<p>When someone from outside a branch corrects one of that branch&rsquo;s finished days, a notice appears at the top of that branch&rsquo;s cashier ledger for 21 days. It states:</p>
-<ul>
-    <li>which day was changed and who changed it,</li>
-    <li>which products moved and by how much,</li>
-    <li>the reason recorded, and when it was entered.</li>
-</ul>
-<p>Staff no longer have to wonder why a number changed — they can see the change and ask the person named on the notice.</p>
+    <h2>5. The branch is told when a finished day is corrected</h2>
+    <p>When someone from outside a branch corrects one of that branch&rsquo;s finished days, a notice appears at the top
+        of that branch&rsquo;s cashier ledger for 21 days. It states:</p>
+    <ul>
+        <li>which day was changed and who changed it,</li>
+        <li>which products moved and by how much,</li>
+        <li>the reason recorded, and when it was entered.</li>
+    </ul>
+    <p>Staff no longer have to wonder why a number changed — they can see the change and ask the person named on the
+        notice.</p>
 
-<h2>6. Settings → Permissions</h2>
-<ul>
-    <li>New column <strong>“Resolve Variances”</strong> — lets a supervisor resolve delivery variances. It is off by default; tick it if you want supervisors to handle them.</li>
-    <li><strong>“Ledger Override”</strong> now reads <em>“Allow reopening a closed day to correct it”</em>, for both Supervisor and Production in-charge.</li>
-    <li>A note under the table lists the rules that no setting can change: a cashier never adds stock without a paper DR, and a closed day stays shut until somebody with <em>Ledger Override</em> reopens it.</li>
-</ul>
+    <h2>6. Settings → Permissions</h2>
+    <ul>
+        <li>New column <strong>“Resolve Variances”</strong> — lets a supervisor resolve delivery variances. It is off by
+            default; tick it if you want supervisors to handle them.</li>
+        <li><strong>“Ledger Override”</strong> now reads <em>“Allow reopening a closed day to correct it”</em>, for both
+            Supervisor and Production in-charge.</li>
+        <li>A note under the table lists the rules that no setting can change: a cashier never adds stock without a
+            paper DR, and a closed day stays shut until somebody with <em>Ledger Override</em> reopens it.</li>
+    </ul>
 
-<h2>7. Before you start using this</h2>
-<table class="check">
-    <tr><td class="nowrap"><span class="box">&nbsp;</span></td><td>Ask your technical contact to run the database update for this release.</td></tr>
-    <tr><td class="nowrap"><span class="box">&nbsp;</span></td><td>Go through each branch and untick the products that branch does not make.</td></tr>
-    <tr><td class="nowrap"><span class="box">&nbsp;</span></td><td>Decide, per branch, whether supervisors may add stock without a paper DR (the branch switch).</td></tr>
-    <tr><td class="nowrap"><span class="box">&nbsp;</span></td><td>Decide whether supervisors may resolve delivery variances (Settings → Permissions).</td></tr>
-    <tr><td class="nowrap"><span class="box">&nbsp;</span></td><td>Brief your cashiers: products the branch makes go in as <em>Own production</em>; everything else needs its paper DR number.</td></tr>
-</table>
+    <h2>7. Before you start using this</h2>
+    <table class="check">
+        <tr>
+            <td class="nowrap"><span class="box">&nbsp;</span></td>
+            <td>Ask your technical contact to run the database update for this release.</td>
+        </tr>
+        <tr>
+            <td class="nowrap"><span class="box">&nbsp;</span></td>
+            <td>Go through each branch and untick the products that branch does not make.</td>
+        </tr>
+        <tr>
+            <td class="nowrap"><span class="box">&nbsp;</span></td>
+            <td>Decide, per branch, whether supervisors may add stock without a paper DR (the branch switch).</td>
+        </tr>
+        <tr>
+            <td class="nowrap"><span class="box">&nbsp;</span></td>
+            <td>Decide whether supervisors may resolve delivery variances (Settings → Permissions).</td>
+        </tr>
+        <tr>
+            <td class="nowrap"><span class="box">&nbsp;</span></td>
+            <td>Brief your cashiers: products the branch makes go in as <em>Own production</em>; everything else needs
+                its paper DR number.</td>
+        </tr>
+    </table>
 
-<h2>8. For the production in-charge — delivery variance notices</h2>
-<p>When a cashier receives less than the delivery says and writes a reason, the production in-charge now sees that on their dashboard. They can open the notice, see the items involved, and write a reply for the admin to review and close.</p>
+    <h2>8. For the production in-charge — delivery variance notices</h2>
+    <p>When a cashier receives less than the delivery says and writes a reason, the production in-charge now sees that
+        on their dashboard. They can open the notice, see the items involved, and write a reply for the admin to review
+        and close.</p>
 
-<p class="foot">Daily Ledger · Guide for branch administrators · 14 November 2026. Screen names are quoted exactly as they appear in the system.</p>
+    <p class="foot">Daily Ledger · Guide for branch administrators · 14 November 2026. Screen names are quoted exactly
+        as they appear in the system.</p>
 
 </body>
+
 </html>
