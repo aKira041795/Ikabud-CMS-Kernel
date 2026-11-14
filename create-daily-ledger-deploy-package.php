@@ -42,6 +42,14 @@ $roots = [
     'templates/modules/daily-ledger' => [
         'exclude' => static fn (string $rel): bool => false,
     ],
+    // The module now owns a static asset: the shared horizontal-scroll behaviour (drag-to-pan + a
+    // pinned scrollbar). Without this entry the templates would reference /daily-ledger/assets/
+    // dl-scroll.js and the live site would 404 it, silently losing the feature. Filtered to that ONE
+    // file on purpose - the other assets here (tailwind runtime, Alpine, FontAwesome) ship with the
+    // upgrade package and copying them again would just bloat every module deploy.
+    'public/daily-ledger/assets' => [
+        'exclude' => static fn (string $rel): bool => $rel !== 'dl-scroll.js',
+    ],
 ];
 
 $zip = new ZipArchive();
@@ -86,3 +94,4 @@ echo "Files: {$added}\n\n";
 echo "Upload + extract this zip over the live application root (preserves paths):\n";
 echo "  modules/daily-ledger/...\n";
 echo "  templates/modules/daily-ledger/...\n";
+echo "  public/daily-ledger/assets/dl-scroll.js\n";

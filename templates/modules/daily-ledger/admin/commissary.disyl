@@ -13,6 +13,7 @@
     <link rel="stylesheet" href="/daily-ledger/assets/fontawesome/all.min.css">
     <script src="/daily-ledger/assets/htmx-1.9.10.min.js"></script>
     <script defer src="/daily-ledger/assets/alpine-3.min.js"></script>
+    <script defer src="/daily-ledger/assets/dl-scroll.js?v=1"></script>
 
     <style>
         [x-cloak] { display: none !important; }

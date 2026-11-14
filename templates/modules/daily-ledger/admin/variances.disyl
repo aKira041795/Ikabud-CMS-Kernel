@@ -13,6 +13,10 @@
     <link rel="stylesheet" href="/daily-ledger/assets/fontawesome/all.min.css">
     <script src="/daily-ledger/assets/htmx-1.9.10.min.js"></script>
     <script defer src="/daily-ledger/assets/alpine-3.min.js"></script>
+    {* Owner report 2026-11-14: "sa Variance area pwede ang scroll bar makita ra permi kanang dili nami
+       muadto ug ubos para imove to the left/right". The Variance tables are the reason this module
+       exists; it also covers every other wide table on the page without per-view wiring. *}
+    <script defer src="/daily-ledger/assets/dl-scroll.js?v=1"></script>
 
     <style>
         [x-cloak] { display: none !important; }
