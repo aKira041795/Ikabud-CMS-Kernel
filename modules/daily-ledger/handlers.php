@@ -9267,6 +9267,11 @@ function handleCashierLedger(array $params = []): void
         'incoming_count' => $incomingCount,
         'formal_delivery_enabled' => dl_isFormalDeliveryEnabled(),
         'paperless_dr_enabled' => dl_branchPaperlessDrEnabled($branchId),
+        // The branch switch alone is no longer the answer to "may I skip the DR": since
+        // 2026-11-14 that is a role question first (dl_canAddStockWithoutPaperDr).
+        // Templates render the DR-free controls from THIS value so the screen and the
+        // server agree; the switch stays for the copy that explains why it is closed.
+        'paperless_dr_allowed' => dl_canAddStockWithoutPaperDr($user, (int)$branchId),
         'commissary_branch_id' => $commissaryBranchId,
         'commissary_branch_name' => $commissaryBranchName,
         'liable_persons' => $liablePersons,
@@ -9875,14 +9880,22 @@ function apiSaveCashierWithdrawals(array $params = []): void
     }
     // Owner 2026-10-22: `adjustment_add` (Add Stock) and `own_production` create stock with no
     // delivery and no paper DR. That is the bypass cashiers were using INSTEAD of encoding a DR
-    // number, so the per-branch switch closes exactly these two types for cashiers. Charge,
-    // pullout, used and correction are untouched - they are outflows and corrections, not
-    // stock conjured without a paper trail. Admin and supervisor always keep the bypass.
-    if (in_array($type, ['adjustment_add', 'own_production'], true)
-        && !dl_canAddStockWithoutPaperDr($user, (int)$branchId)) {
+    // number. Charge, pullout, used and correction are untouched - they are outflows and
+    // corrections, not stock conjured without a paper trail.
+    //
+    // Owner 2026-11-14 narrowed it to a rule instead of a switch: "for a branch's products that
+    // are own produced, it needs no DR; other products cannot be set without a DR. thus paperless
+    // DR cannot be done." So `adjustment_add` - the back-dating door, 8,187 of whose 60-day
+    // entries were filed as `encoder_omission` - is no longer a cashier path at all. The honest
+    // replacement already exists: receive it against the paper DR it arrived on.
+    //
+    // `own_production` is deliberately NOT gated here any more. For a product the branch makes,
+    // no DR exists and none ever will, so that lane must stay open to the person encoding it; it
+    // is scoped per product instead (dl_assertOwnProductionAllowed below).
+    if ($type === 'adjustment_add' && !dl_canAddStockWithoutPaperDr($user, (int)$branchId)) {
         $ctx->json([
             'ok' => false,
-            'error' => 'Adding stock without a paper DR is disabled for this branch. Receive it against a paper DR instead.',
+            'error' => 'Add Stock without a paper DR is not available for this role. Receive the stock against the paper DR it arrived on, or record it as Own production if this branch made it.',
             'code' => 'PAPERLESS_DR_DISABLED',
         ], 403);
         return;

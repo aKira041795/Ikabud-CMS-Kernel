@@ -130,6 +130,23 @@
 </div>
 {/if}
 
+{* Owner 2026-11-14: "hiding it affects the ledger view but identifying it to be an own
+   production simplifies the no DR ... otherwise, it will require a DR as it is not produced
+   in the branch, it is delivered." The two checkboxes answer two different questions and used
+   to look alike, which is why an admin had to ask what they were hiding. *}
+{if tab == 'assignment' && assignment_branch}
+<div class="mb-4 grid gap-2 rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm text-gray-700 sm:grid-cols-2" data-own-production-explainer>
+    <div>
+        <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">In ledger</div>
+        <p class="mt-1">Show this product on the branch’s cashier ledger at all. Turning it off removes it from the ledger, the Daily Sheet and every receiving screen.</p>
+    </div>
+    <div>
+        <div class="text-xs font-semibold uppercase tracking-wide text-teal-700">Own produced here</div>
+        <p class="mt-1">This branch <span class="font-semibold">makes</span> the product, so it can be added with <span class="font-semibold">no DR</span> through Own production. Anything left unticked is <span class="font-semibold">delivered</span> to the branch and must be received against a paper DR — no paperless shortcut is offered for it.</p>
+    </div>
+</div>
+{/if}
+
 {* The destination you asked for was not available, so this is a different one. Said out loud,
    because Save writes the whole visible list: saving here would change a branch nobody chose. *}
 {if destination_substituted_from > 0}
@@ -174,8 +191,8 @@
         <table id="picker-table" data-picker-table>
             <thead>
                 <tr>
-                    <th style="width:4.5rem;">Show</th>
-                    {if tab == 'assignment'}<th>Own production</th>{/if}
+                    <th style="width:4.5rem;">In ledger</th>
+                    {if tab == 'assignment'}<th>Own produced here</th>{/if}
                     <th>SKU</th>
                     <th>Product</th>
                     <th>Category</th>
@@ -192,7 +209,7 @@
                     <td>
                         <label class="inline-flex items-center gap-2 text-xs text-gray-700">
                             <input type="checkbox" data-own-production-toggle="{p.id}" {if p.allow_own_production == 1}checked{/if} {if p.assigned != 1}disabled{/if}>
-                            Allow
+                            Makes it
                         </label>
                     </td>
                     {/if}
@@ -1180,7 +1197,9 @@
                 });
             })
             .then(function () {
-                showToast(checkbox.checked ? 'Own production allowed.' : 'Product hidden from Own production.');
+                showToast(checkbox.checked
+                    ? 'Marked as own produced \u2014 the branch can add it without a DR.'
+                    : 'Marked as delivered \u2014 it now needs a paper DR to come in.');
             })
             .catch(function (error) {
                 checkbox.checked = previous;

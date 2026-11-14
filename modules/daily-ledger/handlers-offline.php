@@ -286,6 +286,7 @@ function dl_offlineBootstrapPayload(array $user, int $branchId, string $shift, b
         'liable_persons' => $liablePersons,
         'formal_delivery_enabled' => dl_isFormalDeliveryEnabled(),
         'paperless_dr_enabled' => dl_branchPaperlessDrEnabled($branchId),
+        'paperless_dr_allowed' => dl_canAddStockWithoutPaperDr($user, (int)$branchId),
         'pos_enabled' => dl_isPosEnabled(),
         'can_pos_sell' => dl_isPosEnabled() && dl_pos_userCan($user, 'pos.sell'),
         'can_edit_delivery' => (function () use ($user) {
@@ -613,6 +614,18 @@ function dl_offlineApplyWithdrawal(array $user, array $op, bool $inTx = false): 
     $type = (string)($header['withdrawal_type'] ?? 'charge');
     if (!in_array($type, ['charge', 'pullout', 'adjustment_add', 'own_production', 'used', 'correction'], true)) {
         throw new RuntimeException('Invalid withdrawal type', 422);
+    }
+    // PAPERLESS_DR_DISABLED: the replay used to have NO paperless gate at all, so a
+    // queued Add Stock replayed straight into the ledger over the top of the online
+    // rule. Mirrored here for the same reason own_production is mirrored: a refusal
+    // that only exists online is a refusal a cashier can walk around by going offline.
+    // Owner 2026-11-14: a branch's own-produced products need no DR; every other
+    // product must be set against a DR, so the back-dating lane is not a cashier path.
+    if ($type === 'adjustment_add' && !dl_canAddStockWithoutPaperDr($user, (int)$branchId)) {
+        throw new RuntimeException(
+            'Add Stock without a paper DR is not available for this role. Receive the stock against the paper DR it arrived on, or record it as Own production if this branch made it.',
+            403
+        );
     }
     // OWN_PRODUCTION_DISABLED: replay enforces the same branch capability as
     // the online write, before shift resolution can hide the actual refusal.

@@ -53,13 +53,38 @@ if (!function_exists('dl_branchPaperlessDrEnabled')) {
 }
 
 if (!function_exists('dl_canAddStockWithoutPaperDr')) {
-    /** Admin and supervisor always keep it; cashiers follow the branch switch. */
+    /**
+     * Who may create stock WITHOUT a paper DR.
+     *
+     * Owner 2026-11-14: "for a branch's products that are own produced, it needs no DR;
+     * other products cannot be set without a DR. thus paperless DR cannot be done."
+     *
+     * So a branch's DR-free inbound stock has exactly one legitimate story: the branch
+     * MADE it. That story is the own-production lane, and it is scoped per product by
+     * dl_branch_products.allow_own_production — not by a branch-wide convenience switch.
+     * Everything else arrived on a delivery, and a delivery has a DR.
+     *
+     * Cashiers therefore no longer take this path at all. Measured 2026-11-14 on tenant
+     * 207 over 60 days: dl_branches.paperless_dr_enabled was 1 at every branch with
+     * volume, so the switch gated nothing while 15,902 cashier stock-adds landed next to
+     * only 590 captured paper DRs (31:1) — 8,187 of them filed as `encoder_omission`,
+     * which is a delivery being back-dated. The switch had no teeth because it defaulted
+     * to allowing and nobody switched it off.
+     *
+     * The switch now governs the one authority that still legitimately back-dates stock:
+     * a supervisor at a branch that permits it. Admin keeps it regardless — network-level
+     * authority, always audited.
+     */
     function dl_canAddStockWithoutPaperDr(array $user, int $branchId): bool
     {
-        if (in_array((string)($user['role'] ?? ''), ['admin', 'supervisor'], true)) {
+        $role = (string)($user['role'] ?? '');
+        if ($role === 'admin') {
             return true;
         }
-        return dl_branchPaperlessDrEnabled($branchId);
+        if ($role === 'supervisor') {
+            return dl_branchPaperlessDrEnabled($branchId);
+        }
+        return false;
     }
 }
 
