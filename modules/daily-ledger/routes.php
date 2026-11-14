@@ -64,6 +64,7 @@ return [
         '/daily-ledger/api/v1/cashier/ledger/withdrawals' => 'daily-ledger:apiGetCashierWithdrawals',
         '/daily-ledger/api/v1/cashier/ledger/withdrawals/today' => 'daily-ledger:apiTodayCashierWithdrawals',
         '/daily-ledger/api/v1/cashier/ledger/incoming-deliveries' => 'daily-ledger:apiGetIncomingDeliveries',
+        '/daily-ledger/api/v1/branch/own-production-products' => 'daily-ledger:apiOwnProductionProducts',
 
         // API: get current user and branches (Android sync)
         '/daily-ledger/api/v1/me'                  => 'daily-ledger:apiDailyLedgerMe',
@@ -175,6 +176,7 @@ return [
         '/daily-ledger/api/v1/admin/consignees'          => 'daily-ledger:apiSaveConsignee',
         '/daily-ledger/api/v1/admin/consignees/products' => 'daily-ledger:apiBulkAssignConsigneeProducts',
         '/daily-ledger/api/v1/admin/branches/products'   => 'daily-ledger:apiBulkAssignBranchProducts',
+        '/daily-ledger/api/v1/admin/branch-products/own-production' => 'daily-ledger:apiSetBranchProductOwnProduction',
 
         // Admin: user management
         '/daily-ledger/api/v1/admin/dl-users'            => 'daily-ledger:apiCreateUser',

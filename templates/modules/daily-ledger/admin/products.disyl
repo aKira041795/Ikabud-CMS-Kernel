@@ -175,6 +175,7 @@
             <thead>
                 <tr>
                     <th style="width:4.5rem;">Show</th>
+                    {if tab == 'assignment'}<th>Own production</th>{/if}
                     <th>SKU</th>
                     <th>Product</th>
                     <th>Category</th>
@@ -187,6 +188,14 @@
                     <td>
                         <input type="checkbox" id="picker-product-{p.id}" class="picker-check" value="{p.id}" data-initial="{p.assigned}" {if p.assigned == 1}checked{/if} onchange="pickerSelectionChanged()" aria-label="Show {p.name} in this {if tab == 'assignment'}branch{else}consignee{/if}" data-product-check>
                     </td>
+                    {if tab == 'assignment'}
+                    <td>
+                        <label class="inline-flex items-center gap-2 text-xs text-gray-700">
+                            <input type="checkbox" data-own-production-toggle="{p.id}" {if p.allow_own_production == 1}checked{/if} {if p.assigned != 1}disabled{/if}>
+                            Allow
+                        </label>
+                    </td>
+                    {/if}
                     <td class="picker-sku font-mono text-xs text-gray-500">{p.sku}</td>
                     <td class="picker-name font-medium text-gray-900"><label for="picker-product-{p.id}">{p.name}</label></td>
                     <td class="text-xs uppercase tracking-wider text-gray-600">{p.product_category}</td>
@@ -1146,6 +1155,40 @@
             btn.textContent = original;
         });
     }
+
+    Array.prototype.forEach.call(document.querySelectorAll('[data-own-production-toggle]'), function (checkbox) {
+        checkbox.addEventListener('change', function () {
+            var previous = !checkbox.checked;
+            checkbox.disabled = true;
+            fetch(BASE + '/api/v1/admin/branch-products/own-production', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': window.DL_CSRF || '',
+                    'Authorization': window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : ''
+                },
+                body: JSON.stringify({
+                    branch_id: pickerContentBranchId(),
+                    product_id: parseInt(checkbox.getAttribute('data-own-production-toggle'), 10),
+                    allow: checkbox.checked
+                })
+            })
+            .then(function (response) {
+                return response.json().then(function (body) {
+                    if (!response.ok || !body.ok) throw new Error(body.error || 'Unable to update Own production.');
+                    return body;
+                });
+            })
+            .then(function () {
+                showToast(checkbox.checked ? 'Own production allowed.' : 'Product hidden from Own production.');
+            })
+            .catch(function (error) {
+                checkbox.checked = previous;
+                showToast(error.message || 'Unable to update Own production.', 'error');
+            })
+            .finally(function () { checkbox.disabled = false; });
+        });
+    });
 
     updatePickerCheckedCount();
     updatePickerChangeSummary();

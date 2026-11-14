@@ -6806,6 +6806,54 @@ function dl_assertBranchProductAssigned($db, int $branchId, int $productId): voi
  *
  * @return array{ok:bool,code?:string,blockers?:array,is_active?:int}
  */
+function dl_setBranchProductOwnProduction($db, int $branchId, int $productId, bool $allow, ?int $actorId = null): array
+{
+    $oldStmt = $db->prepare(
+        'SELECT allow_own_production FROM dl_branch_products WHERE branch_id = :bid AND product_id = :pid LIMIT 1'
+    );
+    $oldStmt->execute([':bid' => $branchId, ':pid' => $productId]);
+    $oldValue = $oldStmt->fetchColumn();
+    $old = $oldValue === false ? 1 : (int)$oldValue;
+    $new = $allow ? 1 : 0;
+
+    // Deliberately omit is_active from both halves: own-production eligibility
+    // must never remove the product from the cashier ledger.
+    $db->prepare(
+        'INSERT INTO dl_branch_products (branch_id, product_id, allow_own_production)
+         VALUES (:bid, :pid, :allow)
+         ON DUPLICATE KEY UPDATE allow_own_production = VALUES(allow_own_production)'
+    )->execute([':bid' => $branchId, ':pid' => $productId, ':allow' => $new]);
+
+    dl_auditLog('branch_product_own_production_changed', $branchId, 'dl_branch_products', "{$branchId}-{$productId}", [
+        'allow_own_production' => $old,
+    ], [
+        'allow_own_production' => $new,
+        'actor_id' => $actorId,
+    ], 'own production eligibility changed');
+
+    return ['ok' => true, 'allow_own_production' => $new];
+}
+
+/** Refuse a currently ineligible product while preserving all historical entries. */
+function dl_assertOwnProductionAllowed($db, int $branchId, int $productId): void
+{
+    $stmt = $db->prepare(
+        'SELECT p.name, bp.allow_own_production
+           FROM dl_products p
+           LEFT JOIN dl_branch_products bp ON bp.product_id = p.id AND bp.branch_id = :bid
+          WHERE p.id = :pid
+          LIMIT 1'
+    );
+    $stmt->execute([':bid' => $branchId, ':pid' => $productId]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (is_array($row) && $row['allow_own_production'] !== null && (int)$row['allow_own_production'] === 0) {
+        throw new RuntimeException(
+            'Own production is disabled for ' . (string)$row['name'] . '. An admin can enable Own production for this product in the branch product assignment page.',
+            422
+        );
+    }
+}
+
 function dl_setBranchProductActive($db, int $branchId, int $productId, bool $active, ?int $actorId = null): array
 {
     if ($active) {
@@ -9364,6 +9412,39 @@ function apiGetLedgerRows(array $params = []): void
     ]);
 }
 
+function apiOwnProductionProducts(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) {
+        http_response_code(500);
+        return;
+    }
+    $user = dlCurrentUser(['cashier', 'supervisor', 'admin']);
+    $input = $ctx->input();
+    $authResult = dl_authorizeBranch($user, $input);
+    if ($authResult['branch_id'] < 0) {
+        $ctx->json(['ok' => false, 'error' => 'Branch not authorized'], 403);
+        return;
+    }
+    $branchId = (int)$authResult['branch_id'];
+    if ($branchId <= 0) {
+        $ctx->json(['ok' => true, 'products' => []]);
+        return;
+    }
+
+    $stmt = $ctx->db()->prepare(
+        'SELECT p.id, p.name, COALESCE(p.pcs_per_pack, 0) AS pcs_per_pack
+           FROM dl_branch_products bp
+           INNER JOIN dl_products p ON p.id = bp.product_id AND p.is_active = 1
+          WHERE bp.branch_id = :bid
+            AND bp.is_active = 1
+            AND bp.allow_own_production = 1
+          ORDER BY p.sort_order, p.name'
+    );
+    $stmt->execute([':bid' => $branchId]);
+    $ctx->json(['ok' => true, 'products' => $stmt->fetchAll(PDO::FETCH_ASSOC) ?: []]);
+}
+
 function apiGetLedgerDayStatus(array $params = []): void
 {
     $ctx = module();
@@ -9813,6 +9894,18 @@ function apiSaveCashierWithdrawals(array $params = []): void
             'code' => 'OWN_PRODUCTION_DISABLED',
         ], 422);
         return;
+    }
+    if ($type === 'own_production') {
+        foreach ($lines as $line) {
+            $productId = (int)($line['product_id'] ?? 0);
+            if ($productId <= 0 || (int)($line['quantity'] ?? 0) === 0) continue;
+            try {
+                dl_assertOwnProductionAllowed($ctx->db(), (int)$branchId, $productId);
+            } catch (\RuntimeException $e) {
+                $ctx->json(['ok' => false, 'error' => $e->getMessage(), 'code' => 'OWN_PRODUCTION_PRODUCT_DISABLED'], 422);
+                return;
+            }
+        }
     }
     // Resolved AFTER the capability check: own production carries its own AM/PM
     // choice, but a branch that cannot produce must receive that clear refusal
@@ -19199,6 +19292,39 @@ function handleBranchProducts(array $params = []): void
     ]);
 }
 
+function apiSetBranchProductOwnProduction(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) {
+        http_response_code(500);
+        return;
+    }
+    $user = dlCurrentUser(['admin']);
+    $input = $ctx->input();
+    $branchId = (int)($input['branch_id'] ?? 0);
+    $productId = (int)($input['product_id'] ?? 0);
+    if ($branchId <= 0 || $productId <= 0 || !array_key_exists('allow', $input)) {
+        $ctx->json(['ok' => false, 'error' => 'branch_id, product_id and allow are required.'], 422);
+        return;
+    }
+    $exists = $ctx->db()->prepare(
+        'SELECT COUNT(*)
+           FROM dl_branch_products bp
+           INNER JOIN dl_branches b ON b.id = bp.branch_id AND b.is_active = 1
+           INNER JOIN dl_products p ON p.id = bp.product_id AND p.is_active = 1
+          WHERE bp.branch_id = :bid AND bp.product_id = :pid AND bp.is_active = 1'
+    );
+    $exists->execute([':bid' => $branchId, ':pid' => $productId]);
+    if ((int)$exists->fetchColumn() !== 1) {
+        $ctx->json(['ok' => false, 'error' => 'The product must be shown at this active branch first.'], 422);
+        return;
+    }
+    $result = dl_setBranchProductOwnProduction(
+        $ctx->db(), $branchId, $productId, dl_settingToBool($input['allow']), dl_getActorUserId($user)
+    );
+    $ctx->json($result + ['product_id' => $productId, 'branch_id' => $branchId]);
+}
+
 function apiToggleBranchProduct(array $params = []): void
 {
     $ctx = module();
@@ -19522,6 +19648,7 @@ function handleAdminProducts(array $params = []): void
             $pStmt = $ctx->db()->prepare(
                 'SELECT p.*,
                         CASE WHEN bp.is_active = 1 THEN 1 ELSE 0 END AS assigned,
+                        COALESCE(bp.allow_own_production, 1) AS allow_own_production,
                         (SELECT GROUP_CONCAT(all_bp.branch_id ORDER BY all_bp.branch_id)
                            FROM dl_branch_products all_bp
                           WHERE all_bp.product_id = p.id AND all_bp.is_active = 1) AS assigned_branch_ids,

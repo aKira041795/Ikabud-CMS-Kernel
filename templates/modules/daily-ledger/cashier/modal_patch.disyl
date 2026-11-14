@@ -247,7 +247,6 @@ function withdrawalModal() {
             // entry opened from a row always carries its product; the action-card
             // entry point carries none, and then the pixel offset is used instead.
             window.DL_SCROLL_ANCHOR_PRODUCT = detail.product_id ? String(detail.product_id) : '';
-            this.loadProducts();
             if (this.editId) {
                 var e = detail;
                 var unit = e.unit === 'box' ? 'box' : 'pcs';
@@ -275,6 +274,7 @@ function withdrawalModal() {
                 };
                 this.lines = [{ product_id: detail.product_id ? String(detail.product_id) : '', quantity: '', unit: 'pcs' }];
             }
+            this.loadProducts();
             // One idempotency key per modal session: a retry after a lost response
             // reuses it, so the server replays the original result instead of
             // creating a duplicate withdrawal.
@@ -327,6 +327,7 @@ function withdrawalModal() {
                     this.header.shift = window.SHIFT || 'AM';
                 }
             }
+            if (this.isOpen) this.loadProducts();
         },
 
         // The shift a capture lands on. Own production sends the explicitly chosen
@@ -408,24 +409,52 @@ function withdrawalModal() {
 
         loadProducts() {
             this.products = [];
-            var rows = document.querySelectorAll('tr[data-product-id]');
-            var seen = {};
-            rows.forEach(function(r) {
-                var pid = r.getAttribute('data-product-id');
-                var nm = (r.querySelector('.product-name') || {}).textContent || '';
-                var pack = parseInt(r.getAttribute('data-pack'), 10) || 0;
-                if (pid && !seen[pid]) {
-                    seen[pid] = true;
-                    this.products.push({ id: pid, name: nm.trim(), pack: pack });
-                }
-            }.bind(this));
-            if (rows.length === 0 && typeof window.dlReadProductReference === 'function') {
-                window.dlReadProductReference().then(function(products) {
-                    this.products = (products || []).map(function(p) {
-                        return { id: p.id, name: p.name, pack: parseInt(p.pcs_per_pack, 10) || 0 };
+            var self = this;
+            var loadLedgerFallback = function() {
+                var rows = document.querySelectorAll('tr[data-product-id]');
+                var seen = {};
+                rows.forEach(function(r) {
+                    var pid = r.getAttribute('data-product-id');
+                    var nm = (r.querySelector('.product-name') || {}).textContent || '';
+                    var pack = parseInt(r.getAttribute('data-pack'), 10) || 0;
+                    if (pid && !seen[pid]) {
+                        seen[pid] = true;
+                        self.products.push({ id: pid, name: nm.trim(), pack: pack });
+                    }
+                });
+                if (rows.length === 0 && typeof window.dlReadProductReference === 'function') {
+                    window.dlReadProductReference().then(function(products) {
+                        self.products = (products || []).map(function(p) {
+                            return { id: p.id, name: p.name, pack: parseInt(p.pcs_per_pack, 10) || 0 };
+                        });
                     });
-                }.bind(this));
+                }
+            };
+
+            if (this.header.withdrawal_type !== 'own_production') {
+                loadLedgerFallback();
+                return;
             }
+            var query = window.BRANCH_ID ? ('?branch_id=' + encodeURIComponent(window.BRANCH_ID)) : '';
+            fetch(BASE + '/api/v1/branch/own-production-products' + query, {
+                credentials: 'same-origin',
+                headers: { 'Authorization': window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '' }
+            })
+            .then(function(response) {
+                if (!response.ok) throw new Error('Own production product feed failed');
+                return response.json();
+            })
+            .then(function(data) {
+                if (!data || !data.ok || !Array.isArray(data.products)) throw new Error('Invalid product feed');
+                self.products = data.products.map(function(p) {
+                    return { id: p.id, name: p.name, pack: parseInt(p.pcs_per_pack, 10) || 0 };
+                });
+            })
+            .catch(function() {
+                // Keep the old ledger scrape only as a resilience fallback.
+                self.products = [];
+                loadLedgerFallback();
+            });
         },
 
         validate() {

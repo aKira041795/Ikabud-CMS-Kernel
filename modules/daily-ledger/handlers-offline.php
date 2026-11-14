@@ -622,6 +622,13 @@ function dl_offlineApplyWithdrawal(array $user, array $op, bool $inTx = false): 
             422
         );
     }
+    if ($type === 'own_production') {
+        foreach ($lines as $line) {
+            $productId = (int)($line['product_id'] ?? 0);
+            if ($productId <= 0 || (int)($line['quantity'] ?? 0) === 0) continue;
+            dl_assertOwnProductionAllowed($ctx->db(), (int)$branchId, $productId);
+        }
+    }
     // Mirrors apiSaveCashierWithdrawals: own production lands on the CHOSEN
     // AM/PM shift (production happens in a shift); every other type keeps the
     // shift lock.
