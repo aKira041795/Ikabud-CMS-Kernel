@@ -1,135 +1,358 @@
 <!doctype html>
 <html lang="en">
+
 <head>
-<meta charset="utf-8">
-<title>Daily Ledger — Client concerns and what was done (14 November 2026)</title>
-<style>
-    @page { margin: 15mm 14mm 13mm 14mm; }
-    body { font-family: "DejaVu Sans", Arial, sans-serif; font-size: 9.6pt; color: #111827; line-height: 1.34; }
-    h1 { font-size: 17pt; color: #1e3a8a; margin: 0 0 1.5mm 0; }
-    .sub { font-size: 9.2pt; color: #4b5563; margin: 0 0 4mm 0; }
-    .lead { font-size: 9.6pt; margin: 0 0 4mm 0; }
-    h2 { font-size: 11.5pt; color: #1e3a8a; margin: 4.5mm 0 1.5mm 0; padding-bottom: 0.8mm; border-bottom: 0.4pt solid #c7d2fe; page-break-after: avoid; }
-    p { margin: 0 0 1.8mm 0; }
-    ul { margin: 0 0 2mm 0; padding-left: 5mm; }
-    li { margin: 0 0 1mm 0; }
-    table { width: 100%; border-collapse: collapse; margin: 0 0 2.5mm 0; font-size: 9pt; }
-    th { background: #eef2ff; text-align: left; padding: 1.4mm; border: 0.4pt solid #c7d2fe; color: #1e3a8a; }
-    td { padding: 1.4mm; border: 0.4pt solid #d1d5db; vertical-align: top; }
-    tr { page-break-inside: avoid; }
-    .quote { background: #f8fafc; border-left: 2.6pt solid #94a3b8; padding: 2mm 3mm; margin: 0 0 2mm 0; font-style: italic; color: #334155; page-break-inside: avoid; }
-    .quote .who { display: block; font-style: normal; font-size: 8.2pt; color: #64748b; margin-top: 1mm; }
-    /* Cards flow across pages rather than each being forced onto a fresh one: keeping whole cards
+    <meta charset="utf-8">
+    <title>Daily Ledger — Client concerns and what was done (14 November 2026)</title>
+    <style>
+        @page {
+            margin: 15mm 14mm 13mm 14mm;
+        }
+
+        body {
+            font-family: "DejaVu Sans", Arial, sans-serif;
+            font-size: 9.6pt;
+            color: #111827;
+            line-height: 1.34;
+        }
+
+        h1 {
+            font-size: 17pt;
+            color: #1e3a8a;
+            margin: 0 0 1.5mm 0;
+        }
+
+        .sub {
+            font-size: 9.2pt;
+            color: #4b5563;
+            margin: 0 0 4mm 0;
+        }
+
+        .lead {
+            font-size: 9.6pt;
+            margin: 0 0 4mm 0;
+        }
+
+        h2 {
+            font-size: 11.5pt;
+            color: #1e3a8a;
+            margin: 4.5mm 0 1.5mm 0;
+            padding-bottom: 0.8mm;
+            border-bottom: 0.4pt solid #c7d2fe;
+            page-break-after: avoid;
+        }
+
+        p {
+            margin: 0 0 1.8mm 0;
+        }
+
+        ul {
+            margin: 0 0 2mm 0;
+            padding-left: 5mm;
+        }
+
+        li {
+            margin: 0 0 1mm 0;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 0 0 2.5mm 0;
+            font-size: 9pt;
+        }
+
+        th {
+            background: #eef2ff;
+            text-align: left;
+            padding: 1.4mm;
+            border: 0.4pt solid #c7d2fe;
+            color: #1e3a8a;
+        }
+
+        td {
+            padding: 1.4mm;
+            border: 0.4pt solid #d1d5db;
+            vertical-align: top;
+        }
+
+        tr {
+            page-break-inside: avoid;
+        }
+
+        .quote {
+            background: #f8fafc;
+            border-left: 2.6pt solid #94a3b8;
+            padding: 2mm 3mm;
+            margin: 0 0 2mm 0;
+            font-style: italic;
+            color: #334155;
+            page-break-inside: avoid;
+        }
+
+        .quote .who {
+            display: block;
+            font-style: normal;
+            font-size: 8.2pt;
+            color: #64748b;
+            margin-top: 1mm;
+        }
+
+        /* Cards flow across pages rather than each being forced onto a fresh one: keeping whole cards
        together left large empty areas and inflated the document to five pages with white space. */
-    .card { margin: 0 0 3.5mm 0; }
-    .ok { color: #047857; font-weight: bold; }
-    .set { color: #b45309; font-weight: bold; }
-    .foot { margin-top: 5mm; padding-top: 3mm; border-top: 0.4pt solid #e5e7eb; font-size: 8.2pt; color: #6b7280; }
-    .tag { font-size: 8.4pt; color: #64748b; }
-</style>
+        .card {
+            margin: 0 0 3.5mm 0;
+        }
+
+        .ok {
+            color: #047857;
+            font-weight: bold;
+        }
+
+        .set {
+            color: #b45309;
+            font-weight: bold;
+        }
+
+        .foot {
+            margin-top: 5mm;
+            padding-top: 3mm;
+            border-top: 0.4pt solid #e5e7eb;
+            font-size: 8.2pt;
+            color: #6b7280;
+        }
+
+        .tag {
+            font-size: 8.4pt;
+            color: #64748b;
+        }
+    </style>
 </head>
+
 <body>
 
-<h1>Client concerns — what was found and what was set</h1>
-<p class="sub">14 November 2026 &nbsp;·&nbsp; Daily Ledger &nbsp;·&nbsp; Ten concerns raised, ten answered</p>
+    <h1>Client concerns — what was found and what was set</h1>
+    <p class="sub">14 November 2026 &nbsp;·&nbsp; Daily Ledger &nbsp;·&nbsp; Ten concerns raised, ten answered</p>
 
-<p class="lead">Each concern is quoted in the client&rsquo;s own words (Bisaya where that is how it was sent), followed by what was actually wrong and what was changed. Every item here was verified against the running system, not just written.</p>
+    <p class="lead">Each concern is quoted in the client&rsquo;s own words (Bisaya where that is how it was sent),
+        followed by what was actually wrong and what was changed. Every item here was verified against the running
+        system, not just written.</p>
 
-<h2>1. Bodega on a cake</h2>
-<div class="card">
-    <div class="quote">&ldquo;this is black forest half - cake item, but says coming from bodega? bodega items are non-bread or cake&rdquo;</div>
-    <p><strong>What was wrong.</strong> The product grouping only has two values, <em>bread</em> and <em>non-bread</em>, and a cake is non-bread — so the rule that decides the supply source sent cakes to Bodega. Bodega supplies neither bread nor cake.</p>
-    <p><strong>What was set.</strong> The rule now reads <em>non-bread and not cake</em> in all three places that decide it, and the historical rows were corrected too: 1,366 receiving lines already stamped Bodega were re-stamped. A check now returns zero cake rows stamped Bodega.</p>
-    <p class="tag"><span class="ok">Fixed, including old data.</span></p>
-</div>
+    <h2>1. Bodega on a cake</h2>
+    <div class="card">
+        <div class="quote">&ldquo;this is black forest half - cake item, but says coming from bodega? bodega items are
+            non-bread or cake&rdquo;</div>
+        <p><strong>What was wrong.</strong> The product grouping only has two values, <em>bread</em> and
+            <em>non-bread</em>, and a cake is non-bread — so the rule that decides the supply source sent cakes to
+            Bodega. Bodega supplies neither bread nor cake.</p>
+        <p><strong>What was set.</strong> The rule now reads <em>non-bread and not cake</em> in all three places that
+            decide it, and the historical rows were corrected too: 1,366 receiving lines already stamped Bodega were
+            re-stamped. A check now returns zero cake rows stamped Bodega.</p>
+        <p class="tag"><span class="ok">Fixed, including old data.</span></p>
+    </div>
 
-<h2>2. Where to write the reason for a short delivery</h2>
-<div class="card">
-    <div class="quote">&ldquo;when an item has a variance upon receiving (cashier set the actual qty received, show the text field immediately below the item)&rdquo;<span class="who">— admin&rsquo;s refinement of the request</span></div>
-    <p><strong>What was wrong.</strong> Each product occupied a single 28&nbsp;px line, so there was no room for a reason under it. Informal transfers were also dropping the reason silently.</p>
-    <p><strong>What was set.</strong> Each item now has its own row, and a reason field appears directly beneath any item whose received quantity is short. Reasons are carried per item to the record, and a reason typed then abandoned is not sent. Verified by measuring that the columns still line up.</p>
-    <p class="tag"><span class="ok">Fixed.</span></p>
-</div>
+    <h2>2. Where to write the reason for a short delivery</h2>
+    <div class="card">
+        <div class="quote">&ldquo;when an item has a variance upon receiving (cashier set the actual qty received, show
+            the text field immediately below the item)&rdquo;<span class="who">— admin&rsquo;s refinement of the
+                request</span></div>
+        <p><strong>What was wrong.</strong> Each product occupied a single 28&nbsp;px line, so there was no room for a
+            reason under it. Informal transfers were also dropping the reason silently.</p>
+        <p><strong>What was set.</strong> Each item now has its own row, and a reason field appears directly beneath any
+            item whose received quantity is short. Reasons are carried per item to the record, and a reason typed then
+            abandoned is not sent. Verified by measuring that the columns still line up.</p>
+        <p class="tag"><span class="ok">Fixed.</span></p>
+    </div>
 
-<h2>3. &ldquo;Forbidden: Daily Sheet access only&rdquo; on Deliveries</h2>
-<div class="card">
-    <div class="quote">&ldquo;http://baronledger.test/daily-ledger/admin/deliveries — Forbidden: Daily Sheet access only — is this a settings at admin settings? design forbidden access pages beautifully&rdquo;</div>
-    <p><strong>What was wrong.</strong> It was not a setting. A hardcoded page gate contradicted the pages&rsquo; own role lists: the pages allowed admin, supervisor and production in-charge, while the gate refused supervisor, auditor, and your role on three of the four. The sidebar was therefore offering links the server would refuse.</p>
-    <p><strong>What was set.</strong> The page&rsquo;s own role list is now the single authority, and one shared rule answers both the gate and every menu, so they cannot drift apart again. Refusal pages are designed: the status, the page asked for, who you are signed in as, and the destinations your role <em>can</em> open, each of which was checked to answer. API addresses still return machine-readable JSON.</p>
-    <p><span class="ok">Fixed.</span> A signed-in user with the wrong role is also no longer thrown back to the login screen — that used to look like a session expiry.</p>
-</div>
+    <h2>3. &ldquo;Forbidden: Daily Sheet access only&rdquo; on Deliveries</h2>
+    <div class="card">
+        <div class="quote">&ldquo;http://baronledger.test/daily-ledger/admin/deliveries — Forbidden: Daily Sheet access
+            only — is this a settings at admin settings? design forbidden access pages beautifully&rdquo;</div>
+        <p><strong>What was wrong.</strong> It was not a setting. A hardcoded page gate contradicted the pages&rsquo;
+            own role lists: the pages allowed admin, supervisor and production in-charge, while the gate refused
+            supervisor, auditor, and your role on three of the four. The sidebar was therefore offering links the server
+            would refuse.</p>
+        <p><strong>What was set.</strong> The page&rsquo;s own role list is now the single authority, and one shared
+            rule answers both the gate and every menu, so they cannot drift apart again. Refusal pages are designed: the
+            status, the page asked for, who you are signed in as, and the destinations your role <em>can</em> open, each
+            of which was checked to answer. API addresses still return machine-readable JSON.</p>
+        <p><span class="ok">Fixed.</span> A signed-in user with the wrong role is also no longer thrown back to the
+            login screen — that used to look like a session expiry.</p>
+    </div>
 
-<h2>4. Page restrictions blocking permissions you already granted</h2>
-<div class="card">
-    <div class="quote">&ldquo;Branch product self-management is disabled. set all role related page restrictions so it does not block the user to use available page permissions — I used a production in-charge account for this&rdquo;</div>
-    <p><strong>What was wrong.</strong> Restrictions and permissions were answered in two different places, so an account could hold a permission and still be stopped by a page gate.</p>
-    <p><strong>What was set.</strong> The same shared role rule now governs both, so a role that is allowed a page by the code is also shown it, and a role that is not is refused with the designed page rather than a bare message.</p>
-    <p class="tag"><span class="ok">Fixed.</span></p>
-</div>
+    <h2>4. Page restrictions blocking permissions you already granted</h2>
+    <div class="card">
+        <div class="quote">&ldquo;Branch product self-management is disabled. set all role related page restrictions so
+            it does not block the user to use available page permissions — I used a production in-charge account for
+            this&rdquo;</div>
+        <p><strong>What was wrong.</strong> Restrictions and permissions were answered in two different places, so an
+            account could hold a permission and still be stopped by a page gate.</p>
+        <p><strong>What was set.</strong> The same shared role rule now governs both, so a role that is allowed a page
+            by the code is also shown it, and a role that is not is refused with the designed page rather than a bare
+            message.</p>
+        <p class="tag"><span class="ok">Fixed.</span></p>
+    </div>
 
-<h2>5. Production in-charge sidebar</h2>
-<div class="card">
-    <div class="quote">&ldquo;1. commissary has no icon &nbsp; 2. Deliveries and Production Delivery audit links are showing. recheck how this is set at admin settings &gt; permissions — if it&rsquo;s not the concern of PIC, don&rsquo;t show it&rdquo;</div>
-    <p><strong>What was wrong.</strong> The icon chosen for Commissary has no glyph in the icon set bundled with the app, so it drew nothing at all. The menu also listed office pages a production in-charge does not use.</p>
-    <p><strong>What was set.</strong> An icon verified to exist in the bundled set, and the office pages removed from that role&rsquo;s menu by the same shared role rule as items 3 and 4.</p>
-    <p class="tag"><span class="ok">Fixed.</span></p>
-</div>
+    <h2>5. Production in-charge sidebar</h2>
+    <div class="card">
+        <div class="quote">&ldquo;1. commissary has no icon &nbsp; 2. Deliveries and Production Delivery audit links are
+            showing. recheck how this is set at admin settings &gt; permissions — if it&rsquo;s not the concern of PIC,
+            don&rsquo;t show it&rdquo;</div>
+        <p><strong>What was wrong.</strong> The icon chosen for Commissary has no glyph in the icon set bundled with the
+            app, so it drew nothing at all. The menu also listed office pages a production in-charge does not use.</p>
+        <p><strong>What was set.</strong> An icon verified to exist in the bundled set, and the office pages removed
+            from that role&rsquo;s menu by the same shared role rule as items 3 and 4.</p>
+        <p class="tag"><span class="ok">Fixed.</span></p>
+    </div>
 
-<h2>6. The variance screen&rsquo;s scrollbar</h2>
-<div class="card">
-    <div class="quote">&ldquo;Sir sa Variance area pwd ang scroll bar makita ra permi kanang dili nami muadto ug ubos para imove to the left/right&rdquo;<span class="who">— &ldquo;in the Variance area, can the scrollbar always be visible, so we don&rsquo;t have to go to the bottom to move it left or right&rdquo;</span></div>
-    <p><strong>What was wrong.</strong> The horizontal scrollbar sat at the bottom of a long table, so it was out of view until you scrolled all the way down.</p>
-    <p><strong>What was set.</strong> One shared scrolling behaviour for wide tables: an always-visible bottom bar, drag-to-pan across the table, and shift-and-wheel to move sideways. It finds overflowing tables on its own, so it is now the default on every wide view — not just Variance. The Daily Sheet keeps its own version so you never get two bars on one screen.</p>
-    <p class="tag"><span class="ok">Fixed, and made the default.</span></p>
-</div>
+    <h2>6. The variance screen&rsquo;s scrollbar</h2>
+    <div class="card">
+        <div class="quote">&ldquo;Sir sa Variance area pwd ang scroll bar makita ra permi kanang dili nami muadto ug
+            ubos para imove to the left/right&rdquo;<span class="who">— &ldquo;in the Variance area, can the scrollbar
+                always be visible, so we don&rsquo;t have to go to the bottom to move it left or right&rdquo;</span>
+        </div>
+        <p><strong>What was wrong.</strong> The horizontal scrollbar sat at the bottom of a long table, so it was out of
+            view until you scrolled all the way down.</p>
+        <p><strong>What was set.</strong> One shared scrolling behaviour for wide tables: an always-visible bottom bar,
+            drag-to-pan across the table, and shift-and-wheel to move sideways. It finds overflowing tables on its own,
+            so it is now the default on every wide view — not just Variance. The Daily Sheet keeps its own version so
+            you never get two bars on one screen.</p>
+        <p class="tag"><span class="ok">Fixed, and made the default.</span></p>
+    </div>
 
-<h2>7. Hiding products from Own production</h2>
-<div class="card">
-    <div class="quote">&ldquo;Good Morning Sir, another concern, about sa Own production pwd nako mahide ang ubang product? ky ang uban mao ilang ginagamit ky d na mugamit ug dr, dpt pra lang jud sya sa ilang gama anang adlawa.&rdquo;<br>&ldquo;makahide man sab sya sa cashier ledger sir dpt sa own production choices lang sya nako ihide sir.&rdquo;<span class="who">— &ldquo;can I hide some products from Own production? some are used by other branches that no longer use a DR; it should be only for what they made that day&rdquo; / &ldquo;but it also hides it from the cashier ledger — I should only be able to hide it from the Own production choices&rdquo;</span></div>
-    <p><strong>What was wrong.</strong> Own production had no product list of its own — it read the cashier ledger&rsquo;s rows, and those rows come from one branch-wide switch. One switch therefore controlled both things, so hiding a product from Own production meant removing it from the branch.</p>
-    <p><strong>What was set.</strong> A separate per-branch, per-product setting. Unticking it removes the product from the Own production choices only; the product stays on the ledger, the Daily Sheet and every receiving screen. The server refuses Own production for an unticked product even if the request is sent directly.</p>
-    <p><span class="ok">Fixed.</span> <span class="set">Needs your setting:</span> the new tick starts ON for every product, so each branch must have the products it does not make unticked before the rule bites.</p>
-</div>
+    <h2>7. Hiding products from Own production</h2>
+    <div class="card">
+        <div class="quote">&ldquo;Good Morning Sir, another concern, about sa Own production pwd nako mahide ang ubang
+            product? ky ang uban mao ilang ginagamit ky d na mugamit ug dr, dpt pra lang jud sya sa ilang gama anang
+            adlawa.&rdquo;<br>&ldquo;makahide man sab sya sa cashier ledger sir dpt sa own production choices lang sya
+            nako ihide sir.&rdquo;<span class="who">— &ldquo;can I hide some products from Own production? some are used
+                by other branches that no longer use a DR; it should be only for what they made that day&rdquo; /
+                &ldquo;but it also hides it from the cashier ledger — I should only be able to hide it from the Own
+                production choices&rdquo;</span></div>
+        <p><strong>What was wrong.</strong> Own production had no product list of its own — it read the cashier
+            ledger&rsquo;s rows, and those rows come from one branch-wide switch. One switch therefore controlled both
+            things, so hiding a product from Own production meant removing it from the branch.</p>
+        <p><strong>What was set.</strong> A separate per-branch, per-product setting. Unticking it removes the product
+            from the Own production choices only; the product stays on the ledger, the Daily Sheet and every receiving
+            screen. The server refuses Own production for an unticked product even if the request is sent directly.</p>
+        <p><span class="ok">Fixed.</span> <span class="set">Needs your setting:</span> the new tick starts ON for every
+            product, so each branch must have the products it does not make unticked before the rule bites.</p>
+    </div>
 
-<h2>8. The no-DR lane being used instead of encoding a DR</h2>
-<div class="card">
-    <div class="quote">&ldquo;for a branch&rsquo;s products that are own produced, it needs no DR &nbsp;·&nbsp; other products cannot be set without a DR &nbsp;·&nbsp; thus paperless DR cannot be done&rdquo;<span class="who">— the rule settled for this concern</span></div>
-    <p><strong>What was wrong.</strong> Over 60 days, cashiers booked 15,902 stock additions with no DR against only 590 deliveries received with a real DR. 8,187 of those additions were filed as an &ldquo;encoder omission&rdquo; — a delivery being entered late, which still has a DR. The branch switch meant to prevent this was switched on at every branch, so it prevented nothing.</p>
-    <p><strong>What was set.</strong> A cashier can no longer add stock without a paper DR, and can no longer generate a DR number. Their only DR-free route is Own production, and only for products ticked as made at that branch. Supervisors keep the ability where a branch permits it; an admin always does. Enforced on the normal screen <em>and</em> on entries replayed from a device that went offline, which previously had no check at all.</p>
-    <p class="tag"><span class="ok">Fixed.</span> <span class="set">Needs your setting:</span> per branch, decide whether supervisors may add stock without a paper DR.</p>
-</div>
+    <h2>8. The no-DR lane being used instead of encoding a DR</h2>
+    <div class="card">
+        <div class="quote">&ldquo;for a branch&rsquo;s products that are own produced, it needs no DR &nbsp;·&nbsp;
+            other products cannot be set without a DR &nbsp;·&nbsp; thus paperless DR cannot be done&rdquo;<span
+                class="who">— the rule settled for this concern</span></div>
+        <p><strong>What was wrong.</strong> Over 60 days, cashiers booked 15,902 stock additions with no DR against only
+            590 deliveries received with a real DR. 8,187 of those additions were filed as an &ldquo;encoder
+            omission&rdquo; — a delivery being entered late, which still has a DR. The branch switch meant to prevent
+            this was switched on at every branch, so it prevented nothing.</p>
+        <p><strong>What was set.</strong> A cashier can no longer add stock without a paper DR, and can no longer
+            generate a DR number. Their only DR-free route is Own production, and only for products ticked as made at
+            that branch. Supervisors keep the ability where a branch permits it; an admin always does. Enforced on the
+            normal screen <em>and</em> on entries replayed from a device that went offline, which previously had no
+            check at all.</p>
+        <p class="tag"><span class="ok">Fixed.</span> <span class="set">Needs your setting:</span> per branch, decide
+            whether supervisors may add stock without a paper DR.</p>
+    </div>
 
-<h2>9. &ldquo;Something suddenly adds or withdraws&rdquo; at a branch</h2>
-<div class="card">
-    <div class="quote">&ldquo;naa sab branch sir example c Rizal, matingala sila nga naay mukalit ug add or withdraw sa ilaa nga wla man unta silay gihilabtan, ngkabuang kog edit.&rdquo;<span class="who">— &ldquo;there&rsquo;s also a branch, for example Rizal — they are puzzled because something suddenly adds or withdraws on their ledger when they hadn&rsquo;t touched anything. I scrambled to edit.&rdquo;</span></div>
-    <p><strong>What was wrong.</strong> Nothing was inventing numbers. An admin account belongs to no branch, so a correction could be dated back onto a day the branch had already closed, and nothing told the branch. Rizal&rsquo;s 3 November ledger took 28 stock additions and several corrections, all entered on 9 November between 1:07 and 1:25 in the morning — six days after that day ended.</p>
-    <p><strong>What was set.</strong> A closed day is now shut to everyone, admin included: it must be reopened first, and reopening is recorded. When someone from outside a branch corrects one of its finished days, a notice appears on that branch&rsquo;s ledger for 21 days naming the day, the person, the products, the quantities, the reason and the time. The same rule applies to entries replayed from an offline device.</p>
-    <p class="tag"><span class="ok">Fixed.</span></p>
-</div>
+    <h2>9. &ldquo;Something suddenly adds or withdraws&rdquo; at a branch</h2>
+    <div class="card">
+        <div class="quote">&ldquo;naa sab branch sir example c Rizal, matingala sila nga naay mukalit ug add or withdraw
+            sa ilaa nga wla man unta silay gihilabtan, ngkabuang kog edit.&rdquo;<span class="who">—
+                &ldquo;there&rsquo;s also a branch, for example Rizal — they are puzzled because something suddenly adds
+                or withdraws on their ledger when they hadn&rsquo;t touched anything. I scrambled to edit.&rdquo;</span>
+        </div>
+        <p><strong>What was wrong.</strong> Nothing was inventing numbers. An admin account belongs to no branch, so a
+            correction could be dated back onto a day the branch had already closed, and nothing told the branch.
+            Rizal&rsquo;s 3 November ledger took 28 stock additions and several corrections, all entered on 9 November
+            between 1:07 and 1:25 in the morning — six days after that day ended.</p>
+        <p><strong>What was set.</strong> A closed day is now shut to everyone, admin included: it must be reopened
+            first, and reopening is recorded. When someone from outside a branch corrects one of its finished days, a
+            notice appears on that branch&rsquo;s ledger for 21 days naming the day, the person, the products, the
+            quantities, the reason and the time. The same rule applies to entries replayed from an offline device.</p>
+        <p class="tag"><span class="ok">Fixed.</span></p>
+    </div>
 
-<h2>10. Slow use, surprise logouts, and losing your place after saving</h2>
-<div class="card">
-    <div class="quote">&ldquo;medyo hinay sya inig gamit na moa auto log out sya bisan ok ra among connection&rdquo; &hellip; &ldquo;inig save namo mubalik sya sa taas, pwd ba nga inig save namo didto lang gihapon sa area kong asa mi last ngsave&rdquo;<span class="who">— &ldquo;it is somewhat slow to use and logs out even though our connection is fine&rdquo; / &ldquo;when we save it jumps back to the top; can it stay where we were?&rdquo;</span></div>
-    <p><strong>What was set.</strong> The session now rolls over instead of ending, and a save returns you to the row you were working on rather than the top of the sheet. The slowness was measured and cut in its three worst places: the system&rsquo;s startup work per request went from 215&nbsp;ms to about 65&nbsp;ms, the sheet&rsquo;s price lookups from 240 queries to 14, and a clock that kept the screen busy while idle was stopped.</p>
-    <p class="tag"><span class="ok">Fixed.</span></p>
-</div>
+    <h2>10. Slow use, surprise logouts, and losing your place after saving</h2>
+    <div class="card">
+        <div class="quote">&ldquo;medyo hinay sya inig gamit na moa auto log out sya bisan ok ra among connection&rdquo;
+            &hellip; &ldquo;inig save namo mubalik sya sa taas, pwd ba nga inig save namo didto lang gihapon sa area
+            kong asa mi last ngsave&rdquo;<span class="who">— &ldquo;it is somewhat slow to use and logs out even though
+                our connection is fine&rdquo; / &ldquo;when we save it jumps back to the top; can it stay where we
+                were?&rdquo;</span></div>
+        <p><strong>What was set.</strong> The session now rolls over instead of ending, and a save returns you to the
+            row you were working on rather than the top of the sheet. The slowness was measured and cut in its three
+            worst places: the system&rsquo;s startup work per request went from 215&nbsp;ms to about 65&nbsp;ms, the
+            sheet&rsquo;s price lookups from 240 queries to 14, and a clock that kept the screen busy while idle was
+            stopped.</p>
+        <p class="tag"><span class="ok">Fixed.</span></p>
+    </div>
 
-<h2>Summary</h2>
-<table>
-    <tr><th style="width:6%">#</th><th style="width:52%">Concern</th><th>Status</th></tr>
-    <tr><td>1</td><td>Bodega shown on a cake</td><td><span class="ok">Fixed</span>, old rows corrected</td></tr>
-    <tr><td>2</td><td>Reason field under a short item</td><td><span class="ok">Fixed</span></td></tr>
-    <tr><td>3</td><td>&ldquo;Daily Sheet access only&rdquo; refusal</td><td><span class="ok">Fixed</span>, refusal pages designed</td></tr>
-    <tr><td>4</td><td>Restrictions blocking granted permissions</td><td><span class="ok">Fixed</span></td></tr>
-    <tr><td>5</td><td>Missing Commissary icon; office links on the PIC menu</td><td><span class="ok">Fixed</span></td></tr>
-    <tr><td>6</td><td>Scrollbar for wide tables</td><td><span class="ok">Fixed</span>, now the default everywhere</td></tr>
-    <tr><td>7</td><td>Hide products from Own production only</td><td><span class="ok">Fixed</span> &middot; <span class="set">set per branch</span></td></tr>
-    <tr><td>8</td><td>No-DR lane used instead of encoding a DR</td><td><span class="ok">Fixed</span> &middot; <span class="set">set per branch</span></td></tr>
-    <tr><td>9</td><td>&ldquo;Something suddenly adds or withdraws&rdquo;</td><td><span class="ok">Fixed</span></td></tr>
-    <tr><td>10</td><td>Slowness, surprise logouts, losing your place</td><td><span class="ok">Fixed</span></td></tr>
-</table>
+    <h2>Summary</h2>
+    <table>
+        <tr>
+            <th style="width:6%">#</th>
+            <th style="width:52%">Concern</th>
+            <th>Status</th>
+        </tr>
+        <tr>
+            <td>1</td>
+            <td>Bodega shown on a cake</td>
+            <td><span class="ok">Fixed</span>, old rows corrected</td>
+        </tr>
+        <tr>
+            <td>2</td>
+            <td>Reason field under a short item</td>
+            <td><span class="ok">Fixed</span></td>
+        </tr>
+        <tr>
+            <td>3</td>
+            <td>&ldquo;Daily Sheet access only&rdquo; refusal</td>
+            <td><span class="ok">Fixed</span>, refusal pages designed</td>
+        </tr>
+        <tr>
+            <td>4</td>
+            <td>Restrictions blocking granted permissions</td>
+            <td><span class="ok">Fixed</span></td>
+        </tr>
+        <tr>
+            <td>5</td>
+            <td>Missing Commissary icon; office links on the PIC menu</td>
+            <td><span class="ok">Fixed</span></td>
+        </tr>
+        <tr>
+            <td>6</td>
+            <td>Scrollbar for wide tables</td>
+            <td><span class="ok">Fixed</span>, now the default everywhere</td>
+        </tr>
+        <tr>
+            <td>7</td>
+            <td>Hide products from Own production only</td>
+            <td><span class="ok">Fixed</span> &middot; <span class="set">set per branch</span></td>
+        </tr>
+        <tr>
+            <td>8</td>
+            <td>No-DR lane used instead of encoding a DR</td>
+            <td><span class="ok">Fixed</span> &middot; <span class="set">set per branch</span></td>
+        </tr>
+        <tr>
+            <td>9</td>
+            <td>&ldquo;Something suddenly adds or withdraws&rdquo;</td>
+            <td><span class="ok">Fixed</span></td>
+        </tr>
+        <tr>
+            <td>10</td>
+            <td>Slowness, surprise logouts, losing your place</td>
+            <td><span class="ok">Fixed</span></td>
+        </tr>
+    </table>
 
-<p class="foot">Daily Ledger · Concerns register · 14 November 2026. Two items still need a decision from the admin before the rules take full effect: which products each branch actually makes (item 7), and whether supervisors at each branch may add stock without a paper DR (item 8).</p>
+    <p class="foot">Daily Ledger · Concerns register · 14 November 2026. Two items still need a decision from the admin
+        before the rules take full effect: which products each branch actually makes (item 7), and whether supervisors
+        at each branch may add stock without a paper DR (item 8).</p>
 
 </body>
+
 </html>
