@@ -11,8 +11,10 @@ declare(strict_types=1);
 require __DIR__ . '/../vendor/autoload.php';
 
 $docsDir = __DIR__ . '/../docs/daily-ledger';
-$htmlFile = $docsDir . '/admin-guide-2026-11-14.html';
-$pdfFile = $docsDir . '/admin-guide-2026-11-14.pdf';
+// Default target is the admin guide; pass "<source.html> <output.pdf>" to render another document
+// through the same pipeline (the concerns register does exactly that).
+$htmlFile = isset($argv[1]) ? (string)$argv[1] : $docsDir . '/admin-guide-2026-11-14.html';
+$pdfFile = isset($argv[2]) ? (string)$argv[2] : preg_replace('/\.html$/', '.pdf', $htmlFile);
 
 if (!is_file($htmlFile)) {
     fwrite(STDERR, "missing source: {$htmlFile}\n");
