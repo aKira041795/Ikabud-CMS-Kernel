@@ -9203,6 +9203,27 @@ function handleCashierLedger(array $params = []): void
     // then the branch-independent roles.
     $liablePersons = dl_liablePersonsForBranch($ctx->db(), $branchId);
 
+    // Owner report 2026-11-14: the branch must be able to SEE that a finished day was changed by
+    // somebody outside it, instead of discovering a different number and asking the admin.
+    // Read-only and tolerant: a tenant that has not run migration 102 simply gets no rows.
+    $backdatedNotices = [];
+    if ($branchId) {
+        try {
+            $backdatedStmt = $ctx->db()->prepare(
+                "SELECT id, title, detail, finding_count, raised_at
+                   FROM dl_integrity_notifications
+                  WHERE branch_id = :b AND finding_type = 'ledger_backdated_edit'
+                    AND raised_at >= DATE_SUB(NOW(), INTERVAL 21 DAY)
+                  ORDER BY raised_at DESC
+                  LIMIT 5"
+            );
+            $backdatedStmt->execute([':b' => $branchId]);
+            $backdatedNotices = $backdatedStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        } catch (\Throwable $e) {
+            $backdatedNotices = [];
+        }
+    }
+
     // POS context: feature flag, cashier sell access, and the branch-day sales mode.
     $posEnabled = dl_isPosEnabled();
     $posMode = ($branchId && $posEnabled) ? dl_pos_dayMode($ctx->db(), $branchId, $ledgerDate) : ['mode' => 'manual', 'row' => null, 'decided' => false];
@@ -9275,6 +9296,9 @@ function handleCashierLedger(array $params = []): void
         'commissary_branch_id' => $commissaryBranchId,
         'commissary_branch_name' => $commissaryBranchName,
         'liable_persons' => $liablePersons,
+        // Shown at the top of the sheet: somebody outside this branch changed a finished day.
+        'backdated_notices' => $backdatedNotices,
+        'backdated_notices_json' => json_encode($backdatedNotices, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP),
         // Delayed producer entry (066): optional "Produced by" choices for the
         // paper-DR receive modal. Server-side so the template never hard-codes it.
         'producer_options' => dl_productionProducerOptions($ctx->db()),
@@ -9837,6 +9861,111 @@ function dl_persistPulloutReturnToCommissary($db, int $sourceBranchId, int $comm
     return ['delivery_id' => $deliveryId, 'dr_number' => $dr];
 }
 
+/**
+ * Tell a branch that somebody OUTSIDE it changed a day it had already finished.
+ *
+ * Owner report 2026-11-14, relaying the branch in Cebuano: "naay mukalit ug add or withdraw sa ilaa
+ * nga wla man unta silay gihilabtan" — something suddenly adds or withdraws on their ledger when
+ * they had not touched anything.
+ *
+ * Measured cause on tenant 207: an admin carries NO branch assignment (`dl_user_branches` is empty
+ * for both admins), so nothing stopped a back-dated write onto a closed day, and nothing told the
+ * branch. Branch 9's 3 Nov ledger took 28 `adjustment_add` rows (net -1,828 pcs) plus corrections on
+ * 9 Nov between 01:07 and 01:25 — six days after the day ended. From the counter that is stock
+ * appearing from nowhere, on a day they had already counted and signed.
+ *
+ * The edit itself is legitimate: an admin fixing a real error must be able to correct a past day.
+ * What was missing is the branch being told. So this raises ONE aggregated notice per
+ * branch/day/actor — repeated edits collapse into one row whose count increments — rather than
+ * blocking the correction.
+ *
+ * Deliberately silent for:
+ *   - today (and future) dates: those are simply the day being worked on;
+ *   - an actor who IS assigned to the branch: a supervisor fixing their own past day is not a
+ *     mystery to their own branch, and telling them about their own click is noise.
+ */
+function dl_noteForeignBackdatedEdit($db, int $branchId, string $ledgerDate, array $user, string $type, array $totals, string $reasonCode): void
+{
+    if ($branchId <= 0 || $ledgerDate === '') {
+        return;
+    }
+    // Only PAST days. A string compare is safe because ledger_date is ISO yyyy-mm-dd everywhere.
+    $today = dl_businessDate();
+    if ($ledgerDate >= $today) {
+        return;
+    }
+    $actorId = dl_getActorUserId($user);
+    if ($actorId <= 0) {
+        return;
+    }
+    try {
+        $member = $db->prepare('SELECT 1 FROM dl_user_branches WHERE user_id = :u AND branch_id = :b LIMIT 1');
+        $member->execute([':u' => $actorId, ':b' => $branchId]);
+        if ($member->fetchColumn()) {
+            return;
+        }
+
+        // Name the movement, never "some change": the notice has to answer the question the branch
+        // actually asks, which is "what moved and by how much".
+        $lines = [];
+        $productIds = [];
+        $net = 0;
+        foreach ($totals as $line) {
+            $pid = (int)($line['product_id'] ?? 0);
+            if ($pid > 0) { $productIds[$pid] = true; }
+        }
+        $names = [];
+        if ($productIds !== []) {
+            $idList = array_keys($productIds);
+            $ph = implode(',', array_fill(0, count($idList), '?'));
+            $nameStmt = $db->prepare("SELECT id, name FROM dl_products WHERE id IN ({$ph})");
+            $nameStmt->execute($idList);
+            foreach ($nameStmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+                $names[(int)$row['id']] = (string)$row['name'];
+            }
+        }
+        foreach ($totals as $line) {
+            $pid = (int)($line['product_id'] ?? 0);
+            if ($pid <= 0) { continue; }
+            // `result` is the signed movement that landed in the cell; fall back to addtl/withdraw.
+            $delta = (int)($line['result'] ?? ((int)($line['addtl'] ?? 0) - (int)($line['withdraw'] ?? 0)));
+            $field = (string)($line['field'] ?? '');
+            $net += $delta;
+            $lines[] = ($names[$pid] ?? ('#' . $pid)) . ' ' . ($field === 'withdraw' ? '−' : '+') . abs($delta);
+        }
+        if ($lines === []) {
+            return;
+        }
+        $shown = array_slice($lines, 0, 4);
+        $more = count($lines) - count($shown);
+        $actorName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'an admin');
+        $roleLabel = (string)($user['role'] ?? 'admin');
+        $detail = implode(', ', $shown) . ($more > 0 ? ' (+' . $more . ' more)' : '')
+            . ' · reason: ' . ($reasonCode !== '' ? $reasonCode : $type)
+            . ' · entered ' . date('j M Y H:i') . ' by ' . $actorName . ' (' . $roleLabel . ')';
+
+        dl_raiseIntegrityNotification(
+            $db,
+            'backdated_ledger_edit:' . $branchId . ':' . $ledgerDate . ':' . $actorId,
+            'ledger_backdated_edit',
+            $branchId,
+            'dl_daily_ledger',
+            null,
+            'Your ' . date('j M Y', strtotime($ledgerDate)) . ' ledger was changed by ' . $actorName,
+            $detail,
+            false,
+            // The counter is the desk that gets asked "why did my stock change?" — it must be told.
+            ['cashier']
+        );
+    } catch (\Throwable $e) {
+        // A notice must never fail the write it describes.
+        write_log('dl_noteForeignBackdatedEdit failed: ' . $e->getMessage(), 'error', [
+            'branch_id' => $branchId,
+            'ledger_date' => $ledgerDate,
+        ]);
+    }
+}
+
 function apiSaveCashierWithdrawals(array $params = []): void
 {
     $ctx = module();
@@ -10277,6 +10406,9 @@ function apiSaveCashierWithdrawals(array $params = []): void
             'lines' => $totals,
         ]);
         dl_recomputeVariancesForDay($branchId, $date);
+
+        // Owner report 2026-11-14: a branch must never find its finished day quietly changed.
+        dl_noteForeignBackdatedEdit($ctx->db(), (int)$branchId, (string)$date, $user, $type, $totals, (string)$reasonCode);
 
         $response = ['ok' => true, 'totals' => $totals];
         if ($returnDeliveryId !== null) {

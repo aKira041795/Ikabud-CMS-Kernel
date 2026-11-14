@@ -922,6 +922,10 @@ function dl_offlineApplyWithdrawal(array $user, array $op, bool $inTx = false): 
         ]);
         dl_recomputeVariancesForDay($branchId, $date);
 
+        // Owner report 2026-11-14: the device replay had the same silent back-date hole as the
+        // online path — a queued entry could land on a finished day with nothing telling the branch.
+        dl_noteForeignBackdatedEdit($ctx->db(), (int)$branchId, (string)$date, $user, $type, $totals, (string)$reasonCode);
+
         $response = ['ok' => true, 'totals' => $totals];
         if ($returnDeliveryId !== null) {
             $response['delivery_id'] = $returnDeliveryId;

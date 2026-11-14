@@ -197,6 +197,23 @@
 </div>
 {/if}
 
+{* Owner report 2026-11-14, in the branch's own words: "something suddenly adds or withdraws on our ledger
+   when we had not touched anything." An admin carries no branch assignment, so a back-dated correction
+   onto a finished day used to land with nothing telling the branch. The notice names what moved. *}
+{if backdated_notices | length > 0}
+<div class="mb-4 rounded-lg border border-indigo-300 bg-indigo-50 px-4 py-3 text-sm text-indigo-900" role="status" data-backdated-notices="{backdated_notices | length}">
+    <div class="font-semibold"><i class="fas fa-clock-rotate-left" aria-hidden="true"></i> A finished day was corrected by someone outside this branch</div>
+    {foreach backdated_notices as notice}
+    <div class="mt-1 leading-5" data-backdated-notice="{notice.id}">
+        <span class="font-semibold">{notice.title}.</span>
+        <span>{notice.detail}</span>
+        {if notice.finding_count &gt; 1}<span class="ml-1 font-semibold">{notice.finding_count} entries.</span>{/if}
+    </div>
+    {/foreach}
+    <p class="mt-1 text-xs text-indigo-800">The correction stays in place — this is the record of it. Ask the admin named above if the numbers still look wrong.</p>
+</div>
+{/if}
+
 <div id="finalize-pm-result" class="hidden mb-4 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert"></div>
 
 {* A finalized shift refuses API writes (dl_assertShiftMutable) even while the day stays open.

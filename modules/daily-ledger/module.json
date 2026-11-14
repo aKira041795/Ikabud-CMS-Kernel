@@ -185,7 +185,8 @@
     "database/migrations/097_receiving_item_supply_origin.sql",
     "database/migrations/098_product_categories.sql",
     "database/migrations/100_receiving_supply_origin_cake_correction.sql",
-    "database/migrations/101_branch_product_own_production.sql"
+    "database/migrations/101_branch_product_own_production.sql",
+    "database/migrations/102_ledger_backdated_edit_finding_type.sql"
   ],
   "capabilities": {
     "exposes": [
