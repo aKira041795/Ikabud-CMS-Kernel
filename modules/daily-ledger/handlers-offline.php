@@ -711,8 +711,11 @@ function dl_offlineApplyWithdrawal(array $user, array $op, bool $inTx = false): 
 
     $role = (string)($user['role'] ?? '');
     $dayStatus = dl_getDayStatus($branchId, $date);
-    if ($role === 'cashier' && $dayStatus === 'closed') {
-        throw new RuntimeException(dl_closedDayRefusalMessage(), 403);
+    // Same ruling as the online path (owner 2026-11-14): a closed day is shut to EVERY role. The
+    // replay had this guard cashier-only, so a queued entry from a supervisor or admin landed in a
+    // closed day exactly the way the online one used to.
+    if ($dayStatus === 'closed') {
+        throw new RuntimeException(dl_closedDayRefusalMessage($role), 403);
     }
     if ($role === 'cashier' && !dl_cashierMayEdit($branchId, $date, $shift, dl_businessDate(), $dayStatus)) {
         throw new RuntimeException('Reference only', 403);

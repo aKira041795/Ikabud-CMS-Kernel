@@ -6468,12 +6468,20 @@ function dl_ledgerActivitySql(string $alias): string
 }
 
 /**
- * The honest refusal a cashier sees on a closed day. The closed day is a
- * DELIBERATE process guard: only an admin/supervisor with ledger.override may
- * reopen it. Naming the remedy does NOT widen access - the write is refused.
+ * The honest refusal a write gets on a closed day. The closed day is a DELIBERATE process guard
+ * and it applies to EVERY role: only an admin holds ledger.override and can reopen it, so naming
+ * the remedy does NOT widen access - the write is refused either way.
+ *
+ * The admin branch of the sentence is not decoration. Before 2026-11-14 this guard was
+ * cashier-only, so an admin who believed the day was still editable back-dated straight into it
+ * and the branch found the numbers changed. Telling them to reopen first turns that silent edit
+ * into an audited one.
  */
-function dl_closedDayRefusalMessage(): string
+function dl_closedDayRefusalMessage(string $role = 'cashier'): string
 {
+    if ($role === 'admin' || dl_roleHasPermission($role, 'ledger.override')) {
+        return 'This business date is closed. Reopen the day first (Reopen Day, top bar), then make the correction — the branch is told when a closed day is changed.';
+    }
     return 'This business date is closed. An admin must reopen the day before entries can be changed.';
 }
 
@@ -10137,8 +10145,19 @@ function apiSaveCashierWithdrawals(array $params = []): void
 
     $role = (string)($user['role'] ?? '');
     $dayStatus = dl_getDayStatus($branchId, $date);
-    if ($role === 'cashier' && $dayStatus === 'closed') {
-        $ctx->json(['ok' => false, 'error' => dl_closedDayRefusalMessage()], 403);
+    // Owner ruling 2026-11-14: a closed day is shut to EVERY role, not just cashiers.
+    //
+    // This guard used to read `$role === 'cashier' &&`, so an admin or supervisor could post
+    // straight into a closed day and the close meant nothing to them. Measured consequence on
+    // tenant 207: branch 9's 3 Nov ledger took 28 adjustment_add rows and corrections entered on
+    // 9 Nov at 01:07-01:25 — six days after that day was closed — with the branch never told
+    // ("something suddenly adds or withdraws ... when we had not touched anything").
+    //
+    // Only an admin holds ledger.override, so the remedy stays with the person who actually can:
+    // reopen the day, then correct it. Reopening is the audited act that makes the correction
+    // legible; dl_noteForeignBackdatedEdit() then tells the branch what changed.
+    if ($dayStatus === 'closed') {
+        $ctx->json(['ok' => false, 'error' => dl_closedDayRefusalMessage($role), 'code' => 'DAY_CLOSED'], 403);
         return;
     }
     if ($role === 'cashier' && !dl_cashierMayEdit($branchId, $date, $shift, dl_businessDate(), $dayStatus)) {
@@ -12373,9 +12392,12 @@ function apiSaveLedgerField(array $params = []): void
     }
 
     $dayStatus = $branchId ? dl_getDayStatus($branchId, $date) : 'open';
-    if ($role === 'cashier' && $dayStatus === 'closed') {
-        header('HX-Trigger: ' . json_encode(['showToast' => ['message' => dl_closedDayRefusalMessage(), 'type' => 'error']]));
-        $ctx->json(['ok' => false, 'error' => dl_closedDayRefusalMessage()], 403);
+    // Same ruling as apiSaveCashierWithdrawals: closing a day stops edits from every role, so an
+    // admin correcting a closed day must reopen it first and the branch is told what moved.
+    if ($dayStatus === 'closed') {
+        $refusal = dl_closedDayRefusalMessage($role);
+        header('HX-Trigger: ' . json_encode(['showToast' => ['message' => $refusal, 'type' => 'error']]));
+        $ctx->json(['ok' => false, 'error' => $refusal, 'code' => 'DAY_CLOSED'], 403);
         return;
     }
     if ($role === 'cashier' && !dl_cashierMayEdit($branchId, $date, $shift, dl_businessDate(), $dayStatus)) {
@@ -15846,6 +15868,12 @@ function handleAdminSettings(array $params = []): void
         'perm_supervisor_ledger_override' => in_array('ledger.override', $permissions['supervisor'] ?? [], true),
         'perm_supervisor_production_override' => in_array('production.override', $permissions['supervisor'] ?? [], true),
         'perm_supervisor_delivery_edit' => in_array('delivery.edit', $permissions['supervisor'] ?? [], true),
+        // variance.resolve is READ by the variances screen (`can_manage_variances`) and the comment in
+        // dl_allPermissionActions() has always claimed an admin can grant it here. Until 2026-11-14 no
+        // control existed, so the claim was false and — because the save path rebuilds a role's
+        // permission list from scratch — any grant made another way was silently stripped on the next
+        // save. This is the missing half.
+        'perm_supervisor_variance_resolve' => in_array('variance.resolve', $permissions['supervisor'] ?? [], true),
         'perm_cashier_delivery_edit' => in_array('delivery.edit', $permissions['cashier'] ?? [], true),
         'perm_prod_ledger_override' => in_array('ledger.override', $permissions['production_in_charge'] ?? [], true),
         'perm_prod_production_override' => in_array('production.override', $permissions['production_in_charge'] ?? [], true),
@@ -16232,6 +16260,11 @@ function apiSaveRolePermissions(array $params = []): void
     }
     if ($toBool($input['prod_production_override'] ?? false)) {
         $permissions['production_in_charge'][] = 'production.override';
+    }
+    // The knob the variances screen was already checking for. Granting it here survives the next
+    // save, which it could not before: this list is rebuilt from scratch on every save.
+    if ($toBool($input['supervisor_variance_resolve'] ?? false)) {
+        $permissions['supervisor'][] = 'variance.resolve';
     }
 
     $autoCloseEnabled = $toBool($input['auto_close_enabled'] ?? false);
