@@ -9468,6 +9468,9 @@ function handleCashierLedger(array $params = []): void
         'feature_cash_paper_check' => $cashPaperCheckEnabled,
         'deposit' => $depositContext,
         'deposit_editable' => $depositEditable,
+        // Owner directive 2026-11-16: the branch records its own deposit but is never
+        // shown short/over — the office reads that on Cash & Paper Check.
+        'deposit_variance_visible' => dl_maySeeCashVariance($role),
     ]);
 }
 
@@ -16704,6 +16707,27 @@ function dl_reconciliationState(bool $hasReconRow, float $ledgerSales, ?float $p
  *   cash_variance:?float, state:string
  * }
  */
+/**
+ * May this viewer be told whether a shift's cash was SHORT or OVER?
+ *
+ * Owner directive 2026-11-16: "for the cash deposit done by cashiers per shift
+ * (AM/PM), no need to show over or under to cashier. admin can see if it's over
+ * or under."
+ *
+ * The reason is the check itself, not secrecy for its own sake: a branch that
+ * sees "short by 250" can put 250 in the drawer before the deposit is collected,
+ * and the deposit then measures nothing. The verdict therefore belongs to the
+ * office, which reads the same dl_shift_reconciliation row on Cash & Paper Check
+ * (per shift, with its own short/over column).
+ *
+ * Branch roles (cashier, production_in_charge) may still RECORD the deposit —
+ * that is their own count — they simply do not get the comparison.
+ */
+function dl_maySeeCashVariance(string $role): bool
+{
+    return in_array($role, ['admin', 'supervisor', 'auditor'], true);
+}
+
 function dl_shiftDepositContext($db, int $branchId, string $date, string $shift): array
 {
     $empty = [
@@ -21033,14 +21057,23 @@ function apiSaveShiftDeposit(array $params = []): void
         );
 
         $context = dl_shiftDepositContext($ctx->db(), $branchId, $date, $shift);
-        $ctx->json([
+        $payload = [
             'ok' => true,
             'cash_remitted' => $context['cash_remitted'],
             'ledger_sales' => $context['ledger_sales'],
-            'cash_variance' => $context['cash_variance'],
             'pending_rows' => $context['pending_rows'],
             'provisional_rows' => $context['provisional_rows'],
-        ]);
+        ];
+        // The branch is never sent the short/over figure, not even in the JSON: a
+        // number that only rode along in a response is still visible in devtools and
+        // is enough to square the drawer afterwards. The office keeps it.
+        if (dl_maySeeCashVariance($role)) {
+            $payload['cash_variance'] = $context['cash_variance'];
+            $payload['cash_variance_display'] = $context['cash_variance_display'];
+            $payload['variance_label'] = $context['variance_label'];
+            $payload['variance_class'] = $context['variance_class'];
+        }
+        $ctx->json($payload);
     } catch (\Throwable $e) {
         write_log('daily-ledger apiSaveShiftDeposit failed', 'error', [
             'error' => $e->getMessage(),

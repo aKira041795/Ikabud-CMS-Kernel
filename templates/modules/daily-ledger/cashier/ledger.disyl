@@ -86,10 +86,16 @@
 </div>
 {/if}
 
-{* Concern #2 (owner 2026-11-16): the branch records its deposit for THIS shift and
-   sees the short/over immediately. The office reads the same reconciliation row on
-   Cash & Paper Check. Shown only when the feature is switched on; a closed shift or a
-   reference-only date renders the recorded figure read-only rather than hiding it. *}
+{* Concern #2 (owner 2026-11-16): the branch records its deposit for THIS shift. The
+   office reads the same reconciliation row on Cash & Paper Check. Shown only when the
+   feature is switched on; a closed shift or a reference-only date renders the recorded
+   figure read-only rather than hiding it.
+
+   Owner directive 2026-11-16 (later the same day): the CASHIER must NOT be shown
+   short/over. A branch that can see the gap can close it in the drawer and the check
+   stops measuring anything, so the verdict belongs to the office alone — the same
+   number is on Cash & Paper Check per shift. Ledger sales stays visible: it is the
+   shift's own figure, not a verdict on the cash. *}
 {if feature_cash_paper_check && deposit}
 <div id="shift-deposit-panel"
      class="mb-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 print:hidden"
@@ -120,10 +126,12 @@
             <span class="block text-xs font-medium text-gray-700 mb-1">Ledger sales</span>
             <div data-deposit-sales class="flex h-10 w-32 items-center justify-end tabular-nums font-semibold text-gray-900">{deposit.ledger_sales_display}</div>
         </div>
+        {if deposit_variance_visible}
         <div>
             <span class="block text-xs font-medium text-gray-700 mb-1">Short / over</span>
             <div id="shift-deposit-variance" class="flex h-10 w-44 items-center justify-end tabular-nums font-semibold {deposit.variance_class}">{deposit.variance_label}</div>
         </div>
+        {/if}
     </div>
     <p id="shift-deposit-note" class="mt-2 text-xs text-slate-600">{deposit.note}</p>
 </div>

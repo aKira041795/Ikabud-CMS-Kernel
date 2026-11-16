@@ -109,7 +109,11 @@ $countFixtures = static function () use ($db, $originId, $branchId, $productId, 
         'production_runs' => "SELECT COUNT(*) FROM dl_production_runs WHERE destination_branch_id IN ({$originId},{$branchId}) OR product_id = {$productId}",
         'shift_status' => "SELECT COUNT(*) FROM dl_ledger_shift_status WHERE branch_id IN ({$originId},{$branchId})",
         'day_status' => "SELECT COUNT(*) FROM dl_ledger_day_status WHERE branch_id IN ({$originId},{$branchId})",
-        'audit_logs' => "SELECT COUNT(*) FROM audit_logs WHERE branch_id IN ({$originId},{$branchId}) OR entity_id IN ('996401','996402') OR new_data LIKE '%9964%' OR old_data LIKE '%9964%'",
+        // Scoped to THIS fixture: the branch ids and the exact audit entities the test creates.
+        // The old fuzzy `new_data LIKE '%9964%'` counted unrelated historical rows that merely
+        // embed an id starting with 9964 (measured 2026-11-16: two `delivery_ledger_*` rows from
+        // branch 99004, dated 2026-11-13), which this test can neither create nor clean up.
+        'audit_logs' => "SELECT COUNT(*) FROM audit_logs WHERE branch_id IN ({$originId},{$branchId}) OR entity_id IN ('996401','996402')",
     ];
     $counts = [];
     foreach ($queries as $name => $sql) {

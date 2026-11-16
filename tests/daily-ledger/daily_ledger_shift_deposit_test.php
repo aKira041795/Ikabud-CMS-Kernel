@@ -169,7 +169,27 @@ try {
     $handlersSrc = (string)file_get_contents($base . '/modules/daily-ledger/handlers.php');
     $h->test('the deposit route is registered', str_contains($routesSrc, "'/daily-ledger/api/v1/cashier/ledger/deposit'"));
     $h->test('the sheet renders the deposit panel behind the switch', str_contains($tplSrc, '{if feature_cash_paper_check && deposit}') && str_contains($tplSrc, 'shift-deposit-input'));
-    $h->test('the sheet labels the result short/over', str_contains($tplSrc, 'Short / over'));
+    // Owner directive 2026-11-16: the cashier records the deposit but must never be shown
+    // short/over (a visible gap can be closed in the drawer before collection); the office
+    // reads it on Cash & Paper Check.
+    $h->test(
+        'the short/over column is printed ONLY behind deposit_variance_visible',
+        str_contains($tplSrc, '{if deposit_variance_visible}')
+            && strpos($tplSrc, '{if deposit_variance_visible}') < strpos($tplSrc, 'Short / over')
+    );
+    $h->test(
+        'only the office roles may see the cash variance',
+        dl_maySeeCashVariance('admin') === true
+            && dl_maySeeCashVariance('supervisor') === true
+            && dl_maySeeCashVariance('auditor') === true
+            && dl_maySeeCashVariance('cashier') === false
+            && dl_maySeeCashVariance('production_in_charge') === false
+    );
+    $h->test(
+        'the deposit endpoint only adds the variance for an office viewer',
+        str_contains($handlersSrc, 'if (dl_maySeeCashVariance($role)) {')
+            && str_contains($handlersSrc, "'deposit_variance_visible' => dl_maySeeCashVariance(\$role)")
+    );
     $h->test('the handler passes the deposit context to the sheet', str_contains($handlersSrc, "'deposit' => \$depositContext"));
     $h->test('a branch user is held to the ledger edit window', str_contains($handlersSrc, "if (!in_array(\$role, ['admin', 'supervisor'], true)) {") && str_contains($handlersSrc, 'dl_cashierMayEdit('));
 } finally {
