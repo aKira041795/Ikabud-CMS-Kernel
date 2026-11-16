@@ -439,11 +439,17 @@
                                         <template x-for="(line, idx) in paperForm.items" :key="idx">
                                             <tr class="border-b border-gray-100">
                                                 <td class="py-2 pr-2">
+                                                    {* Type-to-find for this line. Shown only when the catalogue is long
+                                                       enough to need it, so a short list is not given dead chrome. *}
+                                                    <input type="search" class="form-input mt-0 mb-1 w-full py-1 text-xs"
+                                                           placeholder="Search product…" autocomplete="off" aria-label="Search product"
+                                                           x-show="products.length > 10"
+                                                           x-model="line.productQuery">
                                                     <select x-model="line.product_id"
                                                             class="form-input mt-0 w-full"
                                                             x-bind:class="rowProductMissing(line) ? 'border-amber-400 ring-1 ring-amber-300' : ''">
                                                         <option value="">-- Select Product --</option>
-                                                        <template x-for="p in products" :key="p.id">
+                                                        <template x-for="p in dlVisibleProducts(products, line.productQuery, line.product_id)" :key="p.id">
                                                             <option :value="p.id" x-text="p.name"></option>
                                                         </template>
                                                     </select>

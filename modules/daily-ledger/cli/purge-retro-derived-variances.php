@@ -114,25 +114,65 @@ try {
                   AND vf.is_reviewed = 0
                   AND vf.reviewed_by IS NULL AND vf.reviewed_at IS NULL
                   AND vf.review_note IS NULL AND vf.auto_clear_note IS NULL";
-    $repairProof = "EXISTS (
-                    SELECT 1 FROM audit_logs a
-                     WHERE a.module = 'daily-ledger'
-                       AND a.action = 'finalize_shift'
-                       AND a.entity_id LIKE CONCAT(vf.branch_id, '-', vf.ledger_date, '-%')
-                       AND a.new_data LIKE '%repair_closed_day_sweep%'
-                       AND DATE(a.created_at) = DATE(vf.created_at)
-                  )";
-    $provenWhere = $humanUntouched . ' AND ' . $repairProof;
-    $unprovenWhere = $humanUntouched . ' AND NOT ' . $repairProof;
 
-    $countWhere = static function (string $where) use ($db, $since): int {
-        $stmt = $db->prepare("SELECT COUNT(*) FROM dl_variance_flags vf WHERE {$where}");
+    // WHY THE PROOF IS NOT A CORRELATED EXISTS ANY MORE
+    // --------------------------------------------------
+    // It used to be `EXISTS (SELECT 1 FROM audit_logs ... entity_id LIKE CONCAT(...) ... new_data
+    // LIKE '%repair_closed_day_sweep%')` inside the WHERE clause — evaluated once per candidate,
+    // AGAIN as NOT EXISTS for the "unproven" count, and twice more for the shape and sample
+    // queries. A leading-wildcard LIKE cannot use an index, so each of those evaluations was a
+    // scan of the audit table. Measured 2026-11-16 against the imported live database (4,709
+    // flags, 1,006 candidates): 497 SECONDS, and shared hosting would be worse while keeping
+    // MySQL busy for that whole time.
+    //
+    // Identical semantics, set-based: read the candidates once, read the repair's audit keys
+    // once, and match the `branch-date-` prefix in PHP. Two cheap queries, no per-row scan.
+    $scan = static function () use ($db, $since, $humanUntouched): array {
+        $stmt = $db->prepare(
+            "SELECT vf.id, vf.branch_id, vf.ledger_date, vf.kind, DATE(vf.created_at) AS created_date
+               FROM dl_variance_flags vf
+              WHERE {$humanUntouched}
+              ORDER BY vf.id ASC"
+        );
         $stmt->execute([':since' => $since]);
-        return (int)$stmt->fetchColumn();
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        if ($rows === []) {
+            return [[], [], 0];
+        }
+
+        $proof = $db->prepare(
+            "SELECT entity_id, DATE(created_at) AS created_date
+               FROM audit_logs
+              WHERE module = 'daily-ledger'
+                AND action = 'finalize_shift'
+                AND new_data LIKE '%repair_closed_day_sweep%'
+                AND created_at >= CURDATE()"
+        );
+        $proof->execute();
+        $provenPrefixes = [];
+        foreach ($proof->fetchAll(PDO::FETCH_ASSOC) ?: [] as $p) {
+            // The audit writes entity_id "<branch>-<date>-<shift>"; the old predicate matched
+            // exactly that prefix, so collapse it to "<day>|<branch>-<date>-".
+            if (preg_match('/^(\d+)-(\d{4}-\d{2}-\d{2})-[A-Za-z]+$/', (string)$p['entity_id'], $m)) {
+                $provenPrefixes[$p['created_date'] . '|' . $m[1] . '-' . $m[2] . '-'] = true;
+            }
+        }
+
+        $matched = [];
+        $unprovenCount = 0;
+        foreach ($rows as $r) {
+            $key = $r['created_date'] . '|' . $r['branch_id'] . '-' . $r['ledger_date'] . '-';
+            if (isset($provenPrefixes[$key])) {
+                $matched[] = $r;
+            } else {
+                $unprovenCount++;
+            }
+        }
+        return [$rows, $matched, $unprovenCount];
     };
 
-    $proven = $countWhere($provenWhere);
-    $unproven = $countWhere($unprovenWhere);
+    [, $provenRows, $unproven] = $scan();
+    $proven = count($provenRows);
     $totalFlags = (int)$db->query('SELECT COUNT(*) FROM dl_variance_flags')->fetchColumn();
 
     echo "Daily Ledger retro-derived variance purge — tenant {$tenantId}\n";
@@ -145,26 +185,31 @@ try {
     echo '  unproven look-alikes  : ' . number_format($unproven) . " (left alone: real work on a past day)\n";
 
     if ($proven > 0) {
-        $shape = $db->prepare(
-            "SELECT MIN(vf.ledger_date) AS mn, MAX(vf.ledger_date) AS mx,
-                    COUNT(DISTINCT CONCAT(vf.branch_id, '-', vf.ledger_date)) AS days
-               FROM dl_variance_flags vf WHERE {$provenWhere}"
-        );
-        $shape->execute([':since' => $since]);
-        $info = $shape->fetch(PDO::FETCH_ASSOC) ?: [];
-        echo '  their dates           : ' . (string)($info['mn'] ?? '?') . ' .. ' . (string)($info['mx'] ?? '?')
-            . ' across ' . (int)($info['days'] ?? 0) . " branch-day(s)\n";
+        $dates = array_column($provenRows, 'ledger_date');
+        sort($dates);
+        $days = [];
+        foreach ($provenRows as $r) {
+            $days[$r['branch_id'] . '-' . $r['ledger_date']] = true;
+        }
+        echo '  their dates           : ' . (string)$dates[0] . ' .. ' . (string)end($dates)
+            . ' across ' . count($days) . " branch-day(s)\n";
 
-        $sample = $db->prepare(
-            "SELECT vf.branch_id, vf.ledger_date, vf.kind, COUNT(*) AS c
-               FROM dl_variance_flags vf WHERE {$provenWhere}
-              GROUP BY vf.branch_id, vf.ledger_date, vf.kind
-              ORDER BY vf.ledger_date DESC LIMIT 10"
-        );
-        $sample->execute([':since' => $since]);
+        // Grouped in PHP from the rows already read — the old version re-ran the EXISTS proof
+        // for this GROUP BY, which doubled an already expensive scan.
+        $groups = [];
+        foreach ($provenRows as $r) {
+            $key = $r['ledger_date'] . '|' . $r['branch_id'] . '|' . $r['kind'];
+            $groups[$key] = ($groups[$key] ?? 0) + 1;
+        }
+        krsort($groups);
         echo "\n  sample (date / branch / kind / rows):\n";
-        foreach ($sample->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
-            echo '    ' . $row['ledger_date'] . '  branch ' . $row['branch_id'] . '  ' . $row['kind'] . '  x' . $row['c'] . "\n";
+        $shown = 0;
+        foreach ($groups as $key => $count) {
+            [$gDate, $gBranch, $gKind] = explode('|', (string)$key);
+            echo '    ' . $gDate . '  branch ' . $gBranch . '  ' . $gKind . '  x' . $count . "\n";
+            if (++$shown >= 10) {
+                break;
+            }
         }
     }
 
@@ -182,9 +227,8 @@ try {
     try {
         // MySQL 5.7 (@mysql57-compat): a MULTI-table DELETE accepts neither LIMIT nor ORDER BY, so
         // the bounded id set is materialised first and removed by primary key in one statement.
-        $sel = $db->prepare("SELECT vf.id FROM dl_variance_flags vf WHERE {$provenWhere} ORDER BY vf.id ASC LIMIT {$limit}");
-        $sel->execute([':since' => $since]);
-        $ids = array_values(array_unique(array_map('intval', $sel->fetchAll(PDO::FETCH_COLUMN) ?: [])));
+        // The ids come from the proven rows already in memory (ordered by id ASC).
+        $ids = array_slice(array_map(static fn(array $r): int => (int)$r['id'], $provenRows), 0, $limit);
         $deleted = 0;
         if ($ids !== []) {
             $db->prepare('DELETE FROM dl_variance_flags WHERE id IN (' . implode(',', $ids) . ')')->execute();
@@ -199,7 +243,9 @@ try {
         exit(1);
     }
 
-    $remaining = $countWhere($provenWhere);
+    // Re-scan the same way, so "remaining" is measured by the same proof that chose the deletes.
+    [, $remainingRows] = $scan();
+    $remaining = count($remainingRows);
     echo "\n  deleted               : " . number_format($deleted) . "\n";
     echo '  remaining proven      : ' . number_format($remaining) . ($remaining > 0 && $deleted >= $limit ? " (limit reached — re-run)" : '') . "\n";
     echo '  variance flags now    : ' . number_format((int)$db->query('SELECT COUNT(*) FROM dl_variance_flags')->fetchColumn()) . "\n";

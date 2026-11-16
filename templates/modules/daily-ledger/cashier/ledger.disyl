@@ -2390,6 +2390,30 @@
         });
     }
 
+    // Filter one line's product options.
+    //
+    // Every cashier modal (receive, dispatch, edit-delivery, add-stock) holds the whole active
+    // catalogue — hundreds of products at this tenant — and a native <select> has no search: its
+    // keyboard type-ahead matches a PREFIX only and resets after a second, so the branch scrolled
+    // the list on every line. Owner report 2026-11-16: "user scrolls thru the items and eats up
+    // time".
+    //
+    // The filter is PER LINE (line.productQuery) rather than one box per modal: filtering line 1
+    // must not silently empty line 2's options, and a second line usually needs a different
+    // product. The option already chosen on a line is ALWAYS kept in its own list — otherwise
+    // typing a filter would make a saved selection look empty while still being saved.
+    function dlVisibleProducts(products, query, selectedId) {
+        var list = products || [];
+        var q = String(query == null ? '' : query).trim().toLowerCase();
+        var keep = selectedId == null ? '' : String(selectedId);
+        if (q === '') { return list; }
+        return list.filter(function(p) {
+            if (keep !== '' && String(p.id) === keep) { return true; }
+            var hay = String(p.name || '') + ' ' + String(p.sku || '');
+            return hay.toLowerCase().indexOf(q) !== -1;
+        });
+    }
+
     function initializePendingQueue() {
         syncPendingStorage();
         renderConnectivityBanner();
