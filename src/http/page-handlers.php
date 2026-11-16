@@ -337,9 +337,15 @@ if (!function_exists('kernelPerfPageRows')) {
             ['Manifest state revalidate', !empty($manifest['available']) ? round((float)$manifest['validate_ms'], 3) : ($manifestCollected ? 'not measured' : $missing), 'ms · ' . ($manifest['dirs'] ?? '?') . ' dirs / ' . ($manifest['files'] ?? '?') . ' files', !empty($manifest['dirs_complete']) ? '' : 'INCOMPLETE - state not cached'],
             ['Settings preload', $settingsMeasured ? $get(['settings_preload_ms']) : ($has(['settings_preload_state']) ? 'skipped (no tenant)' : $missing), $settingsMeasured ? 'ms · ' . $get(['settings_preload_rows']) . ' rows' : '', ''],
             ['Cache round-trip', $get(['cache_roundtrip_ms']), 'ms', $raw(['cache_ok'], false) ? '' : 'FAIL'],
-            ['Cache hit rate (page cache)', $get(['cache_hit_rate_pct']), '% (page cache)', ''],
-            ['Cache miss rate', $get(['cache_miss_rate_pct']), '%', ''],
-            ['Cache bypass rate', $get(['cache_bypass_rate_pct']), '%', ''],
+            // These three are EVERY Cache::get() lookup, not the page cache alone: module settings,
+            // entity presets, capability maps and one-shot probe keys share the same counters. A low
+            // number here is NOT evidence of a page-cache problem (measured 2026-11-16: 10.32% "hit"
+            // read as a page-cache defect while the real per-request work was 30 ms). The rows say
+            // what they measure, and the scope row states which module pages are never cached.
+            ['All cache lookups hit rate (every Cache::get)', $get(['cache_hit_rate_pct']), '% (not page-cache only)', ''],
+            ['All cache lookups miss rate', $get(['cache_miss_rate_pct']), '%', ''],
+            ['All cache lookups bypass rate', $get(['cache_bypass_rate_pct']), '%', 'non-GET / auth / API / prefix-skipped'],
+            ['Page cache scope', 'public surfaces only', '', 'per-user modules (daily-ledger, wms, bakeshop, guidance, cms, ecommerce account pages) are Bypassed by design — a low page-cache share is expected, not a defect'],
             ['Cache files (active/expired)', $raw(['cache_active_files']) !== null && $raw(['cache_expired_files']) !== null ? $raw(['cache_active_files']) . '/' . $raw(['cache_expired_files']) : $missing, '', ''],
             ['Cache eviction', $get(['cache_eviction']), '', ''],
             ['Cache disk usage', $get(['cache_total_size_mb']), 'MB', ''],

@@ -88,12 +88,26 @@ $assert(
     is_array($boot) ? 'absent=' . $boot[1] . ', structural=' . ($render[1] ?? 'missing') : 'row missing'
 );
 
-$cacheHit = $findRow(static fn(string $label): bool => str_contains(strtolower($label), 'cache hit rate'));
+// The old assertion demanded that the hit-rate row CLAIM page-cache scope. That label was false:
+// these counters are every Cache::get() lookup, so a low number read as a page-cache defect while
+// the real per-request work was 30 ms (measured live 2026-11-16). The rows must now state what they
+// measure AND carry a separate row naming which pages are never cached.
+$cacheHit = $findRow(static fn(string $label): bool => str_contains(strtolower($label), 'all cache lookups hit rate'));
 $assert(
-    'cache hit-rate row names the page-cache scope in its label and value',
-    is_array($cacheHit) && str_contains(strtolower((string)$cacheHit[0]), 'page cache')
-        && str_contains(strtolower((string)$cacheHit[2]), 'page cache'),
+    'cache hit-rate row says it counts EVERY Cache::get, not the page cache alone',
+    is_array($cacheHit)
+        && str_contains(strtolower((string)$cacheHit[0]), 'every cache::get')
+        && str_contains(strtolower((string)$cacheHit[2]), 'not page-cache only'),
     is_array($cacheHit) ? 'label=' . $cacheHit[0] . ', unit=' . $cacheHit[2] : 'row missing'
+);
+
+$cacheScope = $findRow(static fn(string $label): bool => str_contains(strtolower($label), 'page cache scope'));
+$assert(
+    'a Page cache scope row names the modules that are bypassed by design',
+    is_array($cacheScope)
+        && str_contains(strtolower((string)$cacheScope[3]), 'by design')
+        && str_contains((string)$cacheScope[3], 'daily-ledger'),
+    is_array($cacheScope) ? 'note=' . $cacheScope[3] : 'row missing'
 );
 
 // --- Phase 0: sampling and tenant context.
