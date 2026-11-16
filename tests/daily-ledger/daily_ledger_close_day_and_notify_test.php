@@ -3,25 +3,35 @@
 declare(strict_types=1);
 
 /**
- * Daily Ledger — close-day-and-notify for an unfinalized fully-manual day.
+ * Daily Ledger — close-of-day behaviour towards the day-ending shift.
  *
  * OWNER DIRECTIVE (2026-10-05): a fully-manual day that reaches the close-of-day
  * cutoff with its PM shift still open MUST still close, and the admin MUST still
- * be notified. This reverses the D1 refusal (531106f8) where the day was left
- * open so the cashier kept a self-service late-count window. A day left open
- * compounds into the next day; close + notify is the owner's accepted trade.
+ * be notified. A day left open compounds into the next day.
  *
- * N1-N4: the auto-close produces a CLOSED day, a single
- *        closed_without_pm_finalize notification, a single audit row and a
- *        stamped pending_notified_at across two consecutive passes, with NO
- *        variance recompute/freeze (that belongs to a finalized day).
- * N5:    the deliberate admin reopen remains the remedy: while closed a cashier
- *        write and a cashier finalize are both refused, the admin reopen puts
- *        the day back to open, the cashier records the ending, and the REAL
- *        apiFinalizePmShift() handler finalizes the PM shift.
- * N6:    a fully-manual day whose PM shift IS finalized still closes, recomputes
- *        and freezes (the normal path must not regress).
+ * CONTRACT REVISED 2026-11-16 (client report: "ang PM shift wlay makita nga closed
+ * day mao d masave ug dili mocompute ang sales"). "Close anyway" produced days
+ * closed with their PM still open, no close control anywhere (every control is
+ * gated on day_status=='open') and PM sales that never became official. Measured
+ * on tenant 207: 439 closed days with the ending shift still open, 415 of them
+ * with every ending recorded. The cutoff now:
+ *   a. FINALIZES the day-ending shift when every ending is recorded, then closes
+ *      the day with its variances swept and frozen (official sales);
+ *   b. DEFERS the close when endings are still missing — the day stays open for
+ *      the branch's own late-count window, with a notification;
+ *   c. still closes an ABANDONED day quietly on the later sweep, with the flag.
+ *
+ * N1-N4: an unfinalized fully-manual day with a missing ending is NOT closed at
+ *        its own cutoff: a single notification, a single audit row, a stamped
+ *        pending_notified_at, no variance freeze, and the day stays editable.
+ * N5:    the branch finishes it WITHOUT an admin reopen: record the ending, the
+ *        REAL apiFinalizePmShift() handler finalizes the shift, and the next
+ *        cutoff pass closes the day and freezes it.
+ * N6:    a day whose endings are complete is finalized BY the cutoff and closed
+ *        (N6a), and an already-finalized day still closes (N6b).
  * N7:    dl_cashierMayEdit() behaviour on a closed day is unchanged.
+ * N8:    a day abandoned past its grace day is closed by the sweep with the
+ *        existing closed_without_pm_finalize flag.
  *
  * Everything is seeded on reserved 99xxx ids on a throwaway previous business
  * date so the cashier late-count window is exercisable, then removed in finally.
@@ -126,7 +136,7 @@ $pmPendingAt = static function () use ($db, $BRANCH, $date) {
 };
 $notifCount = static function () use ($db, $BRANCH, $date): int {
     $s = $db->prepare('SELECT COUNT(*) FROM dl_integrity_notifications WHERE aggregate_key = :k');
-    $s->execute([':k' => 'closed_without_pm_finalize-day-' . $BRANCH . '-' . $date]);
+    $s->execute([':k' => 'pending_endings-day-' . $BRANCH . '-' . $date]);
     return (int)$s->fetchColumn();
 };
 $auditCount = static function () use ($db, $BRANCH, $date): int {
@@ -179,24 +189,39 @@ try {
         $h->detail('N1 close threw: ' . $e->getMessage());
     }
     $h->test(
-        'N1 an unfinalized fully-manual day CLOSES at the cutoff',
-        $firstClose === true && $dayStatusOf() === 'closed',
+        'N1 a day whose ending shift still owes endings is NOT closed at its own cutoff',
+        $firstClose === false && $dayStatusOf() === 'open',
         json_encode(['returned' => $firstClose, 'day' => $dayStatusOf(), 'pm' => $pmStatusOf()])
     );
     $h->test(
-        'N1b the PM shift is still open (the close did not fake a finalize)',
+        'N1b the PM shift keeps its own status (the cutoff did not fake a finalize)',
         $pmStatusOf() === 'open',
         'pm=' . $pmStatusOf()
     );
     $h->test(
-        'N2 a closed_without_pm_finalize notification exists for branch+date',
+        'N2 exactly one "left open for pending endings" notification exists for branch+date',
         $notifCount() === 1,
         'notifications=' . $notifCount()
     );
+    $notifRow = $db->prepare('SELECT title, detail FROM dl_integrity_notifications WHERE aggregate_key = :k LIMIT 1');
+    $notifRow->execute([':k' => 'pending_endings-day-' . $BRANCH . '-' . $date]);
+    $notifPayload = $notifRow->fetch(PDO::FETCH_ASSOC) ?: [];
     $h->test(
-        'N3 one closed_without_pm_finalize audit row after the first pass',
-        $auditCount() === 1,
-        'audit=' . $auditCount()
+        'N2b the notification says the day was LEFT OPEN so the counts can be finished',
+        stripos((string)($notifPayload['title'] ?? ''), 'left open') !== false
+            && stripos((string)($notifPayload['detail'] ?? ''), 'was NOT closed') !== false,
+        json_encode($notifPayload)
+    );
+    $auditPayloadOf = static function () use ($db, $BRANCH, $date): array {
+        $s = $db->prepare("SELECT new_data FROM audit_logs WHERE module = 'daily-ledger' AND action = 'auto_close_day' AND entity_id = :eid ORDER BY id DESC LIMIT 1");
+        $s->execute([':eid' => $BRANCH . '-' . $date . '-PM']);
+        $decoded = json_decode((string)$s->fetchColumn(), true);
+        return is_array($decoded) ? $decoded : [];
+    };
+    $h->test(
+        'N3 one auto_close_day audit row records the DEFERRAL after the first pass',
+        $auditCount() === 1 && (string)($auditPayloadOf()['status'] ?? '') === 'deferred_pending_endings',
+        json_encode(['audit' => $auditCount(), 'payload' => $auditPayloadOf()])
     );
     $h->test(
         'N4 pending_notified_at is stamped on the open PM shift',
@@ -209,7 +234,7 @@ try {
         'frozen=' . $frozenCount()
     );
 
-    // Second consecutive pass (as the next page load would do). Already closed →
+    // Second consecutive pass (as the next page load would do). Still deferred →
     // idempotent: no second audit row, no second notification.
     $secondClose = dl_maybeAutoCloseBranchDay($BRANCH, $ADMIN, null);
     $h->test(
@@ -218,59 +243,18 @@ try {
         json_encode(['returned' => $secondClose, 'audit' => $auditCount(), 'notifications' => $notifCount()])
     );
     $h->test(
-        'N3c the second pass left the day closed and the shift open',
-        $dayStatusOf() === 'closed' && $pmStatusOf() === 'open',
+        'N3c the second pass left the day OPEN and the shift open',
+        $dayStatusOf() === 'open' && $pmStatusOf() === 'open',
         json_encode(['day' => $dayStatusOf(), 'pm' => $pmStatusOf()])
     );
 
     // ══════════════════════════════════════════════════════════════════════
-    // N5 — the deliberate admin reopen is the remedy, end to end
+    // N5 — the branch finishes it WITHOUT an admin reopen
     // ══════════════════════════════════════════════════════════════════════
-    $h->section('N5 admin reopen → cashier edit → cashier finalize');
+    $h->section('N5 cashier finishes the deferred day → finalize → cutoff closes it');
 
-    // While closed, a cashier can neither edit a non-ending field nor finalize.
-    $closedEdit = null;
-    try {
-        dl_offlineApplyLedgerSave($cashier, [
-            'type' => 'ledger_save',
-            'payload' => ['branch_id' => $BRANCH, 'product_id' => $P_MOVED, 'field' => 'beg_bal', 'value' => 6, 'date' => $date, 'shift' => 'PM'],
-        ], true);
-    } catch (Throwable $e) {
-        $closedEdit = ['message' => $e->getMessage(), 'code' => (int)$e->getCode()];
-    }
-    $h->test(
-        'N5a a cashier edit is refused while the day is closed',
-        is_array($closedEdit) && $closedEdit['code'] === 403,
-        json_encode($closedEdit)
-    );
-
-    $closedFinalize = $runFinalize($BRANCH, $date, $CASHIER, 'cashier');
-    $h->test(
-        'N5b a cashier finalize is refused while the day is closed',
-        is_array($closedFinalize['json']) && ($closedFinalize['json']['ok'] ?? null) === false
-            && ($closedFinalize['json']['code'] ?? '') === 'DAY_CLOSED',
-        json_encode($closedFinalize)
-    );
-
-    // Admin reopen (the real service the handler uses).
-    $reopenRan = false;
-    try {
-        dl_reopenDayService($db, $BRANCH, $date, $ADMIN);
-        $reopenRan = true;
-    } catch (Throwable $e) {
-        $h->detail('N5 reopen threw: ' . $e->getMessage());
-    }
-    $reopenedAt = $db->prepare('SELECT reopened_at FROM dl_ledger_day_status WHERE branch_id = :b AND ledger_date = :d LIMIT 1');
-    $reopenedAt->execute([':b' => $BRANCH, ':d' => $date]);
-    $reopenedAtVal = $reopenedAt->fetchColumn();
-    $h->test(
-        'N5c admin reopen puts the day back to open with reopened_at set',
-        $reopenRan && $dayStatusOf() === 'open'
-            && $reopenedAtVal !== false && $reopenedAtVal !== null && (string)$reopenedAtVal !== '',
-        json_encode(['day' => $dayStatusOf(), 'reopened_at' => $reopenedAtVal])
-    );
-
-    // Cashier records the missing ending on the reopened day.
+    // 1. The cashier records the missing ending. No admin reopen is involved:
+    //    the day was left OPEN by the deferral, which is the whole point.
     $editAfter = null;
     try {
         $editAfter = dl_offlineApplyLedgerSave($cashier, [
@@ -283,72 +267,89 @@ try {
     $writtenEnd = $db->prepare('SELECT bal_end FROM dl_daily_ledger WHERE branch_id = :b AND product_id = :p AND ledger_date = :d AND shift = "PM"');
     $writtenEnd->execute([':b' => $BRANCH, ':p' => $P_MOVED, ':d' => $date]);
     $h->test(
-        'N5d after the admin reopen the cashier edit succeeds and persists',
-        is_array($editAfter) && !empty($editAfter['ok']) && (int)($writtenEnd->fetchColumn() ?: 0) === 7,
+        'N5a the deferred day is still editable, so the cashier records the ending',
+        is_array($editAfter) && !empty($editAfter['ok']) && (int)($writtenEnd->fetchColumn() ?? -1) === 7,
         json_encode(['result' => $editAfter])
     );
 
     $missingAfterEdit = dl_shiftMissingEndings($db, $BRANCH, $date, 'PM');
     $h->test(
-        'N5e the reopen + edit cleared the missing-ending gate',
+        'N5b the recorded ending cleared the missing-ending gate',
         $missingAfterEdit === [],
         json_encode(['missing' => array_column($missingAfterEdit, 'product_id')])
     );
 
-    // The REAL cashier finalize handler finalizes the PM shift.
+    // 2. The REAL cashier finalize handler finalizes the PM shift.
     $finalizeAfter = $runFinalize($BRANCH, $date, $CASHIER, 'cashier');
     $h->test(
-        'N5f the real cashier finalize handler finalizes the PM shift',
+        'N5c the real cashier finalize handler finalizes the PM shift',
         is_array($finalizeAfter['json']) && ($finalizeAfter['json']['ok'] ?? false) === true
             && $pmStatusOf() === 'finalized',
         json_encode(['harness' => $finalizeAfter, 'pm' => $pmStatusOf()])
     );
 
-    // The deliberately reopened day is exempt from auto-close even after the PM
-    // is finalized, so it is not re-closed under the admin: the admin closes it
-    // manually once the pending endings are done.
+    // 3. The next cutoff pass closes the day and freezes it — the day is not
+    //    left open forever, and its sales are official because the shift is.
     $postFinalizeClose = dl_maybeAutoCloseBranchDay($BRANCH, $ADMIN, null);
     $h->test(
-        'N5g the reopened day is not re-auto-closed after finalize (admin closes manually)',
-        $postFinalizeClose === false && $dayStatusOf() === 'open',
-        json_encode(['returned' => $postFinalizeClose, 'day' => $dayStatusOf()])
+        'N5d the next cutoff pass closes the finalized day',
+        $postFinalizeClose === true && $dayStatusOf() === 'closed' && $pmStatusOf() === 'finalized',
+        json_encode(['returned' => $postFinalizeClose, 'day' => $dayStatusOf(), 'pm' => $pmStatusOf()])
+    );
+    $h->test(
+        'N5e the closed day has its variances frozen',
+        $frozenCount() > 0 && $dayStatusOf() === 'closed',
+        'frozen=' . $frozenCount()
     );
 
     // ══════════════════════════════════════════════════════════════════════
-    // N6 — the finalized normal path still closes, recomputes and freezes
+    // N6 — the cutoff finalizes a COMPLETE ending shift, then closes
     // ══════════════════════════════════════════════════════════════════════
-    $h->section('N6 a finalized fully-manual day still closes + freezes');
+    $h->section('N6 the cutoff finalizes a complete ending shift, then closes');
 
     $db->execute('DELETE FROM dl_ledger_day_status WHERE branch_id = :b AND ledger_date = :d', [':b' => $BRANCH, ':d' => $date]);
     $db->execute('DELETE FROM dl_ledger_shift_status WHERE branch_id = :b AND ledger_date = :d', [':b' => $BRANCH, ':d' => $date]);
     $db->execute('DELETE FROM dl_daily_ledger WHERE branch_id = :b AND ledger_date = :d', [':b' => $BRANCH, ':d' => $date]);
     $db->execute('DELETE FROM dl_variance_flags WHERE branch_id = :b AND ledger_date = :d', [':b' => $BRANCH, ':d' => $date]);
     // beg 5 end 9 → ending variance 4, so the freeze has something to freeze.
+    // No shift-status row: nobody pressed "Close PM Shift".
     $db->execute(
         'INSERT INTO dl_daily_ledger (branch_id, product_id, ledger_date, shift, beg_bal, bal_end, sales) VALUES (:b, :p, :d, "PM", 5, 9, 0)',
         [':b' => $BRANCH, ':p' => $P_MOVED, ':d' => $date]
     );
-    $db->execute(
-        "INSERT INTO dl_ledger_shift_status (branch_id, ledger_date, shift, status, finalized_by, finalized_at)
-         VALUES (:b, :d, 'PM', 'finalized', :u, CURRENT_TIMESTAMP)",
-        [':b' => $BRANCH, ':d' => $date, ':u' => $ADMIN]
-    );
 
-    $finalizedClose = false;
+    $autoFinalizeClose = false;
     try {
-        $finalizedClose = dl_maybeAutoCloseBranchDay($BRANCH, $ADMIN, null);
+        $autoFinalizeClose = dl_maybeAutoCloseBranchDay($BRANCH, $ADMIN, null);
     } catch (Throwable $e) {
         $h->detail('N6 close threw: ' . $e->getMessage());
     }
     $h->test(
-        'N6a a finalized fully-manual day still closes',
-        $finalizedClose === true && $dayStatusOf() === 'closed',
-        json_encode(['returned' => $finalizedClose, 'day' => $dayStatusOf()])
+        'N6a a day whose endings are complete is FINALIZED by the cutoff and then closed',
+        $autoFinalizeClose === true && $dayStatusOf() === 'closed' && $pmStatusOf() === 'finalized',
+        json_encode(['returned' => $autoFinalizeClose, 'day' => $dayStatusOf(), 'pm' => $pmStatusOf()])
     );
     $h->test(
-        'N6b the finalized path froze the variance flags (recompute + freeze ran)',
+        'N6b the auto-finalized day has its variance flags frozen',
         $frozenCount() > 0,
         'frozen=' . $frozenCount()
+    );
+    $finalizeAudit = $db->prepare("SELECT new_data FROM audit_logs WHERE module = 'daily-ledger' AND action = 'finalize_shift' AND entity_id = :eid ORDER BY id DESC LIMIT 1");
+    $finalizeAudit->execute([':eid' => $BRANCH . '-' . $date . '-PM']);
+    $finalizePayload = json_decode((string)$finalizeAudit->fetchColumn(), true);
+    $h->test(
+        'N6c the auto-finalize is audited with its cutoff source',
+        is_array($finalizePayload) && (string)($finalizePayload['source'] ?? '') === 'auto_close_cutoff',
+        json_encode($finalizePayload)
+    );
+
+    // An ALREADY finalized day still takes the plain close path (no second finalize).
+    $db->execute('DELETE FROM dl_ledger_day_status WHERE branch_id = :b AND ledger_date = :d', [':b' => $BRANCH, ':d' => $date]);
+    $finalizedClose = dl_maybeAutoCloseBranchDay($BRANCH, $ADMIN, null);
+    $h->test(
+        'N6d an already-finalized day still closes (the normal path did not regress)',
+        $finalizedClose === true && $dayStatusOf() === 'closed' && $pmStatusOf() === 'finalized',
+        json_encode(['returned' => $finalizedClose, 'day' => $dayStatusOf(), 'pm' => $pmStatusOf()])
     );
 
     // ══════════════════════════════════════════════════════════════════════
@@ -379,6 +380,48 @@ try {
     $h->test(
         'N7e the cashier-facing closed-day refusal message is unchanged',
         dl_closedDayRefusalMessage() === 'This business date is closed. An admin must reopen the day before entries can be changed.'
+    );
+
+    // ══════════════════════════════════════════════════════════════════════
+    // N8 — an ABANDONED day is still closed by the later sweep
+    // ══════════════════════════════════════════════════════════════════════
+    $h->section('N8 an abandoned day past its grace day is still closed by the sweep');
+
+    $staleDate = (new DateTimeImmutable($date))->modify('-3 days')->format('Y-m-d');
+    $db->execute('DELETE FROM dl_ledger_day_status WHERE branch_id = :b AND ledger_date = :d', [':b' => $BRANCH, ':d' => $staleDate]);
+    $db->execute('DELETE FROM dl_ledger_shift_status WHERE branch_id = :b AND ledger_date = :d', [':b' => $BRANCH, ':d' => $staleDate]);
+    $db->execute('DELETE FROM dl_daily_ledger WHERE branch_id = :b AND ledger_date = :d', [':b' => $BRANCH, ':d' => $staleDate]);
+    $db->execute('DELETE FROM dl_variance_flags WHERE branch_id = :b AND ledger_date = :d', [':b' => $BRANCH, ':d' => $staleDate]);
+    // The sweep only selects days that carry an explicit 'open' status row.
+    $db->execute(
+        "INSERT INTO dl_ledger_day_status (branch_id, ledger_date, status) VALUES (:b, :d, 'open')",
+        [':b' => $BRANCH, ':d' => $staleDate]
+    );
+    // ...and this one still owes its PM ending, so it cannot be auto-finalized.
+    $db->execute(
+        'INSERT INTO dl_daily_ledger (branch_id, product_id, ledger_date, shift, beg_bal, bal_end, sales) VALUES (:b, :p, :d, "PM", 5, NULL, NULL)',
+        [':b' => $BRANCH, ':p' => $P_MOVED, ':d' => $staleDate]
+    );
+
+    $staleClose = dl_maybeAutoCloseBranchDay($BRANCH, $ADMIN, null);
+    $staleDayStatus = $db->prepare('SELECT status FROM dl_ledger_day_status WHERE branch_id = :b AND ledger_date = :d LIMIT 1');
+    $staleDayStatus->execute([':b' => $BRANCH, ':d' => $staleDate]);
+    $stalePmStatus = $db->prepare('SELECT status FROM dl_ledger_shift_status WHERE branch_id = :b AND ledger_date = :d AND shift = "PM" LIMIT 1');
+    $stalePmStatus->execute([':b' => $BRANCH, ':d' => $staleDate]);
+    $h->test(
+        'N8a the abandoned day is closed by the sweep with the PM still open',
+        $staleClose === true
+            && (string)$staleDayStatus->fetchColumn() === 'closed'
+            && (string)($stalePmStatus->fetchColumn() ?: 'missing') !== 'finalized',
+        json_encode(['returned' => $staleClose])
+    );
+    $staleAudit = $db->prepare("SELECT new_data FROM audit_logs WHERE module = 'daily-ledger' AND action = 'auto_close_day' AND entity_id = :eid ORDER BY id DESC LIMIT 1");
+    $staleAudit->execute([':eid' => $BRANCH . '-' . $staleDate . '-PM']);
+    $stalePayload = json_decode((string)$staleAudit->fetchColumn(), true);
+    $h->test(
+        'N8b the sweep records the closed_without_pm_finalize flag it always did',
+        is_array($stalePayload) && (string)($stalePayload['status'] ?? '') === 'closed_without_pm_finalize',
+        json_encode($stalePayload)
     );
 
     if ($prevAuthHeader === null) {

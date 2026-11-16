@@ -7,9 +7,10 @@ declare(strict_types=1);
  * .ai/dl-close-order-and-finalize-recovery.contract.md).
  *
  * Acceptance oracle for the four deliverables:
- *   A. an unfinalized manual day still CLOSES at the cutoff and the admin is
- *      notified (owner directive 2026-10-05; supersedes contract D1, which
- *      refused the close and left the day open);
+ *   A. a manual day whose day-ending shift still owes endings is NOT closed at
+ *      the cutoff: it stays open for the branch's late-count window and the
+ *      admin is notified (revised 2026-11-16; the 2026-10-05 "close anyway"
+ *      rule produced closed days with their PM still open and no close control);
  *   B. a cashier is STILL refused on a closed day, the refusal names the real
  *      remedy (day closed + admin must reopen), and the admin reopen path
  *      actually lets the cashier write again;
@@ -45,6 +46,15 @@ $prodUntouched = 99082;   // no activity at all
 $cashierId     = 999801;
 $adminId       = 999802;
 
+// The cutoff is opt-in per tenant. Persist it for the duration of this run so the
+// oracle does not depend on ambient module settings (measured 2026-11-16: tenant
+// 207 had auto_close_enabled=false, so A1 exercised nothing at all).
+$origSettings = getModuleSettings('daily-ledger');
+dlPersistModuleSettings(array_merge((array)$origSettings, [
+    'auto_close_enabled' => '1',
+    'close_of_day_time' => '22:00',
+    'operating_timezone' => 'UTC',
+]));
 $today = dl_businessDate();
 $prev  = (new DateTimeImmutable($today))->modify('-1 day')->format('Y-m-d');
 
@@ -124,9 +134,9 @@ try {
     $_SERVER['HTTP_AUTHORIZATION'] = 'Bearer ' . app()->jwt()->generate($cashier + ['token_type' => 'access']);
 
     // ══════════════════════════════════════════════════════════════════════════
-    // A. an unfinalized day closes + notifies; the admin reopen is the remedy
+    // A. an unfinished day is DEFERRED, not closed under the branch
     // ══════════════════════════════════════════════════════════════════════════
-    $h->section('A. close ordering (owner directive 2026-10-05)');
+    $h->section('A. close ordering (contract revised 2026-11-16)');
 
     $db->execute('DELETE FROM dl_ledger_day_status WHERE branch_id = :b AND ledger_date = :d', [':b' => $branchId, ':d' => $prev]);
     $db->execute('DELETE FROM dl_ledger_shift_status WHERE branch_id = :b AND ledger_date = :d', [':b' => $branchId, ':d' => $prev]);
@@ -146,11 +156,11 @@ try {
     $dayA = $dayStatusOf($branchId, $prev);
     $pmA = $shiftStatusOf($branchId, $prev, 'PM');
     $notifAStmt = $db->prepare('SELECT COUNT(*) FROM dl_integrity_notifications WHERE aggregate_key = :k');
-    $notifAStmt->execute([':k' => 'closed_without_pm_finalize-day-' . $branchId . '-' . $prev]);
+    $notifAStmt->execute([':k' => 'pending_endings-day-' . $branchId . '-' . $prev]);
     $notifACount = (int)$notifAStmt->fetchColumn();
     $h->test(
-        'A1 an unfinalized manual day CLOSES and the admin is notified (no day left open)',
-        $closeRan === true && $dayA === 'closed' && $pmA === 'open' && $notifACount === 1,
+        'A1 a day whose PM still owes an ending is LEFT OPEN, with one notification',
+        $closeRan === false && $dayA !== 'closed' && $pmA === 'open' && $notifACount === 1,
         json_encode(['close_returned' => $closeRan, 'day' => $dayA, 'pm' => $pmA, 'notifications' => $notifACount])
     );
 
@@ -352,6 +362,8 @@ try {
     }
 } finally {
     $cleanup();
+    saveModuleSettings('daily-ledger', is_array($origSettings) ? $origSettings : []);
+    dlModuleSettings(true);
 }
 
 $h->done();

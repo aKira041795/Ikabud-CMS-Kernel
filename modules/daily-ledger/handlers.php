@@ -2015,7 +2015,15 @@ function dl_businessDate(?\DateTimeImmutable $now = null): string
  * can apply exactly the SAME treatment to older days without re-implementing
  * a single rule. Owns its transaction when the caller is not already in one.
  *
- * @return string 'closed' | 'already_closed' | 'reopened' | 'failed'
+ * A manual day is closed only with its day-ending shift final:
+ *   - endings complete -> the shift is finalized here (source auto_close_cutoff)
+ *     so its sales are official, then the day's variances are swept and frozen;
+ *   - endings pending and $emitPerDayNotification (the day's own close) -> the
+ *     day is LEFT OPEN (`deferred`) so the branch can finish the counts;
+ *   - endings pending and no per-day notification (stale sweep) -> closed with
+ *     the closed_without_pm_finalize flag, as before.
+ *
+ * @return string 'closed' | 'deferred' | 'already_closed' | 'reopened' | 'failed'
  */
 function dl_autoCloseBranchDayAt($ctx, int $branchId, string $date, array $settings, ?int $closeActorId, bool $emitPerDayNotification): string
 {
@@ -2055,13 +2063,21 @@ function dl_autoCloseBranchDayAt($ctx, int $branchId, string $date, array $setti
         }
 
         // POS/fallback days close under their own receipt/checkpoint rules.
-        // A fully-manual day closes at the cutoff even when its PM shift is
-        // still open: a day left open compounds into the next day (owner
-        // directive 2026-10-05). The gap is flagged, the admin is notified, and
-        // the cashier is locked out of the closed day; the admin reopen is the
-        // remedy. Variance recompute/freeze still only runs for a finalized day.
-        // (Superseded contract 2026-10-05 D1, which refused the close and left
-        // the day open so the cashier kept the late-count window.)
+        //
+        // A manual day is NEVER closed while the shift that owns its sales is
+        // still open, unless the branch has already had more than one business
+        // day to finish it:
+        //   1. every ending recorded -> finalize the shift HERE (audited), so the
+        //      sales become official and the variances are swept and frozen;
+        //   2. endings pending, this is the day's OWN (yesterday) close -> leave
+        //      the day OPEN. The PM cashier keeps the late-count window and the
+        //      close control, and the sweep below closes it later if abandoned;
+        //   3. endings pending, stale sweep -> close with the existing
+        //      closed_without_pm_finalize flag and the admin notification.
+        // (Contract revised 2026-11-16. The 2026-10-05 "close anyway" rule is
+        // what produced days closed with their PM still open: the sales stayed
+        // provisional forever and the branch had no control left to finish them
+        // — measured on tenant 207, 2026-11-15, 15 branches.)
         if (dl_isFullyManualDay($db, $branchId, $date)) {
             // Ask about the shift that CLOSES this branch's day, not a hardcoded PM. A whole-day
             // branch (single_shift_mode) has no PM lifecycle at all - its ledger is AM only and
@@ -2072,48 +2088,81 @@ function dl_autoCloseBranchDayAt($ctx, int $branchId, string $date, array $setti
             // (Manukan-Branch2AM&PM, SINDANGAN BRANCH 2 AM&PM): every day carried an open PM row and
             // some had no AM row at all, so "no closed shift" was what the screen showed.
             $endShift = dl_dayEndingShift($branchId);
-            $pmRow = dl_lockShiftStatusRow($db, $branchId, $date, $endShift);
-            if ((string)($pmRow['status'] ?? 'open') !== 'finalized') {
-                // The day closes anyway: leaving it open is exactly what
-                // compounds the gap into the next day. Flag it and fall through
-                // to the normal close INSERT below. The audit and flag are
-                // idempotent, so re-running this path does not duplicate them.
-                $notify = $db->prepare(
-                    'UPDATE dl_ledger_shift_status SET pending_notified_at = COALESCE(pending_notified_at, CURRENT_TIMESTAMP)
-                      WHERE branch_id = :bid AND ledger_date = :d AND shift = :shift'
-                );
-                $notify->execute([':bid' => $branchId, ':d' => $date, ':shift' => $endShift]);
+            $endRow = dl_lockShiftStatusRow($db, $branchId, $date, $endShift);
+            if ((string)($endRow['status'] ?? 'open') !== 'finalized') {
+                // Inside this transaction, with the day lock and the shift-status
+                // row already held: compute the shift's sales and finalize it when
+                // nothing is owed. Returns the missing products instead of ever
+                // force-finalizing an incomplete shift.
+                $shiftResult = dl_finalizeDayEndingShiftCore($db, $branchId, $date, $endShift, $closeActorId, 'auto_close_cutoff');
 
-                // One audit row per day, not one per request: the aggregate
-                // close below is idempotent, but this path can re-run.
-                $auditStmt = $db->prepare(
-                    'SELECT COUNT(*) FROM audit_logs
-                      WHERE module = "daily-ledger" AND action = "auto_close_day" AND entity_id = :eid'
-                );
-                $auditStmt->execute([':eid' => "{$branchId}-{$date}-{$endShift}"]);
-                if ((int)$auditStmt->fetchColumn() === 0) {
-                    dl_auditLog('auto_close_day', $branchId, 'dl_ledger_shift_status', "{$branchId}-{$date}-{$endShift}", null, [
-                        'status' => 'closed_without_pm_finalize',
-                        'source' => 'auto_close_cutoff',
-                        'close_of_day_time' => $settings['close_of_day_time'],
-                    ]);
-                }
+                if ($shiftResult['finalized']) {
+                    // Official sales now exist; sweep and freeze the day's variances.
+                    dl_recomputeVariancesForDay($branchId, $date, false);
+                    dl_freezeVarianceFlags($db, $branchId, $date, $closeActorId);
+                } elseif ($emitPerDayNotification) {
+                    // The day's own close: DEFER. Closing it now would lock the
+                    // branch out of the only screen that can complete the endings.
+                    // One notification + one audit row per day, idempotent.
+                    $notify = $db->prepare(
+                        'UPDATE dl_ledger_shift_status SET pending_notified_at = COALESCE(pending_notified_at, CURRENT_TIMESTAMP)
+                          WHERE branch_id = :bid AND ledger_date = :d AND shift = :shift'
+                    );
+                    $notify->execute([':bid' => $branchId, ':d' => $date, ':shift' => $endShift]);
 
-                // D4: tell the admin immediately, through the existing channel.
-                // Only for the day's own (yesterday) close; the older-day sweep
-                // aggregates its notifications into ONE summary per pass so a
-                // backlog cannot flood the admin (see dl_maybeAutoCloseBranchDay).
-                if ($emitPerDayNotification) {
+                    $auditStmt = $db->prepare(
+                        'SELECT COUNT(*) FROM audit_logs
+                          WHERE module = "daily-ledger" AND action = "auto_close_day" AND entity_id = :eid'
+                    );
+                    $auditStmt->execute([':eid' => "{$branchId}-{$date}-{$endShift}"]);
+                    if ((int)$auditStmt->fetchColumn() === 0) {
+                        dl_auditLog('auto_close_day', $branchId, 'dl_ledger_shift_status', "{$branchId}-{$date}-{$endShift}", null, [
+                            'status' => 'deferred_pending_endings',
+                            'source' => 'auto_close_cutoff',
+                            'missing' => count($shiftResult['missing']),
+                            'close_of_day_time' => $settings['close_of_day_time'],
+                        ]);
+                    }
+
                     dl_raiseIntegrityNotification(
                         $db,
-                        'closed_without_pm_finalize-day-' . $branchId . '-' . $date,
+                        'pending_endings-day-' . $branchId . '-' . $date,
                         'closed_without_pm_finalize',
                         $branchId,
                         'dl_ledger_day_status',
                         null,
-                        'Business day closed with ' . $endShift . ' shift still open',
-                        'Branch #' . $branchId . ' business date ' . $date . ' reached the close-of-day cutoff while its ' . $endShift . ' shift was still open. The day WAS closed while its ' . $endShift . ' shift was still open, so pending endings still need completing. An admin must REOPEN the day so the encoder can complete the pending endings and finalize the ' . $endShift . ' shift.'
+                        'Business day left open: ' . $endShift . ' shift still needs endings',
+                        'Branch #' . $branchId . ' business date ' . $date . ' reached the close-of-day cutoff with ' . count($shiftResult['missing'])
+                        . ' product(s) missing their ' . $endShift . ' ending. The day was NOT closed, so the ' . $endShift
+                        . ' cashier can still complete the counts and close the shift today. If the day is abandoned it is closed automatically on a later pass.'
                     );
+
+                    if ($ownsTxn) {
+                        $db->commit();
+                    }
+                    return 'deferred';
+                } else {
+                    // Stale sweep: the branch already had more than a business day.
+                    // Close as before, with the flag and its per-day audit trail.
+                    $notify = $db->prepare(
+                        'UPDATE dl_ledger_shift_status SET pending_notified_at = COALESCE(pending_notified_at, CURRENT_TIMESTAMP)
+                          WHERE branch_id = :bid AND ledger_date = :d AND shift = :shift'
+                    );
+                    $notify->execute([':bid' => $branchId, ':d' => $date, ':shift' => $endShift]);
+
+                    $auditStmt = $db->prepare(
+                        'SELECT COUNT(*) FROM audit_logs
+                          WHERE module = "daily-ledger" AND action = "auto_close_day" AND entity_id = :eid'
+                    );
+                    $auditStmt->execute([':eid' => "{$branchId}-{$date}-{$endShift}"]);
+                    if ((int)$auditStmt->fetchColumn() === 0) {
+                        dl_auditLog('auto_close_day', $branchId, 'dl_ledger_shift_status', "{$branchId}-{$date}-{$endShift}", null, [
+                            'status' => 'closed_without_pm_finalize',
+                            'source' => 'auto_close_cutoff_sweep',
+                            'missing' => count($shiftResult['missing']),
+                            'close_of_day_time' => $settings['close_of_day_time'],
+                        ]);
+                    }
                 }
             } else {
                 // Finalized manual day: full variance sweep + freeze before closing.
@@ -2177,17 +2226,18 @@ function dl_maybeAutoCloseBranchDay(int $branchId, ?int $actorId = null, ?\DateT
     $closeActorId = ($actorId !== null && $actorId > 0) ? $actorId : null;
     $closedAny = false;
 
-    // ── Yesterday: exactly the existing behaviour, including its per-day
-    //    closed_without_pm_finalize notification. ───────────────────────────
+    // ── Yesterday: the day's own close. A manual day whose day-ending shift
+    //    still owes endings is DEFERRED (stays open) rather than closed, so the
+    //    cashier keeps the only screen that can finish it. ──────────────────
     if (dl_getDayStatus($branchId, $closeDate) !== 'closed') {
         $outcome = dl_autoCloseBranchDayAt($ctx, $branchId, $closeDate, $settings, $closeActorId, true);
         if ($outcome === 'closed') {
             $closedAny = true;
         }
-        // 'reopened' (deliberate admin work) and 'already_closed' deliberately
-        // fall through to the sweep below, so a day that was missed on its own
-        // "yesterday" is still recoverable even though today's yesterday is
-        // already closed.
+        // 'reopened' (deliberate admin work), 'deferred' (endings still owed)
+        // and 'already_closed' deliberately fall through to the sweep below, so
+        // a day that was missed on its own "yesterday" is still recoverable even
+        // though today's yesterday is already closed.
     }
 
     // ── Bounded SET SELECTION of stale open days ──────────────────────────
@@ -7423,6 +7473,68 @@ function dl_isFullyManualDay($db, int $branchId, string $date): bool
 }
 
 /**
+ * Finalize a day-ending shift INSIDE THE CALLER'S TRANSACTION.
+ *
+ * One implementation for the two ways a shift becomes final:
+ *   - the branch presses "Close PM Shift" (apiFinalizePmShift);
+ *   - the close-of-day cutoff reaches the day and the shift still owes nothing
+ *     (dl_autoCloseBranchDayAt). A day must never be closed with the shift that
+ *     owns its sales left open: that left the sales permanently provisional and
+ *     the branch locked out of the only control that could finish them.
+ *
+ * Never force-finalizes: an activity-bearing row with no ending is returned to
+ * the caller, which decides whether to defer the day (manual branches) or close
+ * it with the existing closed_without_pm_finalize flag (stale sweep).
+ *
+ * The caller MUST hold the day-status lock and the shift-status row lock
+ * (dl_lockShiftStatusRow) and MUST own the transaction.
+ *
+ * @return array{finalized:bool, missing:array<int,array{product_id:int,name:string,sku:string}>}
+ */
+function dl_finalizeDayEndingShiftCore($db, int $branchId, string $date, string $endShift, ?int $actorId, string $source = 'manual'): array
+{
+    $missing = dl_shiftMissingEndings($db, $branchId, $date, $endShift);
+    if ($missing !== []) {
+        return ['finalized' => false, 'missing' => $missing];
+    }
+
+    $userId = ($actorId !== null && $actorId > 0) ? (int)$actorId : 0;
+
+    // Recompute every sales value of the closing shift before the lifecycle is
+    // signed, so the official figure and the counts it derives from are written
+    // in the same transaction.
+    $updStmt = $db->prepare(
+        'SELECT product_id FROM dl_daily_ledger
+          WHERE branch_id = :bid AND ledger_date = :d AND shift = :shift'
+    );
+    $updStmt->execute([':bid' => $branchId, ':d' => $date, ':shift' => $endShift]);
+    foreach ($updStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r) {
+        dl_recomputeSales($branchId, (int)$r['product_id'], $date, $userId, $endShift);
+    }
+    dl_recomputeVariancesForDay($branchId, $date, false);
+
+    $db->prepare(
+        'UPDATE dl_ledger_shift_status
+            SET status = \'finalized\', finalized_by = :uid, finalized_at = CURRENT_TIMESTAMP
+          WHERE branch_id = :bid AND ledger_date = :d AND shift = :shift'
+    )->execute([
+        ':uid' => $userId > 0 ? $userId : null,
+        ':bid' => $branchId,
+        ':d' => $date,
+        ':shift' => $endShift,
+    ]);
+
+    dl_auditLog('finalize_shift', $branchId, 'dl_ledger_shift_status', "{$branchId}-{$date}-{$endShift}", ['status' => 'open'], [
+        'status' => 'finalized',
+        'shift' => $endShift,
+        'finalized_by' => $userId > 0 ? $userId : null,
+        'source' => $source,
+    ]);
+
+    return ['finalized' => true, 'missing' => []];
+}
+
+/**
  * Whether a cashier may edit the given branch/date/shift. The current business
  * date is always editable; additionally the immediately previous date's PM is
  * editable while that day is open and PM is still pending (late-count window
@@ -9268,6 +9380,17 @@ function handleCashierLedger(array $params = []): void
         : null;
     $depositEditable = $cashPaperCheckEnabled && $branchId > 0 && !$referenceOnly;
 
+    // Surface the state that used to be invisible: a day closed while the shift
+    // that owns its sales was still open. Nothing on the ledger could finalize
+    // it (every control is gated on day_status=='open'), so the branch saw a
+    // reference-only page with no explanation and the sales stayed provisional.
+    // Naming it — and naming the admin reopen as the remedy — is the difference
+    // between "no close button" and a defect report.
+    $dayEndingShift = dl_dayEndingShift((int)$branchId);
+    $dayEndingStatusRow = ($branchId > 0) ? dl_getShiftStatus($ctx->db(), (int)$branchId, (string)$ledgerDate, $dayEndingShift) : null;
+    $dayEndingStatus = (string)($dayEndingStatusRow['status'] ?? 'open');
+    $closedWithoutFinalize = ($branchId > 0 && $dayStatus === 'closed' && $dayEndingStatus !== 'finalized');
+
     echo dlRender('modules/daily-ledger/cashier/ledger.disyl', [
         'page_title'  => 'Daily Ledger',
         'user_name'   => $userName,
@@ -9339,6 +9462,9 @@ function handleCashierLedger(array $params = []): void
         'shift_status' => $shiftStatus,
         'pm_pending' => ($shift === 'PM' && $shiftStatus !== 'finalized'),
         'prior_pending_day' => $priorPendingDay,
+        'day_ending_shift' => $dayEndingShift,
+        'day_ending_shift_status' => $dayEndingStatus,
+        'closed_without_finalize' => $closedWithoutFinalize,
         'feature_cash_paper_check' => $cashPaperCheckEnabled,
         'deposit' => $depositContext,
         'deposit_editable' => $depositEditable,
@@ -13403,9 +13529,11 @@ function apiFinalizePmShift(array $params = []): void
             return;
         }
 
-        // Validate every currently active branch product has a recorded ending.
-        $missing = dl_shiftMissingEndings($ctx->db(), $branchId, $date, $endShift);
-        if (count($missing) > 0) {
+        // Validate + recompute + finalize through the ONE implementation the
+        // cutoff close also uses, so the manual and automatic paths cannot drift.
+        $result = dl_finalizeDayEndingShiftCore($ctx->db(), $branchId, $date, $endShift, $userId, 'manual');
+        if (!$result['finalized']) {
+            $missing = $result['missing'];
             $ctx->db()->rollBack();
             header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Complete all ' . $endShift . ' ending counts first.', 'type' => 'error']]));
             $ctx->json([
@@ -13418,30 +13546,6 @@ function apiFinalizePmShift(array $params = []): void
             ], 422);
             return;
         }
-
-        // Recompute every day-ending-shift sales value inside the lock, then the day variances.
-        $updStmt = $ctx->db()->prepare(
-            'SELECT product_id FROM dl_daily_ledger
-              WHERE branch_id = :bid AND ledger_date = :d AND shift = :shift'
-        );
-        $updStmt->execute([':bid' => $branchId, ':d' => $date, ':shift' => $endShift]);
-        foreach ($updStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r) {
-            dl_recomputeSales($branchId, (int)$r['product_id'], $date, $userId, $endShift);
-        }
-        dl_recomputeVariancesForDay($branchId, $date, false);
-
-        $finalize = $ctx->db()->prepare(
-            'UPDATE dl_ledger_shift_status
-                SET status = \'finalized\', finalized_by = :uid, finalized_at = CURRENT_TIMESTAMP
-              WHERE branch_id = :bid AND ledger_date = :d AND shift = :shift'
-        );
-        $finalize->execute([':uid' => $userId, ':bid' => $branchId, ':d' => $date, ':shift' => $endShift]);
-
-        dl_auditLog('finalize_shift', $branchId, 'dl_ledger_shift_status', "{$branchId}-{$date}-{$endShift}", ['status' => 'open'], [
-            'status' => 'finalized',
-            'shift' => $endShift,
-            'finalized_by' => $userId,
-        ]);
 
         $ctx->db()->commit();
 

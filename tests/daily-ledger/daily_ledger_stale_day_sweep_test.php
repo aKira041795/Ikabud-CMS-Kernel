@@ -6,8 +6,8 @@ declare(strict_types=1);
  * Daily Ledger — bounded backward sweep for stale open days.
  *
  * S1..S8 exercise the older-day sweep inside dl_maybeAutoCloseBranchDay():
- *   S1 an older open day IS closed by the sweep; yesterday's behaviour
- *      (per-day notification) is unchanged.
+ *   S1 an older open day IS closed by the sweep; yesterday, whose PM still owes
+ *      an ending, is DEFERRED (left open) as the 2026-11-16 contract requires.
  *   S2 a day with reopened_at set is NOT closed (now enforced by the query's
  *      reopened_at IS NULL), and it does NOT block older qualifying days.
  *   S3 (NEW) a CLOSED day between yesterday and a stale open day does not stop
@@ -146,7 +146,11 @@ $sweepNotifCount = static function () use ($db, $BRANCH): int {
     return (int)$s->fetchColumn();
 };
 $perDayNotifs = static function () use ($db, $BRANCH): int {
-    $s = $db->prepare("SELECT COUNT(*) FROM dl_integrity_notifications WHERE branch_id = :b AND aggregate_key LIKE 'closed_without_pm_finalize-day-%'");
+    $s = $db->prepare(
+        "SELECT COUNT(*) FROM dl_integrity_notifications
+          WHERE branch_id = :b
+            AND (aggregate_key LIKE 'closed_without_pm_finalize-day-%' OR aggregate_key LIKE 'pending_endings-day-%')"
+    );
     $s->execute([':b' => $BRANCH]);
     return (int)$s->fetchColumn();
 };
@@ -166,20 +170,24 @@ $sweepClose = static function () use ($BRANCH, $ADMIN, $now): bool {
 
 try {
     // ══════════════════════════════════════════════════════════════════════
-    // S1 — an older open day IS closed; yesterday is unchanged
+    // S1 — an older open day IS closed; yesterday with a pending ending defers
     // ══════════════════════════════════════════════════════════════════════
-    $h->section('S1 older open day closed; yesterday per-day notify unchanged');
+    $h->section('S1 older open day closed; yesterday with a pending ending defers');
     $reset();
     $seedActivity($YESTERDAY);           // yesterday: unfinalized manual day
     $setDay('2026-10-18', 'open');       // older day, explicitly open
 
     $r1 = $sweepClose();
     $h->test(
-        'S1a yesterday closes with its per-day notification (unchanged behaviour)',
+        'S1a yesterday, still owing an ending, is LEFT OPEN with one notification',
         $r1 === true
-            && $dayStatusOf($YESTERDAY) === 'closed'
-            && $notifCount('closed_without_pm_finalize-day-' . $BRANCH . '-' . $YESTERDAY) === 1,
-        json_encode(['returned' => $r1, 'day' => $dayStatusOf($YESTERDAY)])
+            && $dayStatusOf($YESTERDAY) !== 'closed'
+            && $notifCount('pending_endings-day-' . $BRANCH . '-' . $YESTERDAY) === 1,
+        json_encode([
+            'returned'        => $r1,
+            'day'             => $dayStatusOf($YESTERDAY),
+            'pending_notifs'  => $notifCount('pending_endings-day-' . $BRANCH . '-' . $YESTERDAY),
+        ])
     );
     $h->test(
         'S1b an older explicitly-open day IS closed by the sweep',

@@ -240,6 +240,16 @@
 </div>
 {/if}
 
+{* A day closed while its day-ending shift was still open used to render as a
+   plain reference-only page: no close control, no explanation, and sales that
+   never became official. Say exactly what happened and who can undo it. *}
+{if closed_without_finalize}
+<div class="mb-4 rounded-lg border border-rose-300 bg-rose-50 px-4 py-3 text-sm text-rose-900" role="alert" id="closed-without-finalize-notice">
+    <span class="font-semibold">This business date is closed, but its {day_ending_shift} shift was never finalized.</span>
+    <span class="ml-1">The {day_ending_shift} sales for {ledger_date} are therefore not official, and nothing on this page can compute or change them. An admin must reopen the day; the {day_ending_shift} endings can then be completed and the shift closed.</span>
+</div>
+{/if}
+
 {* Owner report 2026-11-14, in the branch's own words: "something suddenly adds or withdraws on our ledger
    when we had not touched anything." An admin carries no branch assignment, so a back-dated correction
    onto a finished day used to land with nothing telling the branch. The notice names what moved. *}
