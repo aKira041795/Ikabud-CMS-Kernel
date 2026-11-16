@@ -64,9 +64,26 @@ require_once $basePath . '/src/helpers/cli-bootstrap.php';
 
 $options = getopt('', ['tenant:', 'apply', 'since::', 'limit::', 'show::']);
 
-$tenantId = max(0, (int)($options['tenant'] ?? 0));
+// --tenant accepts a numeric id, a tenant_key, or a canonical domain — the live site's id is not
+// necessarily 207, and asking an operator to look it up is how the wrong tenant gets repaired.
+$tenantRef = trim((string)($options['tenant'] ?? ''));
+$tenantId = 0;
+if ($tenantRef !== '') {
+    if (ctype_digit($tenantRef)) {
+        $tenantId = (int)$tenantRef;
+    } else {
+        try {
+            $boot = kernelCliBootstrap(dirname(__DIR__, 3));
+            $lookup = $boot->db()->prepare('SELECT id FROM kernel_tenants WHERE tenant_key = :ref OR canonical_domain = :ref2 LIMIT 1');
+            $lookup->execute([':ref' => $tenantRef, ':ref2' => $tenantRef]);
+            $tenantId = (int)($lookup->fetchColumn() ?: 0);
+        } catch (\Throwable $e) {
+            $tenantId = 0;
+        }
+    }
+}
 if ($tenantId <= 0) {
-    fwrite(STDERR, "Usage: php modules/daily-ledger/cli/repair-closed-shift-status.php --tenant=<id> [--apply]\n");
+    fwrite(STDERR, "Usage: php modules/daily-ledger/cli/repair-closed-shift-status.php --tenant=<id|key|domain> [--apply]\n");
     exit(2);
 }
 
