@@ -193,7 +193,10 @@ try {
             echo '    … ' . (count($rows) - $show) . " more\n";
         }
     };
-    $printBucket('REPAIRABLE (shift finalized + sales computed + variances frozen)', $repairable);
+    // Label must state what this run ACTUALLY does. It said "variances frozen" after the variance
+    // derivation was removed (0c2d03ad), which reads as if the repair still moves variance state —
+    // the one thing it must not do.
+    $printBucket('REPAIRABLE (shift finalized + sales computed; variances untouched)', $repairable);
     $printBucket('NEEDS COUNTS (admin must reopen; this worker will not force a finalize)', $needsCounts);
 
     if (!$apply) {
