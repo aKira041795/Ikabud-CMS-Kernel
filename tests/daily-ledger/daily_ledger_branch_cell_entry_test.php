@@ -96,9 +96,9 @@ $h->test(
 $h->test(
     'correction vocabulary is copied from the cashier modal, not invented',
     str_contains($tpl, '<option value="correction">Correction — wrong entry</option>')
-    && str_contains($tpl, '<option value="encoder_omission">Encoder omission (nothing lost)</option>')
+    && str_contains($tpl, '<option value="unrecorded_delivery">Unrecorded delivery (on the DR but not written)</option>')
     && str_contains($cashierModal, '<option value="correction">Correction — W/Draw (wrong entry)</option>')
-    && str_contains($cashierModal, '<option value="encoder_omission">Encoder omission (nothing lost)</option>')
+    && str_contains($cashierModal, '<option value="unrecorded_delivery">Unrecorded delivery (on the DR but not written)</option>')
     && substr_count($tpl, '<option value="manual_adjustment">') === 2
     && str_contains($tpl, 'id="branch-cell-custom-reason-wrap"')
 );
@@ -267,6 +267,49 @@ try {
     ]);
     $matrix = dl_fetchProductionSheetDispatchMatrix($db, $date, $commissaryId);
     $h->test('AC5 a positive entry increases the cell by exactly N', (int)($matrix[$productA][$branchA] ?? 0) === 12);
+
+    $h->section('Core: the no-loss reasons follow the cashier rules on the sheet path');
+
+    // missed_entry is a no-loss reason: Add Stock without a charge-to is accepted.
+    dl_recordDailySheetBranchEntry($user, [
+        'date' => $date, 'commissary_branch_id' => $commissaryId, 'destination_branch_id' => $branchA,
+        'product_id' => $productA, 'quantity' => 2, 'type' => 'adjustment_add', 'reason_code' => 'missed_entry',
+        'submission_id' => 's10-missed-entry',
+    ]);
+    $matrix = dl_fetchProductionSheetDispatchMatrix($db, $date, $commissaryId);
+    $h->test('missed_entry as Add Stock is accepted without a charge-to', (int)($matrix[$productA][$branchA] ?? 0) === 14);
+
+    $drRefused = false;
+    $countBeforeDr = (int)$db->query("SELECT COUNT(*) FROM dl_deliveries WHERE origin_id = {$commissaryId}")->fetchColumn();
+    try {
+        dl_recordDailySheetBranchEntry($user, [
+            'date' => $date, 'commissary_branch_id' => $commissaryId, 'destination_branch_id' => $branchA,
+            'product_id' => $productA, 'quantity' => 1, 'type' => 'adjustment_add', 'reason_code' => 'unrecorded_delivery',
+            'submission_id' => 's10-unrecorded-no-dr',
+        ]);
+    } catch (\RuntimeException $e) {
+        $drRefused = str_contains($e->getMessage(), 'DR number');
+    }
+    $h->test('unrecorded_delivery without a DR is refused on the sheet path', $drRefused);
+    $h->test(
+        'the refused unrecorded delivery wrote nothing',
+        (int)$db->query("SELECT COUNT(*) FROM dl_deliveries WHERE origin_id = {$commissaryId}")->fetchColumn() === $countBeforeDr
+    );
+
+    $drEntry = dl_recordDailySheetBranchEntry($user, [
+        'date' => $date, 'commissary_branch_id' => $commissaryId, 'destination_branch_id' => $branchA,
+        'product_id' => $productA, 'quantity' => 1, 'type' => 'adjustment_add', 'reason_code' => 'unrecorded_delivery',
+        'dr_number' => 'SHEET-DR-77', 'submission_id' => 's10-unrecorded-with-dr',
+    ]);
+    $doorDr = (string)$db->query("SELECT dr_number FROM dl_deliveries WHERE id = " . (int)$drEntry['delivery_id'])->fetchColumn();
+    $matrix = dl_fetchProductionSheetDispatchMatrix($db, $date, $commissaryId);
+    $h->test('unrecorded_delivery with a DR is accepted and stored', $doorDr === 'SHEET-DR-77', $doorDr);
+    $h->test('the accepted unrecorded delivery adds its quantity once', (int)($matrix[$productA][$branchA] ?? 0) === 15);
+
+    $h->test(
+        'the sheet path shares the no-loss reason list',
+        str_contains((string)file_get_contents($base . '/modules/daily-ledger/handlers.php'), 'in_array($reasonCode, dl_noLossAdjustmentReasons(), true)')
+    );
     $h->test(
         'a custom reason is required when Reason is Other',
         (function () use ($user, $date, $commissaryId, $branchA, $productA): bool {

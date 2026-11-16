@@ -535,7 +535,7 @@
 <style>
     .variance-stat-grid {
         display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
         gap: .75rem;
         margin-bottom: 1.25rem;
     }
@@ -1107,6 +1107,13 @@
 
     <!-- Stat cards -->
     <div class="variance-stat-grid">
+        <a href="?view={view_mode}&status=open{filter_query}"
+           onclick="return window.dlLoadUrl(this.href, true)"
+           class="variance-stat variance-stat--unreviewed {if status_filter == 'open'}variance-stat--active{/if}">
+            <div class="variance-stat-label">Open</div>
+            <div class="variance-stat-value">{stats_open}</div>
+            <div class="variance-stat-sub">Unreviewed + investigated</div>
+        </a>
         <a href="?view={view_mode}&status=unreviewed{filter_query}"
            onclick="return window.dlLoadUrl(this.href, true)"
            class="variance-stat variance-stat--unreviewed {if status_filter == 'unreviewed'}variance-stat--active{/if}">
@@ -1126,12 +1133,12 @@
            class="variance-stat variance-stat--corrected {if status_filter == 'corrected'}variance-stat--active{/if}">
             <div class="variance-stat-label">Corrected</div>
             <div class="variance-stat-value">{stats_corrected}</div>
-            <div class="variance-stat-sub">Resolved</div>
+            <div class="variance-stat-sub">Settled — hidden from Open</div>
         </a>
-        <a href="?view={view_mode}{filter_query}"
+        <a href="?view={view_mode}&status=all{filter_query}"
            onclick="return window.dlLoadUrl(this.href, true)"
-           class="variance-stat variance-stat--total {if status_filter == '' || status_filter == null}variance-stat--active{/if}">
-            <div class="variance-stat-label">Total Flags</div>
+           class="variance-stat variance-stat--total {if status_filter == 'all'}variance-stat--active{/if}">
+            <div class="variance-stat-label">All Flags</div>
             <div class="variance-stat-value">{stats_total}</div>
             <div class="variance-stat-sub">{if kind_filter != ''}Net: {if stats_net_variance >= 0}+{/if}{stats_net_variance} units{else}flags across kinds (not netted){/if}</div>
         </a>
@@ -1150,9 +1157,14 @@
     <!-- Filter bar -->
     <div class="variance-filter-bar">
         <span class="text-xs font-semibold text-gray-500 mr-1">Quick filter:</span>
-        <a href="?view={view_mode}{filter_query}"
+        <a href="?view={view_mode}&status=open{filter_query}"
            onclick="return window.dlLoadUrl(this.href, true)"
-           class="variance-filter-pill {if status_filter == '' || status_filter == null}variance-filter-pill--active{/if}">
+           class="variance-filter-pill {if status_filter == 'open'}variance-filter-pill--active{/if}">
+            Open <span class="variance-filter-pill-count">{stats_open}</span>
+        </a>
+        <a href="?view={view_mode}&status=all{filter_query}"
+           onclick="return window.dlLoadUrl(this.href, true)"
+           class="variance-filter-pill {if status_filter == 'all'}variance-filter-pill--active{/if}">
             All <span class="variance-filter-pill-count">{stats_total}</span>
         </a>
         <a href="?view={view_mode}&status=unreviewed{filter_query}"
@@ -1176,11 +1188,24 @@
         <select class="form-input w-auto mt-0" name="kind"
                 onchange="window.dlLoadKindFilter(this.value)">
             <option value="">All Kinds</option>
+            {* Only offer a kind that still has a flag in the ACTIVE status filter (or is the
+               one already selected, so the control never shows a value that is not in it).
+               A settled kind therefore stops appearing in the picker. *}
+            {if visible_kind_counts.overnight > 0 || kind_filter == 'overnight'}
             <option value="overnight" {if kind_filter == 'overnight'}selected{/if}>Overnight (AM)</option>
+            {/if}
+            {if visible_kind_counts.handoff > 0 || kind_filter == 'handoff'}
             <option value="handoff" {if kind_filter == 'handoff'}selected{/if}>Handoff (PM)</option>
+            {/if}
+            {if visible_kind_counts.ending > 0 || kind_filter == 'ending'}
             <option value="ending" {if kind_filter == 'ending'}selected{/if}>Ending &gt; supply</option>
+            {/if}
+            {if visible_kind_counts.sales > 0 || kind_filter == 'sales'}
             <option value="sales" {if kind_filter == 'sales'}selected{/if}>Negative raw sales</option>
+            {/if}
+            {if visible_kind_counts.delivery > 0 || kind_filter == 'delivery'}
             <option value="delivery" {if kind_filter == 'delivery'}selected{/if}>Delivery sent vs received</option>
+            {/if}
         </select>
 
         <select class="form-input w-auto mt-0" name="shift"
@@ -1205,7 +1230,7 @@
         <input id="vf-date-to" type="date" class="form-input w-auto mt-0"
                value="{date_to}" onchange="window.dlLoadDateRange()">
 
-        {if branch_id || status_filter || search != '' || date_from != '' || date_to != ''}
+        {if branch_id || status_filter != 'open' || search != '' || date_from != '' || date_to != ''}
         <a href="?view={view_mode}"
            onclick="return window.dlLoadUrl(this.href, true)"
            class="text-xs text-indigo-600 hover:underline ml-1">Clear all</a>
@@ -1242,8 +1267,11 @@
             <i class="fas fa-check-circle text-4xl text-emerald-400 mb-3"></i>
             <p class="text-gray-900 font-semibold">No variance flags found</p>
             <p class="text-sm text-gray-500 mt-1">
-                {if status_filter}No {status_filter} flags match your filters.{/if}
-                {if !status_filter}All inventory transitions are clean for the selected criteria.{/if}
+                {if status_filter == 'corrected'}No corrected flags match your filters.{/if}
+                {if status_filter == 'unreviewed'}No unreviewed flags match your filters.{/if}
+                {if status_filter == 'investigated'}No investigated flags match your filters.{/if}
+                {if status_filter == 'open'}No open flags match your filters — every finding here is settled.{/if}
+                {if status_filter == 'all'}No flags match your filters.{/if}
             </p>
         </div>
     </div>
@@ -1413,6 +1441,13 @@
                             </td>
                         </tr>
                         {/foreach}
+                        {if bg.items | length == 0}
+                        <tr>
+                            <td colspan="13" class="text-sm text-amber-800 bg-amber-50">
+                                {bg.visible_count} matching flag(s) are beyond the first {variances_row_limit} rows this view loads. Narrow the filters above to see them.
+                            </td>
+                        </tr>
+                        {/if}
                     </tbody>
                 </table>
             </div>
@@ -1773,17 +1808,17 @@
         });
     }
 
-    // Save the review note for one variance without touching its status. Reads the
-    // row's current status so there is a single write path, and no-ops when the
-    // value is unchanged so a stray blur (tabbing through) writes nothing.
+    // Save the review note for one variance without touching its status. The note
+    // box on every row (and the decision note on a delivery variance) is a note
+    // surface only: the server stores the words and leaves the finding's state,
+    // reviewer and reviewed-at alone. No-ops when the value is unchanged so a
+    // stray blur (tabbing through) writes nothing.
     function updateVarianceNote(input) {
         var note = input.value;
         var saved = input.getAttribute('data-saved') || '';
         if (note === saved) { return; }
 
-        var cell = input.closest('td');
-        var select = cell ? cell.querySelector('select') : null;
-        var id = input.dataset.noteId;
+        var id = input.dataset.noteId || input.dataset.deliveryNoteId;
 
         input.disabled = true;
         fetch(BASE + '/api/v1/admin/variances/update', {
@@ -1791,7 +1826,6 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 variance_id: parseInt(id),
-                status: select ? select.value : 'unreviewed',
                 review_note: note
             })
         })
@@ -1866,8 +1900,11 @@
     // table. Keeping the wiring here also avoids DiSyL's inline-brace parsing.
     document.addEventListener('blur', function(e) {
         var el = e.target;
-        if (!el || !el.dataset || !el.dataset.deliveryRemarkId) { return; }
-        updateDeliveryRemark(el);
+        if (!el || !el.dataset) { return; }
+        if (el.dataset.deliveryRemarkId) { updateDeliveryRemark(el); return; }
+        // The regular note box saves through its inline onblur; only the delivery
+        // decision note needs the delegated path (it is inside the delivery block).
+        if (el.dataset.deliveryNoteId) { updateVarianceNote(el); }
     }, true);
     document.addEventListener('keydown', function(e) {
         var el = e.target;
@@ -1878,10 +1915,12 @@
             updateDeliveryRemark(el);
             return;
         }
-        if (!el.dataset.noteId) { return; }
+        if (!el.dataset.noteId && !el.dataset.deliveryNoteId) { return; }
         e.preventDefault();
+        // The blur itself performs the save (inline onblur for the note box, the
+        // delegated capture listener for the delivery decision note). Calling the
+        // save a second time here sent two identical writes per Enter.
         el.blur();
-        updateVarianceNote(el);
     }, true);
 </script>
 

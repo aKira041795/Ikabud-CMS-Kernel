@@ -74,6 +74,10 @@ $cleanup = static function () use ($db, $commissary, $destination, $product, $de
     $db->execute("DELETE FROM dl_daily_ledger WHERE branch_id IN ({$branchIds}) AND product_id = {$product} AND ledger_date IN ({$dates})");
     $db->execute("DELETE FROM dl_commissary_product_ledger WHERE commissary_branch_id IN ({$branchIds}) AND product_id = {$product} AND ledger_date IN ({$dates})");
     $db->execute("DELETE FROM dl_branch_products WHERE branch_id IN ({$branchIds}) AND product_id = {$product}");
+    // The API's variance update is now branch-authorized. The synthetic supervisor
+    // (user 1) gets the test branch only for this suite; the branch is created by
+    // this suite, so the pair cannot pre-exist.
+    $db->execute("DELETE FROM dl_user_branches WHERE user_id = 1 AND branch_id IN ({$branchIds})");
     $db->execute("DELETE FROM dl_products WHERE id = {$product}");
     $db->execute("DELETE FROM dl_branches WHERE id IN ({$branchIds})");
 };
@@ -105,6 +109,10 @@ try {
     $db->prepare('INSERT INTO dl_branch_products (branch_id,product_id,is_active) VALUES (?,?,1)')->execute([$commissary, $product]);
     // G2: the Daily Sheet delivery path requires the destination to carry the product too.
     $db->prepare('INSERT INTO dl_branch_products (branch_id,product_id,is_active) VALUES (?,?,1)')->execute([$destination, $product]);
+    // The variance update endpoint authorizes by BRANCH. The harness supervisor is user 1;
+    // assign it to the receiving branch so "a supervisor may investigate" tests an
+    // AUTHORIZED supervisor rather than a role with no branches at all.
+    $db->prepare('INSERT INTO dl_user_branches (user_id, branch_id) VALUES (1, ?)')->execute([$destination]);
     $db->prepare('INSERT INTO dl_commissary_product_ledger (commissary_branch_id,product_id,ledger_date,beg_qty,produced_qty,dispatched_qty,actual_end_qty) VALUES (?,?,?,30,30,20,40)')->execute([$commissary, $product, $date]);
 
     $itemA = 0;

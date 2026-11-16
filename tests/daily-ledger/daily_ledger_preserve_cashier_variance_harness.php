@@ -12,14 +12,14 @@ declare(strict_types=1);
  *
  *   { "role": "admin", "get": {...}, "body": {...} }
  *
- * Modes: decide | variance | incoming | variances-page
+ * Modes: decide | variance | incoming | variances-page | deposit
  */
 
 $basePath = dirname(__DIR__, 2);
 require_once $basePath . '/src/helpers/cli-bootstrap.php';
 $mode = (string)($argv[1] ?? '');
 $payloadFile = (string)($argv[2] ?? '');
-if (!in_array($mode, ['decide', 'variance', 'incoming', 'variances-page'], true) || !is_file($payloadFile)) {
+if (!in_array($mode, ['decide', 'variance', 'incoming', 'variances-page', 'deposit'], true) || !is_file($payloadFile)) {
     exit(2);
 }
 
@@ -76,6 +76,8 @@ if ($mode === 'decide') {
     apiUpdateVarianceStatus();
 } elseif ($mode === 'incoming') {
     apiGetIncomingDeliveries();
+} elseif ($mode === 'deposit') {
+    apiSaveShiftDeposit();
 } else {
     handleAdminVariances();
 }

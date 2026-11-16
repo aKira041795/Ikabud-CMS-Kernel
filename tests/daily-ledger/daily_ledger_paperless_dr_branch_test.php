@@ -85,7 +85,10 @@ if (is_array($col) && $hasFlag && $hasGate) {
     try {
         $db->prepare('UPDATE dl_branches SET paperless_dr_enabled = 1 WHERE id = :id')->execute([':id' => $branchId]);
         $h->test('switch ON: branch allows paperless stock-in', dl_branchPaperlessDrEnabled($branchId) === true);
-        $h->test('switch ON: cashier may add stock without a paper DR', dl_canAddStockWithoutPaperDr(['role' => 'cashier'], $branchId) === true);
+        // Owner rule 2026-11-14: a cashier never takes the DR-free Add Stock lane.
+        // Their only DR-free story is Own production for a product the branch makes.
+        $h->test('switch ON: cashier is still refused the DR-free lane', dl_canAddStockWithoutPaperDr(['role' => 'cashier'], $branchId) === false);
+        $h->test('switch ON: supervisor may add stock without a paper DR', dl_canAddStockWithoutPaperDr(['role' => 'supervisor'], $branchId) === true);
 
         $db->prepare('UPDATE dl_branches SET paperless_dr_enabled = 0 WHERE id = :id')->execute([':id' => $branchId]);
         $h->test('switch OFF: branch blocks paperless stock-in', dl_branchPaperlessDrEnabled($branchId) === false);
@@ -95,7 +98,7 @@ if (is_array($col) && $hasFlag && $hasGate) {
             'the exact abuse the client reported'
         );
         $h->test('switch OFF: admin bypasses', dl_canAddStockWithoutPaperDr(['role' => 'admin'], $branchId) === true);
-        $h->test('switch OFF: supervisor bypasses', dl_canAddStockWithoutPaperDr(['role' => 'supervisor'], $branchId) === true);
+        $h->test('switch OFF: supervisor is gated by the branch switch', dl_canAddStockWithoutPaperDr(['role' => 'supervisor'], $branchId) === false);
     } finally {
         if ($original !== false && $original !== null) {
             $db->prepare('UPDATE dl_branches SET paperless_dr_enabled = :v WHERE id = :id')

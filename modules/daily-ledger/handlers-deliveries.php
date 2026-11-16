@@ -3275,15 +3275,143 @@ function dl_canEditDeliveryByDr(array $user): bool
 }
 
 /**
+ * Move the RECEIVING side of a delivery to a corrected delivered quantity.
+ *
+ * Owner direction 2026-11-16 (admin correction by DR): when the office changes
+ * the quantity of a delivery (e.g. 45 sent, 25 actually received), the change
+ * must land on BOTH branches in one action — the sender's withdrawal ledger and
+ * the receiver's additional ledger — so nobody has to open the other branch to
+ * check whether the two sides still agree.
+ *
+ * The receiving's counted quantity becomes the corrected delivered quantity
+ * (duplicate lines are zeroed so the total is exact), the destination branch's
+ * `addtl` moves by the difference, and any open sent-vs-received variance for
+ * this product is settled as "accepted production" with the reason recorded.
+ *
+ * If the receiver has NO line for the product (a missed item added by the admin
+ * correction, or a product the branch never counted), the line is CREATED here:
+ * the admin correction is the decision that the stock arrived, and returning
+ * "not synced" would leave the two ledgers silently divergent while the API
+ * reported success. A zero-quantity correction creates nothing.
+ *
+ * @return array{synced:bool, before:?int, after:?int, ledger_delta:?int, created:bool}
+ */
+function dl_syncReceivingToDeliveredQty($db, array $receiving, int $productId, int $deliveredQty, int $actorId, string $reason, int $deliveryItemId = 0): array
+{
+    $receivingId = (int)($receiving['id'] ?? 0);
+    $branchId = (int)($receiving['branch_id'] ?? 0);
+    $ledgerDate = (string)($receiving['received_ledger_date'] ?? '');
+    $shift = (($receiving['received_shift'] ?? '') === 'PM') ? 'PM' : 'AM';
+    if ($receivingId <= 0 || $branchId <= 0 || $ledgerDate === '' || $productId <= 0) {
+        return ['synced' => false, 'before' => null, 'after' => null, 'ledger_delta' => null, 'created' => false];
+    }
+
+    $itemStmt = $db->prepare(
+        'SELECT id, quantity_received FROM dl_branch_receiving_items
+          WHERE receiving_id = :rid AND product_id = :pid ORDER BY id ASC FOR UPDATE'
+    );
+    $itemStmt->execute([':rid' => $receivingId, ':pid' => $productId]);
+    $items = $itemStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    $deliveredQty = max(0, $deliveredQty);
+    $before = 0;
+    $created = false;
+    if ($items === []) {
+        if ($deliveredQty <= 0) {
+            // Nothing arrived and nothing was counted: there is no line to move.
+            return ['synced' => false, 'before' => null, 'after' => null, 'ledger_delta' => null, 'created' => false];
+        }
+        $priceSnapshot = 0.0;
+        if ($deliveryItemId > 0) {
+            // Keep the receiving valuation consistent with the delivery line rather
+            // than inventing a zero price for a line this path created.
+            $priceStmt = $db->prepare('SELECT price_snapshot FROM dl_delivery_items WHERE id = :id LIMIT 1');
+            $priceStmt->execute([':id' => $deliveryItemId]);
+            $priceSnapshot = (float)($priceStmt->fetchColumn() ?: 0);
+        }
+        $db->prepare(
+            'INSERT INTO dl_branch_receiving_items
+                (receiving_id, delivery_item_id, product_id, quantity_received, unit, selling_price_snapshot, remarks)
+             VALUES (:rid, :did, :pid, :qty, "pcs", :price, :remarks)'
+        )->execute([
+            ':rid' => $receivingId,
+            ':did' => $deliveryItemId > 0 ? $deliveryItemId : null,
+            ':pid' => $productId,
+            ':qty' => $deliveredQty,
+            ':price' => $priceSnapshot,
+            ':remarks' => 'synchronised with delivery correction by DR',
+        ]);
+        $created = true;
+    } else {
+        foreach ($items as $item) {
+            $before += (int)$item['quantity_received'];
+        }
+        $update = $db->prepare('UPDATE dl_branch_receiving_items SET quantity_received = :qty WHERE id = :id');
+        $first = true;
+        foreach ($items as $item) {
+            $update->execute([':qty' => $first ? $deliveredQty : 0, ':id' => (int)$item['id']]);
+            $first = false;
+        }
+    }
+
+    $delta = $deliveredQty - $before;
+    if ($delta !== 0) {
+        dl_applyLedgerDelta($branchId, $productId, $ledgerDate, $delta, $actorId, 'addtl', $shift);
+    }
+
+    // The two sides now agree by construction, so an open sent-vs-received flag
+    // for this product is settled with the correction itself. Its original count
+    // and the reason survive on the row and in audit_logs.
+    $db->prepare(
+        'UPDATE dl_variance_flags
+            SET sent_qty = :sent, received_qty = :received,
+                original_counted_qty = COALESCE(original_counted_qty, :orig),
+                variance = 0,
+                resolution_status = \'corrected\',
+                resolution_choice = \'accept_production\',
+                is_reviewed = 1,
+                reviewed_by = :by,
+                reviewed_at = CURRENT_TIMESTAMP,
+                review_note = :note
+          WHERE kind = \'delivery\' AND delivery_id = :did AND product_id = :pid
+            AND resolution_status <> \'corrected\''
+    )->execute([
+        ':sent' => $deliveredQty,
+        ':received' => $deliveredQty,
+        ':orig' => $before,
+        ':by' => $actorId > 0 ? $actorId : null,
+        ':note' => 'Synchronised with delivery correction by DR: ' . $reason,
+        ':did' => (int)($receiving['delivery_id'] ?? 0),
+        ':pid' => $productId,
+    ]);
+
+    dl_auditLog('receiving_synced_to_delivery', $branchId, 'dl_branch_receiving_items', (string)$receivingId, [
+        'product_id' => $productId,
+        'quantity_received' => $before,
+    ], [
+        'product_id' => $productId,
+        'quantity_received' => $deliveredQty,
+        'ledger_delta' => $delta,
+        'shift' => $shift,
+        'line_created' => $created,
+    ], $reason);
+
+    return ['synced' => true, 'before' => $before, 'after' => $deliveredQty, 'ledger_delta' => $delta, 'created' => $created];
+}
+
+/**
  * Correct a paper-DR stock delivery (missed items, qty correction).
  *
  * The production side owns the SENT quantity, so this adjusts delivery items
  * and the origin ledger (the commissary dispatched quantity, or the origin
- * branch's withdraw column). It deliberately does NOT touch the cashier's
- * dl_branch_receivings / dl_branch_receiving_items rows and does NOT move the
- * destination branch's ledger: the branch holds what the cashier counted.
- * Where the corrected SENT differs from the cashier's counted RECEIVED, it
- * raises an unreviewed delivery variance for an admin to resolve.
+ * branch's withdraw column).
+ *
+ * An ADMIN correction (sync_destination = true) also moves the receiving side:
+ * the receiver's counted quantity becomes the corrected delivered quantity and
+ * the destination `addtl` moves by the difference, so both branches agree from
+ * one DR-keyed action. A cashier/supervisor correction leaves the cashier's
+ * counted evidence untouched and raises an unreviewed delivery variance for an
+ * admin to decide, exactly as before.
  *
  * A delivery item is never deleted (its receiving FK is ON DELETE SET NULL,
  * which would rewrite the cashier's evidence); a dropped line is zeroed.
@@ -3293,9 +3421,9 @@ function dl_canEditDeliveryByDr(array $user): bool
  * cashier same-day).
  *
  * $args: branch_id, dr_number, reason, desired (pid => qty), role,
- *        actor_id, business_date, has_override.
+ *        actor_id, business_date, has_override, sync_destination.
  * Returns ['ok'=>bool,'status'=>int,'error'=>?string,'delivery_id'=>?int,
- *          'item_count'=>int,'updated'=>int,'removed'=>int].
+ *          'item_count'=>int,'updated'=>int,'removed'=>int,'synced_received'=>int].
  */
 function dl_correctDeliveryByDr($db, array $args): array
 {
@@ -3307,6 +3435,9 @@ function dl_correctDeliveryByDr($db, array $args): array
     $actorId = (int)($args['actor_id'] ?? 0);
     $businessDate = (string)($args['business_date'] ?? date('Y-m-d'));
     $hasOverride = (bool)($args['has_override'] ?? false);
+    // Admin-only: move the receiving side with the sent side. False for a branch
+    // edit, whose count is evidence and whose difference is a variance.
+    $syncDestination = (bool)($args['sync_destination'] ?? false);
     $shift = (($args['shift'] ?? 'AM') === 'PM') ? 'PM' : 'AM';
 
     if ($branchId <= 0 || $drNumber === '' || $reason === '') {
@@ -3349,6 +3480,7 @@ function dl_correctDeliveryByDr($db, array $args): array
         $receiveDate = is_array($activeReceiving)
             ? (string)$activeReceiving['received_ledger_date']
             : $deliveryDate;
+        $receiveShift = is_array($activeReceiving) && (string)($activeReceiving['received_shift'] ?? '') === 'PM' ? 'PM' : 'AM';
         if (dl_getDayStatus($branchId, $receiveDate) === 'closed' && !$hasOverride) {
             $db->rollBack();
             return ['ok' => false, 'status' => 409, 'error' => 'Day is closed for this delivery.'];
@@ -3387,20 +3519,33 @@ function dl_correctDeliveryByDr($db, array $args): array
         $removed = [];
         // The corrected sent quantity the production side owns, per product.
         $correctedSent = [];
+        // When the admin synchronises the receiver, this holds the counted quantity
+        // that was written for each product, so the variance comparison below uses
+        // the value that is actually stored now (not the stale pre-sync read).
+        $syncedReceived = [];
 
         // Adjust the origin ledger for a sent-quantity change. The DESTINATION
-        // branch's ledger is deliberately NOT moved: the branch holds what the
-        // cashier counted. A commissary-origin delivery owns the commissary
-        // dispatched quantity; a branch-origin transfer owns the origin branch's
-        // daily-ledger withdraw column.
-        $applyOriginDelta = static function (int $pid, int $delta) use ($db, $delivery, $originBranchId, $deliveryDate, $actorId, $shift): void {
+        // branch's ledger is moved only by an admin synchronisation (see above).
+        // A commissary-origin delivery owns the commissary dispatched quantity;
+        // a branch-origin transfer owns the origin branch's daily-ledger withdraw
+        // column.
+        //
+        // The reversal MUST hit the same shift bucket the dispatch was applied to
+        // (dl_applyPostedDeliveryCommissaryLedger uses the delivery's production
+        // shift, including its NULL legacy bucket). Reversing into the viewer's
+        // current shift leaves the dispatch standing in its own bucket, so the
+        // correction appears to do nothing.
+        $deliveryShift = $delivery['production_shift'] ?? null;
+        $originShift = in_array($deliveryShift, ['AM', 'PM'], true) ? (string)$deliveryShift : null;
+        $applyOriginDelta = static function (int $pid, int $delta) use ($db, $delivery, $originBranchId, $deliveryDate, $actorId, $originShift, $shift): void {
             if ($delta === 0) {
                 return;
             }
             if ((string)$delivery['origin_type'] === 'commissary' && (int)$delivery['origin_id'] > 0) {
-                dl_applyCommissaryProductLedgerDelta($db, (int)$delivery['origin_id'], $pid, $deliveryDate, 0, $delta, $actorId, 0, true);
+                dl_applyCommissaryProductLedgerDelta($db, (int)$delivery['origin_id'], $pid, $deliveryDate, 0, $delta, $actorId, 0, true, $originShift);
             } elseif ($originBranchId > 0) {
-                dl_applyLedgerDelta($originBranchId, $pid, $deliveryDate, $delta, $actorId, 'withdraw', $shift);
+                // A branch ledger has no legacy NULL bucket: its rows are AM/PM.
+                dl_applyLedgerDelta($originBranchId, $pid, $deliveryDate, $delta, $actorId, 'withdraw', $originShift ?? $shift);
             }
         };
 
@@ -3441,6 +3586,17 @@ function dl_correctDeliveryByDr($db, array $args): array
                 }
                 $updated[$pid] = ['old' => $oldQty, 'new' => $qty];
             }
+            // The admin sync is IDEMPOTENT and runs even when the sent quantity did
+            // not change: a delivery line the receiver never counted still has to be
+            // created and credited, and a sent figure that already matches the DR can
+            // still disagree with the counted figure. Tying this to $delta !== 0 made
+            // "save the same quantity" report success while both ledgers diverged.
+            if ($syncDestination && is_array($activeReceiving)) {
+                $sync = dl_syncReceivingToDeliveredQty($db, $activeReceiving, $pid, $qty, $actorId, $reason, $deliveryItemId);
+                if (!empty($sync['synced'])) {
+                    $syncedReceived[$pid] = (int)$sync['after'];
+                }
+            }
         }
 
         // Remove delivery items that were dropped entirely from the corrected list.
@@ -3455,6 +3611,12 @@ function dl_correctDeliveryByDr($db, array $args): array
             $correctedSent[$pid] = 0;
             if ($oldQty !== 0) {
                 $applyOriginDelta($pid, -$oldQty);
+                if ($syncDestination && is_array($activeReceiving)) {
+                    $sync = dl_syncReceivingToDeliveredQty($db, $activeReceiving, $pid, 0, $actorId, $reason, (int)$existingItems[$pid]['id']);
+                    if (!empty($sync['synced'])) {
+                        $syncedReceived[$pid] = 0;
+                    }
+                }
             }
         }
 
@@ -3465,7 +3627,9 @@ function dl_correctDeliveryByDr($db, array $args): array
         if (is_array($activeReceiving)) {
             foreach ($existingReceived as $pid => $receivedRow) {
                 $pid = (int)$pid;
-                $counted = (int)($receivedRow['quantity_received'] ?? 0);
+                $counted = array_key_exists($pid, $syncedReceived)
+                    ? (int)$syncedReceived[$pid]
+                    : (int)($receivedRow['quantity_received'] ?? 0);
                 $sentNow = (int)($correctedSent[$pid] ?? 0);
                 if ($counted !== $sentNow) {
                     dl_raiseDeliveryVariance(
@@ -3482,12 +3646,12 @@ function dl_correctDeliveryByDr($db, array $args): array
         }
 
         foreach ($updated as $pid => $_) {
-            if ($originBranchId > 0) { dl_recomputeSales($originBranchId, $pid, $deliveryDate, max(0, $actorId), $shift); }
-            if (is_array($activeReceiving)) { dl_recomputeSales($branchId, $pid, $receiveDate, max(0, $actorId), $shift); }
+            if ($originBranchId > 0) { dl_recomputeSales($originBranchId, $pid, $deliveryDate, max(0, $actorId), $originShift ?? $shift); }
+            if (is_array($activeReceiving)) { dl_recomputeSales($branchId, $pid, $receiveDate, max(0, $actorId), $receiveShift); }
         }
         foreach ($removed as $pid => $_) {
-            if ($originBranchId > 0) { dl_recomputeSales($originBranchId, $pid, $deliveryDate, max(0, $actorId), $shift); }
-            if (is_array($activeReceiving)) { dl_recomputeSales($branchId, $pid, $receiveDate, max(0, $actorId), $shift); }
+            if ($originBranchId > 0) { dl_recomputeSales($originBranchId, $pid, $deliveryDate, max(0, $actorId), $originShift ?? $shift); }
+            if (is_array($activeReceiving)) { dl_recomputeSales($branchId, $pid, $receiveDate, max(0, $actorId), $receiveShift); }
         }
 
         dl_auditLog('edit_delivery_by_dr', $branchId, 'dl_deliveries', (string)$delivery['id'], null, [
@@ -3496,6 +3660,7 @@ function dl_correctDeliveryByDr($db, array $args): array
             'shift' => $shift,
             'updated' => $updated,
             'removed' => $removed,
+            'synced_received' => $syncedReceived,
             'edited_by_role' => $role,
         ], $reason);
 
@@ -3508,6 +3673,7 @@ function dl_correctDeliveryByDr($db, array $args): array
             'item_count' => count($desired),
             'updated' => count($updated),
             'removed' => count($removed),
+            'synced_received' => count($syncedReceived),
         ];
     } catch (\Throwable $e) {
         if ($db->inTransaction()) { $db->rollBack(); }
@@ -3574,10 +3740,13 @@ function apiGetDeliveryByDrForEdit(array $params = []): void
  * POST /daily-ledger/api/v1/cashier/ledger/delivery-edit
  *
  * Corrects a paper-DR stock delivery (missed items, qty correction).
- * Transactionally adjusts delivery items, the active receiving's items, and
- * the origin `withdraw` / destination `addtl` ledger deltas, then recomputes
- * derived sales. Cashiers may only correct the current business date; the day
- * must be open unless the actor holds ledger.override. A reason is required.
+ * Transactionally adjusts delivery items and the origin `withdraw` delta, then
+ * recomputes derived sales. An ADMIN also moves the receiving side (counted
+ * quantity and destination `addtl`) so both branches agree from one DR-keyed
+ * correction; a cashier/supervisor edit keeps the count as evidence and raises
+ * the sent-vs-received variance for the office to decide.
+ * Cashiers may only correct the current business date; the day must be open
+ * unless the actor holds ledger.override. A reason is required.
  */
 function apiEditDeliveryByDr(array $params = []): void
 {
@@ -3657,6 +3826,10 @@ function apiEditDeliveryByDr(array $params = []): void
         'business_date' => $businessDate,
         'has_override' => dl_roleHasPermission($role, 'ledger.override'),
         'shift' => $shift,
+        // Admin direction 2026-11-16: a quantity corrected by the office must land
+        // on BOTH branches through the DR — the sender's withdrawal and the
+        // receiver's additional — so nobody re-checks the other side by hand.
+        'sync_destination' => ($role === 'admin'),
     ]);
 
     if (!$result['ok']) {
@@ -3669,6 +3842,7 @@ function apiEditDeliveryByDr(array $params = []): void
         'item_count' => (int)$result['item_count'],
         'updated' => (int)$result['updated'],
         'removed' => (int)$result['removed'],
+        'synced_received' => (int)($result['synced_received'] ?? 0),
     ]);
 }
 

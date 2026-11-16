@@ -4909,12 +4909,15 @@ function dl_dailySheetAdjustmentTypes(): array
     ];
 }
 
-/** Reason codes, verbatim from the cashier modal. `encoder_omission` = owner's "encoder omission". */
+/** Reason codes, verbatim from the cashier modal. `encoder_omission` is legacy-only (no longer offered). */
 function dl_dailySheetAdjustmentReasons(): array
 {
     return [
         'manual_adjustment' => 'Manual adjustment',
-        'encoder_omission' => 'Encoder omission (nothing lost)',
+        'wrong_entry' => 'Wrong entry (nothing lost)',
+        'missed_entry' => 'Missed entry (nothing lost)',
+        'unrecorded_delivery' => 'Unrecorded delivery (on the DR but not written)',
+        'encoder_omission' => 'Encoder omission (legacy records)',
         'self_production' => 'Self production',
         'spoilage' => 'Spoilage',
         'staff_meal' => 'Staff meal',
@@ -5119,11 +5122,11 @@ function dl_recordDailySheetBranchEntry(array $user, array $input): array
         if ($reasonCode !== 'other') {
             $customReason = '';
         }
-        // Mirror the cashier liability rules exactly: an encoder omission lost
-        // nothing, so nobody is recorded or charged; other Add Stock does name a
-        // liable person. Every other type records what it records and charges nobody
-        // by default, so its charge-to stays optional.
-        if ($reasonCode === 'encoder_omission') {
+        // Mirror the cashier liability rules exactly: a wrong entry, a missed entry
+        // or an unrecorded delivery lost nothing, so nobody is recorded or charged;
+        // other Add Stock does name a liable person. Every other type records what
+        // it records and charges nobody by default, so its charge-to stays optional.
+        if (in_array($reasonCode, dl_noLossAdjustmentReasons(), true)) {
             $liableId = null;
         } else {
             $liableId = (int)($input['liable_user_id'] ?? 0);
@@ -5131,8 +5134,13 @@ function dl_recordDailySheetBranchEntry(array $user, array $input): array
                 $liableId = null;
             }
             if ($type === 'adjustment_add' && $liableId === null) {
-                throw new \RuntimeException('Charge to (liable person) is required for Add Stock that resolves a shortage. Use the Encoder omission reason if nothing was lost.');
+                throw new \RuntimeException('Charge to (liable person) is required for Add Stock that resolves a shortage. Choose Wrong entry, Missed entry or Unrecorded delivery if nothing was lost.');
             }
+        }
+        // Unrecorded delivery is tied to the DR the stock arrived on. Without the
+        // number the entry cannot be matched to the document it corrects.
+        if (dl_reasonRequiresDr($reasonCode) && $drNumber === '') {
+            throw new \RuntimeException('Unrecorded delivery needs the DR number the stock arrived on.');
         }
     }
 
@@ -5414,6 +5422,7 @@ function dl_recordDailySheetConsigneeEntry(array $user, array $input): array
     $type = trim((string)($input['type'] ?? ''));
     $reasonCode = trim((string)($input['reason_code'] ?? ''));
     $customReason = trim((string)($input['custom_reason'] ?? ''));
+    $drNumber = trim((string)($input['dr_number'] ?? ''));
     if ($hasEntry) {
         $adjTypes = dl_dailySheetAdjustmentTypes();
         $adjReasons = dl_dailySheetAdjustmentReasons();
@@ -5430,6 +5439,9 @@ function dl_recordDailySheetConsigneeEntry(array $user, array $input): array
             );
         }
         if ($reasonCode === 'other' && $customReason === '') throw new \RuntimeException('A custom reason is required when Reason is Other.');
+        if (dl_reasonRequiresDr($reasonCode) && $drNumber === '') {
+            throw new \RuntimeException('Unrecorded delivery needs the DR number the stock arrived on.');
+        }
     }
 
     if ($submissionId !== '') {
@@ -5451,8 +5463,8 @@ function dl_recordDailySheetConsigneeEntry(array $user, array $input): array
         $beforeStmt->execute([':c' => $consigneeId, ':p' => $productId, ':d' => $date, ':s' => $shift]);
         $before = (int)$beforeStmt->fetchColumn();
 
-        $deliveryStmt = $db->prepare('INSERT INTO dl_deliveries (origin_type, origin_id, destination_type, destination_id, consignee_id, dr_number, delivery_date, production_shift, receipt_required, status, created_by, posted_by, posted_at, remarks) VALUES ("commissary", :origin, "consignee", NULL, :consignee, NULL, :date, :shift, 0, "posted", :created, :posted, NOW(), :remarks)');
-        $deliveryStmt->execute([':origin' => $commissaryId, ':consignee' => $consigneeId, ':date' => $date, ':shift' => $shift, ':created' => $actorId ?: null, ':posted' => $actorId ?: null, ':remarks' => $hasEntry ? '[daily-sheet-consignee-entry] correction' : '[daily-sheet-consignee-entry] new']);
+        $deliveryStmt = $db->prepare('INSERT INTO dl_deliveries (origin_type, origin_id, destination_type, destination_id, consignee_id, dr_number, delivery_date, production_shift, receipt_required, status, created_by, posted_by, posted_at, remarks) VALUES ("commissary", :origin, "consignee", NULL, :consignee, :dr_number, :date, :shift, 0, "posted", :created, :posted, NOW(), :remarks)');
+        $deliveryStmt->execute([':origin' => $commissaryId, ':consignee' => $consigneeId, ':dr_number' => $drNumber !== '' ? $drNumber : null, ':date' => $date, ':shift' => $shift, ':created' => $actorId ?: null, ':posted' => $actorId ?: null, ':remarks' => $hasEntry ? '[daily-sheet-consignee-entry] correction' : '[daily-sheet-consignee-entry] new']);
         $deliveryId = (int)$db->lastInsertId();
         $itemStmt = $db->prepare('INSERT INTO dl_delivery_items (delivery_id, product_id, quantity, unit, unit_cost_snapshot, price_snapshot, price_group_id, remarks) VALUES (:d, :p, :q, "pcs", 0, :price, :pg, :remarks)');
         $priceGroupId = dl_defaultPriceGroupId();
@@ -9245,6 +9257,17 @@ function handleCashierLedger(array $params = []): void
 
     $ledgerRows = $branchId ? dl_fetchCashierLedgerRows($ctx->db(), (int)$branchId, $ledgerDate, $shift) : [];
     $settledSummary = dl_settledEndingSummary($ctx->db(), (int)$branchId, (string)$ledgerDate, (string)$shift, $role, false);
+
+    // Concern #2 (owner 2026-11-16): the branch records its deposit per shift and
+    // sees short/over immediately. The office reads the SAME reconciliation row on
+    // Cash & Paper Check, so the two surfaces cannot disagree. Gated by the feature
+    // switch, because the whole Cash & Paper Check concept is optional.
+    $cashPaperCheckEnabled = dl_settingToBool(dlModuleSettings()['cash_paper_check_enabled'] ?? false);
+    $depositContext = ($cashPaperCheckEnabled && $branchId > 0)
+        ? dl_shiftDepositContext($ctx->db(), (int)$branchId, (string)$ledgerDate, (string)$shift)
+        : null;
+    $depositEditable = $cashPaperCheckEnabled && $branchId > 0 && !$referenceOnly;
+
     echo dlRender('modules/daily-ledger/cashier/ledger.disyl', [
         'page_title'  => 'Daily Ledger',
         'user_name'   => $userName,
@@ -9316,6 +9339,9 @@ function handleCashierLedger(array $params = []): void
         'shift_status' => $shiftStatus,
         'pm_pending' => ($shift === 'PM' && $shiftStatus !== 'finalized'),
         'prior_pending_day' => $priorPendingDay,
+        'feature_cash_paper_check' => $cashPaperCheckEnabled,
+        'deposit' => $depositContext,
+        'deposit_editable' => $depositEditable,
     ]);
 }
 
@@ -10089,11 +10115,18 @@ function apiSaveCashierWithdrawals(array $params = []): void
     if ($reasonCode !== 'other') {
         $customReason = '';
     }
-    // Add Stock resolves a shortage, so it has to name who is charged. An encoder
-    // omission is not a shortage — the entry was simply missed — so no one is
-    // charged and liable_user_id stays NULL.
+    // An unrecorded delivery is an adjustment made against a real DR: the goods
+    // arrived but were not written on it. Without the DR number the entry cannot
+    // be tied to the document it corrects.
+    if (dl_reasonRequiresDr($reasonCode) && ($drNumber === null || trim((string)$drNumber) === '')) {
+        $ctx->json(['ok' => false, 'error' => 'Unrecorded delivery needs the DR number the stock arrived on.'], 422);
+        return;
+    }
+    // Add Stock resolves a shortage, so it has to name who is charged. A wrong
+    // entry, a missed entry or an unrecorded delivery is not a shortage — no one
+    // is charged and liable_user_id stays NULL.
     if ($type === 'adjustment_add' && $liableUserId === null && dl_adjustmentAddNeedsLiable($reasonCode)) {
-        $ctx->json(['ok' => false, 'error' => 'adjustment_add requires a liable_user_id (charge to person). Choose the Encoder omission reason if nothing was lost.'], 422);
+        $ctx->json(['ok' => false, 'error' => 'adjustment_add requires a liable_user_id (charge to person). Choose Wrong entry, Missed entry or Unrecorded delivery if nothing was lost.'], 422);
         return;
     }
 
@@ -10526,8 +10559,12 @@ function apiUpdateCashierWithdrawal(array $params = []): void
         $ctx->json(['ok' => false, 'error' => 'Invalid reason_code'], 422);
         return;
     }
+    if (dl_reasonRequiresDr($reasonCode) && ($drNumber === null || trim((string)$drNumber) === '')) {
+        $ctx->json(['ok' => false, 'error' => 'Unrecorded delivery needs the DR number the stock arrived on.'], 422);
+        return;
+    }
     if ($type === 'adjustment_add' && $liableUserId === null && dl_adjustmentAddNeedsLiable($reasonCode)) {
-        $ctx->json(['ok' => false, 'error' => 'adjustment_add requires a liable_user_id (charge to person). Choose the Encoder omission reason if nothing was lost.'], 422);
+        $ctx->json(['ok' => false, 'error' => 'adjustment_add requires a liable_user_id (charge to person). Choose Wrong entry, Missed entry or Unrecorded delivery if nothing was lost.'], 422);
         return;
     }
     if ($reasonCode === 'other' && $customReason === '') {
@@ -16544,6 +16581,123 @@ function dl_reconciliationState(bool $hasReconRow, float $ledgerSales, ?float $p
 }
 
 /**
+ * One shift's deposit position, for the branch's own sheet.
+ *
+ * Owner direction 2026-11-16 (concern #2): the branch records the cash deposit
+ * for its shift, and the short/over against the ledger is visible immediately —
+ * to the branch on the sheet and to the office on Cash & Paper Check, which
+ * reads the same dl_shift_reconciliation row.
+ *
+ * Ledger sales follows the SAME official-only rule the office page uses
+ * (dl_provisionalSqlExpr), so the two surfaces can never disagree. Pending
+ * endings and provisional rows are reported as counts, never folded into a
+ * number that would look final.
+ *
+ * @return array{
+ *   has_row:bool, cash_remitted:?float, paper_sales:?float,
+ *   recorded_by_name:string, recorded_at:?string,
+ *   ledger_sales:float, pending_rows:int, provisional_rows:int, row_count:int,
+ *   cash_variance:?float, state:string
+ * }
+ */
+function dl_shiftDepositContext($db, int $branchId, string $date, string $shift): array
+{
+    $empty = [
+        'has_row' => false, 'cash_remitted' => null, 'paper_sales' => null,
+        'recorded_by_name' => '', 'recorded_at' => null,
+        'ledger_sales' => 0.0, 'pending_rows' => 0, 'provisional_rows' => 0, 'row_count' => 0,
+        'cash_variance' => null, 'state' => 'unchecked',
+    ];
+    if ($branchId <= 0 || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) || !in_array($shift, ['AM', 'PM'], true)) {
+        return $empty;
+    }
+
+    $provisionalSql = dl_provisionalSqlExpr('dl', 'ss');
+    $salesStmt = $db->prepare(
+        'SELECT COUNT(*) AS row_count,
+                COALESCE(SUM(dl.bal_end IS NULL), 0) AS pending_rows,
+                COALESCE(SUM(CASE WHEN ' . $provisionalSql . ' THEN 1 ELSE 0 END), 0) AS provisional_rows,
+                ROUND(SUM(CASE WHEN ' . $provisionalSql . ' THEN 0 ELSE
+                    GREATEST(0, COALESCE(dl.beg_bal,0) + COALESCE(dl.addtl,0) - COALESCE(dl.withdraw,0) - COALESCE(dl.bal_end,0))
+                    * COALESCE(dl.price_snapshot,0) END), 2) AS ledger_sales
+           FROM dl_daily_ledger dl
+           LEFT JOIN dl_ledger_shift_status ss
+                  ON ss.branch_id = dl.branch_id AND ss.ledger_date = dl.ledger_date
+                 AND ss.shift = dl.shift COLLATE utf8mb4_unicode_ci
+          WHERE dl.branch_id = :bid AND dl.ledger_date = :d AND dl.shift = :shift'
+    );
+    $salesStmt->execute([':bid' => $branchId, ':d' => $date, ':shift' => $shift]);
+    $sales = $salesStmt->fetch(\PDO::FETCH_ASSOC) ?: [];
+
+    $reconStmt = $db->prepare(
+        'SELECT r.paper_sales, r.cash_remitted, r.recorded_at, COALESCE(u.full_name, \'\') AS recorded_by_name
+           FROM dl_shift_reconciliation r
+           LEFT JOIN dl_users u ON u.id = r.recorded_by
+          WHERE r.branch_id = :bid AND r.ledger_date = :d AND r.shift = :shift
+          LIMIT 1'
+    );
+    $reconStmt->execute([':bid' => $branchId, ':d' => $date, ':shift' => $shift]);
+    $recon = $reconStmt->fetch(\PDO::FETCH_ASSOC) ?: [];
+
+    $ledgerSales = round((float)($sales['ledger_sales'] ?? 0), 2);
+    $cash = ($recon['cash_remitted'] ?? null) === null ? null : round((float)$recon['cash_remitted'], 2);
+    $paper = ($recon['paper_sales'] ?? null) === null ? null : round((float)$recon['paper_sales'], 2);
+    $state = dl_reconciliationState(is_array($recon) && $recon !== [], $ledgerSales, $paper, $cash);
+    $cashVariance = $state['cash_variance'];
+    $pendingRows = (int)($sales['pending_rows'] ?? 0);
+    $provisionalRows = (int)($sales['provisional_rows'] ?? 0);
+
+    // Precomputed display strings: the template prints them once, so it never has
+    // to chain a numeric filter over a possibly-null value (0.00 is a real result
+    // and must not read as "nothing recorded").
+    if ($cashVariance === null) {
+        $varianceLabel = '—';
+        $varianceClass = 'text-gray-500';
+    } elseif (abs($cashVariance) < 0.005) {
+        $varianceLabel = 'Balanced';
+        $varianceClass = 'text-gray-600';
+    } elseif ($cashVariance < 0) {
+        $varianceLabel = 'Short by ' . number_format(abs($cashVariance), 2);
+        $varianceClass = 'text-rose-700';
+    } else {
+        $varianceLabel = 'Over by ' . number_format($cashVariance, 2);
+        $varianceClass = 'text-emerald-700';
+    }
+
+    if ($pendingRows > 0) {
+        $note = $pendingRows . ' product row(s) still have no ending count, so the sales figure is not final yet.';
+    } elseif ($provisionalRows > 0) {
+        $note = $provisionalRows . ' row(s) are provisional (their shift is not finalized), so the sales figure can still move.';
+    } elseif ($recon !== [] && $cash !== null) {
+        $note = 'Deposit recorded' . (($recon['recorded_by_name'] ?? '') !== '' ? ' by ' . (string)$recon['recorded_by_name'] : '')
+            . (($recon['recorded_at'] ?? null) !== null ? ' at ' . (string)$recon['recorded_at'] : '') . '.';
+    } else {
+        $note = 'No deposit recorded for this shift yet.';
+    }
+
+    return [
+        'has_row' => $recon !== [],
+        'cash_remitted' => $cash,
+        'paper_sales' => $paper,
+        'recorded_by_name' => (string)($recon['recorded_by_name'] ?? ''),
+        'recorded_at' => $recon['recorded_at'] ?? null,
+        'ledger_sales' => $ledgerSales,
+        'pending_rows' => $pendingRows,
+        'provisional_rows' => $provisionalRows,
+        'row_count' => (int)($sales['row_count'] ?? 0),
+        'cash_variance' => $cashVariance,
+        'cash_remitted_input' => $cash === null ? '' : number_format($cash, 2, '.', ''),
+        'cash_remitted_display' => $cash === null ? '—' : number_format($cash, 2),
+        'ledger_sales_display' => number_format($ledgerSales, 2),
+        'cash_variance_display' => $cashVariance === null ? '—' : (($cashVariance > 0 ? '+' : '') . number_format($cashVariance, 2)),
+        'variance_label' => $varianceLabel,
+        'variance_class' => $varianceClass,
+        'note' => $note,
+        'state' => $state['state'],
+    ];
+}
+
+/**
  * Shift reconciliation — the admin's external check on a shift.
  *
  * The ledger's sales is derived from counts, so it is only ever an INTERNAL check: it
@@ -16746,7 +16900,15 @@ function handleAdminVariances(array $params = []): void
 
     $input = $ctx->input();
     $branchId = !empty($input['branch_id']) ? (int)$input['branch_id'] : null;
-    $statusFilter = (string)($input['status'] ?? '');
+    // Default landing state is OPEN findings (unreviewed + investigated).
+    // Owner direction 2026-11-16: a settled/corrected variance must disappear
+    // from the queue instead of being re-read every day. 'corrected' and 'all'
+    // stay reachable, so history is never deleted, only out of the way.
+    $statusFilter = strtolower(trim((string)($input['status'] ?? '')));
+    if ($statusFilter === '') { $statusFilter = 'open'; }
+    if (!in_array($statusFilter, ['open', 'unreviewed', 'investigated', 'corrected', 'all'], true)) {
+        $statusFilter = 'open';
+    }
     $kindFilter = (string)($input['kind'] ?? '');
     $shiftFilter = strtoupper(trim((string)($input['shift'] ?? '')));
     if (!in_array($kindFilter, ['overnight', 'handoff', 'ending', 'sales', 'delivery'], true)) { $kindFilter = ''; }
@@ -16878,8 +17040,11 @@ function handleAdminVariances(array $params = []): void
 
     $whereFiltered = $whereScope;
     $bindFiltered = $bind;
-    $statusIsValid = in_array($statusFilter, ['unreviewed', 'investigated', 'corrected'], true);
-    if ($statusFilter !== '' && $statusIsValid) {
+    // 'open' is the default queue: unreviewed + investigated. The other statuses
+    // remain explicit choices, and 'all' shows the complete history.
+    if ($statusFilter === 'open') {
+        $whereFiltered .= " AND vf.resolution_status IN ('unreviewed','investigated')";
+    } elseif ($statusFilter !== 'all') {
         $whereFiltered .= ' AND vf.resolution_status = :st';
         $bindFiltered[':st'] = $statusFilter;
     }
@@ -16938,6 +17103,27 @@ function handleAdminVariances(array $params = []): void
     );
     $listStmt->execute($bindFiltered);
     $variances = $listStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    // Kinds and branches that still have a row in the CURRENT filter. The owner's
+    // complaint was that a settled kind and branch group stayed on screen forever:
+    // the dropdown and the grouped headers must be built from what is actually
+    // visible, not from the full history.
+    $visibleKindCounts = ['overnight' => 0, 'handoff' => 0, 'ending' => 0, 'sales' => 0, 'delivery' => 0];
+    $visibleKindStmt = $ctx->db()->prepare(
+        'SELECT vf.kind, COUNT(*) AS flag_count ' . $filteredFromSql . ' GROUP BY vf.kind'
+    );
+    $visibleKindStmt->execute($bindFiltered);
+    foreach ($visibleKindStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $visibleKindRow) {
+        $visibleKindCounts[(string)$visibleKindRow['kind']] = (int)$visibleKindRow['flag_count'];
+    }
+    $visibleBranchCounts = [];
+    $visibleBranchStmt = $ctx->db()->prepare(
+        'SELECT vf.branch_id, COUNT(*) AS flag_count ' . $filteredFromSql . ' GROUP BY vf.branch_id'
+    );
+    $visibleBranchStmt->execute($bindFiltered);
+    foreach ($visibleBranchStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $visibleBranchRow) {
+        $visibleBranchCounts[(int)$visibleBranchRow['branch_id']] = (int)$visibleBranchRow['flag_count'];
+    }
 
     // A side remark is the named branch's own statement. Expose the branches this user may speak
     // for, using the SAME roles apiSaveDeliveryVarianceRemark accepts (cashier, supervisor,
@@ -17011,8 +17197,10 @@ function handleAdminVariances(array $params = []): void
         'unreviewed' => $statsUnreviewed,
         'investigated' => $statsInvestigated,
         'corrected' => $statsCorrected,
+        'open' => $statsUnreviewed + $statsInvestigated,
         default => $statsTotal,
     };
+    $statsOpen = $statsUnreviewed + $statsInvestigated;
 
     // ── Per-branch breakdown ─────────────────────────────────────────
     // Branch counts describe every matching flag; only the expandable item lists
@@ -17041,6 +17229,12 @@ function handleAdminVariances(array $params = []): void
             $branchSummary[$bid][$aggStatus] += $aggCount;
         }
     }
+    // Visible count for the CURRENT status filter. A group with zero visible rows
+    // is not rendered at all, so a settled branch disappears instead of opening
+    // an empty table.
+    foreach ($branchSummary as $bid => $_) {
+        $branchSummary[$bid]['visible_count'] = (int)($visibleBranchCounts[$bid] ?? 0);
+    }
     foreach ($variances as $v) {
         $bid = (int)($v['branch_id'] ?? 0);
         if (!isset($branchSummary[$bid])) {
@@ -17058,7 +17252,11 @@ function handleAdminVariances(array $params = []): void
         }
         $branchSummary[$bid]['items'][] = $v;
     }
-    // Sort branches by unreviewed count desc, then name
+    // Sort branches by unreviewed count desc, then name; drop groups with nothing
+    // visible under the active filter.
+    $branchSummary = array_values(array_filter($branchSummary, static function (array $branch): bool {
+        return (int)($branch['visible_count'] ?? 0) > 0;
+    }));
     uasort($branchSummary, function($a, $b) {
         if ($a['unreviewed'] !== $b['unreviewed']) {
             return $b['unreviewed'] - $a['unreviewed'];
@@ -17137,8 +17335,10 @@ function handleAdminVariances(array $params = []): void
         'stats_unreviewed'   => $statsUnreviewed,
         'stats_investigated' => $statsInvestigated,
         'stats_corrected'    => $statsCorrected,
+        'stats_open'         => $statsOpen,
         'stats_by_kind'      => $statsByKind,
         'stats_net_variance' => $statsTotalVariance,
+        'visible_kind_counts' => $visibleKindCounts,
         // Page slice vs full set, so the page can say what it is not showing
         'variances_total_matching' => $filteredTotal,
         'variances_scope_total'    => $statsTotal,
@@ -20069,8 +20269,13 @@ function apiUpdateVarianceStatus(array $params = []): void
     $input = $ctx->input();
     $varianceId = (int)($input['variance_id'] ?? 0);
     $status = (string)($input['status'] ?? '');
+    // A note-only save (no `status` key) is its own, narrow operation. The note box
+    // on every row saves on blur, and a note is not a status transition: sending a
+    // status there would re-run the transition rules (and made delivery notes
+    // impossible to save after a decision).
+    $statusProvided = is_array($input) && array_key_exists('status', $input) && trim((string)$input['status']) !== '';
 
-    if ($varianceId <= 0 || !in_array($status, ['unreviewed', 'investigated', 'corrected'], true)) {
+    if ($varianceId <= 0 || ($statusProvided && !in_array($status, ['unreviewed', 'investigated', 'corrected'], true))) {
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Invalid variance/status', 'type' => 'error']]));
         $ctx->json(['ok' => false, 'error' => 'Invalid variance_id or status'], 422);
         return;
@@ -20141,11 +20346,48 @@ function apiUpdateVarianceStatus(array $params = []): void
             $ctx->json(['ok' => false, 'error' => 'Variance not found'], 404);
             return;
         }
+
+        // Authorization is the BRANCH, not only the role. The page filters the list to
+        // the caller's branches, but filtering is presentation and cannot double as a
+        // boundary: without this check a supervisor who knows another branch's variance
+        // id could settle it. Same accessible set every other write path uses.
+        $authorizedBranches = array_map('intval', dl_accessibleBranchIds($user));
+        if (!in_array((int)$before['branch_id'], $authorizedBranches, true)) {
+            $ctx->db()->rollBack();
+            $ctx->json(['ok' => false, 'error' => 'This variance belongs to a branch outside your access.'], 403);
+            return;
+        }
+
+        // ── Note-only save ──────────────────────────────────────────────
+        // No status key means "store these words and nothing else". Present-and-empty
+        // clears; the row's status, reviewer and reviewed_at are untouched. This is
+        // the only write the row's note box performs, so a note can never silently
+        // change a finding's state.
+        if (!$statusProvided) {
+            if (!$hasNote) {
+                $ctx->db()->rollBack();
+                $ctx->json(['ok' => false, 'error' => 'A status or review_note is required.'], 422);
+                return;
+            }
+            $ctx->db()->prepare('UPDATE dl_variance_flags SET review_note = :note WHERE id = :id')
+                ->execute([':note' => $note === '' ? null : $note, ':id' => $varianceId]);
+            dl_auditLog('variance_note', (int)$before['branch_id'], 'dl_variance_flags', (string)$varianceId,
+                ['review_note' => $before['review_note']],
+                ['review_note' => $note === '' ? null : $note]);
+            $ctx->db()->commit();
+            $ctx->json(['ok' => true, 'review_note' => $note, 'status_unchanged' => true]);
+            return;
+        }
         // A delivery sent-vs-received variance is settled only by the explicit
         // admin acceptance decision (accept production OR keep as evidence).
-        // This generic endpoint must not be a second door to that outcome, so a
-        // supervisor (or anyone) cannot mark it corrected from here.
-        if ((string)($before['kind'] ?? '') === 'delivery' && $status === 'corrected') {
+        // This generic endpoint must not be a second door to that OUTCOME, so a
+        // supervisor (or anyone) cannot mark it corrected from here. Editing the
+        // note on a row that is ALREADY corrected is not an outcome change and
+        // must keep working — otherwise the decision note could never be
+        // corrected afterwards.
+        if ((string)($before['kind'] ?? '') === 'delivery'
+            && $status === 'corrected'
+            && (string)($before['resolution_status'] ?? '') !== 'corrected') {
             $ctx->db()->rollBack();
             $ctx->json([
                 'ok' => false,
@@ -20563,6 +20805,146 @@ function apiResolveDeliveryVariance(array $params = []): void
         ]);
         $ctx->json(['ok' => false, 'error' => 'Server error'], 500);
         return;
+    }
+}
+
+/**
+ * POST /daily-ledger/api/v1/cashier/ledger/deposit
+ *
+ * The BRANCH's own shift deposit (cash remitted). Owner direction 2026-11-16:
+ * the branch enters the deposit per shift and the short/over against the
+ * ledger is visible immediately; the office sees the same figure on Cash &
+ * Paper Check.
+ *
+ * Deliberately narrow: this endpoint writes ONLY `cash_remitted` on this
+ * branch/date/shift. The paper total and the reviewer's note stay the office's
+ * to write, so a branch save can never overwrite them.
+ *
+ * Available only while the Cash & Paper Check feature is switched on. A caller
+ * must be assigned to the branch, and a shift lock / reference-only date is
+ * enforced for branch users exactly as the ledger itself enforces it.
+ */
+function apiSaveShiftDeposit(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) {
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => 'Module context unavailable']);
+        return;
+    }
+
+    if (!dl_settingToBool(dlModuleSettings()['cash_paper_check_enabled'] ?? false)) {
+        $ctx->json(['ok' => false, 'error' => 'Cash & Paper Check is switched off for this site.'], 403);
+        return;
+    }
+
+    $user = dlCurrentUser(['cashier', 'supervisor', 'admin']);
+    $role = (string)($user['role'] ?? '');
+    $input = $ctx->input();
+
+    $authResult = dl_authorizeBranch($user, is_array($input) ? $input : []);
+    if ((int)($authResult['branch_id'] ?? -1) < 0) {
+        header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Branch not authorized', 'type' => 'error']]));
+        $ctx->json(['ok' => false, 'error' => 'Branch not authorized'], 403);
+        return;
+    }
+    $branchId = (int)($authResult['branch_id'] ?? 0);
+    $date = trim((string)($input['date'] ?? ''));
+    $shiftResolved = dl_resolveLedgerShift($user, is_array($input) ? $input : []);
+    $shift = (string)($shiftResolved['shift'] ?? 'AM');
+
+    if ($branchId <= 0 || preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) !== 1 || !in_array($shift, ['AM', 'PM'], true)) {
+        $ctx->json(['ok' => false, 'error' => 'Invalid branch, date or shift'], 422);
+        return;
+    }
+
+    // Branch users may only write the shift the ledger itself lets them write.
+    // The office (admin/supervisor) may still record a deposit on a closed shift on
+    // purpose: dl_shift_reconciliation is the EXTERNAL check against the paper sheet,
+    // not a stock/money ledger mutation, and the office's own page
+    // (apiSaveReconciliation) has always allowed it for any date. The branch is held
+    // to the ledger's edit window, so a closed/finalized shift stays read-only there.
+    if (!in_array($role, ['admin', 'supervisor'], true)) {
+        $dayStatus = dl_getDayStatus($branchId, $date);
+        if (!dl_cashierMayEdit($branchId, $date, $shift, dl_businessDate(), $dayStatus)) {
+            $ctx->json(['ok' => false, 'error' => 'This shift is closed or outside the date you may edit. Ask an admin to reopen it.'], 403);
+            return;
+        }
+    }
+
+    if (!is_array($input) || !array_key_exists('cash_remitted', $input)) {
+        $ctx->json(['ok' => false, 'error' => 'cash_remitted is required'], 422);
+        return;
+    }
+    $raw = $input['cash_remitted'];
+    $cash = null;
+    if (!($raw === null || (is_scalar($raw) && trim((string)$raw) === ''))) {
+        if (!is_scalar($raw) || !is_numeric($raw)) {
+            $ctx->json(['ok' => false, 'error' => 'The deposit must be a number'], 422);
+            return;
+        }
+        $cash = round((float)$raw, 2);
+        if ($cash < 0 || $cash > 9999999999.99) {
+            $ctx->json(['ok' => false, 'error' => 'The deposit must be between 0 and 9,999,999,999.99'], 422);
+            return;
+        }
+    }
+
+    $recordedBy = null;
+    $actorId = dl_getActorUserId(is_array($user) ? $user : []);
+    if ($actorId > 0) {
+        if (($user['source'] ?? '') === 'daily-ledger') {
+            $chk = $ctx->db()->prepare('SELECT id FROM dl_users WHERE id = :id AND deleted_at IS NULL LIMIT 1');
+            $chk->execute([':id' => $actorId]);
+            if ((int)($chk->fetchColumn() ?: 0) > 0) { $recordedBy = $actorId; }
+        } elseif (($user['source'] ?? '') === 'kernel') {
+            $recordedBy = $actorId;
+        }
+    }
+
+    try {
+        $ctx->db()->prepare(
+            'INSERT INTO dl_shift_reconciliation
+                (branch_id, ledger_date, shift, cash_remitted, recorded_by, recorded_at)
+             VALUES (:bid, :d, :shift, :cash, :uid, CURRENT_TIMESTAMP)
+             ON DUPLICATE KEY UPDATE
+                cash_remitted = VALUES(cash_remitted),
+                recorded_by   = VALUES(recorded_by),
+                recorded_at   = VALUES(recorded_at)'
+        )->execute([
+            ':bid' => $branchId,
+            ':d' => $date,
+            ':shift' => $shift,
+            ':cash' => $cash,
+            ':uid' => $recordedBy,
+        ]);
+
+        dl_auditLog(
+            'shift_deposit_saved',
+            $branchId,
+            'dl_shift_reconciliation',
+            "{$branchId}-{$date}-{$shift}",
+            null,
+            ['cash_remitted' => $cash, 'recorded_by' => $recordedBy]
+        );
+
+        $context = dl_shiftDepositContext($ctx->db(), $branchId, $date, $shift);
+        $ctx->json([
+            'ok' => true,
+            'cash_remitted' => $context['cash_remitted'],
+            'ledger_sales' => $context['ledger_sales'],
+            'cash_variance' => $context['cash_variance'],
+            'pending_rows' => $context['pending_rows'],
+            'provisional_rows' => $context['provisional_rows'],
+        ]);
+    } catch (\Throwable $e) {
+        write_log('daily-ledger apiSaveShiftDeposit failed', 'error', [
+            'error' => $e->getMessage(),
+            'branch_id' => $branchId,
+            'ledger_date' => $date,
+            'shift' => $shift,
+        ]);
+        $ctx->json(['ok' => false, 'error' => 'Could not save the deposit.'], 500);
     }
 }
 

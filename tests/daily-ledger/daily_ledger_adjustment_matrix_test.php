@@ -233,11 +233,13 @@ $h->section('Modal rule mirrors the server');
 
 $modalSrc = (string)file_get_contents($base . '/templates/modules/daily-ledger/cashier/modal_patch.disyl');
 $h->test(
-    'needsLiable() is limited to Add Stock that is not an encoder omission',
+    'needsLiable() is limited to Add Stock that is not a no-loss reason',
     // Reads the type the SERVER will receive (serverType), so Correction-Additional
     // — which is recorded as adjustment_add — inherits the rule instead of slipping
-    // past it and being rejected server-side.
-    str_contains($modalSrc, "return this.serverType() === 'adjustment_add' && this.header.reason_code !== 'encoder_omission';")
+    // past it and being rejected server-side. The no-loss list mirrors
+    // dl_noLossAdjustmentReasons() on the server.
+    str_contains($modalSrc, "return this.serverType() === 'adjustment_add' && !this.isOmission();")
+    && str_contains($modalSrc, "['wrong_entry', 'missed_entry', 'unrecorded_delivery', 'encoder_omission']")
 );
 $h->test('validate() uses needsLiable()', str_contains($modalSrc, 'if (this.needsLiable() &&'));
 $h->test('the Charge-to field is offered for Add Stock and for Charge', str_contains($modalSrc, 'x-show="showsLiable()"') && str_contains($modalSrc, "=== 'adjustment_add' || this.serverType() === 'charge'"));
@@ -255,7 +257,7 @@ $rowsSrc = (string)file_get_contents($base . '/templates/modules/daily-ledger/ca
 $h->test('the W/Draw cell opens the modal on its own product', str_contains($rowsSrc, 'onclick="dlAdjustRowDirect({row.product_id})"'));
 $h->test('the W/Draw shortcut passes the product id through', str_contains($ledgerSrc, 'window.dlAdjustRowDirect = function(productId)'));
 $h->test('the W/Draw shortcut no longer opens a blank modal', !str_contains($rowsSrc, 'onclick="openWithdrawalModal()"'));
-$h->test('the Addt\'l cell still presets its product and reason', str_contains($rowsSrc, 'onclick="dlAddStockDirect({row.product_id})"') && str_contains($ledgerSrc, "reason_code: 'encoder_omission'"));
+$h->test('the Addt\'l cell still presets its product and reason', str_contains($rowsSrc, 'onclick="dlAddStockDirect({row.product_id})"') && str_contains($ledgerSrc, "reason_code: 'missed_entry'"));
 $h->test('the W/Draw shortcut names the row product in its tooltip', str_contains($rowsSrc, 'title="Record an adjustment for {row.name}'));
 
 // ─── Who can be charged: this branch's cashiers come first ─────────────

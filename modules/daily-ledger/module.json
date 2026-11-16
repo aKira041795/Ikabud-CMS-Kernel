@@ -184,9 +184,11 @@
     "database/migrations/096_branch_has_production.sql",
     "database/migrations/097_receiving_item_supply_origin.sql",
     "database/migrations/098_product_categories.sql",
+    "database/migrations/099_delivery_variance_branch_remarks.sql",
     "database/migrations/100_receiving_supply_origin_cake_correction.sql",
     "database/migrations/101_branch_product_own_production.sql",
-    "database/migrations/102_ledger_backdated_edit_finding_type.sql"
+    "database/migrations/102_ledger_backdated_edit_finding_type.sql",
+    "database/migrations/103_adjustment_reason_codes.sql"
   ],
   "capabilities": {
     "exposes": [
@@ -535,6 +537,14 @@
         ]
       },
       "POST /daily-ledger/api/v1/cashier/ledger/delivery-edit": {
+        "capability": "kernel.auth.authenticate@1",
+        "allowed_roles": [
+          "cashier",
+          "supervisor",
+          "admin"
+        ]
+      },
+      "POST /daily-ledger/api/v1/cashier/ledger/deposit": {
         "capability": "kernel.auth.authenticate@1",
         "allowed_roles": [
           "cashier",

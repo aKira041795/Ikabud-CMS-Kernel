@@ -2451,7 +2451,9 @@
                         <label class="form-label">Reason Code <span class="text-rose-500">*</span></label>
                         <select id="branch-cell-reason" class="form-input" onchange="syncBranchCellAdjustmentFields()">
                             <option value="manual_adjustment">Manual adjustment</option>
-                            <option value="encoder_omission">Encoder omission (nothing lost)</option>
+                            <option value="wrong_entry">Wrong entry (nothing lost)</option>
+                            <option value="missed_entry">Missed entry (nothing lost)</option>
+                            <option value="unrecorded_delivery">Unrecorded delivery (on the DR but not written)</option>
                             <option value="spoilage">Spoilage</option>
                             <option value="staff_meal">Staff meal</option>
                             <option value="sampling">Sampling</option>
@@ -2466,8 +2468,13 @@
                         <label class="form-label">Custom Reason <span class="text-rose-500">*</span></label>
                         <input type="text" id="branch-cell-custom-reason" class="form-input" maxlength="255" placeholder="Describe the reason for this adjustment">
                     </div>
+                    <div class="form-group mb-0 hidden" id="branch-cell-dr-wrap">
+                        <label class="form-label">DR Number <span class="text-rose-500">*</span></label>
+                        <input type="text" id="branch-cell-dr-number" class="form-input font-mono uppercase" maxlength="100" placeholder="e.g. 12345">
+                        <p class="mt-1 text-xs text-gray-500">The DR the stock arrived on — required for an unrecorded delivery.</p>
+                    </div>
                     <p id="branch-cell-omission-note" class="hidden rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs leading-5 text-sky-900">
-                        Nothing was lost — this records stock that was simply not entered, so no one is charged and no liable person is recorded.
+                        Nothing was lost — a wrong entry, a missed entry or an unrecorded delivery records stock that was simply not entered, so no one is charged and no liable person is recorded.
                     </p>
                 </div>
                 <div id="branch-cell-status" class="text-sm text-rose-600" aria-live="polite"></div>
@@ -2496,8 +2503,9 @@
                 <div id="consignee-cell-edit-fields" class="space-y-3 hidden">
                     <div class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">This cell already has an entry. The correction is appended and requires a type and reason.</div>
                     <div class="form-group mb-0"><label class="form-label">Type <span class="text-rose-500">*</span></label><select id="consignee-cell-type" class="form-input"><option value="charge">Charge</option><option value="pullout">Pullout</option><option value="used">Used (for a product/order)</option><option value="correction">Correction — wrong entry</option><option value="adjustment_add">Add Stock (missed entry / variance)</option><option value="correction_addtl">Correction — Additional (wrong entry)</option></select></div>
-                    <div class="form-group mb-0"><label class="form-label">Reason Code <span class="text-rose-500">*</span></label><select id="consignee-cell-reason" class="form-input" onchange="syncConsigneeCellAdjustmentFields()"><option value="manual_adjustment">Manual adjustment</option><option value="encoder_omission">Encoder omission (nothing lost)</option><option value="spoilage">Spoilage</option><option value="staff_meal">Staff meal</option><option value="sampling">Sampling</option><option value="testing">Testing</option><option value="promo">Promo</option><option value="donation">Donation</option><option value="damage">Damage</option><option value="other">Other</option></select></div>
+                    <div class="form-group mb-0"><label class="form-label">Reason Code <span class="text-rose-500">*</span></label><select id="consignee-cell-reason" class="form-input" onchange="syncConsigneeCellAdjustmentFields()"><option value="manual_adjustment">Manual adjustment</option><option value="wrong_entry">Wrong entry (nothing lost)</option><option value="missed_entry">Missed entry (nothing lost)</option><option value="unrecorded_delivery">Unrecorded delivery (on the DR but not written)</option><option value="spoilage">Spoilage</option><option value="staff_meal">Staff meal</option><option value="sampling">Sampling</option><option value="testing">Testing</option><option value="promo">Promo</option><option value="donation">Donation</option><option value="damage">Damage</option><option value="other">Other</option></select></div>
                     <div class="form-group mb-0 hidden" id="consignee-cell-custom-reason-wrap"><label class="form-label">Custom Reason <span class="text-rose-500">*</span></label><input type="text" id="consignee-cell-custom-reason" class="form-input" maxlength="255"></div>
+                    <div class="form-group mb-0 hidden" id="consignee-cell-dr-wrap"><label class="form-label">DR Number <span class="text-rose-500">*</span></label><input type="text" id="consignee-cell-dr-number" class="form-input font-mono uppercase" maxlength="100" placeholder="e.g. 12345"></div>
                 </div>
                 <div id="consignee-cell-status" class="text-sm text-rose-600" aria-live="polite"></div>
                 <div class="flex justify-end gap-2"><button type="button" class="btn btn-accent" onclick="closeConsigneeCellModal()">Cancel</button><button type="button" class="btn btn-primary" id="consignee-cell-submit" onclick="submitConsigneeCellEntry()">Save Entry</button></div>
@@ -2902,9 +2910,11 @@
         if (!reasonEl || !typeEl) return;
         var reason = reasonEl.value;
         var type = typeEl.value;
-        var isOmission = (type === 'adjustment_add' && reason === 'encoder_omission');
+        var isOmission = (type === 'adjustment_add' && ['wrong_entry', 'missed_entry', 'unrecorded_delivery', 'encoder_omission'].indexOf(reason) !== -1);
         if (customWrap) customWrap.classList.toggle('hidden', reason !== 'other');
         if (omissionNote) omissionNote.classList.toggle('hidden', !isOmission);
+        var drWrap = document.getElementById('branch-cell-dr-wrap');
+        if (drWrap) drWrap.classList.toggle('hidden', reason !== 'unrecorded_delivery');
     }
 
     function openBranchCellModal(productId, branchId) {
@@ -2929,8 +2939,10 @@
         document.getElementById('branch-cell-edit-fields').classList.toggle('hidden', !hasEntry);
         // Reset a fresh intent: the type/reason only mean something on an edit.
         document.getElementById('branch-cell-type').value = 'correction';
-        document.getElementById('branch-cell-reason').value = 'encoder_omission';
+        document.getElementById('branch-cell-reason').value = 'missed_entry';
         document.getElementById('branch-cell-custom-reason').value = '';
+        var branchDr = document.getElementById('branch-cell-dr-number');
+        if (branchDr) branchDr.value = '';
         syncBranchCellAdjustmentFields();
         modal.classList.remove('hidden');
         modal.classList.add('flex');
@@ -2978,9 +2990,12 @@
             if (!type) { if (status) status.textContent = 'Type is required to change a recorded entry.'; return; }
             if (!reason) { if (status) status.textContent = 'Reason code is required to change a recorded entry.'; return; }
             if (reason === 'other' && custom === '') { if (status) status.textContent = 'A custom reason is required when Reason is Other.'; return; }
+            var drVal = (document.getElementById('branch-cell-dr-number').value || '').trim();
+            if (reason === 'unrecorded_delivery' && drVal === '') { if (status) status.textContent = 'Unrecorded delivery needs the DR number the stock arrived on.'; return; }
             payload.type = type;
             payload.reason_code = reason;
             payload.custom_reason = custom;
+            if (drVal !== '') payload.dr_number = drVal;
         }
 
         btn.disabled = true;
@@ -3008,6 +3023,8 @@
         var reason = document.getElementById('consignee-cell-reason');
         var wrap = document.getElementById('consignee-cell-custom-reason-wrap');
         if (reason && wrap) wrap.classList.toggle('hidden', reason.value !== 'other');
+        var drWrap = document.getElementById('consignee-cell-dr-wrap');
+        if (reason && drWrap) drWrap.classList.toggle('hidden', reason.value !== 'unrecorded_delivery');
     }
 
     function openConsigneeCellModal(productId, consigneeId) {
@@ -3024,8 +3041,10 @@
         document.getElementById('consignee-cell-unassigned-note').classList.toggle('hidden', !unassigned);
         document.getElementById('consignee-cell-unassigned-confirm').checked = false;
         document.getElementById('consignee-cell-type').value = 'correction';
-        document.getElementById('consignee-cell-reason').value = 'encoder_omission';
+        document.getElementById('consignee-cell-reason').value = 'missed_entry';
         document.getElementById('consignee-cell-custom-reason').value = '';
+        var consigneeDr = document.getElementById('consignee-cell-dr-number');
+        if (consigneeDr) consigneeDr.value = '';
         syncConsigneeCellAdjustmentFields();
         modal.classList.remove('hidden');
         modal.classList.add('flex');
@@ -3065,6 +3084,9 @@
             payload.reason_code = document.getElementById('consignee-cell-reason').value;
             payload.custom_reason = (document.getElementById('consignee-cell-custom-reason').value || '').trim();
             if (payload.reason_code === 'other' && payload.custom_reason === '') { status.textContent = 'A custom reason is required when Reason is Other.'; return; }
+            var consigneeDrVal = (document.getElementById('consignee-cell-dr-number').value || '').trim();
+            if (payload.reason_code === 'unrecorded_delivery' && consigneeDrVal === '') { status.textContent = 'Unrecorded delivery needs the DR number the stock arrived on.'; return; }
+            if (consigneeDrVal !== '') payload.dr_number = consigneeDrVal;
         }
         btn.disabled = true;
         status.textContent = '';

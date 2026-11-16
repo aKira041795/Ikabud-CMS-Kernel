@@ -671,10 +671,13 @@ function dl_offlineApplyWithdrawal(array $user, array $op, bool $inTx = false): 
     if ($reasonCode !== 'other') {
         $customReason = '';
     }
-    // Mirrors apiSaveCashierWithdrawals: an encoder omission is not a shortage,
-    // so no liable person is recorded.
+    // Mirrors apiSaveCashierWithdrawals: a wrong entry, a missed entry or an
+    // unrecorded delivery is not a shortage, so no liable person is recorded.
+    if (dl_reasonRequiresDr($reasonCode) && ($drNumber === null || trim((string)$drNumber) === '')) {
+        throw new RuntimeException('Unrecorded delivery needs the DR number the stock arrived on.', 422);
+    }
     if ($type === 'adjustment_add' && $liableUserId === null && dl_adjustmentAddNeedsLiable($reasonCode)) {
-        throw new RuntimeException('adjustment_add requires a liable_user_id (charge to person). Choose the Encoder omission reason if nothing was lost.', 422);
+        throw new RuntimeException('adjustment_add requires a liable_user_id (charge to person). Choose Wrong entry, Missed entry or Unrecorded delivery if nothing was lost.', 422);
     }
 
     $validLines = [];

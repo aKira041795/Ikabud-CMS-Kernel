@@ -86,6 +86,49 @@
 </div>
 {/if}
 
+{* Concern #2 (owner 2026-11-16): the branch records its deposit for THIS shift and
+   sees the short/over immediately. The office reads the same reconciliation row on
+   Cash & Paper Check. Shown only when the feature is switched on; a closed shift or a
+   reference-only date renders the recorded figure read-only rather than hiding it. *}
+{if feature_cash_paper_check && deposit}
+<div id="shift-deposit-panel"
+     class="mb-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 print:hidden"
+     data-ledger-sales="{deposit.ledger_sales}"
+     data-pending-rows="{deposit.pending_rows}"
+     data-provisional-rows="{deposit.provisional_rows}"
+     role="status">
+    <div class="flex flex-wrap items-end gap-x-4 gap-y-2">
+        <span class="self-center text-xs font-semibold uppercase tracking-wide text-slate-500">Shift deposit</span>
+        <div>
+            <label for="shift-deposit-input" class="block text-xs font-medium text-gray-700 mb-1">Cash remitted ({shift} shift)</label>
+            {if deposit_editable}
+            <input type="number" step="0.01" min="0" inputmode="decimal" id="shift-deposit-input"
+                   class="form-input mt-0 w-40 text-right tabular-nums"
+                   value="{deposit.cash_remitted_input}"
+                   placeholder="0.00">
+            {else}
+            <div class="form-input mt-0 w-40 bg-gray-100 text-right tabular-nums text-gray-700">{deposit.cash_remitted_display}</div>
+            {/if}
+        </div>
+        {if deposit_editable}
+        <div>
+            <label class="block text-xs font-medium text-gray-700 mb-1 invisible" aria-hidden="true">Save deposit</label>
+            <button type="button" class="btn btn-primary h-10" id="shift-deposit-save" onclick="window.dlSaveShiftDeposit()">Save deposit</button>
+        </div>
+        {/if}
+        <div>
+            <span class="block text-xs font-medium text-gray-700 mb-1">Ledger sales</span>
+            <div data-deposit-sales class="flex h-10 w-32 items-center justify-end tabular-nums font-semibold text-gray-900">{deposit.ledger_sales_display}</div>
+        </div>
+        <div>
+            <span class="block text-xs font-medium text-gray-700 mb-1">Short / over</span>
+            <div id="shift-deposit-variance" class="flex h-10 w-44 items-center justify-end tabular-nums font-semibold {deposit.variance_class}">{deposit.variance_label}</div>
+        </div>
+    </div>
+    <p id="shift-deposit-note" class="mt-2 text-xs text-slate-600">{deposit.note}</p>
+</div>
+{/if}
+
 <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
     <div>
         <h2 class="text-lg font-semibold text-gray-900">Sales Report</h2>
@@ -425,15 +468,15 @@
     };
     // Add stock WITHOUT a paper DR: the row-level "+" opens the Stock Adjustment
     // (Add Stock) flow, which credits the Addt'l column. It defaults to the
-    // "Encoder omission" reason because the common case is a missed entry —
-    // nothing was lost, so no liable person is charged. Switching the reason to
-    // a variance one makes the charge-to field required again.
+    // "Missed entry" reason because the common case is a missed record — nothing
+    // was lost, so no liable person is charged. Switching the reason to a
+    // variance one makes the charge-to field required again.
     // The DR-tracked Receive Stock flow stays available from the action card
     // above for real incoming transfers.
     window.dlAddStockDirect = function(productId) {
         window.openWithdrawalModal({
             withdrawal_type: 'adjustment_add',
-            reason_code: 'encoder_omission',
+            reason_code: 'missed_entry',
             product_id: productId
         });
     };
@@ -444,6 +487,89 @@
     };
     window.openEditDeliveryModal = function() {
         window.dispatchEvent(new CustomEvent('open-edit-delivery-modal', { detail: {} }));
+    };
+
+    // ── Shift deposit (concern #2) ──────────────────────────────────────
+    // The branch records the cash it deposits for THIS shift; the short/over
+    // against the ledger's official sales is repainted in place, without a page
+    // reload, so the person handing money over sees the answer immediately.
+    window.dlSaveShiftDeposit = function() {
+        var input = document.getElementById('shift-deposit-input');
+        var panel = document.getElementById('shift-deposit-panel');
+        var btn = document.getElementById('shift-deposit-save');
+        if (!input || !panel) return;
+        var raw = String(input.value || '').trim();
+        if (raw !== '' && (isNaN(Number(raw)) || Number(raw) < 0)) {
+            if (window.showToast) window.showToast('The deposit must be a number of 0 or more.', 'error');
+            input.focus();
+            return;
+        }
+        if (btn) btn.disabled = true;
+        window.dlWriteTimeout(BASE + '/api/v1/cashier/ledger/deposit', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': (window.DL_CSRF || ''),
+                'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
+            },
+            body: JSON.stringify({
+                branch_id: BRANCH_ID || null,
+                date: LEDGER_DATE,
+                shift: SHIFT || 'AM',
+                cash_remitted: raw === '' ? '' : raw
+            })
+        }, 'The deposit')
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            if (btn) btn.disabled = false;
+            if (!res || !res.ok) {
+                if (window.showToast) window.showToast((res && res.error) || 'Deposit not saved.', 'error');
+                return;
+            }
+            var salesEl = panel.querySelector('[data-deposit-sales]');
+            var diffEl = document.getElementById('shift-deposit-variance');
+            var noteEl = document.getElementById('shift-deposit-note');
+            var fmt = function(n) {
+                return Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            };
+            var sales = Number(res.ledger_sales || 0);
+            var diff = res.cash_variance;
+            panel.setAttribute('data-ledger-sales', String(sales));
+            panel.setAttribute('data-pending-rows', String(res.pending_rows || 0));
+            panel.setAttribute('data-provisional-rows', String(res.provisional_rows || 0));
+            if (salesEl) salesEl.textContent = fmt(sales);
+            if (diffEl) {
+                var label = '—';
+                var cls = 'text-gray-500';
+                if (diff !== null && diff !== undefined) {
+                    if (Math.abs(Number(diff)) < 0.005) { label = 'Balanced'; cls = 'text-gray-600'; }
+                    else if (Number(diff) < 0) { label = 'Short by ' + fmt(Math.abs(Number(diff))); cls = 'text-rose-700'; }
+                    else { label = 'Over by ' + fmt(Number(diff)); cls = 'text-emerald-700'; }
+                }
+                diffEl.textContent = label;
+                diffEl.classList.remove('text-gray-500', 'text-gray-600', 'text-rose-700', 'text-emerald-700');
+                diffEl.classList.add(cls);
+            }
+            if (noteEl) {
+                if (Number(res.pending_rows || 0) > 0) {
+                    noteEl.textContent = res.pending_rows + ' product row(s) still have no ending count, so the sales figure is not final yet.';
+                } else if (Number(res.provisional_rows || 0) > 0) {
+                    noteEl.textContent = res.provisional_rows + ' row(s) are provisional (their shift is not finalized), so the sales figure can still move.';
+                } else {
+                    noteEl.textContent = 'Deposit saved.';
+                }
+            }
+            if (window.showToast) window.showToast('Deposit saved', 'success');
+        })
+        .catch(function(err) {
+            if (btn) btn.disabled = false;
+            if (window.showToast) {
+                window.showToast(err && err.dlTimedOut
+                    ? window.dlWriteTimeoutMessage('the deposit')
+                    : 'The deposit could not be saved. Check the connection and retry.', 'error');
+            }
+        });
     };
 
     // Reload the ledger page in place with the current date/branch selection.

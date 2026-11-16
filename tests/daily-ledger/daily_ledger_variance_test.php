@@ -894,7 +894,7 @@ $h->test(
     'every active filter travels with status links and the search form',
     str_contains($handlersSrc, "\$filterQuery = \$filterParams === [] ? '' : '&' . http_build_query(\$filterParams);")
         && str_contains($handlersSrc, "if (\$dateFrom !== '') { \$filterParams['date_from'] = \$dateFrom; }")
-        && substr_count($variancesTpl, '{filter_query}') === 8
+        && substr_count($variancesTpl, '{filter_query}') === 10
         && str_contains($variancesTpl, 'name="date_from" value="{date_from}"')
 );
 $h->test(
@@ -923,7 +923,11 @@ $h->test(
     'the dashboard and per-branch breakdowns aggregate over the unfiltered scope',
     str_contains($handlersSrc, ". \$scopeFromSql . ' GROUP BY vf.resolution_status, vf.kind'")
         && str_contains($handlersSrc, ". \$scopeFromSql . ' GROUP BY vf.branch_id, b.name, b.code, vf.resolution_status'")
-        && !str_contains($handlersSrc, "\$filteredFromSql . ' GROUP BY")
+        // Status-filtered aggregates exist ONLY for the visibility counts that make
+        // settled kinds/branches disappear; the status facet itself never filters.
+        && str_contains($handlersSrc, "\$filteredFromSql . ' GROUP BY vf.kind'")
+        && str_contains($handlersSrc, "\$filteredFromSql . ' GROUP BY vf.branch_id'")
+        && !str_contains($handlersSrc, "\$filteredFromSql . ' GROUP BY vf.resolution_status")
 );
 $h->test(
     'the truncation notice still counts the rows the list really matches',

@@ -57,7 +57,12 @@
                             <label class="block text-xs font-medium text-gray-700 mb-1">Reason Code <span class="text-rose-500">*</span></label>
                         <select x-model="header.reason_code" class="form-input mt-0 w-full">
                             <option value="manual_adjustment">Manual adjustment</option>
-                            <option value="encoder_omission">Encoder omission (nothing lost)</option>
+                            <option value="wrong_entry">Wrong entry (nothing lost)</option>
+                            <option value="missed_entry">Missed entry (nothing lost)</option>
+                            <option value="unrecorded_delivery">Unrecorded delivery (on the DR but not written)</option>
+                            <template x-if="header.reason_code === 'encoder_omission'">
+                                <option value="encoder_omission">Encoder omission (legacy record)</option>
+                            </template>
                             <option value="self_production">Self production</option>
                             <option value="spoilage">Spoilage</option>
                             <option value="staff_meal">Staff meal</option>
@@ -70,6 +75,12 @@
                         </select>
                         <p class="mt-1 text-xs text-gray-500">Required for branch-side adjustments. Branch-to-branch transfers now go through Send to Branch.</p>
                         </div>
+                    </div>
+
+                    <div class="mb-4" x-show="header.reason_code === 'unrecorded_delivery'">
+                        <label class="block text-xs font-medium text-gray-700 mb-1">DR Number <span class="text-rose-500">*</span></label>
+                        <input type="text" x-model="header.dr_number" maxlength="100" class="form-input mt-0 w-full font-mono uppercase" placeholder="e.g. 12345">
+                        <p class="mt-1 text-xs text-gray-500">The DR the stock physically arrived on. Use this when an item is on hand but was not written on its DR line — the DR number keeps the addition tied to that document.</p>
                     </div>
 
                     <div class="mb-4" x-show="!window.BRANCH_HAS_PRODUCTION">
@@ -109,7 +120,7 @@
                     <div class="mb-4" x-show="showsLiable()">
                         <template x-if="isOmission()">
                             <div class="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs leading-5 text-sky-900">
-                                <span class="font-semibold">Nothing was lost</span> — this records stock that was simply not entered, so no one is charged and no liable person is recorded.
+                                <span class="font-semibold">Nothing was lost</span> — a wrong entry, a missed entry or an unrecorded delivery records stock that was simply not entered, so no one is charged and no liable person is recorded.
                             </div>
                         </template>
                         <template x-if="!isOmission()">
@@ -124,7 +135,7 @@
                                         <option :value="lp.id" x-text="lp.label || (lp.name + ' (' + lp.role + ')')"></option>
                                     </template>
                                 </select>
-                                <p x-show="needsLiable()" class="mt-1 text-xs text-gray-500">Person financially liable for the missing items. Items are added back to branch sales; payment is charged to this person. This branch's cashiers are listed first. If nothing was lost and the entry was simply missed, choose the <span class="font-semibold">Encoder omission</span> reason instead — no one is charged.</p>
+                                <p x-show="needsLiable()" class="mt-1 text-xs text-gray-500">Person financially liable for the missing items. Items are added back to branch sales; payment is charged to this person. This branch's cashiers are listed first. If nothing was lost and the entry was simply missed or keyed wrong, choose <span class="font-semibold">Wrong entry</span>, <span class="font-semibold">Missed entry</span> or <span class="font-semibold">Unrecorded delivery</span> instead — no one is charged.</p>
                                 <p x-show="!needsLiable()" class="mt-1 text-xs text-gray-500">Person this removed stock is charged to. Payment is collected from them; leave it blank to keep the amount on the branch. This branch's cashiers are listed first.</p>
                             </div>
                         </template>
@@ -225,7 +236,7 @@ function withdrawalModal() {
         savedAny: false,
         errorMsg: '',
         editId: null,
-        header: { withdrawal_type: 'charge', reason_code: 'manual_adjustment', liable_user_id: '', custom_reason: '', shift: '' },
+        header: { withdrawal_type: 'charge', reason_code: 'manual_adjustment', liable_user_id: '', custom_reason: '', dr_number: '', shift: '' },
         lines: [],
         products: [],
 
@@ -259,6 +270,7 @@ function withdrawalModal() {
                     reason_code: e.reason_code || 'manual_adjustment',
                     liable_user_id: e.liable_user_id ? String(e.liable_user_id) : '',
                     custom_reason: e.custom_reason || '',
+                    dr_number: e.dr_number || '',
                     shift: (e.shift === 'AM' || e.shift === 'PM') ? e.shift : (window.SHIFT || 'AM')
                 };
                 this.lines = [{ product_id: String(e.product_id), quantity: displayQty, unit: unit }];
@@ -270,6 +282,7 @@ function withdrawalModal() {
                     reason_code: detail.reason_code || 'manual_adjustment',
                     liable_user_id: '',
                     custom_reason: '',
+                    dr_number: detail.dr_number || '',
                     shift: (detail.shift === 'AM' || detail.shift === 'PM') ? detail.shift : (window.SHIFT || 'AM')
                 };
                 this.lines = [{ product_id: detail.product_id ? String(detail.product_id) : '', quantity: '', unit: 'pcs' }];
@@ -348,10 +361,13 @@ function withdrawalModal() {
             return this.serverType() === 'adjustment_add' || this.serverType() === 'charge';
         },
 
-        // Stock that was never lost: Add Stock recorded because the entry was
-        // simply missed. No charge, no liable person.
+        // Stock that was never lost: an Add Stock recorded because the entry was
+        // keyed wrongly, missed, or arrived on a DR but was not written on it.
+        // No charge, no liable person. Must mirror dl_noLossAdjustmentReasons()
+        // on the server (helpers.php).
         isOmission() {
-            return this.serverType() === 'adjustment_add' && this.header.reason_code === 'encoder_omission';
+            return this.serverType() === 'adjustment_add'
+                && ['wrong_entry', 'missed_entry', 'unrecorded_delivery', 'encoder_omission'].indexOf(this.header.reason_code) !== -1;
         },
 
         // Only Add Stock that resolves a shortage MUST name who is charged: the
@@ -359,7 +375,7 @@ function withdrawalModal() {
         // other type records what it records and charges nobody by default. Must
         // mirror the server rule in apiSaveCashierWithdrawals / handlers-offline.
         needsLiable() {
-            return this.serverType() === 'adjustment_add' && this.header.reason_code !== 'encoder_omission';
+            return this.serverType() === 'adjustment_add' && !this.isOmission();
         },
 
         // A minus sign means "take back an amount recorded too high". Correction does
@@ -475,8 +491,12 @@ function withdrawalModal() {
                 this.errorMsg = 'A custom reason is required when Reason is Other.';
                 return false;
             }
+            if (this.header.reason_code === 'unrecorded_delivery' && (!this.header.dr_number || String(this.header.dr_number).trim() === '')) {
+                this.errorMsg = 'Unrecorded delivery needs the DR number the stock arrived on.';
+                return false;
+            }
             if (this.needsLiable() && (!this.header.liable_user_id || String(this.header.liable_user_id).trim() === '')) {
-                this.errorMsg = 'Charge to (liable person) is required for Add Stock that resolves a shortage. Use the Encoder omission reason if nothing was lost.';
+                this.errorMsg = 'Charge to (liable person) is required for Add Stock that resolves a shortage. Choose Wrong entry, Missed entry or Unrecorded delivery if nothing was lost.';
                 return false;
             }
             var allowsNegative = this.allowsNegative();
@@ -536,6 +556,8 @@ function withdrawalModal() {
                     withdrawal_type: this.serverType(),
                     reason_code: this.header.reason_code || 'manual_adjustment',
                     custom_reason: this.header.reason_code === 'other' ? (this.header.custom_reason || '').trim() : '',
+                    // The DR an unrecorded delivery arrived on; empty for every other reason.
+                    dr_number: this.header.reason_code === 'unrecorded_delivery' ? (this.header.dr_number || '').trim() : '',
                     // Sent whenever the field is offered (Add Stock and Charge), so a
                     // charge actually records who it is billed to.
                     liable_user_id: this.showsLiable() ? (parseInt(this.header.liable_user_id) || null) : null

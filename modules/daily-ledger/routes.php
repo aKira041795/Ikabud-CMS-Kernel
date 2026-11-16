@@ -155,6 +155,8 @@ return [
         '/daily-ledger/api/v1/cashier/ledger/receive-paper-dr' => 'daily-ledger:apiReceivePaperDelivery',
         // Cashier: edit an existing stock delivery by DR (missed items, qty correction)
         '/daily-ledger/api/v1/cashier/ledger/delivery-edit' => 'daily-ledger:apiEditDeliveryByDr',
+        // Cashier: the branch's own shift deposit (cash remitted -> short/over vs the ledger)
+        '/daily-ledger/api/v1/cashier/ledger/deposit' => 'daily-ledger:apiSaveShiftDeposit',
 
         // Admin: reopen day
         '/daily-ledger/api/v1/admin/reopen-day'          => 'daily-ledger:apiReopenDay',

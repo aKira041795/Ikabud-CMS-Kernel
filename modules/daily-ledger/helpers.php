@@ -387,25 +387,57 @@ function dl_allowedWithdrawalReasons(): array
     // itself (no DR, no dispatch) captured as Add Stock on the shift it was made
     // in — see dl_resolveWithdrawalShift(). The column is an ENUM; migration 093
     // added the value.
-    return ['spoilage', 'staff_meal', 'sampling', 'testing', 'promo', 'donation', 'damage', 'manual_adjustment', 'encoder_omission', 'self_production', 'other'];
+    //
+    // wrong_entry / missed_entry / unrecorded_delivery replaced the picker's
+    // "Encoder omission" (owner 2026-11-16). They say what actually happened,
+    // and all three mean nothing was lost. encoder_omission stays accepted so
+    // rows already recorded under it remain editable; it is no longer offered.
+    return [
+        'spoilage', 'staff_meal', 'sampling', 'testing', 'promo', 'donation', 'damage',
+        'manual_adjustment', 'encoder_omission', 'self_production',
+        'wrong_entry', 'missed_entry', 'unrecorded_delivery', 'other',
+    ];
+}
+
+/**
+ * Reason codes that mean NOTHING WAS LOST — the entry itself was wrong or
+ * missing, or arrived stock was never written down. None of these charges a
+ * person, and none needs a liable id.
+ *
+ * `encoder_omission` is kept in this list only for records already stored
+ * under it (legacy); the picker offers the three explicit reasons instead.
+ */
+function dl_noLossAdjustmentReasons(): array
+{
+    return ['encoder_omission', 'wrong_entry', 'missed_entry', 'unrecorded_delivery'];
 }
 
 /**
  * Whether an Add Stock (adjustment_add) entry has to name a liable person.
  *
  * Add Stock normally resolves a shortage, so the stock has to be charged to
- * somebody. `encoder_omission` is different: the stock was never lost, the
- * entry was simply not recorded, so there is nothing to charge and no liable
- * person is recorded (the flow stores liable_user_id = NULL).
+ * somebody. A wrong entry, a missed entry, or an unrecorded delivery is
+ * different: the stock was never lost, so there is nothing to charge and no
+ * liable person is recorded (the flow stores liable_user_id = NULL).
  *
  * A NEGATIVE Add Stock (taking back an amount recorded too high) is the same
- * kind of mistake, so it is also an encoder omission and charges nobody — the
- * amount was keyed wrong, not lost. The rule is direction-independent on
- * purpose: it is the reason that decides, not the sign.
+ * kind of mistake, so it charges nobody — the amount was keyed wrong, not lost.
+ * The rule is direction-independent on purpose: it is the reason that decides,
+ * not the sign.
  */
 function dl_adjustmentAddNeedsLiable(?string $reasonCode): bool
 {
-    return $reasonCode !== 'encoder_omission';
+    return !in_array($reasonCode, dl_noLossAdjustmentReasons(), true);
+}
+
+/**
+ * The reason that requires the DR it arrived on. "Unrecorded delivery" means
+ * the goods physically arrived but were not written on the paper DR, so the DR
+ * number is the evidence that ties the adjustment to a real document.
+ */
+function dl_reasonRequiresDr(?string $reasonCode): bool
+{
+    return $reasonCode === 'unrecorded_delivery';
 }
 
 /**

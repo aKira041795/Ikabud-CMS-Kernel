@@ -18,7 +18,7 @@
 
                 <div>
                     <h3 class="text-lg font-semibold leading-6 text-gray-900" id="edit-delivery-title">Correct Delivery by DR</h3>
-                    <p class="text-sm text-gray-500 mb-4">Fix a stock delivery captured from a paper DR — add missed items or correct quantities. The origin withdrawal and this branch's received stock are adjusted together, and a reason is recorded.</p>
+                    <p class="text-sm text-gray-500 mb-4">Fix a stock delivery captured from a paper DR — add missed items or correct quantities. The origin withdrawal always moves with the corrected sent quantity. An <span class="font-semibold">admin</span> correction also moves the receiving branch's stock, so both branches agree from one DR; a branch correction leaves the count as evidence and records the difference as a delivery issue for the office. A reason is recorded.</p>
 
                     <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">
                         Enter the paper DR number first. The current items are loaded so you only correct what changed. This is available for the current business date only.

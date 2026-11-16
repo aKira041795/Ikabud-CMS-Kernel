@@ -7,16 +7,19 @@ declare(strict_types=1);
  *
  * An Add Stock (adjustment_add) entry normally resolves a shortage, so it must
  * name who is charged. That is wrong for the case that actually happens most:
- * the cashier simply forgot to record stock that was never lost, so the admin
- * adds it to the Addt'l column and nobody is chargeable.
+ * the cashier keyed a wrong entry, missed one, or stock arrived on a DR without
+ * being written on it — nothing was lost, so nobody is chargeable.
  *
- * That case is the `encoder_omission` reason code, and this suite proves:
- *   - the reason vocabulary and the ENUM accept it
- *   - Add Stock + encoder_omission applies with liable_user_id NULL and credits
+ * Those cases are the `wrong_entry`, `missed_entry` and `unrecorded_delivery`
+ * reason codes (the picker's old `encoder_omission` was retired on 2026-11-16 but
+ * stays valid for rows already recorded under it), and this suite proves:
+ *   - the reason vocabulary and the ENUM accept all of them
+ *   - Add Stock + a no-loss reason applies with liable_user_id NULL and credits
  *     Addt'l only (never W/Draw)
  *   - every other Add Stock reason still demands a charge-to, server-side
+ *   - unrecorded_delivery refuses to save without the DR it arrived on
  *   - the create, edit and offline-replay paths share the same rule
- *   - the cashier UI presets the reason and drops the charge-to requirement
+ *   - the cashier UI presets a no-loss reason and drops the charge-to requirement
  *
  * Integration mode — real tenant DB (207). Seeds an isolated branch/product in
  * the reserved 99xxx range and cleans up every row it creates.
@@ -34,6 +37,7 @@ $h->fingerprint('modules/daily-ledger/handlers.php');
 $h->fingerprint('modules/daily-ledger/handlers-offline.php');
 $h->fingerprint('modules/daily-ledger/module.json');
 $h->fingerprint('modules/daily-ledger/database/migrations/058_encoder_omission_reason.sql');
+$h->fingerprint('modules/daily-ledger/database/migrations/103_adjustment_reason_codes.sql');
 $h->fingerprint('templates/modules/daily-ledger/cashier/modal_patch.disyl');
 $h->fingerprint('templates/modules/daily-ledger/cashier/ledger.disyl');
 $h->fingerprint('templates/modules/daily-ledger/cashier/partials/ledger-rows.disyl');
@@ -168,14 +172,21 @@ function dl_ar_ledger($db, int $branchId, int $productId, string $date): array
 $h->section('Reason vocabulary');
 
 $reasons = dl_allowedWithdrawalReasons();
-$h->test('encoder_omission is an allowed reason', in_array('encoder_omission', $reasons, true));
+foreach (['wrong_entry', 'missed_entry', 'unrecorded_delivery'] as $newReason) {
+    $h->test("{$newReason} is an allowed reason", in_array($newReason, $reasons, true));
+}
+$h->test('encoder_omission stays allowed for legacy rows', in_array('encoder_omission', $reasons, true));
 foreach (['spoilage', 'staff_meal', 'sampling', 'testing', 'promo', 'donation', 'damage', 'manual_adjustment', 'other'] as $legacy) {
     $h->test("legacy reason '{$legacy}' still allowed", in_array($legacy, $reasons, true));
 }
-$h->test('encoder_omission does not need a liable person', dl_adjustmentAddNeedsLiable('encoder_omission') === false);
+foreach (['wrong_entry', 'missed_entry', 'unrecorded_delivery', 'encoder_omission'] as $noLoss) {
+    $h->test("{$noLoss} does not need a liable person", dl_adjustmentAddNeedsLiable($noLoss) === false);
+}
 $h->test('manual_adjustment still needs a liable person', dl_adjustmentAddNeedsLiable('manual_adjustment') === true);
 $h->test('spoilage still needs a liable person', dl_adjustmentAddNeedsLiable('spoilage') === true);
 $h->test('a missing reason still needs a liable person', dl_adjustmentAddNeedsLiable(null) === true);
+$h->test('only unrecorded delivery requires a DR', dl_reasonRequiresDr('unrecorded_delivery') === true
+    && dl_reasonRequiresDr('missed_entry') === false && dl_reasonRequiresDr(null) === false);
 
 // ─── Schema accepts the value (ENUM, not free text) ────────────────────
 $h->section('Schema');
@@ -188,39 +199,83 @@ $migrationSrc = (string)file_get_contents($base . '/modules/daily-ledger/databas
 $h->test('migration adds encoder_omission to the ENUM', str_contains($migrationSrc, "'encoder_omission'") && stripos($migrationSrc, 'MODIFY COLUMN reason_code') !== false);
 $h->test('migration keeps the legacy ENUM values', str_contains($migrationSrc, "'manual_adjustment'") && str_contains($migrationSrc, "'spoilage'"));
 
+$newMigrationSrc = (string)file_get_contents($base . '/modules/daily-ledger/database/migrations/103_adjustment_reason_codes.sql');
+foreach (['wrong_entry', 'missed_entry', 'unrecorded_delivery', 'encoder_omission'] as $enumValue) {
+    $h->test("migration 103 declares {$enumValue}", str_contains($newMigrationSrc, "'{$enumValue}'"));
+}
+$h->test('migration 103 re-declares the reason ENUM', stripos($newMigrationSrc, 'MODIFY COLUMN reason_code') !== false);
+
 $manifest = json_decode((string)file_get_contents($base . '/modules/daily-ledger/module.json'), true);
 $h->test(
-    'migration 058 is registered in module.json',
-    in_array('database/migrations/058_encoder_omission_reason.sql', $manifest['migrations'] ?? [], true)
+    'migration 103 is registered in module.json',
+    in_array('database/migrations/103_adjustment_reason_codes.sql', $manifest['migrations'] ?? [], true)
+);
+$h->test(
+    'migration 099 branch remarks is registered in module.json',
+    in_array('database/migrations/099_delivery_variance_branch_remarks.sql', $manifest['migrations'] ?? [], true)
 );
 
-// ─── Add Stock as an encoder omission: nobody is charged ───────────────
-$h->section('Add Stock — encoder omission (nothing lost)');
+// ─── Add Stock with a no-loss reason: nobody is charged ────────────────
+$h->section('Add Stock — missed entry (nothing lost)');
 
 $omitResult = null;
 $omitError = '';
 try {
     $omitResult = dl_ar_apply($adminUser, $branchId, $testDate, [
         'withdrawal_type' => 'adjustment_add',
-        'reason_code' => 'encoder_omission',
+        'reason_code' => 'missed_entry',
     ], 1);
 } catch (Throwable $e) {
     $omitError = $e->getMessage();
 }
-$h->test('Add Stock with encoder omission is accepted', is_array($omitResult) && !empty($omitResult['ok']), $omitError);
+$h->test('Add Stock with a missed entry is accepted', is_array($omitResult) && !empty($omitResult['ok']), $omitError);
 
 $rowStmt = $db->prepare(
-    'SELECT withdrawal_type, reason_code, quantity, liable_user_id FROM dl_cashier_withdrawals
+    'SELECT withdrawal_type, reason_code, quantity, liable_user_id, dr_number FROM dl_cashier_withdrawals
       WHERE branch_id = :b AND product_id = :p AND ledger_date = :d ORDER BY id DESC LIMIT 1'
 );
 $rowStmt->execute([':b' => $branchId, ':p' => $productId, ':d' => $testDate]);
 $omitRow = $rowStmt->fetch(PDO::FETCH_ASSOC) ?: [];
-$h->test('stored reason_code round-trips as encoder_omission', ($omitRow['reason_code'] ?? '') === 'encoder_omission', (string)($omitRow['reason_code'] ?? ''));
+$h->test('stored reason_code round-trips as missed_entry', ($omitRow['reason_code'] ?? '') === 'missed_entry', (string)($omitRow['reason_code'] ?? ''));
 $h->test('no liable person is recorded', ($omitRow['liable_user_id'] ?? null) === null);
 
 $afterOmit = dl_ar_ledger($db, $branchId, $productId, $testDate);
 $h->test('Addt\'l is credited', $afterOmit['addtl'] === 1, 'addtl=' . $afterOmit['addtl']);
 $h->test('W/Draw is not touched', $afterOmit['withdraw'] === 0, 'withdraw=' . $afterOmit['withdraw']);
+
+// ─── Unrecorded delivery must name the DR it arrived on ────────────────
+$drError = null;
+$drRejected = false;
+try {
+    dl_ar_apply($adminUser, $branchId, $testDate, [
+        'withdrawal_type' => 'adjustment_add',
+        'reason_code' => 'unrecorded_delivery',
+    ], 1);
+} catch (Throwable $e) {
+    $drRejected = true;
+    $drError = $e;
+}
+$h->test('unrecorded delivery without a DR is rejected', $drRejected);
+$h->test('the DR refusal is a 422 naming the DR', ($drError instanceof RuntimeException) && $drError->getCode() === 422
+    && stripos($drError->getMessage(), 'DR') !== false, $drError ? $drError->getMessage() : '');
+$afterDrReject = dl_ar_ledger($db, $branchId, $productId, $testDate);
+$h->test('the refused unrecorded delivery wrote nothing', $afterDrReject['addtl'] === 1 && $afterDrReject['rows'] === 1);
+
+$drResult = null;
+$drApplyError = '';
+try {
+    $drResult = dl_ar_apply($adminUser, $branchId, $testDate, [
+        'withdrawal_type' => 'adjustment_add',
+        'reason_code' => 'unrecorded_delivery',
+        'dr_number' => 'DR-TEST-991',
+    ], 1);
+} catch (Throwable $e) {
+    $drApplyError = $e->getMessage();
+}
+$h->test('unrecorded delivery with a DR is accepted', is_array($drResult) && !empty($drResult['ok']), $drApplyError);
+$rowStmt->execute([':b' => $branchId, ':p' => $productId, ':d' => $testDate]);
+$drRow = $rowStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+$h->test('the DR number is stored on the row', ($drRow['dr_number'] ?? '') === 'DR-TEST-991', (string)($drRow['dr_number'] ?? ''));
 
 // ─── A variance reason still demands a charge-to ───────────────────────
 $h->section('Add Stock — variance resolution still requires a charge-to');
@@ -240,7 +295,7 @@ $h->test('Add Stock without a liable person is rejected', $varRejected);
 $h->test('rejection is a 422 validation error', ($varError instanceof RuntimeException) && $varError->getCode() === 422, $varError ? $varError->getMessage() : '');
 
 $afterReject = dl_ar_ledger($db, $branchId, $productId, $testDate);
-$h->test('rejected Add Stock wrote nothing', $afterReject['addtl'] === 1 && $afterReject['rows'] === 1, 'addtl=' . $afterReject['addtl'] . ' rows=' . $afterReject['rows']);
+$h->test('rejected Add Stock wrote nothing', $afterReject['addtl'] === 2 && $afterReject['rows'] === 2, 'addtl=' . $afterReject['addtl'] . ' rows=' . $afterReject['rows']);
 
 // ─── A variance Add Stock with a charge-to still works ─────────────────
 $h->section('Add Stock — variance resolution with a charge-to');
@@ -263,7 +318,7 @@ $liableRow = $rowStmt->fetch(PDO::FETCH_ASSOC) ?: [];
 $h->test('the liable person is recorded', (int)($liableRow['liable_user_id'] ?? 0) === $liableUserId, (string)($liableRow['liable_user_id'] ?? 'null'));
 
 $afterLiable = dl_ar_ledger($db, $branchId, $productId, $testDate);
-$h->test('Addt\'l accumulates to 2', $afterLiable['addtl'] === 2, 'addtl=' . $afterLiable['addtl']);
+$h->test('Addt\'l accumulates to 3', $afterLiable['addtl'] === 3, 'addtl=' . $afterLiable['addtl']);
 $h->test('W/Draw is still not touched', $afterLiable['withdraw'] === 0, 'withdraw=' . $afterLiable['withdraw']);
 
 // ─── Every server path shares the rule ─────────────────────────────────
@@ -293,8 +348,8 @@ $h->test(
     'occurrences=' . substr_count($offlineSrc, 'dl_allowedWithdrawalReasons()')
 );
 $h->test(
-    'the rejection message points at the encoder-omission reason',
-    str_contains($handlersSrc, 'Choose the Encoder omission reason if nothing was lost')
+    'the rejection message names the no-loss reasons',
+    str_contains($handlersSrc, 'Choose Wrong entry, Missed entry or Unrecorded delivery if nothing was lost')
 );
 
 // ─── UI ────────────────────────────────────────────────────────────────
@@ -304,14 +359,22 @@ $modalSrc = (string)file_get_contents($base . '/templates/modules/daily-ledger/c
 $ledgerSrc = (string)file_get_contents($base . '/templates/modules/daily-ledger/cashier/ledger.disyl');
 $rowsSrc = (string)file_get_contents($base . '/templates/modules/daily-ledger/cashier/partials/ledger-rows.disyl');
 
-$h->test('the reason dropdown offers encoder_omission', str_contains($modalSrc, '<option value="encoder_omission">'));
+$h->test('the reason dropdown offers unrecorded_delivery', str_contains($modalSrc, '<option value="unrecorded_delivery">'));
+$h->test('the reason dropdown offers wrong_entry and missed_entry',
+    str_contains($modalSrc, '<option value="wrong_entry">') && str_contains($modalSrc, '<option value="missed_entry">'));
+$h->test('the picker no longer offers encoder_omission as a fresh choice',
+    !str_contains($modalSrc, '<option value="encoder_omission">Encoder omission (nothing lost)</option>'));
+$h->test('a legacy encoder_omission row is still representable while editing',
+    str_contains($modalSrc, "header.reason_code === 'encoder_omission'"));
 $h->test('the modal defines needsLiable()', str_contains($modalSrc, 'needsLiable() {'));
 $h->test('validation uses needsLiable()', str_contains($modalSrc, 'if (this.needsLiable() &&'));
-// An encoder omission hides the picker entirely and states that nothing was lost.
+$h->test('the modal requires a DR for unrecorded delivery',
+    str_contains($modalSrc, "this.header.reason_code === 'unrecorded_delivery' && (!this.header.dr_number"));
+// A no-loss reason hides the picker entirely and states that nothing was lost.
 // (Charge also offers the picker now, so the gate is isOmission(), not the type.)
 $h->test('the picker is replaced by the nothing-lost note for an omission', str_contains($modalSrc, '<template x-if="isOmission()">') && str_contains($modalSrc, '<template x-if="!isOmission()">'));
 $h->test('the modal honours a preset reason', str_contains($modalSrc, "reason_code: detail.reason_code || 'manual_adjustment'"));
-$h->test('the row "+" presets the encoder-omission reason', str_contains($ledgerSrc, "reason_code: 'encoder_omission'"));
+$h->test('the row "+" presets the missed-entry reason', str_contains($ledgerSrc, "reason_code: 'missed_entry'"));
 $h->test('the row "+" still routes to the DR-free Add Stock flow', str_contains($rowsSrc, 'onclick="dlAddStockDirect({row.product_id})"'));
 
 // ─── Cleanup ───────────────────────────────────────────────────────────
