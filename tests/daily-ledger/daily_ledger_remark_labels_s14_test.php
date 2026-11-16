@@ -67,7 +67,9 @@ $h->section('1. Marker -> operator text (pure)');
 
 $cases = [
     '[daily-sheet-entry] new' => 'Daily sheet entry',
-    '[daily-sheet-entry] correction correction:encoder_omission' => 'Daily sheet correction — Encoder omission (nothing lost)',
+    // Concern #1 (owner 2026-11-16): encoder_omission became a LEGACY reason — the actionable
+    // no-loss codes are wrong_entry / missed_entry / unrecorded_delivery — so its label says so.
+    '[daily-sheet-entry] correction correction:encoder_omission' => 'Daily sheet correction — Encoder omission (legacy records)',
     '[daily-sheet-entry] correction adjustment_add:spoilage' => 'Daily sheet correction — Spoilage',
     '[daily-sheet-consignee-entry] new' => 'Daily sheet entry (consignee)',
     '[daily-sheet-consignee-entry] correction' => 'Daily sheet correction (consignee)',
@@ -104,7 +106,7 @@ foreach (dl_allowedWithdrawalReasons() as $code) {
     }
 }
 $h->test('every allowed withdrawal reason has a non-empty label', $missing === [], implode(',', $missing));
-$h->assertSame('Encoder omission (nothing lost)', (string)($reasonLabels['encoder_omission'] ?? ''), 'encoder_omission label');
+$h->assertSame('Encoder omission (legacy records)', (string)($reasonLabels['encoder_omission'] ?? ''), 'encoder_omission label');
 
 // ═══════════════════════════════════════════════════════════════════════
 $h->section('3. Serve + render wiring (source pins)');

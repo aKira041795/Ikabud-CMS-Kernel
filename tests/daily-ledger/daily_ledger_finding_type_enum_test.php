@@ -315,6 +315,10 @@ try {
         [':id' => $dayProduct, ':sku' => 'FTE-BR-P', ':n' => 'Finding Type Branch Product']
     );
     $db->execute('INSERT INTO dl_branch_products (branch_id, product_id, is_active) VALUES (:b, :p, 1)', [':b' => $commBranchId, ':p' => $commProduct]);
+    // The day-branch product must be ASSIGNED to that branch: dl_shiftMissingEndings() only
+    // considers active branch products, so without this row the ending owed below is invisible
+    // and the cutoff legitimately finalizes instead of deferring (measured 2026-11-16).
+    $db->execute('INSERT INTO dl_branch_products (branch_id, product_id, is_active) VALUES (:b, :p, 1)', [':b' => $dayBranchId, ':p' => $dayProduct]);
     $db->execute(
         'INSERT INTO dl_users (id, username, password_hash, full_name, role, shift, is_active) VALUES (:id, :u, :p, :n, "admin", NULL, 1)',
         [':id' => $adminId, ':u' => 'finding-type-admin', ':p' => 'not-a-login-hash', ':n' => 'Finding Type Admin']
@@ -330,8 +334,9 @@ try {
     $h->test('A1 the PM call site flagged the shift', ($pmResult['flagged'] ?? false) === true, json_encode($pmResult));
     $h->test('A2 the PM notification finding_type is ' . $newType, is_array($pmRow) && (string)$pmRow['finding_type'] === $newType, json_encode($pmRow));
 
-    // Day call site: an open cashier PM shift makes the day close while
-    // flagged (owner directive 2026-10-05; it no longer refuses the close).
+    // Day call site, contract revised 2026-11-16: a manual day whose PM still owes an ending is
+    // no longer closed while its shift is open — it is DEFERRED, and the deferral notification
+    // carries the same finding_type. The flag+close path still exists for the later sweep.
     $db->execute(
         'INSERT INTO dl_daily_ledger (branch_id, product_id, ledger_date, shift, beg_bal, bal_end, sales)
          VALUES (:b, :p, :d, "PM", 5, NULL, NULL)',
@@ -339,11 +344,15 @@ try {
     );
     $dayResult = false;
     try { $dayResult = dl_maybeAutoCloseBranchDay($dayBranchId, $adminId, null); } catch (Throwable $e) { $h->detail('day close threw: ' . $e->getMessage()); }
-    $dayRow = $notifByKey('closed_without_pm_finalize-day-' . $dayBranchId . '-' . $prev);
+    $dayRow = $notifByKey('pending_endings-day-' . $dayBranchId . '-' . $prev);
     $dayStatusStmt = $db->prepare('SELECT status FROM dl_ledger_day_status WHERE branch_id = :b AND ledger_date = :d LIMIT 1');
     $dayStatusStmt->execute([':b' => $dayBranchId, ':d' => $prev]);
     $dayStatusVal = $dayStatusStmt->fetchColumn();
-    $h->test('A3 the day call site CLOSES the day without a finalized PM', $dayResult === true && $dayStatusVal === 'closed', json_encode(['returned' => $dayResult, 'day' => $dayStatusVal]));
+    $h->test(
+        'A3 the day call site LEAVES the day OPEN when the PM still owes an ending',
+        $dayResult === false && $dayStatusVal !== 'closed',
+        json_encode(['returned' => $dayResult, 'day' => $dayStatusVal])
+    );
     $h->test('A4 the day notification finding_type is ' . $newType, is_array($dayRow) && (string)$dayRow['finding_type'] === $newType, json_encode($dayRow));
 
     // ══════════════════════════════════════════════════════════════════════

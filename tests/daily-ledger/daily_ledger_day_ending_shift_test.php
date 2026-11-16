@@ -52,13 +52,27 @@ $bodyOf = static function (string $name) use ($source): string {
 
 $h->section('T-A2 finalize endpoint wiring');
 $finalize = $bodyOf('apiFinalizePmShift');
+// 2026-11-16: the validation + recompute + finalize body moved into ONE helper shared by this
+// endpoint and the close-of-day cutoff (a day must never close with its ending shift open), so
+// the shift-sensitive statements are asserted where they now live, plus the delegation itself.
+$core = $bodyOf('dl_finalizeDayEndingShiftCore');
 $h->test('finalize resolves the day-ending shift', str_contains($finalize, '$endShift = dl_dayEndingShift((int)$branchId)'));
 $h->test('shift lock uses resolved shift', str_contains($finalize, 'dl_lockShiftStatusRow($ctx->db(), $branchId, $date, $endShift)'));
-$h->test('missing-ending check uses resolved shift', str_contains($finalize, 'dl_shiftMissingEndings($ctx->db(), $branchId, $date, $endShift)'));
-$h->test('sales query and recompute use resolved shift', str_contains($finalize, 'shift = :shift') && str_contains($finalize, "':shift' => \$endShift") && str_contains($finalize, '$userId, $endShift)'));
-$h->test('finalize update and audit use resolved shift', str_contains($finalize, '"{$branchId}-{$date}-{$endShift}"') && str_contains($finalize, "'shift' => \$endShift"));
+$h->test(
+    'finalize delegates validation + sales + status to the shared core with the resolved shift',
+    str_contains($finalize, 'dl_finalizeDayEndingShiftCore($ctx->db(), $branchId, $date, $endShift, $userId,')
+);
+$h->test('missing-ending check uses resolved shift', $core !== '' && str_contains($core, 'dl_shiftMissingEndings($db, $branchId, $date, $endShift)'));
+$h->test(
+    'sales query and recompute use resolved shift',
+    $core !== '' && str_contains($core, 'shift = :shift') && str_contains($core, "':shift' => \$endShift") && str_contains($core, '$userId, $endShift)')
+);
+$h->test(
+    'finalize update and audit use resolved shift',
+    $core !== '' && str_contains($core, '"{$branchId}-{$date}-{$endShift}"') && str_contains($core, "'shift' => \$endShift")
+);
 $h->test('finalize endpoint has no PM literal in lock, missing, SELECT, or UPDATE',
-    !preg_match("/dl_lockShiftStatusRow\\([^;]*'PM'|dl_shiftMissingEndings\\([^;]*'PM'|shift\\s*=\\s*\\\\?'PM\\\\?'/", $finalize));
+    !preg_match("/dl_lockShiftStatusRow\\([^;]*'PM'|dl_shiftMissingEndings\\([^;]*'PM'|shift\\s*=\\s*\\\\?'PM\\\\?'/", $finalize . $core));
 
 $h->section('T-A3 close-day wiring');
 $closeDay = $bodyOf('apiCloseDay');
