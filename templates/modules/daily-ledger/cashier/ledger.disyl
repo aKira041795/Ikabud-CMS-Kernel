@@ -222,6 +222,16 @@
         <button type="button" class="btn btn-primary" id="finalize-pm-btn" onclick="finalizePmShift()">{if single_shift_mode}Close Day-Ending Shift{else}Close PM Shift{/if}</button>
         {else}
         <span class="inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-200">{if single_shift_mode}Day-Ending Shift Finalized{else}PM Shift Finalized{/if}</span>
+        {* The undo belongs NEXT TO the state, not in a notice further down the page. Measured
+           2026-11-16 with the client's own admin account: today's PM was already finalized, so the
+           bar showed only the green pill and "Close Day", and "Reopen Day" was correctly absent
+           (the day was still open) — the admin reported "cannot see Close PM or Reopen" while the
+           shift-reopen button sat in an amber paragraph below the fold. *}
+        {if can_ledger_override}
+        <button type="button" class="btn btn-accent btn-sm" id="reopen-shift-btn" onclick="reopenDay()"
+                data-online-action="Shift reopen"
+                title="Undo this sign-off so the counts can be corrected. Audited.">{if single_shift_mode}Reopen Day-Ending Shift{else}Reopen PM shift{/if}</button>
+        {/if}
         {/if}
         {/if}
         {* "I cannot find Close PM" is almost always this: the PM shift is the one that closes the day,

@@ -481,6 +481,14 @@ try {
         str_contains($ledgerTpl, 'id="open-pm-sheet-hint"')
             && preg_match("/shift == 'AM'[^}]*!shift_locked[^}]*day_ending_shift == 'PM'/", $ledgerTpl) === 1
     );
+    // Measured with the client's admin account: today's PM was already finalized, so the bar showed
+    // only the green pill and "Close Day" (Reopen Day is correctly absent while the day is open) —
+    // "cannot see Close PM or Reopen". The undo must sit NEXT TO the state, for the office only.
+    $h->test(
+        'N9h the finalized state carries its Reopen action in the action bar, office only',
+        str_contains($ledgerTpl, 'id="reopen-shift-btn"')
+            && preg_match('/\{if can_ledger_override\}\s*<button[^>]*id="reopen-shift-btn"/s', $ledgerTpl) === 1
+    );
 
     if ($prevAuthHeader === null) {
         unset($_SERVER['HTTP_AUTHORIZATION']);
