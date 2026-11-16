@@ -7561,22 +7561,38 @@ function dl_finalizeDayEndingShiftCore($db, int $branchId, string $date, string 
  * Whether a cashier may edit the given branch/date/shift. The current business
  * date is always editable; additionally the immediately previous date's PM is
  * editable while that day is open and PM is still pending (late-count window
- * after the 22:00 rollover). Everything else is reference-only for cashiers.
+ * after the 22:00 rollover); and ANY date an admin deliberately reopened is
+ * editable while that day is open and the shift is not finalized.
+ *
+ * That last clause is the whole point of a reopen: the admin's act IS the
+ * authorisation (dl_deliberateReopenUnlocksEntryEdit), so the page must stop
+ * rendering "Reference only" for those days. Measured 2026-11-16: without it a
+ * reopened past day showed the cashier no Close PM Shift and no editable cells,
+ * so the counts could never be completed and the day could never be closed
+ * again — the admin had to do both, and when the admin's role lacked
+ * ledger.override nobody could.
  */
 function dl_cashierMayEdit(int $branchId, string $date, string $shift, string $today, string $dayStatus): bool
 {
     if ($date === $today) {
         return true;
     }
-    if ($shift !== 'PM' || $dayStatus === 'closed') {
-        return false;
-    }
-    $prev = (new \DateTimeImmutable($today))->modify('-1 day')->format('Y-m-d');
-    if ($date !== $prev) {
+    if ($dayStatus === 'closed') {
         return false;
     }
     $ctx = module();
     if (!$ctx) {
+        return false;
+    }
+    // A deliberate reopen unlocks this shift whatever the date or shift is.
+    if (dl_deliberateReopenUnlocksEntryEdit($ctx->db(), $branchId, $date, $shift)) {
+        return true;
+    }
+    if ($shift !== 'PM') {
+        return false;
+    }
+    $prev = (new \DateTimeImmutable($today))->modify('-1 day')->format('Y-m-d');
+    if ($date !== $prev) {
         return false;
     }
     return !dl_shiftIsFinalized($ctx->db(), $branchId, $date, 'PM');
@@ -13536,13 +13552,16 @@ function apiFinalizePmShift(array $params = []): void
         return;
     }
 
-    // Cashiers may finalize PM only for the current date or the immediately
-    // previous pending PM day (late-count window). Supervisors/admins may
-    // finalize any open day's PM on their authorized branch.
+    // Cashiers may finalize PM for the current date, the immediately previous
+    // pending PM day (late-count window), or ANY day an admin deliberately
+    // reopened — a reopen without a way to finalize would strand the day open
+    // forever. Supervisors/admins may finalize any open day's PM on their
+    // authorized branch.
     if ($role === 'cashier') {
         $today = dl_businessDate();
         $prev = (new \DateTimeImmutable($today))->modify('-1 day')->format('Y-m-d');
-        if ($date !== $today && $date !== $prev) {
+        $reopenUnlocked = dl_deliberateReopenUnlocksEntryEdit($ctx->db(), $branchId, $date, $endShift);
+        if ($date !== $today && $date !== $prev && !$reopenUnlocked) {
             $ctx->json(['ok' => false, 'error' => 'Reference only'], 403);
             return;
         }

@@ -424,6 +424,64 @@ try {
         json_encode($stalePayload)
     );
 
+    // ══════════════════════════════════════════════════════════════════════
+    // N9 — an admin's deliberate reopen unlocks the BRANCH, including the
+    //      day-ending shift, or the day can never be closed again
+    // ══════════════════════════════════════════════════════════════════════
+    $h->section('N9 a deliberately reopened day unlocks the branch');
+
+    $reopenedDate = (new DateTimeImmutable($today))->modify('-3 days')->format('Y-m-d');
+    $db->execute('DELETE FROM dl_ledger_day_status WHERE branch_id = :b AND ledger_date = :d', [':b' => $BRANCH, ':d' => $reopenedDate]);
+    $db->execute('DELETE FROM dl_ledger_shift_status WHERE branch_id = :b AND ledger_date = :d', [':b' => $BRANCH, ':d' => $reopenedDate]);
+    $db->execute('DELETE FROM dl_daily_ledger WHERE branch_id = :b AND ledger_date = :d', [':b' => $BRANCH, ':d' => $reopenedDate]);
+    $db->execute(
+        "INSERT INTO dl_ledger_day_status (branch_id, ledger_date, status, reopened_by, reopened_at) VALUES (:b, :d, 'open', :u, NOW())",
+        [':b' => $BRANCH, ':d' => $reopenedDate, ':u' => $ADMIN]
+    );
+    // The one active product carries its ending, so the shift CAN be finalized.
+    $db->execute(
+        'INSERT INTO dl_daily_ledger (branch_id, product_id, ledger_date, shift, beg_bal, bal_end, sales) VALUES (:b, :p, :d, "PM", 5, 7, -2)',
+        [':b' => $BRANCH, ':p' => $P_MOVED, ':d' => $reopenedDate]
+    );
+
+    $h->test(
+        'N9a a cashier may edit the PM of a reopened past day (beyond the late-count window)',
+        dl_cashierMayEdit($BRANCH, $reopenedDate, 'PM', $today, 'open') === true
+    );
+    $h->test(
+        'N9b the reopen unlocks the AM shift of that day too',
+        dl_cashierMayEdit($BRANCH, $reopenedDate, 'AM', $today, 'open') === true
+    );
+    $h->test(
+        'N9c an older OPEN day nobody reopened stays reference-only',
+        dl_cashierMayEdit($BRANCH, (new DateTimeImmutable($today))->modify('-4 days')->format('Y-m-d'), 'PM', $today, 'open') === false
+    );
+
+    // The real finalize handler must accept it — a reopen without a way to finalize strands the day.
+    $reopenedFinalize = $runFinalize($BRANCH, $reopenedDate, $CASHIER, 'cashier');
+    $h->test(
+        'N9d the cashier can finalize the ending shift of the reopened day',
+        is_array($reopenedFinalize['json']) && ($reopenedFinalize['json']['ok'] ?? false) === true,
+        json_encode(['harness' => $reopenedFinalize])
+    );
+    $finalizedStmt = $db->prepare('SELECT status FROM dl_ledger_shift_status WHERE branch_id = :b AND ledger_date = :d AND shift = "PM"');
+    $finalizedStmt->execute([':b' => $BRANCH, ':d' => $reopenedDate]);
+    $h->test('N9e and the shift really is finalized afterwards', (string)$finalizedStmt->fetchColumn() === 'finalized');
+
+    // A closed day is still closed, reopened_at or not.
+    $h->test(
+        'N9f a CLOSED day stays reference-only even with a stale reopened_at',
+        dl_cashierMayEdit($BRANCH, $staleDate, 'PM', $today, 'closed') === false
+    );
+
+    // The screen must say WHY there is no Close PM button on the AM sheet.
+    $ledgerTpl = (string)file_get_contents($base . '/templates/modules/daily-ledger/cashier/ledger.disyl');
+    $h->test(
+        'N9g the AM sheet points at the PM sheet instead of hiding the control silently',
+        str_contains($ledgerTpl, 'id="open-pm-sheet-hint"')
+            && preg_match("/shift == 'AM'[^}]*!shift_locked[^}]*day_ending_shift == 'PM'/", $ledgerTpl) === 1
+    );
+
     if ($prevAuthHeader === null) {
         unset($_SERVER['HTTP_AUTHORIZATION']);
     } else {

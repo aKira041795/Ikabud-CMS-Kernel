@@ -224,6 +224,18 @@
         <span class="inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-200">{if single_shift_mode}Day-Ending Shift Finalized{else}PM Shift Finalized{/if}</span>
         {/if}
         {/if}
+        {* "I cannot find Close PM" is almost always this: the PM shift is the one that closes the day,
+           and on the AM sheet there is no PM button at all — measured 2026-11-16 with a two-shift
+           branch on an OPEN day: the bar showed only Close Day and Reopen Day was correctly absent
+           (the day was open), so both controls the operator was looking for were missing and nothing
+           said why. Name the reason and give the one-click way over. *}
+        {if day_status == 'open' && shift == 'AM' && !single_shift_mode && !shift_locked && day_ending_shift == 'PM' && day_ending_shift_status != 'finalized'}
+        <a href="{base_url}/ledger?date={ledger_date}&branch_id={branch_id}&shift=PM{if admin_view_scope}&scope={admin_view_scope.value}{/if}"
+           id="open-pm-sheet-hint"
+           class="inline-flex items-center rounded-lg bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800 ring-1 ring-inset ring-amber-300">
+            The PM shift closes the day — open the PM sheet to close it →
+        </a>
+        {/if}
         <button type="button" class="btn btn-accent" onclick="printCashierLedger()">Print</button>
         {* Client concern #3: the branch must be able to settle a delivery discrepancy with the
            branch that sent it, without waiting for the office. The capture lives on the variance
