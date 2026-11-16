@@ -118,7 +118,7 @@
                 <tr>
                     <th>Date</th>
                     <th>Shift</th>
-                    <th class="text-right">Ledger Sales</th>
+                    <th class="text-right">Sales</th>
                     <th class="text-right">Paper Sheet</th>
                     <th class="text-right">&Delta; Paper</th>
                     <th class="text-right">Cash Remitted</th>
@@ -144,7 +144,8 @@
                     </td>
                     <td class="text-sm font-medium">{row.shift}</td>
                     <td class="text-right text-sm font-semibold">
-                        PHP {row.ledger_sales | number_format:2}
+                        {if row.sales_comparable}PHP {row.ledger_sales_display}{else}&mdash;{/if}
+                        <div class="text-xs font-normal text-gray-400">{row.sales_label}</div>
                         {if row.has_pending_ending}
                         <div class="text-xs font-normal text-amber-700" title="Some rows have no ending recorded; they are excluded from this total.">pending endings</div>
                         {/if}

@@ -126,7 +126,7 @@
         {/if}
         {if deposit_office_view}
         <div>
-            <span class="block text-xs font-medium text-gray-700 mb-1">Ledger sales</span>
+            <span data-deposit-sales-label class="block text-xs font-medium text-gray-700 mb-1">{deposit.sales_label}</span>
             <div data-deposit-sales class="flex h-10 w-32 items-center justify-end tabular-nums font-semibold text-gray-900">{deposit.ledger_sales_display}</div>
         </div>
         <div>
@@ -576,12 +576,17 @@
             var fmt = function(n) {
                 return Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
             };
+            // The server owns the basis: on a POS day it is POS revenue, and a shift with no
+            // independent basis comes back comparable=false — printed as “—” so it never reads as 0.00.
+            var comparable = res.sales_comparable !== false;
             var sales = Number(res.ledger_sales || 0);
-            var diff = res.cash_variance;
+            var diff = comparable ? res.cash_variance : null;
             panel.setAttribute('data-ledger-sales', String(sales));
             panel.setAttribute('data-pending-rows', String(res.pending_rows || 0));
             panel.setAttribute('data-provisional-rows', String(res.provisional_rows || 0));
-            if (salesEl) salesEl.textContent = fmt(sales);
+            var labelEl = panel.querySelector('[data-deposit-sales-label]');
+            if (labelEl && res.sales_label) labelEl.textContent = String(res.sales_label);
+            if (salesEl) salesEl.textContent = comparable ? fmt(sales) : '—';
             if (diffEl) {
                 var label = '—';
                 var cls = 'text-gray-500';
@@ -595,7 +600,9 @@
                 diffEl.classList.add(cls);
             }
             if (noteEl) {
-                if (officeView && Number(res.pending_rows || 0) > 0) {
+                if (officeView && !comparable) {
+                    noteEl.textContent = 'POS sales are recorded for the whole day, so short/over is shown on the day-ending shift only.';
+                } else if (officeView && Number(res.pending_rows || 0) > 0) {
                     noteEl.textContent = res.pending_rows + ' product row(s) still have no ending count, so the sales figure is not final yet.';
                 } else if (officeView && Number(res.provisional_rows || 0) > 0) {
                     noteEl.textContent = res.provisional_rows + ' row(s) are provisional (their shift is not finalized), so the sales figure can still move.';

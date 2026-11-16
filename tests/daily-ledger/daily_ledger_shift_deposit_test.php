@@ -222,7 +222,8 @@ try {
     $h->test(
         'BOTH comparison cells are printed ONLY behind deposit_office_view',
         $officeGuard !== false
-            && $officeGuard < strpos($tplSrc, '>Ledger sales<')
+            // The label names the basis (ledger vs POS), so it is the cell's marker now.
+            && $officeGuard < strpos($tplSrc, '{deposit.sales_label}')
             && $officeGuard < strpos($tplSrc, 'Short / over')
     );
     $h->test(

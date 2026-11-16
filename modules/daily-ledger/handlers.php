@@ -16756,6 +16756,147 @@ function dl_varianceDateRange(array $input): array
 }
 
 /**
+ * POS net sales for one branch-day, bucketed by the SHIFT the sale was attributed to.
+ *
+ * `dl_pos_sales.shift` exists, so a POS branch-deposit check can be per shift exactly like a manual
+ * one instead of comparing an AM deposit against the whole day's takings. Buckets that are not AM/PM
+ * are returned under `unattributed`, because a sale with no shift cannot honestly be assigned to one.
+ *
+ * Signed like dl_pos_netTotals (a refund row subtracts). Aggregation happens in PHP: ModuleDB's
+ * FROM-clause parser misreads derived tables, and MySQL 5.7 has no window functions anyway.
+ *
+ * @return array{AM: float, PM: float, unattributed: float, all: float}
+ */
+function dl_pos_salesByShift($db, int $branchId, string $date): array
+{
+    $totals = ['AM' => 0.0, 'PM' => 0.0, 'unattributed' => 0.0, 'all' => 0.0];
+    $stmt = $db->prepare(
+        "SELECT s.sale_kind, s.shift, s.total_cents
+           FROM dl_pos_sales s
+          WHERE s.branch_id = :b AND s.ledger_date = :d
+            AND s.status IN ('completed','partially_refunded','refunded')"
+    );
+    $stmt->execute([':b' => $branchId, ':d' => $date]);
+    foreach ($stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [] as $row) {
+        $sign = ((string)($row['sale_kind'] ?? 'sale') === 'refund') ? -1 : 1;
+        $amount = $sign * ((int)($row['total_cents'] ?? 0)) / 100;
+        $bucket = strtoupper(trim((string)($row['shift'] ?? '')));
+        if (!isset($totals[$bucket]) || $bucket === 'all') {
+            $bucket = 'unattributed';
+        }
+        $totals[$bucket] += $amount;
+        $totals['all'] += $amount;
+    }
+    return [
+        'AM' => round($totals['AM'], 2),
+        'PM' => round($totals['PM'], 2),
+        'unattributed' => round($totals['unattributed'], 2),
+        'all' => round($totals['all'], 2),
+    ];
+}
+
+/**
+ * What a CASH DEPOSIT for one shift is compared against — per the branch-day's SALES MODE.
+ *
+ * POS writes no ledger counts (never beg_bal/addtl/withdraw/bal_end, never `sales`), so on a POS
+ * day the ledger-derived figure is 0. Comparing a deposit against 0 reports the entire cash
+ * remittance as "over", on the branch sheet and on Cash & Paper Check — a money-facing lie that
+ * would have the office chasing a phantom variance on every POS day. Owner directive 2026-11-16:
+ * "have this tightly integrated with the daily ledger system."
+ *
+ * The basis follows the mode that actually owns the day's sales:
+ *   manual          -> the ledger's official (non-provisional) derived sales, as before;
+ *   pos             -> that shift's POS net sales (per shift, because dl_pos_sales carries `shift`);
+ *   pos, partially
+ *   shift-less      -> the whole day's POS total, but only on the DAY-ENDING shift;
+ *   fallback        -> the day's official total (POS-before-checkpoint + manual-after), day-ending
+ *                      shift only: a mid-day POS failure is reconciled as one day's cash.
+ *
+ * Whenever the day cannot be split honestly, `comparable` is false and the caller must print "—"
+ * rather than a variance computed against a figure that does not belong to that shift.
+ *
+ * @return array{sales: float, source: string, comparable: bool, label: string}
+ */
+function dl_depositComparisonSales($db, int $branchId, string $date, string $shift, float $ledgerSales, ?array &$cache = null): array
+{
+    $ledgerBasis = ['sales' => $ledgerSales, 'source' => 'ledger', 'comparable' => true, 'label' => 'Ledger sales'];
+    if ($branchId <= 0 || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+        return $ledgerBasis;
+    }
+    if (!function_exists('dl_isPosEnabled') || !dl_isPosEnabled() || !function_exists('dl_pos_salesSummary')) {
+        return $ledgerBasis;
+    }
+
+    // One page asks this once per (branch, date, shift), over many rows. The caller may pass a
+    // per-request cache so a listing adds ONE lookup per branch-day instead of two per row —
+    // measured 592 queries / 3.6 s on Cash & Paper Check without it. The cache is the caller's,
+    // not a function static, so a caller that changes a day's mode or sales mid-request is never
+    // served a stale basis.
+    if ($cache === null) { $cache = []; }
+    $memoKey = $branchId . '|' . $date;
+
+    try {
+        if (!array_key_exists('mode|' . $memoKey, $cache)) {
+            $cache['mode|' . $memoKey] = dl_pos_dayMode($db, $branchId, $date);
+        }
+        $mode = $cache['mode|' . $memoKey];
+    } catch (\Throwable $e) {
+        return $ledgerBasis;
+    }
+    $modeName = (string)($mode['mode'] ?? 'manual');
+    if (empty($mode['decided']) || !in_array($modeName, ['pos', 'fallback'], true)) {
+        return $ledgerBasis;
+    }
+
+    $isDayEnding = $shift === dl_dayEndingShift($branchId);
+    $notComparable = [
+        'sales' => 0.0,
+        'source' => 'pos',
+        'comparable' => false,
+        'label' => 'POS sales (whole day)',
+    ];
+
+    if ($modeName === 'pos') {
+        try {
+            if (!array_key_exists('pos|' . $memoKey, $cache)) {
+                $cache['pos|' . $memoKey] = dl_pos_salesByShift($db, $branchId, $date);
+            }
+            $byShift = $cache['pos|' . $memoKey];
+        } catch (\Throwable $e) {
+            return $ledgerBasis;
+        }
+        // Every sale carries a shift: the deposit is compared against its OWN shift.
+        if (abs($byShift['unattributed']) < 0.005) {
+            $forShift = $shift === 'AM' ? $byShift['AM'] : ($shift === 'PM' ? $byShift['PM'] : 0.0);
+            return ['sales' => round($forShift, 2), 'source' => 'pos', 'comparable' => true, 'label' => 'POS sales'];
+        }
+        // A shift-less sale cannot be attributed to a shift: compare the whole day, once, at the end.
+        if ($isDayEnding) {
+            return ['sales' => round($byShift['all'], 2), 'source' => 'pos', 'comparable' => true, 'label' => 'POS sales (whole day)'];
+        }
+        return $notComparable;
+    }
+
+    // fallback
+    if (!$isDayEnding) {
+        return $notComparable;
+    }
+    try {
+        $summary = dl_pos_salesSummary($db, $branchId, $date);
+        $official = (float)($summary['official_amount'] ?? 0.0);
+    } catch (\Throwable $e) {
+        return $ledgerBasis;
+    }
+
+    return [
+        'sales' => round($official, 2),
+        'source' => $modeName === 'fallback' ? 'pos_fallback' : 'pos',
+        'comparable' => true,
+        'label' => $modeName === 'fallback' ? 'POS + manual sales' : 'POS sales',
+    ];
+}
+
+/**
  * Classify one shift's reconciliation against the ledger's derived sales.
  *
  * Pure so the rule can be tested directly rather than through a rendered page: this is the
@@ -16876,8 +17017,13 @@ function dl_shiftDepositContext($db, int $branchId, string $date, string $shift,
     $ledgerSales = round((float)($sales['ledger_sales'] ?? 0), 2);
     $cash = ($recon['cash_remitted'] ?? null) === null ? null : round((float)$recon['cash_remitted'], 2);
     $paper = ($recon['paper_sales'] ?? null) === null ? null : round((float)$recon['paper_sales'], 2);
+    // A POS day is compared against the POS official total, not against a ledger figure that is 0 by
+    // construction (POS never writes counts). Non-day-ending shifts on a POS day are NOT comparable:
+    // POS records sales per day, so a per-shift variance there would be invented.
+    $basis = dl_depositComparisonSales($db, $branchId, $date, $shift, $ledgerSales);
+    $ledgerSales = $basis['comparable'] ? (float)$basis['sales'] : 0.0;
     $state = dl_reconciliationState(is_array($recon) && $recon !== [], $ledgerSales, $paper, $cash);
-    $cashVariance = $state['cash_variance'];
+    $cashVariance = $basis['comparable'] ? $state['cash_variance'] : null;
     $pendingRows = (int)($sales['pending_rows'] ?? 0);
     $provisionalRows = (int)($sales['provisional_rows'] ?? 0);
 
@@ -16910,6 +17056,10 @@ function dl_shiftDepositContext($db, int $branchId, string $date, string $shift,
         $note = $pendingRows . ' product row(s) still have no ending count, so the sales figure is not final yet.';
     } elseif ($provisionalRows > 0) {
         $note = $provisionalRows . ' row(s) are provisional (their shift is not finalized), so the sales figure can still move.';
+    } elseif (!$basis['comparable']) {
+        // POS records sales per DAY, so this shift has no independent figure to compare against.
+        // Saying "Over by <everything>" here would be a fabricated variance.
+        $note = 'POS sales are recorded for the whole day, so short/over is shown on the day-ending shift only.';
     } elseif ($recon !== [] && $cash !== null) {
         $note = 'Deposit recorded' . (($recon['recorded_by_name'] ?? '') !== '' ? ' by ' . (string)$recon['recorded_by_name'] : '')
             . (($recon['recorded_at'] ?? null) !== null ? ' at ' . (string)$recon['recorded_at'] : '') . '.';
@@ -16925,15 +17075,20 @@ function dl_shiftDepositContext($db, int $branchId, string $date, string $shift,
         'recorded_at' => $recon['recorded_at'] ?? null,
         // Comparison figures are the OFFICE's view (owner directive 2026-11-16: "we don't have
         // to show ledger sales to cashiers. only admin can see"). A branch context keeps the
-        // keys so the template needs no extra shape, but carries no number to leak.
-        'ledger_sales' => $includeComparison ? $ledgerSales : null,
+        // keys so the template needs no extra shape, but carries no number to leak. A shift with
+        // no honest basis carries null even for the office: 0.00 would read as a real figure.
+        'ledger_sales' => $includeComparison && $basis['comparable'] ? $ledgerSales : null,
         'pending_rows' => $includeComparison ? $pendingRows : 0,
         'provisional_rows' => $includeComparison ? $provisionalRows : 0,
         'row_count' => (int)($sales['row_count'] ?? 0),
         'cash_variance' => $includeComparison ? $cashVariance : null,
         'cash_remitted_input' => $cash === null ? '' : number_format($cash, 2, '.', ''),
         'cash_remitted_display' => $cash === null ? '—' : number_format($cash, 2),
-        'ledger_sales_display' => $includeComparison ? number_format($ledgerSales, 2) : '—',
+        'ledger_sales_display' => $includeComparison && $basis['comparable'] ? number_format($ledgerSales, 2) : '—',
+        // The label names what the figure IS: on a POS day it is POS revenue, not a ledger count.
+        'sales_label' => $includeComparison ? (string)$basis['label'] : 'Sales',
+        'sales_source' => (string)$basis['source'],
+        'sales_comparable' => (bool)$basis['comparable'],
         'cash_variance_display' => !$includeComparison || $cashVariance === null ? '—' : (($cashVariance > 0 ? '+' : '') . number_format($cashVariance, 2)),
         'variance_label' => $includeComparison ? $varianceLabel : '—',
         'variance_class' => $includeComparison ? $varianceClass : 'text-gray-500',
@@ -17046,17 +17201,81 @@ function handleAdminReconciliation(array $params = []): void
     $stmt->execute($bind);
     $rawRows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
+    // A POS branch-day can have a recorded deposit and NO ledger row at all, because POS writes
+    // sales rather than counts. The main query is driven from dl_daily_ledger, so those deposits
+    // would never reach the office — the page silently hid the money it exists to check. Append
+    // every reconciliation row whose (branch, date, shift) has no sheet behind it.
+    $orphanSql = 'SELECT r.branch_id, b.name AS branch_name, b.code AS branch_code,
+                         r.ledger_date, r.shift,
+                         r.id AS recon_id, r.paper_sales, r.cash_remitted, r.review_note,
+                         r.recorded_at, COALESCE(u.full_name, \'\') AS recorded_by_name
+                    FROM dl_shift_reconciliation r
+                    INNER JOIN dl_branches b ON b.id = r.branch_id
+                    LEFT JOIN dl_users u ON u.id = r.recorded_by
+                   WHERE r.branch_id IN (' . $branchPlaceholders . ')
+                     AND r.ledger_date BETWEEN ? AND ?
+                     AND NOT EXISTS (
+                         SELECT 1 FROM dl_daily_ledger d2
+                          WHERE d2.branch_id = r.branch_id
+                            AND d2.ledger_date = r.ledger_date
+                            AND d2.shift = r.shift COLLATE utf8mb4_unicode_ci
+                     )';
+    $orphanBind = array_merge($accessibleBranchIds, [$dateFrom, $dateTo]);
+    if ($branchId !== null) {
+        $orphanSql .= ' AND r.branch_id = ?';
+        $orphanBind[] = $branchId;
+    }
+    try {
+        $orphanStmt = $ctx->db()->prepare($orphanSql);
+        $orphanStmt->execute($orphanBind);
+        foreach (($orphanStmt->fetchAll(PDO::FETCH_ASSOC) ?: []) as $orphan) {
+            $rawRows[] = $orphan + [
+                'row_count' => 0,
+                'pending_rows' => 0,
+                'ledger_sales' => 0,
+                'pm_unfinalized_rows' => 0,
+            ];
+        }
+    } catch (\Throwable $e) {
+        // Never let the add-on query take down the page; the sheet-driven rows above still render.
+        write_log('daily-ledger: orphan deposit rows unavailable: ' . $e->getMessage(), 'WARN');
+    }
+    if (count($rawRows) > 1) {
+        usort($rawRows, static function (array $a, array $b): int {
+            $cmp = strcmp((string)($b['ledger_date'] ?? ''), (string)($a['ledger_date'] ?? ''));
+            if ($cmp !== 0) { return $cmp; }
+            $cmp = strcmp((string)($a['branch_name'] ?? ''), (string)($b['branch_name'] ?? ''));
+            if ($cmp !== 0) { return $cmp; }
+            return strcmp((string)($a['shift'] ?? ''), (string)($b['shift'] ?? ''));
+        });
+    }
+
     $rows = [];
     $stats = [
         'total' => 0, 'checked' => 0, 'unchecked' => 0, 'matched' => 0, 'mismatch' => 0,
         'cash_variance_total' => 0.0, 'paper_variance_total' => 0.0,
     ];
+    $basisCache = [];
     foreach ($rawRows as $raw) {
         $ledgerSales = (float)($raw['ledger_sales'] ?? 0);
+        $branchId = (int)($raw['branch_id'] ?? 0);
+        $ledgerDate = (string)($raw['ledger_date'] ?? '');
+        $shiftName = (string)($raw['shift'] ?? '');
+        // Same basis as the branch's own deposit panel (dl_depositComparisonSales): on a POS day the
+        // sheet-derived figure is 0 by construction, and comparing a deposit against it would report
+        // the whole remittance as "over" on the office page too.
+        $basis = dl_depositComparisonSales($ctx->db(), $branchId, $ledgerDate, $shiftName, $ledgerSales, $basisCache);
+        $ledgerSales = (float)$basis['sales'];
+        $raw['sales_label'] = (string)$basis['label'];
+        $raw['sales_source'] = (string)$basis['source'];
+        $raw['sales_comparable'] = (bool)$basis['comparable'];
+        $raw['ledger_sales_display'] = $basis['comparable'] ? number_format($ledgerSales, 2) : '—';
         $paper = $raw['paper_sales'] === null ? null : (float)$raw['paper_sales'];
         $cash = $raw['cash_remitted'] === null ? null : (float)$raw['cash_remitted'];
 
-        $state = dl_reconciliationState($raw['recon_id'] !== null, $ledgerSales, $paper, $cash);
+        $state = $basis['comparable']
+            ? dl_reconciliationState($raw['recon_id'] !== null, $ledgerSales, $paper, $cash)
+            : ['paper_variance' => null, 'cash_variance' => null, 'is_checked' => false, 'is_mismatch' => false, 'state' => 'unchecked'];
         $checked = $state['is_checked'];
         $mismatch = $state['is_mismatch'];
 
@@ -21193,6 +21412,11 @@ function apiSaveShiftDeposit(array $params = []): void
             $payload['cash_variance_display'] = $context['cash_variance_display'];
             $payload['variance_label'] = $context['variance_label'];
             $payload['variance_class'] = $context['variance_class'];
+            // The figure's NAME travels with the figure: on a POS day it is POS revenue, and a
+            // shift that has no independent basis must repaint as "—" rather than as 0.00.
+            $payload['sales_label'] = $context['sales_label'];
+            $payload['sales_source'] = $context['sales_source'];
+            $payload['sales_comparable'] = $context['sales_comparable'];
         }
         $ctx->json($payload);
     } catch (\Throwable $e) {
