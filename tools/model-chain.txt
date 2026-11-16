@@ -16,6 +16,17 @@
 #
 # Ordered for cost: the strongest model first, the cheap high-volume model second, and a
 # third provider's model last so it does not spend the primary subscription's cap.
+#
+# DO NOT rename deepseek-v4-flash to the canonical deepseek-flash. Verified 2026-11-14:
+# DeepSeek's docs advertise `deepseek-flash` as the name to use, and it is served by
+# DeepSeek-V4.1-Flash-1017, but pi has no model registered under that name yet:
+#   pi --print --model deepseek-flash "..."   -> Error: Model "deepseek-flash" not found
+#   pi --print --model deepseek-v4-flash "..." -> works, still bills at Flash price
+# The legacy alias is retired upstream but still resolves, so the chain keeps working.
+# To adopt the canonical name: register it in ~/.pi/agent/models.json FIRST, then rename
+# here. Renaming first makes every lane spend one attempt discovering it is unsupported.
+# If a lane result ever changes behaviour without a tree change, suspect this alias
+# rolling its served snapshot - record the resolved version in the run evidence.
 
 openai-codex/gpt-5.6-sol
 deepseek-v4-flash
