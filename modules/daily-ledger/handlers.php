@@ -2062,11 +2062,17 @@ function dl_autoCloseBranchDayAt($ctx, int $branchId, string $date, array $setti
             return 'reopened';
         }
 
-        // POS/fallback days close under their own receipt/checkpoint rules.
+        // EVERY day is closed under the shift-lifecycle contract, POS included.
         //
-        // A manual day is NEVER closed while the shift that owns its sales is
-        // still open, unless the branch has already had more than one business
-        // day to finish it:
+        // This block used to run only for `dl_isFullyManualDay()`, with a note that POS/fallback days
+        // "close under their own receipt/checkpoint rules". Those rules (no open carts, variance
+        // acknowledged — dl_pos_dayClosePrecheck) are an ADDITIONAL gate; they say nothing about the
+        // shift that owns the day, so a POS day could be closed with its day-ending shift still open —
+        // exactly the dead end the manual contract exists to prevent (sales provisional, no control
+        // left on the sheet). Owner directive 2026-11-16: "wire POS. better to have POS updated than
+        // missing it when enabled."
+        //
+        // The contract, for every day:
         //   1. every ending recorded -> finalize the shift HERE (audited), so the
         //      sales become official and the variances are swept and frozen;
         //   2. endings pending, this is the day's OWN (yesterday) close -> leave
@@ -2074,11 +2080,17 @@ function dl_autoCloseBranchDayAt($ctx, int $branchId, string $date, array $setti
         //      close control, and the sweep below closes it later if abandoned;
         //   3. endings pending, stale sweep -> close with the existing
         //      closed_without_pm_finalize flag and the admin notification.
+        //
+        // A pure POS day writes no ledger counts at all (POS never writes beg_bal/addtl/withdraw/
+        // bal_end), so stage 1 is trivially satisfied and the shift is finalized without touching a
+        // single number. The stages only bite when a mixed day has counted stock movements, which is
+        // precisely when a missing ending means the day is not finished.
+        //
         // (Contract revised 2026-11-16. The 2026-10-05 "close anyway" rule is
         // what produced days closed with their PM still open: the sales stayed
         // provisional forever and the branch had no control left to finish them
         // — measured on tenant 207, 2026-11-15, 15 branches.)
-        if (dl_isFullyManualDay($db, $branchId, $date)) {
+        {
             // Ask about the shift that CLOSES this branch's day, not a hardcoded PM. A whole-day
             // branch (single_shift_mode) has no PM lifecycle at all - its ledger is AM only and
             // dl_dayEndingShift() already resolves AM as the day-ender. Hardcoding PM here made the
@@ -13688,8 +13700,12 @@ function apiCloseDay(array $params = []): void
             return;
         }
 
-        // Fully manual days require the branch's day-ending shift to be finalized first.
-        if (dl_isFullyManualDay($ctx->db(), $branchId, $date)) {
+        // The branch's day-ending shift must be finalized before the day closes — for EVERY day,
+        // POS included. POS/fallback days used to skip this, so a POS branch could close a day whose
+        // shift still owned its sales: the same dead end (provisional sales, no control left) that
+        // the manual contract prevents. POS's own close prechecks above are an additional gate, not
+        // a replacement for this one. Owner directive 2026-11-16.
+        {
             $endShift = dl_dayEndingShift((int)$branchId);
             $endStatus = dl_lockShiftStatusRow($ctx->db(), $branchId, $date, $endShift);
             if ((string)$endStatus['status'] !== 'finalized') {
@@ -13702,7 +13718,7 @@ function apiCloseDay(array $params = []): void
                 ], 422);
                 return;
             }
-            // Complete manual-day variance sweep + freeze before locking.
+            // Complete variance sweep + freeze before locking.
             dl_recomputeVariancesForDay($branchId, $date, false);
             dl_freezeVarianceFlags($ctx->db(), $branchId, $date, $userId);
         }
