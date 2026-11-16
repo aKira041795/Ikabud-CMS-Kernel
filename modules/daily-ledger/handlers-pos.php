@@ -465,6 +465,22 @@ function dl_pos_selectMode($db, int $branchId, string $date, string $requestedMo
         }
 
         $currentMode = is_array($modeRow) ? (string)$modeRow['mode'] : null;
+
+        // Finalizing the day-ending shift is what SIGNS the day's sales, and the mode decides which
+        // figure "official sales" means (ledger counts vs POS). Changing it afterwards silently
+        // re-bases the very number the office checked the deposit against — the same reason a POS
+        // sale may not land in a finalized shift (dl_pos_checkout: SHIFT_FINALIZED). Reopening the
+        // shift un-finalizes it, so correcting a wrong mode stays possible.
+        $endShift = dl_dayEndingShift($branchId);
+        if ($currentMode !== $requestedMode && dl_shiftIsFinalized($db, $branchId, $date, $endShift)) {
+            if ($ownsTxn) { $db->rollBack(); }
+            return [
+                'ok' => false,
+                'code' => 'SHIFT_FINALIZED',
+                'error' => 'The ' . $endShift . ' shift is finalized for this business date, so the sales mode is signed. Reopen it to change the mode.',
+            ];
+        }
+
         $errorCode = dl_pos_modeSelectionError(
             $currentMode,
             $requestedMode,
@@ -1740,7 +1756,7 @@ function apiPosSelectMode(array $params = []): void
         dl_getActorUserId($guard['user']), $expectedVersion
     );
     if (!$result['ok']) {
-        $status = in_array($result['code'], ['DAY_CLOSED', 'VERSION_CONFLICT', 'MODE_FALLBACK_FINAL', 'MODE_LOCKED_MANUAL_ACTIVITY', 'MODE_LOCKED_POS_ACTIVITY', 'MODE_SWITCH_REQUIRES_FALLBACK'], true) ? 409 : 422;
+        $status = in_array($result['code'], ['DAY_CLOSED', 'VERSION_CONFLICT', 'MODE_FALLBACK_FINAL', 'MODE_LOCKED_MANUAL_ACTIVITY', 'MODE_LOCKED_POS_ACTIVITY', 'MODE_SWITCH_REQUIRES_FALLBACK', 'SHIFT_FINALIZED'], true) ? 409 : 422;
         $guard['ctx']->json(['ok' => false, 'code' => $result['code'], 'error' => $result['error']], $status);
         return;
     }
