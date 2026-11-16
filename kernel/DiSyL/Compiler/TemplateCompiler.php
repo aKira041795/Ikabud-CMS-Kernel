@@ -39,8 +39,12 @@ class TemplateCompiler
      * Compiler version — bump whenever AST structure or code generation logic
      * changes.  TemplateCache includes this in cache filenames so stale
      * compiled files are automatically bypassed after an upgrade.
+     *
+     * v20: expression source is entity-decoded before parsing (ExpressionSource),
+     * so `&gt;`-style operators no longer compile into a bitwise `&` that throws
+     * at run time and silently demotes the page to the interpreted pipeline.
      */
-    public const COMPILER_VERSION = 19;
+    public const COMPILER_VERSION = 20;
 
     /**
      * Maximum iterations for unbounded loops ({while} and C-style {for}).

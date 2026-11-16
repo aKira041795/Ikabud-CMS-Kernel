@@ -6,6 +6,15 @@ namespace Ikabud\Kernel\DiSyL;
 
 use Ikabud\Kernel\DiSyL\v4\FunctionRegistry;
 
+// Self-load the sibling helper. The DiSyL class files are also pulled in by
+// hand-written harnesses (conformance checker, several tests) that require a
+// fixed list of files instead of using the kernel autoloader, so a new class
+// would be missing there — measured 2026-11-16, when adding ExpressionSource
+// made every conformance runtime proof die with "Class not found".
+if (!class_exists(ExpressionSource::class, false)) {
+    require_once __DIR__ . '/ExpressionSource.php';
+}
+
 /**
  * DiSyL Expression Evaluator — resolves variable paths, evaluates conditions,
  * arithmetic, comparisons, ternary, concatenation, and applies filters.
@@ -819,6 +828,11 @@ class ExpressionEvaluator
         // unresolved nullsafe path can become a truthy raw operand.
         $condition = $this->normalizeNullsafeAccess($condition);
 
+        // `&gt;` / `&lt;` / `&amp;` typed into a condition must read as the operator the
+        // author meant, not as a bitwise `&` against the string `gt; 1`. Same decode as
+        // the compiled Parser applies, so both pipelines answer identically.
+        $condition = ExpressionSource::decodeEntities($condition);
+
         if (preg_match('/^\((.+)\)$/', $condition, $pm)) {
             $inner = $pm[1];
             $depth = 0;
@@ -839,11 +853,27 @@ class ExpressionEvaluator
             return !$this->evaluateCondition($nm[1], $context);
         }
 
-        if (preg_match('/^(.+?)\s+(and|&&)\s+(.+)$/i', $condition, $m)) {
-            return $this->evaluateCondition($m[1], $context) && $this->evaluateCondition($m[3], $context);
+        // Logical operators, lowest precedence first (OR, then AND), split only at
+        // TOP LEVEL — never inside parentheses or quotes.
+        //
+        // Measured defect 2026-11-16 (Miputak, 11 Nov): the ledger's Close PM guard
+        //   (shift == 'PM' || (single_shift_mode && shift == 'AM')) && day_status == 'open' && !reference_only
+        // evaluated FALSE while shift really was 'PM'. The previous implementation split on
+        // `&&` first — inside the parenthesised OR group — producing operands
+        // `(shift == 'PM' || (single_shift_mode` and `shift == 'AM'))`, and `&&` also binds
+        // tighter than `||` so an AND-first split inverts normal precedence. Both are wrong:
+        // split on the LOWEST-precedence operator first and only where its brackets allow.
+        // The compiled pipeline's Parser already does this (parseOrExpr -> parseAndExpr);
+        // this keeps the interpreted pipeline's answers identical instead of merely plausible.
+        $split = $this->splitTopLevelLogical($condition, ['||', 'or']);
+        if ($split !== null) {
+            return $this->evaluateCondition($split[0], $context)
+                || $this->evaluateCondition($split[1], $context);
         }
-        if (preg_match('/^(.+?)\s+(or|\|\|)\s+(.+)$/i', $condition, $m)) {
-            return $this->evaluateCondition($m[1], $context) || $this->evaluateCondition($m[3], $context);
+        $split = $this->splitTopLevelLogical($condition, ['&&', 'and']);
+        if ($split !== null) {
+            return $this->evaluateCondition($split[0], $context)
+                && $this->evaluateCondition($split[1], $context);
         }
 
         if (preg_match('/^(.+?)\s*(===|!==|==|!=|>=|<=|>|<)\s*(.+)$/', $condition, $match)) {
@@ -872,6 +902,95 @@ class ExpressionEvaluator
             $value = $this->resolveValueWithFilters($condition, $context);
         }
         return !empty($value);
+    }
+
+    /**
+     * Split a condition on a logical operator found OUTSIDE every bracket and quote.
+     *
+     * Returns [left, right] for the LAST top-level occurrence, or null when the
+     * operator only appears inside a group — which is the whole point: `&&` inside
+     * `(a || b && c)` must not become the split point for the outer expression.
+     *
+     * Word operators (`and`, `or`) require whitespace on both sides so a variable
+     * named `brand` or `order` is never mistaken for an operator. Symbol operators
+     * work with or without spaces.
+     *
+     * @param list<string> $ops symbols ('||') and/or words ('or')
+     * @return array{0: string, 1: string}|null
+     */
+    private function splitTopLevelLogical(string $condition, array $ops): ?array
+    {
+        $quote = null;
+        $depth = 0;
+        $length = strlen($condition);
+        $bestPos = -1;
+        $bestLen = 0;
+
+        for ($i = 0; $i < $length; $i++) {
+            $ch = $condition[$i];
+
+            if ($quote !== null) {
+                if ($ch === '\\' && $i + 1 < $length) {
+                    $i++;
+                } elseif ($ch === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+            if ($ch === "'" || $ch === '"') {
+                $quote = $ch;
+                continue;
+            }
+            if ($ch === '(') {
+                $depth++;
+                continue;
+            }
+            if ($ch === ')') {
+                $depth--;
+                continue;
+            }
+            if ($depth !== 0) {
+                continue;
+            }
+
+            foreach ($ops as $op) {
+                if ($op === '') {
+                    continue;
+                }
+                $opLen = strlen($op);
+                if ($i + $opLen > $length) {
+                    continue;
+                }
+                if (strcasecmp(substr($condition, $i, $opLen), $op) !== 0) {
+                    continue;
+                }
+                $word = ctype_alpha($op[0]);
+                if ($word) {
+                    // Needs a space before and after so `brand`/`order` never match.
+                    if ($i === 0 || !ctype_space($condition[$i - 1])) {
+                        continue;
+                    }
+                    if ($i + $opLen >= $length || !ctype_space($condition[$i + $opLen])) {
+                        continue;
+                    }
+                }
+                $bestPos = $i;
+                $bestLen = $opLen;
+                $i += $opLen - 1;
+                break;
+            }
+        }
+
+        if ($bestPos < 0) {
+            return null;
+        }
+
+        $left = trim(substr($condition, 0, $bestPos));
+        $right = trim(substr($condition, $bestPos + $bestLen));
+        if ($left === '' || $right === '') {
+            return null;
+        }
+        return [$left, $right];
     }
 
     public function resolveConditionOperand(string $raw, array $context): mixed

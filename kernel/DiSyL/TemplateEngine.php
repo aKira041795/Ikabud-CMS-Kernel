@@ -549,10 +549,18 @@ class TemplateEngine
                 // Compiled path failed — fall through to interpreted path
                 $this->logError("Compiled render failed, falling back: " . $e->getMessage());
                 if (function_exists('write_log')) {
+                    // file:line and the DiSyL expression are the difference between an actionable
+                    // record and a riddle. Measured 2026-11-16: this fallback fired on every render
+                    // of daily-ledger/cashier/ledger.disyl with only "Unsupported operand types:
+                    // int & string" and no way to tell WHICH template/expression threw, so the
+                    // page silently ran on the legacy interpreted pipeline (where a separate
+                    // condition bug hid the Close PM button) with nothing pointing at the cause.
                     write_log('disyl.compile.fallback', 'warning', [
                         'template' => $template,
                         'reason' => $e->getMessage(),
                         'fallback' => 'interpreted',
+                        'exception_file' => $e->getFile(),
+                        'exception_line' => $e->getLine(),
                     ]);
                 }
             }

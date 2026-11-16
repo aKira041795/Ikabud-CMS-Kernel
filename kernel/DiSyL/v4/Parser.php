@@ -28,6 +28,13 @@ use Ikabud\Kernel\DiSyL\v4\AST\SlotNode;
 use Ikabud\Kernel\DiSyL\v4\AST\TextNode;
 use Ikabud\Kernel\DiSyL\v4\AST\UnaryOpNode;
 
+// Self-load the sibling helper. DiSyL class files are also required by hand-written
+// harnesses that list files explicitly instead of using the kernel autoloader, so a
+// new class would be missing there.
+if (!class_exists(\Ikabud\Kernel\DiSyL\ExpressionSource::class, false)) {
+    require_once __DIR__ . '/../ExpressionSource.php';
+}
+
 final class Parser
 {
     private string $source;
@@ -1610,6 +1617,12 @@ final class Parser
         // Lower it once at expression-parser entry, before postfix, comparison,
         // or arithmetic analysis. Quoted text is preserved by the normalizer.
         $expr = $this->normalizeNullsafeAccess($expr);
+
+        // `&gt;` / `&lt;` / `&amp;` typed into an expression must not be read as a
+        // bitwise `&`. Measured 2026-11-16: `{if notice.finding_count &gt; 1}`
+        // compiled to `(finding_count & 'gt; 1')` and threw at run time, silently
+        // dropping the whole ledger page onto the interpreted pipeline.
+        $expr = \Ikabud\Kernel\DiSyL\ExpressionSource::decodeEntities($expr);
 
         // Postfix ++ / -- : resolve before binary-op splitting so `i++` is not
         // mis-parsed as `i + '+'` (critical for C-style {for} increments used

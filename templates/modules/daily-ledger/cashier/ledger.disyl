@@ -292,7 +292,7 @@
     <div class="mt-1 leading-5" data-backdated-notice="{notice.id}">
         <span class="font-semibold">{notice.title}.</span>
         <span>{notice.detail}</span>
-        {if notice.finding_count &gt; 1}<span class="ml-1 font-semibold">{notice.finding_count} entries.</span>{/if}
+        {if notice.finding_count > 1}<span class="ml-1 font-semibold">{notice.finding_count} entries.</span>{/if}
     </div>
     {/foreach}
     <p class="mt-1 text-xs text-indigo-800">The correction stays in place — this is the record of it. Ask the admin named above if the numbers still look wrong.</p>
