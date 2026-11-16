@@ -941,4 +941,95 @@ $h->test(
         && str_contains($handlersSrc, "'variances_scope_total'    => \$statsTotal,")
 );
 
+// ══════════════════════════════════════════════════════════════════════
+// E. A SETTLED variance must not come back (client concern #3)
+// ══════════════════════════════════════════════════════════════════════
+// "gusto ni sir ryan mawala na ang mga variance nga ok na" — the office settles a finding, and a
+// later recompute must not mint a NEW unreviewed finding for the same identity, or the queue fills
+// again with work already done. The view side (default status=open, kind counts filtered) was fixed
+// first; this locks the data side.
+$h->section('E. a settled variance survives a recompute');
+
+// Self-contained fixtures: this section runs AFTER the file's cleanup block, so it must not rely on
+// the shared branch/product still existing.
+$settledBranch = 99831;
+$settledProduct = 99831;
+$settledDate = '2035-08-01';
+$dropSettled = static function () use ($db, $settledBranch, $settledProduct): void {
+    $db->execute('DELETE FROM dl_variance_flags WHERE branch_id = :b', [':b' => $settledBranch]);
+    $db->execute('DELETE FROM dl_daily_ledger WHERE branch_id = :b', [':b' => $settledBranch]);
+    $db->execute('DELETE FROM dl_ledger_shift_status WHERE branch_id = :b', [':b' => $settledBranch]);
+    $db->execute('DELETE FROM dl_ledger_day_status WHERE branch_id = :b', [':b' => $settledBranch]);
+    $db->execute('DELETE FROM dl_branch_products WHERE branch_id = :b', [':b' => $settledBranch]);
+    $db->execute('DELETE FROM dl_branches WHERE id = :b', [':b' => $settledBranch]);
+    $db->execute('DELETE FROM dl_products WHERE id = :p', [':p' => $settledProduct]);
+};
+$dropSettled();
+try {
+    $db->execute(
+        'INSERT INTO dl_branches (id, code, name, address, default_supply_mode, is_commissary, is_active)
+         VALUES (:b, "VAR-SETTLED", "Settled Variance Branch", "Test", "self_managed", 0, 1)',
+        [':b' => $settledBranch]
+    );
+    $db->execute(
+        'INSERT INTO dl_products (id, sku, name, current_price, sort_order, is_active)
+         VALUES (:p, "VAR-SETTLED", "Settled Variance Product", 10, 99831, 1)',
+        [':p' => $settledProduct]
+    );
+    $db->execute(
+        'INSERT INTO dl_branch_products (branch_id, product_id, is_active) VALUES (:b, :p, 1)',
+        [':b' => $settledBranch, ':p' => $settledProduct]
+    );
+    // beg 5 + 0 - 0 = 5 expected, ending 9 recorded → ending +4 and sales -4.
+    $db->execute(
+        'INSERT INTO dl_daily_ledger (branch_id, product_id, ledger_date, shift, price_snapshot, beg_bal, addtl, withdraw, bal_end)
+         VALUES (:b, :p, :d, "PM", 10, 5, 0, 0, 9)',
+        [':b' => $settledBranch, ':p' => $settledProduct, ':d' => $settledDate]
+    );
+    dl_recomputeVariancesForDay($settledBranch, $settledDate, false);
+    $derivedCount = (int)$db->query(
+        "SELECT COUNT(*) FROM dl_variance_flags WHERE branch_id = {$settledBranch} AND ledger_date = '{$settledDate}' AND kind <> 'delivery'"
+    )->fetchColumn();
+    $h->test('the day derives its variance findings', $derivedCount >= 1, 'derived=' . $derivedCount);
+
+    $db->prepare(
+        "UPDATE dl_variance_flags SET resolution_status = 'corrected', is_reviewed = 1, reviewed_by = 1, reviewed_at = NOW()
+          WHERE branch_id = :b AND ledger_date = :d AND kind <> 'delivery'"
+    )->execute([':b' => $settledBranch, ':d' => $settledDate]);
+
+    dl_recomputeVariancesForDay($settledBranch, $settledDate, false);
+    $unreviewedAfter = (int)$db->query(
+        "SELECT COUNT(*) FROM dl_variance_flags WHERE branch_id = {$settledBranch} AND ledger_date = '{$settledDate}'
+            AND kind <> 'delivery' AND resolution_status = 'unreviewed'"
+    )->fetchColumn();
+    $h->test(
+        'a recompute does NOT resurrect a settled finding as unreviewed',
+        $unreviewedAfter === 0,
+        'unreviewed after recompute=' . $unreviewedAfter
+    );
+
+    // Counted in PHP: a derived table with a `kind` column trips the module-table guard, which
+    // reads unaliased identifiers as table names.
+    $identities = $db->query(
+        "SELECT product_id, kind, shift FROM dl_variance_flags
+          WHERE branch_id = {$settledBranch} AND ledger_date = '{$settledDate}' AND kind <> 'delivery'"
+    )->fetchAll(PDO::FETCH_ASSOC);
+    $perIdentity = array_count_values(array_map(
+        static fn(array $r): string => $r['product_id'] . '|' . $r['kind'] . '|' . (string)$r['shift'],
+        $identities
+    ));
+    $duplicates = count(array_filter($perIdentity, static fn(int $c): bool => $c > 1));
+    $h->test('a recompute does not duplicate a settled identity', $duplicates === 0, 'duplicate identities=' . $duplicates);
+} finally {
+    $dropSettled();
+}
+
+// The repair worker's job is official sales. It must NOT derive variances: its first run opened
+// 414 investigations on months-old closed days, which is the client's complaint in reverse.
+$repairSrc = (string)file_get_contents($base . '/modules/daily-ledger/cli/repair-closed-shift-status.php');
+$h->test(
+    'the repair worker never derives or freezes variances',
+    !str_contains($repairSrc, 'dl_recomputeVariancesForDay(') && !str_contains($repairSrc, 'dl_freezeVarianceFlags(')
+);
+
 $h->done();

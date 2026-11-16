@@ -20,7 +20,10 @@
  * WHAT IT WRITES — only what the recorded counts already imply
  *   1. the day-ending shift is marked finalized (audited, source repair_closed_day_sweep);
  *   2. that shift's sales are recomputed from the stored Beg/Addtl/Wdraw/End values;
- *   3. the day's variances are re-derived and frozen, exactly as a normal closed day.
+ *   3. NOTHING ELSE. The day's variance state is left exactly as it is (see the note at the write
+ *      site): re-deriving variances for months-old closed days opened 414 new investigations on the
+ *      first run, which is the client's own complaint in reverse ("mawala na ang mga variance nga ok
+ *      na"). A normal close still derives and freezes its OWN day.
  * It NEVER changes a count, NEVER reopens a day, NEVER closes an open day, and NEVER
  * touches a day an admin reopened (reopened_at IS NOT NULL).
  *
@@ -225,8 +228,16 @@ try {
             }
 
             // A closed day's variances are the frozen record of that day.
-            dl_recomputeVariancesForDay($branchId, $date, false);
-            dl_freezeVarianceFlags($db, $branchId, $date, null);
+            // Deliberately NO variance recompute / freeze here.
+            //
+            // Measured 2026-11-16 on tenant 207: this worker's first run derived 414 NEW unreviewed
+            // flags across 32 branch-days from 2026-08-15 .. 2026-11-15 — days that had been closed
+            // for months and had simply never been evaluated (the old cutoff only recomputed for
+            // finalized days). That is the exact symptom the client asked to stop: "mawala na ang
+            // mga variance nga ok na". A repair whose job is to make SALES official must not open a
+            // retroactive investigation queue; the day's variance state is left exactly as it was.
+            // Normal closes still derive and freeze their own day — that is a live operator's record,
+            // not history being re-judged.
 
             if ($ownsTxn) {
                 $db->commit();
