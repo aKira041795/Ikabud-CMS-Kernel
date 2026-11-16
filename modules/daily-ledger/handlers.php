@@ -2183,6 +2183,33 @@ function dl_autoCloseBranchDayAt($ctx, int $branchId, string $date, array $setti
             }
         }
 
+        // A POS day closed by the CLOCK never saw a human acknowledge the POS-vs-stock variance
+        // (dl_pos_dayClosePrecheck only runs on the manual close). Do not change that behaviour —
+        // measured 2026-11-16: on a pure POS day the stock-derived figure is 0 because POS writes no
+        // ledger counts, so the variance is non-zero on EVERY such day. Deferring on it would mean a
+        // POS branch's day never auto-closes at all, which contradicts the configured cutoff.
+        // Instead, record what was passed over so the office can see it was closed unattended.
+        if (function_exists('dl_pos_salesSummary') && function_exists('dl_pos_dayMode')) {
+            try {
+                $posSummary = dl_pos_salesSummary($db, $branchId, $date);
+                $posVarianceCents = (int)round(((float)($posSummary['variance_amount'] ?? 0)) * 100);
+                if (!empty($posSummary['mode_decided'])
+                    && in_array((string)($posSummary['sales_source'] ?? ''), ['pos', 'fallback'], true)
+                    && $posVarianceCents !== 0) {
+                    dl_auditLog('pos_variance_unattended', $branchId, 'dl_sales_day_modes', "{$branchId}-{$date}", null, [
+                        'mode' => (string)$posSummary['sales_source'],
+                        'variance_amount' => $posSummary['variance_amount'],
+                        'variance_qty' => $posSummary['variance_qty'],
+                        'pos_amount' => $posSummary['pos_amount'],
+                        'calculated_amount' => $posSummary['calculated_amount'],
+                        'source' => 'auto_close_cutoff',
+                    ]);
+                }
+            } catch (\Throwable $e) {
+                // Visibility must never stop the close.
+            }
+        }
+
         $stmt = $db->prepare(
             'INSERT INTO dl_ledger_day_status (branch_id, ledger_date, status, closed_by, closed_at)
              VALUES (:bid, :d, \'closed\', :uid, CURRENT_TIMESTAMP)
@@ -7547,6 +7574,14 @@ function dl_finalizeDayEndingShiftCore($db, int $branchId, string $date, string 
         dl_recomputeSales($branchId, (int)$r['product_id'], $date, $userId, $endShift);
     }
     dl_recomputeVariancesForDay($branchId, $date, false);
+
+    // The status row must EXIST for the UPDATE below to mean anything. A caller that forgot
+    // dl_lockShiftStatusRow() would otherwise be told finalized=true by a zero-row UPDATE while
+    // dl_shiftIsFinalized() kept answering "open" — measured 2026-11-16 in a harness that skipped
+    // the lock, where the shift silently stayed open and every later write was still allowed. The
+    // lock is idempotent (INSERT ... ON DUPLICATE KEY), so calling it here is safe for the callers
+    // that already hold it.
+    dl_lockShiftStatusRow($db, $branchId, $date, $endShift);
 
     $db->prepare(
         'UPDATE dl_ledger_shift_status

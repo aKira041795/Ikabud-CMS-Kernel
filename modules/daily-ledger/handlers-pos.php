@@ -644,6 +644,20 @@ function dl_pos_checkout($db, array $args): array
             return ['ok' => false, 'code' => 'DAY_CLOSED', 'error' => 'This business date is closed.', 'status' => 409];
         }
 
+        // 1b) The shift the sale would be attributed to must still be open. Closing the day-ending
+        // shift is what signs its sales; a POS sale landing afterwards (the branch pressed "Close PM
+        // Shift" but has not closed the day yet) would be attributed to a shift the ledger already
+        // treats as signed, and the POS-vs-stock variance at close would not be explainable.
+        if (dl_shiftIsFinalized($db, $branchId, $date, $shift)) {
+            $db->rollBack();
+            return [
+                'ok' => false,
+                'code' => 'SHIFT_FINALIZED',
+                'error' => 'The ' . $shift . ' shift is finalized for this business date. Reopen it before selling.',
+                'status' => 409,
+            ];
+        }
+
         // 2) Mode must be POS; fallback permanently blocks later checkout.
         $modeRow = dl_pos_getDayModeRow($db, $branchId, $date);
         if (!is_array($modeRow)) {
