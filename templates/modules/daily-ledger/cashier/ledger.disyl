@@ -92,16 +92,18 @@
    figure read-only rather than hiding it.
 
    Owner directive 2026-11-16 (later the same day): the CASHIER must NOT be shown
-   short/over. A branch that can see the gap can close it in the drawer and the check
-   stops measuring anything, so the verdict belongs to the office alone — the same
-   number is on Cash & Paper Check per shift. Ledger sales stays visible: it is the
-   shift's own figure, not a verdict on the cash. *}
+   short/over, and not the ledger sales either — "we don't have to show ledger sales to
+   cashiers. only admin can see". A branch that can see the gap can close it in the
+   drawer and the check stops measuring anything, so the whole comparison (ledger sales +
+   short/over) belongs to the office alone; the same figures are on Cash & Paper Check
+   per shift. The branch keeps its own count: the cash it remitted. *}
 {if feature_cash_paper_check && deposit}
 <div id="shift-deposit-panel"
      class="mb-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 print:hidden"
      data-ledger-sales="{deposit.ledger_sales}"
      data-pending-rows="{deposit.pending_rows}"
      data-provisional-rows="{deposit.provisional_rows}"
+     data-office-view="{if deposit_office_view}1{else}0{/if}"
      role="status">
     <div class="flex flex-wrap items-end gap-x-4 gap-y-2">
         <span class="self-center text-xs font-semibold uppercase tracking-wide text-slate-500">Shift deposit</span>
@@ -122,18 +124,18 @@
             <button type="button" class="btn btn-primary h-10" id="shift-deposit-save" onclick="window.dlSaveShiftDeposit()">Save deposit</button>
         </div>
         {/if}
+        {if deposit_office_view}
         <div>
             <span class="block text-xs font-medium text-gray-700 mb-1">Ledger sales</span>
             <div data-deposit-sales class="flex h-10 w-32 items-center justify-end tabular-nums font-semibold text-gray-900">{deposit.ledger_sales_display}</div>
         </div>
-        {if deposit_variance_visible}
         <div>
             <span class="block text-xs font-medium text-gray-700 mb-1">Short / over</span>
             <div id="shift-deposit-variance" class="flex h-10 w-44 items-center justify-end tabular-nums font-semibold {deposit.variance_class}">{deposit.variance_label}</div>
         </div>
         {/if}
     </div>
-    <p id="shift-deposit-note" class="mt-2 text-xs text-slate-600">{deposit.note}</p>
+    <p id="shift-deposit-note" class="mt-2 text-xs text-slate-600">{deposit.note}{if deposit_editable && reference_only} An admin reopened this day: you may record the deposit here; the sheet's stock entries stay read-only.{/if}</p>
 </div>
 {/if}
 
@@ -548,6 +550,7 @@
             var salesEl = panel.querySelector('[data-deposit-sales]');
             var diffEl = document.getElementById('shift-deposit-variance');
             var noteEl = document.getElementById('shift-deposit-note');
+            var officeView = panel.getAttribute('data-office-view') === '1';
             var fmt = function(n) {
                 return Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
             };
@@ -570,12 +573,12 @@
                 diffEl.classList.add(cls);
             }
             if (noteEl) {
-                if (Number(res.pending_rows || 0) > 0) {
+                if (officeView && Number(res.pending_rows || 0) > 0) {
                     noteEl.textContent = res.pending_rows + ' product row(s) still have no ending count, so the sales figure is not final yet.';
-                } else if (Number(res.provisional_rows || 0) > 0) {
+                } else if (officeView && Number(res.provisional_rows || 0) > 0) {
                     noteEl.textContent = res.provisional_rows + ' row(s) are provisional (their shift is not finalized), so the sales figure can still move.';
                 } else {
-                    noteEl.textContent = 'Deposit saved.';
+                    noteEl.textContent = res.note || 'Deposit saved.';
                 }
             }
             if (window.showToast) window.showToast('Deposit saved', 'success');

@@ -6494,6 +6494,29 @@ function dl_deliberateReopenUnlocksEntryEdit($db, int $branchId, string $date, ?
     return !dl_shiftIsFinalized($db, $branchId, $date, $shift);
 }
 
+/**
+ * May a BRANCH role record the shift deposit for this branch/date/shift?
+ *
+ * Owner directive 2026-11-16: "ensure Deposit button shows for cashiers on days
+ * reopened". A reopened day is exactly the case the ledger's own edit window does
+ * not cover — dl_cashierMayEdit() only admits today and the previous PM — so a
+ * cashier sent to a day an admin deliberately reopened was shown a read-only
+ * deposit box and could not record the cash they handed over.
+ *
+ * The deposit is the branch's OWN count: it writes dl_shift_reconciliation
+ * (cash_remitted), never a stock or money ledger row — the same reasoning that
+ * already lets the office record a deposit on any date. So the deliberate reopen
+ * (day open + reopened_at set + shift not finalized) unlocks it, while the ledger
+ * cells on that page stay read-only.
+ */
+function dl_branchMayRecordDeposit($db, int $branchId, string $date, string $shift, string $today, string $dayStatus): bool
+{
+    if (dl_cashierMayEdit($branchId, $date, $shift, $today, $dayStatus)) {
+        return true;
+    }
+    return dl_deliberateReopenUnlocksEntryEdit($db, $branchId, $date, $shift);
+}
+
 /** Lock (and create-if-absent) the shift-status row inside the caller's txn. */
 function dl_lockShiftStatusRow($db, int $branchId, string $date, string $shift): array
 {
@@ -9375,10 +9398,22 @@ function handleCashierLedger(array $params = []): void
     // Cash & Paper Check, so the two surfaces cannot disagree. Gated by the feature
     // switch, because the whole Cash & Paper Check concept is optional.
     $cashPaperCheckEnabled = dl_settingToBool(dlModuleSettings()['cash_paper_check_enabled'] ?? false);
+    // Owner directive 2026-11-16: the branch records its deposit; the LEDGER SALES and the
+    // short/over are the office's comparison and are neither rendered nor sent to a branch
+    // role (a visible gap can be closed in the drawer before collection).
+    $depositOfficeView = dl_maySeeCashVariance($role);
     $depositContext = ($cashPaperCheckEnabled && $branchId > 0)
-        ? dl_shiftDepositContext($ctx->db(), (int)$branchId, (string)$ledgerDate, (string)$shift)
+        ? dl_shiftDepositContext($ctx->db(), (int)$branchId, (string)$ledgerDate, (string)$shift, $depositOfficeView)
         : null;
-    $depositEditable = $cashPaperCheckEnabled && $branchId > 0 && !$referenceOnly;
+    $depositEditable = $cashPaperCheckEnabled && $branchId > 0
+        && ($depositOfficeView || dl_branchMayRecordDeposit(
+            $ctx->db(),
+            (int)$branchId,
+            (string)$ledgerDate,
+            (string)$shift,
+            (string)$today,
+            (string)$dayStatus
+        ));
 
     // Surface the state that used to be invisible: a day closed while the shift
     // that owns its sales was still open. Nothing on the ledger could finalize
@@ -9469,8 +9504,9 @@ function handleCashierLedger(array $params = []): void
         'deposit' => $depositContext,
         'deposit_editable' => $depositEditable,
         // Owner directive 2026-11-16: the branch records its own deposit but is never
-        // shown short/over — the office reads that on Cash & Paper Check.
-        'deposit_variance_visible' => dl_maySeeCashVariance($role),
+        // shown the ledger sales or the short/over — the office reads those on Cash &
+        // Paper Check.
+        'deposit_office_view' => $depositOfficeView,
     ]);
 }
 
@@ -16728,7 +16764,7 @@ function dl_maySeeCashVariance(string $role): bool
     return in_array($role, ['admin', 'supervisor', 'auditor'], true);
 }
 
-function dl_shiftDepositContext($db, int $branchId, string $date, string $shift): array
+function dl_shiftDepositContext($db, int $branchId, string $date, string $shift, bool $includeComparison = true): array
 {
     $empty = [
         'has_row' => false, 'cash_remitted' => null, 'paper_sales' => null,
@@ -16792,7 +16828,15 @@ function dl_shiftDepositContext($db, int $branchId, string $date, string $shift)
         $varianceClass = 'text-emerald-700';
     }
 
-    if ($pendingRows > 0) {
+    if (!$includeComparison) {
+        // Branch view: the deposit is its own count. Neither the ledger sales nor the
+        // short/over leaves the office, so the two "sales figure" notes would explain a
+        // number the viewer cannot see. Keep only the deposit's own story.
+        $note = ($recon !== [] && $cash !== null)
+            ? 'Deposit recorded' . (($recon['recorded_by_name'] ?? '') !== '' ? ' by ' . (string)$recon['recorded_by_name'] : '')
+                . (($recon['recorded_at'] ?? null) !== null ? ' at ' . (string)$recon['recorded_at'] : '') . '.'
+            : 'No deposit recorded for this shift yet.';
+    } elseif ($pendingRows > 0) {
         $note = $pendingRows . ' product row(s) still have no ending count, so the sales figure is not final yet.';
     } elseif ($provisionalRows > 0) {
         $note = $provisionalRows . ' row(s) are provisional (their shift is not finalized), so the sales figure can still move.';
@@ -16809,17 +16853,20 @@ function dl_shiftDepositContext($db, int $branchId, string $date, string $shift)
         'paper_sales' => $paper,
         'recorded_by_name' => (string)($recon['recorded_by_name'] ?? ''),
         'recorded_at' => $recon['recorded_at'] ?? null,
-        'ledger_sales' => $ledgerSales,
-        'pending_rows' => $pendingRows,
-        'provisional_rows' => $provisionalRows,
+        // Comparison figures are the OFFICE's view (owner directive 2026-11-16: "we don't have
+        // to show ledger sales to cashiers. only admin can see"). A branch context keeps the
+        // keys so the template needs no extra shape, but carries no number to leak.
+        'ledger_sales' => $includeComparison ? $ledgerSales : null,
+        'pending_rows' => $includeComparison ? $pendingRows : 0,
+        'provisional_rows' => $includeComparison ? $provisionalRows : 0,
         'row_count' => (int)($sales['row_count'] ?? 0),
-        'cash_variance' => $cashVariance,
+        'cash_variance' => $includeComparison ? $cashVariance : null,
         'cash_remitted_input' => $cash === null ? '' : number_format($cash, 2, '.', ''),
         'cash_remitted_display' => $cash === null ? '—' : number_format($cash, 2),
-        'ledger_sales_display' => number_format($ledgerSales, 2),
-        'cash_variance_display' => $cashVariance === null ? '—' : (($cashVariance > 0 ? '+' : '') . number_format($cashVariance, 2)),
-        'variance_label' => $varianceLabel,
-        'variance_class' => $varianceClass,
+        'ledger_sales_display' => $includeComparison ? number_format($ledgerSales, 2) : '—',
+        'cash_variance_display' => !$includeComparison || $cashVariance === null ? '—' : (($cashVariance > 0 ? '+' : '') . number_format($cashVariance, 2)),
+        'variance_label' => $includeComparison ? $varianceLabel : '—',
+        'variance_class' => $includeComparison ? $varianceClass : 'text-gray-500',
         'note' => $note,
         'state' => $state['state'],
     ];
@@ -20991,10 +21038,12 @@ function apiSaveShiftDeposit(array $params = []): void
     // purpose: dl_shift_reconciliation is the EXTERNAL check against the paper sheet,
     // not a stock/money ledger mutation, and the office's own page
     // (apiSaveReconciliation) has always allowed it for any date. The branch is held
-    // to the ledger's edit window, so a closed/finalized shift stays read-only there.
+    // to the ledger's edit window PLUS a day an admin deliberately reopened (owner
+    // directive 2026-11-16: "ensure Deposit button shows for cashiers on days
+    // reopened"), so a closed/finalized shift stays read-only there.
     if (!in_array($role, ['admin', 'supervisor'], true)) {
         $dayStatus = dl_getDayStatus($branchId, $date);
-        if (!dl_cashierMayEdit($branchId, $date, $shift, dl_businessDate(), $dayStatus)) {
+        if (!dl_branchMayRecordDeposit($ctx->db(), $branchId, $date, $shift, dl_businessDate(), $dayStatus)) {
             $ctx->json(['ok' => false, 'error' => 'This shift is closed or outside the date you may edit. Ask an admin to reopen it.'], 403);
             return;
         }
@@ -21056,18 +21105,20 @@ function apiSaveShiftDeposit(array $params = []): void
             ['cash_remitted' => $cash, 'recorded_by' => $recordedBy]
         );
 
-        $context = dl_shiftDepositContext($ctx->db(), $branchId, $date, $shift);
+        $officeView = dl_maySeeCashVariance($role);
+        $context = dl_shiftDepositContext($ctx->db(), $branchId, $date, $shift, $officeView);
         $payload = [
             'ok' => true,
             'cash_remitted' => $context['cash_remitted'],
-            'ledger_sales' => $context['ledger_sales'],
-            'pending_rows' => $context['pending_rows'],
-            'provisional_rows' => $context['provisional_rows'],
+            'note' => $context['note'],
         ];
-        // The branch is never sent the short/over figure, not even in the JSON: a
-        // number that only rode along in a response is still visible in devtools and
-        // is enough to square the drawer afterwards. The office keeps it.
-        if (dl_maySeeCashVariance($role)) {
+        // A branch is never sent the ledger sales or the short/over, not even in the JSON: a
+        // number that only rode along in a response is readable in devtools and is enough to
+        // square the drawer afterwards. The office keeps both.
+        if ($officeView) {
+            $payload['ledger_sales'] = $context['ledger_sales'];
+            $payload['pending_rows'] = $context['pending_rows'];
+            $payload['provisional_rows'] = $context['provisional_rows'];
             $payload['cash_variance'] = $context['cash_variance'];
             $payload['cash_variance_display'] = $context['cash_variance_display'];
             $payload['variance_label'] = $context['variance_label'];

@@ -55,6 +55,7 @@ $cleanup = static function () use ($db, $branch, $product, $productPending, $dat
     $db->execute('DELETE FROM audit_logs WHERE module = \'daily-ledger\' AND branch_id = :b', [':b' => $branch]);
     $db->execute('DELETE FROM dl_daily_ledger WHERE branch_id = :b', [':b' => $branch]);
     $db->execute('DELETE FROM dl_ledger_shift_status WHERE branch_id = :b', [':b' => $branch]);
+    $db->execute('DELETE FROM dl_ledger_day_status WHERE branch_id = :b', [':b' => $branch]);
     $db->execute('DELETE FROM dl_branch_products WHERE branch_id = :b', [':b' => $branch]);
     $db->execute('DELETE FROM dl_branches WHERE id = :b', [':b' => $branch]);
     $db->execute('DELETE FROM dl_products WHERE id IN (:p1, :p2)', [':p1' => $product, ':p2' => $productPending]);
@@ -156,9 +157,54 @@ try {
     $bad = $runHarness(['branch_id' => $branch, 'date' => $date, 'shift' => 'AM', 'cash_remitted' => '-5']);
     $h->test('a negative deposit is refused', empty($bad['json']['ok']));
 
+    // ─── AC3b — a day an admin REOPENED unlocks the deposit (owner directive) ───
+    $h->section('Owner directive: the Deposit button shows on days reopened');
+
+    $today = dl_businessDate();
+    $reopenedDate = '2035-07-02';
+    $plainPastDate = '2035-07-03';
+    $closedPastDate = '2035-07-04';
+    $db->execute('DELETE FROM dl_ledger_day_status WHERE branch_id = :b', [':b' => $branch]);
+    $db->execute('DELETE FROM dl_ledger_shift_status WHERE branch_id = :b', [':b' => $branch]);
+    $db->execute(
+        "INSERT INTO dl_ledger_day_status (branch_id, ledger_date, status, reopened_by, reopened_at) VALUES (:b, :d, 'open', 1, NOW())",
+        [':b' => $branch, ':d' => $reopenedDate]
+    );
+    $db->execute(
+        "INSERT INTO dl_ledger_day_status (branch_id, ledger_date, status) VALUES (:b, :d, 'open')",
+        [':b' => $branch, ':d' => $plainPastDate]
+    );
+    $db->execute(
+        "INSERT INTO dl_ledger_day_status (branch_id, ledger_date, status) VALUES (:b, :d, 'closed')",
+        [':b' => $branch, ':d' => $closedPastDate]
+    );
+
+    $mayDeposit = static function (string $d, string $shift) use ($db, $branch, $today): bool {
+        return dl_branchMayRecordDeposit($db, $branch, $d, $shift, $today, dl_getDayStatus($branch, $d));
+    };
+    $h->test('today is always recordable', $mayDeposit($today, 'PM') === true);
+    $h->test('a REOPENED past day lets the branch record the deposit', $mayDeposit($reopenedDate, 'PM') === true);
+    $h->test('the reopen covers the AM shift of that day too', $mayDeposit($reopenedDate, 'AM') === true);
+    $h->test('an old OPEN day that nobody reopened stays read-only', $mayDeposit($plainPastDate, 'PM') === false);
+    $h->test('a CLOSED day stays read-only', $mayDeposit($closedPastDate, 'PM') === false);
+
+    // A finalized shift on the reopened day is a signed record: the reopen no longer applies.
+    $db->execute(
+        "INSERT INTO dl_ledger_shift_status (branch_id, ledger_date, shift, status, finalized_at)
+         VALUES (:b, :d, 'PM', 'finalized', NOW())",
+        [':b' => $branch, ':d' => $reopenedDate]
+    );
+    $h->test('a finalized shift on the reopened day is not recordable', $mayDeposit($reopenedDate, 'PM') === false);
+
+    $handlersSrcForReopen = (string)file_get_contents($base . '/modules/daily-ledger/handlers.php');
+    $h->test(
+        'the handler and the endpoint share that rule',
+        str_contains($handlersSrcForReopen, 'dl_branchMayRecordDeposit(')
+            && substr_count($handlersSrcForReopen, 'dl_branchMayRecordDeposit(') >= 3
+    );
+
     // ─── AC4 — the switch gates both surfaces ──────────────────────────
     $h->section('The feature switch gates the endpoint and the sheet');
-
     saveModuleSettings('daily-ledger', ['cash_paper_check_enabled' => '0']);
     dlModuleSettings(true);
     $blocked = $runHarness(['branch_id' => $branch, 'date' => $date, 'shift' => 'AM', 'cash_remitted' => '100']);
@@ -169,16 +215,18 @@ try {
     $handlersSrc = (string)file_get_contents($base . '/modules/daily-ledger/handlers.php');
     $h->test('the deposit route is registered', str_contains($routesSrc, "'/daily-ledger/api/v1/cashier/ledger/deposit'"));
     $h->test('the sheet renders the deposit panel behind the switch', str_contains($tplSrc, '{if feature_cash_paper_check && deposit}') && str_contains($tplSrc, 'shift-deposit-input'));
-    // Owner directive 2026-11-16: the cashier records the deposit but must never be shown
-    // short/over (a visible gap can be closed in the drawer before collection); the office
-    // reads it on Cash & Paper Check.
+    // Owner directive 2026-11-16: the cashier records the deposit but never sees the ledger
+    // sales or the short/over (a visible gap can be closed in the drawer before collection);
+    // the office reads both on Cash & Paper Check and on its own ledger page.
+    $officeGuard = strpos($tplSrc, '{if deposit_office_view}');
     $h->test(
-        'the short/over column is printed ONLY behind deposit_variance_visible',
-        str_contains($tplSrc, '{if deposit_variance_visible}')
-            && strpos($tplSrc, '{if deposit_variance_visible}') < strpos($tplSrc, 'Short / over')
+        'BOTH comparison cells are printed ONLY behind deposit_office_view',
+        $officeGuard !== false
+            && $officeGuard < strpos($tplSrc, '>Ledger sales<')
+            && $officeGuard < strpos($tplSrc, 'Short / over')
     );
     $h->test(
-        'only the office roles may see the cash variance',
+        'only the office roles may see the comparison',
         dl_maySeeCashVariance('admin') === true
             && dl_maySeeCashVariance('supervisor') === true
             && dl_maySeeCashVariance('auditor') === true
@@ -186,9 +234,16 @@ try {
             && dl_maySeeCashVariance('production_in_charge') === false
     );
     $h->test(
-        'the deposit endpoint only adds the variance for an office viewer',
-        str_contains($handlersSrc, 'if (dl_maySeeCashVariance($role)) {')
-            && str_contains($handlersSrc, "'deposit_variance_visible' => dl_maySeeCashVariance(\$role)")
+        'a branch deposit context carries no comparison figures',
+        dl_shiftDepositContext($db, $branch, $date, 'AM', false)['ledger_sales'] === null
+            && dl_shiftDepositContext($db, $branch, $date, 'AM', false)['cash_variance'] === null
+            && dl_shiftDepositContext($db, $branch, $date, 'AM', false)['variance_label'] === '—'
+    );
+    $h->test(
+        'the deposit endpoint only adds ledger_sales / variance for an office viewer',
+        str_contains($handlersSrc, 'if ($officeView) {')
+            && str_contains($handlersSrc, "\$payload['ledger_sales'] = \$context['ledger_sales']")
+            && str_contains($handlersSrc, "'deposit_office_view' => \$depositOfficeView")
     );
     $h->test('the handler passes the deposit context to the sheet', str_contains($handlersSrc, "'deposit' => \$depositContext"));
     $h->test('a branch user is held to the ledger edit window', str_contains($handlersSrc, "if (!in_array(\$role, ['admin', 'supervisor'], true)) {") && str_contains($handlersSrc, 'dl_cashierMayEdit('));
