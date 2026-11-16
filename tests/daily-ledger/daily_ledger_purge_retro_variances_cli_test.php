@@ -78,11 +78,20 @@ $h->section('Query shape (cost)');
 
 $h->test('no correlated EXISTS remains in the eligibility path', !str_contains($cliSrc, 'EXISTS ('));
 $h->test('candidates are read once, ordered', str_contains($cliSrc, 'ORDER BY vf.id ASC'));
-$h->test('the audit proof is read as one set', substr_count($cliSrc, 'FROM audit_logs') === 1);
+$h->test('the audit table is read as TWO bounded sets (proof + recompute check), never per row',
+    substr_count($cliSrc, 'FROM audit_logs') === 2
+    && substr_count($cliSrc, 'AND created_at >= CURDATE()') === 2);
 $h->test('shape and sample are computed from the rows already read (no extra proof passes)',
     substr_count($cliSrc, 'new_data LIKE') === 1);
 $h->test('the repair worker derives no variances of its own',
     !str_contains($repairSrc, 'dl_recomputeVariancesForDay(') && !str_contains($repairSrc, 'dl_freezeVarianceFlags('));
+
+// A day the repair touched TODAY can be reopened later today; that reopen re-derives its variances
+// from the live sheet, so those flags look identical to the repair's junk but are current work.
+$h->test('a branch-day recomputed after the repair is WITHHELD, not deleted',
+    str_contains($cliSrc, '$recomputedAfter[')
+    && str_contains($cliSrc, "'reopen_day', 'reopen_shift', 'close_day', 'auto_close_day'")
+    && str_contains($cliSrc, 'withheld'));
 
 // ─── Runtime: it runs, it is fast, and it changes nothing ───────────────
 $h->section('Dry-run execution');

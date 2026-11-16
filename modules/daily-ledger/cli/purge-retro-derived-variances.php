@@ -137,11 +137,11 @@ try {
         $stmt->execute([':since' => $since]);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
         if ($rows === []) {
-            return [[], [], 0];
+            return [[], [], 0, []];
         }
 
         $proof = $db->prepare(
-            "SELECT entity_id, DATE(created_at) AS created_date
+            "SELECT entity_id, created_at, DATE(created_at) AS created_date
                FROM audit_logs
               WHERE module = 'daily-ledger'
                 AND action = 'finalize_shift'
@@ -150,28 +150,73 @@ try {
         );
         $proof->execute();
         $provenPrefixes = [];
+        $repairedAt = [];
         foreach ($proof->fetchAll(PDO::FETCH_ASSOC) ?: [] as $p) {
             // The audit writes entity_id "<branch>-<date>-<shift>"; the old predicate matched
             // exactly that prefix, so collapse it to "<day>|<branch>-<date>-".
             if (preg_match('/^(\d+)-(\d{4}-\d{2}-\d{2})-[A-Za-z]+$/', (string)$p['entity_id'], $m)) {
-                $provenPrefixes[$p['created_date'] . '|' . $m[1] . '-' . $m[2] . '-'] = true;
+                $key = $p['created_date'] . '|' . $m[1] . '-' . $m[2] . '-';
+                $provenPrefixes[$key] = true;
+                if (!isset($repairedAt[$key]) || (string)$p['created_at'] > $repairedAt[$key]) {
+                    $repairedAt[$key] = (string)$p['created_at'];
+                }
+            }
+        }
+
+        // THE ONE THING THAT CAN MAKE A "PROVEN" ROW LEGITIMATE.
+        // -----------------------------------------------
+        // A day the repair touched TODAY can be reopened (or re-closed) LATER today. That action
+        // re-derives the day's variances from the current sheet, so the flags it creates carry the
+        // same shape as the repair's junk: created today, past ledger_date, untouched by a human.
+        // Deleting those would erase a real finding the office is about to look at.
+        //
+        // So a branch-day is only eligible when NOTHING recomputed it after the repair's own
+        // finalize: a later reopen, a later human/auto finalize, or a later close. Those rows are
+        // withheld and reported, never silently mixed into the "unproven" count.
+        $recompute = $db->prepare(
+            "SELECT entity_id, created_at
+               FROM audit_logs
+              WHERE module = 'daily-ledger'
+                AND created_at >= CURDATE()
+                AND (
+                      action IN ('reopen_day', 'reopen_shift', 'close_day', 'auto_close_day')
+                      OR (action = 'finalize_shift' AND new_data NOT LIKE '%repair_closed_day_sweep%')
+                    )"
+        );
+        $recompute->execute();
+        $recomputedAfter = [];
+        foreach ($recompute->fetchAll(PDO::FETCH_ASSOC) ?: [] as $a) {
+            if (!preg_match('/^(\d+)-(\d{4}-\d{2}-\d{2})/', (string)$a['entity_id'], $m)) {
+                continue;
+            }
+            $branchDate = $m[1] . '-' . $m[2] . '-';
+            foreach ($repairedAt as $key => $repairStamp) {
+                if (!str_ends_with((string)$key, '|' . $branchDate)) {
+                    continue;
+                }
+                if ((string)$a['created_at'] > $repairStamp) {
+                    $recomputedAfter[$key] = true;
+                }
             }
         }
 
         $matched = [];
+        $withheld = [];
         $unprovenCount = 0;
         foreach ($rows as $r) {
             $key = $r['created_date'] . '|' . $r['branch_id'] . '-' . $r['ledger_date'] . '-';
-            if (isset($provenPrefixes[$key])) {
-                $matched[] = $r;
-            } else {
+            if (!isset($provenPrefixes[$key])) {
                 $unprovenCount++;
+            } elseif (isset($recomputedAfter[$key])) {
+                $withheld[] = $r;
+            } else {
+                $matched[] = $r;
             }
         }
-        return [$rows, $matched, $unprovenCount];
+        return [$rows, $matched, $unprovenCount, $withheld];
     };
 
-    [, $provenRows, $unproven] = $scan();
+    [, $provenRows, $unproven, $withheldRows] = $scan();
     $proven = count($provenRows);
     $totalFlags = (int)$db->query('SELECT COUNT(*) FROM dl_variance_flags')->fetchColumn();
 
@@ -183,6 +228,10 @@ try {
     echo '  variance flags now    : ' . number_format($totalFlags) . "\n";
     echo '  PROVEN from the repair: ' . number_format($proven) . "\n";
     echo '  unproven look-alikes  : ' . number_format($unproven) . " (left alone: real work on a past day)\n";
+    if ($withheldRows !== []) {
+        echo '  withheld (recomputed after the repair): ' . number_format(count($withheldRows))
+            . " — that branch-day was reopened/closed again today, so its flags are current work\n";
+    }
 
     if ($proven > 0) {
         $dates = array_column($provenRows, 'ledger_date');
