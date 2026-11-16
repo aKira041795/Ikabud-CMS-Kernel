@@ -60,19 +60,40 @@
                             <tbody>
                                 <template x-for="(line, idx) in lines" :key="idx">
                                     <tr class="border-b border-gray-100">
-                                        <td class="py-2 pr-2">
-                                            {* Type-to-find for this line. Shown only when the catalogue is long
-                                               enough to need it, so a short list is not given dead chrome. *}
-                                            <input type="search" class="form-input mt-0 mb-1 w-full py-1 text-xs"
-                                                   placeholder="Search product…" autocomplete="off" aria-label="Search product"
-                                                   x-show="products.length > 10"
-                                                   x-model="line.productQuery">
-                                            <select x-model="line.product_id" class="form-input mt-0 w-full">
-                                                <option value="">-- Select Product --</option>
-                                                <template x-for="p in dlVisibleProducts(products, line.productQuery, line.product_id)" :key="p.id">
-                                                    <option :value="p.id" x-text="p.name"></option>
-                                                </template>
-                                            </select>
+                                        <td class="py-2 pr-2 align-top">
+                                            {* ONE control, not a search box above a <select>: typing filters the list and the
+                                               matches appear immediately underneath, so the operator sees products as they type.
+                                               The panel is in normal flow on purpose — the modal panel is overflow-hidden, an
+                                               absolutely positioned list would be clipped at its edge. *}
+                                            <div @click.outside="line.productOpen = false">
+                                                <input type="text" class="form-input mt-0 w-full" placeholder="Type to find a product…"
+                                                       autocomplete="off" role="combobox" aria-autocomplete="list" aria-label="Search product"
+                                                       :aria-expanded="line.productOpen ? 'true' : 'false'"
+                                                       :value="dlProductDisplay(line, products)"
+                                                       @focus="dlProductOpen(line)"
+                                                       @input="dlProductInput(line, $event.target.value)"
+                                                       @keydown.arrow-down.prevent="dlProductMove(line, products, 1)"
+                                                       @keydown.arrow-up.prevent="dlProductMove(line, products, -1)"
+                                                       @keydown.enter.prevent="dlProductCommit(line, products)"
+                                                       @keydown.escape="dlProductClose(line)"
+                                                       @blur="dlProductBlur(line)">
+                                                <div x-show="line.productOpen" x-cloak role="listbox"
+                                                     class="mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white py-1 text-sm shadow-sm">
+                                                    <template x-for="(p, pi) in dlProductMatches(products, line.productQuery)" :key="p.id">
+                                                        <button type="button" role="option"
+                                                                class="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left hover:bg-indigo-50"
+                                                                :class="pi === (line.productActive || 0) ? 'bg-indigo-50' : ''"
+                                                                :aria-selected="String(p.id) === String(line.product_id) ? 'true' : 'false'"
+                                                                @mousedown.prevent
+                                                                @click="dlProductPick(line, p)">
+                                                            <span class="truncate" x-text="p.name"></span>
+                                                            <span class="shrink-0 text-xs text-slate-400" x-text="p.sku"></span>
+                                                        </button>
+                                                    </template>
+                                                    <div x-show="dlProductMatches(products, line.productQuery).length === 0"
+                                                         class="px-3 py-2 text-sm text-slate-500">No product matches “<span x-text="line.productQuery"></span>”.</div>
+                                                </div>
+                                            </div>
                                         </td>
                                         <td class="py-2 pr-2">
                                             <input type="number" x-model="line.quantity" min="0" class="form-input mt-0 text-right w-full">

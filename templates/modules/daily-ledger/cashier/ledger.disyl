@@ -2390,29 +2390,97 @@
         });
     }
 
-    // Filter one line's product options.
+    // ── Product combobox (every cashier modal) ──────────────────────────────────────────────
     //
-    // Every cashier modal (receive, dispatch, edit-delivery, add-stock) holds the whole active
-    // catalogue — hundreds of products at this tenant — and a native <select> has no search: its
-    // keyboard type-ahead matches a PREFIX only and resets after a second, so the branch scrolled
-    // the list on every line. Owner report 2026-11-16: "user scrolls thru the items and eats up
-    // time".
+    // Owner report 2026-11-16, second pass: "the search at the modals are not intuitive. user cannot
+    // see the products as typed. search and dropdown must be one seamless flow." The first version
+    // put a filter box ABOVE a native <select>, so typing hid products inside a closed dropdown —
+    // the operator still had to open it, and nothing appeared as they typed.
     //
-    // The filter is PER LINE (line.productQuery) rather than one box per modal: filtering line 1
-    // must not silently empty line 2's options, and a second line usually needs a different
-    // product. The option already chosen on a line is ALWAYS kept in its own list — otherwise
-    // typing a filter would make a saved selection look empty while still being saved.
-    function dlVisibleProducts(products, query, selectedId) {
+    // These helpers drive ONE control: a text input whose matching products render directly
+    // underneath while typing, with arrow keys, Enter, click, Escape and click-outside. State lives
+    // on the line (productQuery/productOpen/productActive) so each line is independent — filtering
+    // one line must never disturb another — and it is a plain function set, not a component, because
+    // all four modals (receive, dispatch, edit-delivery, add-stock) already own their Alpine state.
+
+    // Products matching what was typed. Empty query = the whole list.
+    function dlProductMatches(products, query) {
         var list = products || [];
         var q = String(query == null ? '' : query).trim().toLowerCase();
-        var keep = selectedId == null ? '' : String(selectedId);
         if (q === '') { return list; }
         return list.filter(function(p) {
-            if (keep !== '' && String(p.id) === keep) { return true; }
-            var hay = String(p.name || '') + ' ' + String(p.sku || '');
-            return hay.toLowerCase().indexOf(q) !== -1;
+            return (String(p.name || '') + ' ' + String(p.sku || '')).toLowerCase().indexOf(q) !== -1;
         });
     }
+
+    function dlProductName(products, id) {
+        var keep = id == null ? '' : String(id);
+        if (keep === '') { return ''; }
+        var list = products || [];
+        for (var i = 0; i < list.length; i++) {
+            if (String(list[i].id) === keep) { return String(list[i].name || ''); }
+        }
+        return '';
+    }
+
+    // What the box shows. While open it shows the operator's own text (so the caret never fights a
+    // re-render); closed it shows the chosen product, so the selection is always visible on the line.
+    function dlProductDisplay(line, products) {
+        var q = line.productQuery == null ? '' : String(line.productQuery);
+        if (line.productOpen && q !== '') { return q; }
+        var chosen = dlProductName(products, line.product_id);
+        return chosen !== '' ? chosen : q;
+    }
+
+    function dlProductOpen(line) {
+        line.productOpen = true;
+        line.productActive = 0;
+    }
+
+    function dlProductInput(line, value) {
+        line.productQuery = value;
+        line.productOpen = true;
+        line.productActive = 0;
+        // Clearing the text clears the choice: the box and the saved line must never disagree.
+        if (String(value).trim() === '') { line.product_id = ''; }
+    }
+
+    function dlProductPick(line, p) {
+        line.product_id = String(p.id);
+        line.productQuery = '';
+        line.productOpen = false;
+    }
+
+    function dlProductMove(line, products, delta) {
+        var list = dlProductMatches(products, line.productQuery);
+        if (!list.length) { return; }
+        var i = (line.productActive == null ? 0 : line.productActive) + delta;
+        if (i < 0) { i = 0; }
+        if (i > list.length - 1) { i = list.length - 1; }
+        line.productActive = i;
+    }
+
+    function dlProductCommit(line, products) {
+        var list = dlProductMatches(products, line.productQuery);
+        if (!list.length) { return; }
+        var i = line.productActive == null ? 0 : line.productActive;
+        dlProductPick(line, list[i] || list[0]);
+    }
+
+    function dlProductClose(line) {
+        line.productOpen = false;
+        line.productQuery = '';
+    }
+
+    // A click on a result must win over the blur that follows it; mousedown is already prevented on
+    // the options, this is the belt-and-braces settle for a click that lands outside.
+    function dlProductBlur(line) {
+        setTimeout(function() {
+            line.productOpen = false;
+            line.productQuery = '';
+        }, 120);
+    }
+
 
     function initializePendingQueue() {
         syncPendingStorage();
