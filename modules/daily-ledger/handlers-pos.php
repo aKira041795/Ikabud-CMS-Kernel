@@ -1412,12 +1412,20 @@ function dl_pos_stockDerivedTotals($db, int $branchId, string $date): array
     $amtExpr = dl_ledgerSalesAmountSql('dl');
     $stmt = $db->prepare(
         'SELECT COALESCE(SUM(' . $qtyExpr . '),0) AS qty,
-                COALESCE(SUM(' . $amtExpr . '),0) AS amt
+                COALESCE(SUM(' . $amtExpr . '),0) AS amt,
+                COUNT(*) AS row_count
            FROM dl_daily_ledger dl WHERE branch_id = :b AND ledger_date = :d'
     );
     $stmt->execute([':b' => $branchId, ':d' => $date]);
-    $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: ['qty' => 0, 'amt' => 0];
-    return ['qty' => (int)$row['qty'], 'amount_cents' => (int)round(((float)$row['amt']) * 100)];
+    $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: ['qty' => 0, 'amt' => 0, 'row_count' => 0];
+    return [
+        'qty' => (int)$row['qty'],
+        'amount_cents' => (int)round(((float)$row['amt']) * 100),
+        // How many sheet rows the figure is derived from. ZERO means the branch counted nothing,
+        // so this total is 0 by construction and a "variance" against it is an artefact, not a
+        // finding (POS writes no counts at all).
+        'row_count' => (int)($row['row_count'] ?? 0),
+    ];
 }
 
 /**
@@ -1500,6 +1508,12 @@ function dl_pos_salesSummary($db, int $branchId, string $date): array
         'pos_amount' => dl_pos_centsToFloat($pos['amount_cents']),
         'calculated_qty' => $stock['qty'],
         'calculated_amount' => dl_pos_centsToFloat($stock['amount_cents']),
+        'stock_row_count' => $stock['row_count'],
+        // A variance can only exist where something was counted. On a pure POS day the sheet has no
+        // rows, the stock-derived total is 0 by construction, and "variance = the whole day's takings"
+        // is an artefact: it must not demand an acknowledgement, be reported as unattended, or be
+        // presented to a branch as a difference. Same comparability rule as the deposit basis.
+        'variance_comparable' => $stock['row_count'] > 0,
     ];
 
     if ($mode['mode'] === 'fallback' && is_array($mode['row'])) {
@@ -1557,6 +1571,12 @@ function dl_pos_dayClosePrecheck($db, int $branchId, string $date, array $input)
 
     $summary = dl_pos_salesSummary($db, $branchId, $date);
     $varianceCents = (int)round(((float)$summary['variance_amount']) * 100);
+    // Nothing was counted (a pure POS day), so there is no second figure to differ FROM. Demanding
+    // an acknowledgement here trains the branch to tick a meaninglessly worded box every single day,
+    // which is how the one real mixed-day variance gets waved through. No basis, no question.
+    if (empty($summary['variance_comparable'])) {
+        return null;
+    }
     if ($varianceCents !== 0 && !dl_settingToBool($input['acknowledge_variance'] ?? false)) {
         return [
             'ok' => false,

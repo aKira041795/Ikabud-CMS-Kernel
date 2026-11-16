@@ -2193,7 +2193,12 @@ function dl_autoCloseBranchDayAt($ctx, int $branchId, string $date, array $setti
             try {
                 $posSummary = dl_pos_salesSummary($db, $branchId, $date);
                 $posVarianceCents = (int)round(((float)($posSummary['variance_amount'] ?? 0)) * 100);
+                // Only a day that was actually COUNTED has a second figure to differ from. On a pure
+                // POS day the variance is the whole day's takings, an artefact of the sheet being
+                // empty — recording it every single day is what makes the office stop reading the
+                // alert that matters on a mixed day. No basis, no alert.
                 if (!empty($posSummary['mode_decided'])
+                    && !empty($posSummary['variance_comparable'])
                     && in_array((string)($posSummary['sales_source'] ?? ''), ['pos', 'fallback'], true)
                     && $posVarianceCents !== 0) {
                     dl_auditLog('pos_variance_unattended', $branchId, 'dl_sales_day_modes', "{$branchId}-{$date}", null, [
