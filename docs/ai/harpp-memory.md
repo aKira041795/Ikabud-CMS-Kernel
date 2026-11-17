@@ -89,3 +89,49 @@ nobody can trust is worse than no memory.
 If, once a large store has accumulated, a memory-enabled harness does not make **better decisions on
 unseen tasks** than the same harness with memory disabled, the extra memory is technical debt rather
 than learning. Nothing in this design claims otherwise.
+
+## Durability — what survives what
+
+**Git on one machine is not a backup.** It is version history that lives on the same disk as the
+files it protects. Be precise about which failure each layer survives:
+
+| Loss | Survives? | Because |
+|---|---|---|
+| `rm -rf .git` (history lost, tree intact) | **yes** | events are ordinary files in the working tree |
+| checkout deleted / disk failure / machine gone | **no** | unless the commit reached a remote, or an export was taken |
+| `git clean -fdx` | **yes** | the store is tracked, not untracked scratch |
+| bad merge / concurrent edit | **mostly** | separate paths; `memory verify` reports logical conflicts |
+| store committed but never pushed | **no** | the only copy is still one disk |
+
+So the working rule is: **commit puts lessons in history, `push` puts them on another machine, and
+`memory export` puts them somewhere git cannot reach.** All three, or the answer to "where do we get
+the data?" is "nowhere".
+
+### Backup (run whenever lessons change meaningfully)
+
+```bash
+python3 tools/harpp-experience.py memory export --out ~/backups/harpp-memory-$(date +%F).jsonl
+```
+
+One portable file, header + one event per line, no dependency on this repository, this tool's
+database, or MySQL. Copy it to any drive, host or cloud folder.
+
+### Restore, from nothing but that file
+
+```bash
+git clone <repo> && cd <repo>          # the tool itself
+python3 tools/harpp-experience.py memory import --from ~/backups/harpp-memory-2026-11-17.jsonl
+python3 tools/harpp-experience.py memory verify
+python3 tools/harpp-experience.py index
+```
+
+`import` is idempotent — re-running it writes nothing — and it **refuses an unknown
+`schema_version`** rather than reinterpreting a format it does not understand. A silent guess about
+memory is worse than an explicit stop.
+
+### What is *not* recoverable
+
+The derived index (`.ai/harpp/experience.db`) and the gitignored run artifacts (`.ai/runs/`,
+`.ai/autonomy/ledger.jsonl`) are not in the export. The index is regenerable by design; the run
+artifacts are local telemetry. Lessons — the thing that is expensive to rediscover — are what the
+export protects.
