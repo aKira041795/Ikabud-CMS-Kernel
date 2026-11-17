@@ -1,0 +1,13 @@
+{
+  "digest": "53ef264de5ec62bf6a93e93e441666e1df07284598ac6804af82557f5ab30a77",
+  "event_id": "53ef264de5ec62bf",
+  "evidence": [],
+  "lesson_id": "L-3e8a09648e",
+  "proposed_by": "owner",
+  "reason": "no_report",
+  "recorded_at": "2026-11-17T15:30:22.420089Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Do not put the local 1.5B model inline in a feature workflow on this machine. Measured 2026-11-17: kahibaw answered a four-token question in 58s on 4 CPU cores under load average 6.4, and returned nothing at all within 120s once its system prompt carried 24 rules. Use it for offline batch work; retrieval for every lane stays deterministic FTS5, which answers in 0.07ms.",
+  "type": "propose"
+}

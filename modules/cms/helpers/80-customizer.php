@@ -2509,6 +2509,50 @@ function cmsThemeManifestBlockVariants(?array $manifest = null): array
     return is_array($defaults) ? $defaults : [];
 }
 
+/**
+ * Declared block variants that have no template behind them.
+ *
+ * Repository rule (recorded 2026-11-17): "A missing variant template file is a hard error, not a
+ * silent fallback." cmsResolveBlockTemplate() throws at RENDER time, so a theme that selects a
+ * variant without shipping its template turns a customizer choice into a public 500 on the next
+ * page view. This answers the same question BEFORE the page is published, where the choice was made.
+ *
+ * Checked in resolution order: the module's own block template first, then the active theme's
+ * override. An entry here means the render WILL throw; an empty array means every declared variant
+ * can be rendered today.
+ *
+ * @return array<int,array{block:string,variant:string,module:string,theme:string}>
+ */
+function cmsAuditBlockVariants(): array
+{
+    $missing = [];
+    $themeSlug = trim((string)(cmsActiveThemeManifest()['slug'] ?? ''));
+    foreach (cmsThemeBlockVariantOptions() as $block => $variants) {
+        foreach ((array)$variants as $variant) {
+            $variant = trim((string)$variant);
+            if ($variant === '') {
+                continue;   // the unset variant is the block's own template
+            }
+            $moduleTemplate = 'modules/cms/public/blocks/' . $block . '.' . $variant . '.block.disyl';
+            $themeTemplate = $themeSlug !== ''
+                ? '_cms_active_theme/public/blocks/' . $block . '.' . $variant . '.block.disyl'
+                : '';
+            $moduleExists = is_file(TEMPLATES_PATH . '/' . $moduleTemplate);
+            $themeExists = $themeTemplate !== '' && is_file(TEMPLATES_PATH . '/' . $themeTemplate);
+            if ($moduleExists || $themeExists) {
+                continue;
+            }
+            $missing[] = [
+                'block' => (string)$block,
+                'variant' => $variant,
+                'module' => $moduleTemplate,
+                'theme' => $themeTemplate,
+            ];
+        }
+    }
+    return $missing;
+}
+
 function cmsNormalizeThemeBlockVariant(string $block, string $variant): string
 {
     $options = cmsThemeBlockVariantOptions();

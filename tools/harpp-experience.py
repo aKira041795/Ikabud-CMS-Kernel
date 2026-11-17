@@ -1918,6 +1918,69 @@ _LLM_EVAL_CASES = (
 )
 
 
+def cmd_llm_review(args) -> int:
+    """Kahibaw proposes which recorded rules a change touches; the tool verifies each citation.
+
+    This is the role the measurement actually supports. Kahibaw was asked to APPLY a rule from its
+    own system prompt on 2026-11-17 and answered against it, so it is not allowed to decide what is
+    true. Here it only points: it returns rule numbers from a numbered list, and every citation is
+    then grounded deterministically (the rule must exist, be active, be in scope, and share a
+    content word with the change). A hallucinated or off-topic citation is DROPPED, not obeyed -
+    so a wrong answer costs nothing and a right one catches something.
+    """
+    brief = args.brief or ""
+    if not brief.strip():
+        print("harpp-experience: nothing to review (pass the change or task as an argument)",
+              file=sys.stderr)
+        return 2
+    scope_value = args.scope or _scope_from_query(brief)
+    candidates = [r for r in load_lessons()
+                  if _lesson_status(r) == "active" and _scope_matches(r, scope_value)]
+    candidates.sort(key=lambda r: (-_query_overlap(brief, r.get("text")), str(r.get("id"))))
+    candidates = candidates[: args.limit]
+    if not candidates:
+        print(f"no active rules in scope {scope_value or 'any'}")
+        return 0
+
+    numbered = "\n".join(f"{i}. {str(r.get('text')).strip()}" for i, r in enumerate(candidates, 1))
+    prompt = ("RULES (numbered):\n" + numbered +
+              "\n\nCHANGE:\n" + brief +
+              "\n\nWhich rule numbers are violated or must be respected by this change? "
+              "Answer with comma-separated numbers only, or NONE.")
+    answer = _ollama(args.model, prompt, num_predict=16)
+
+    cited: list[int] = []
+    for token in re.findall(r"\d+", answer or ""):
+        index = int(token) - 1
+        if 0 <= index < len(candidates) and index not in cited:
+            cited.append(index)
+
+    accepted, rejected = [], []
+    for index in cited:
+        rule = candidates[index]
+        # Grounded = the rule shares a real content word with the change. A citation about
+        # something unrelated is the model guessing, which is what the measurement warned about.
+        if _query_overlap(brief, rule.get("text")) > 0:
+            accepted.append(rule)
+        else:
+            rejected.append(rule)
+
+    if args.json:
+        print(json.dumps({"model": args.model, "answer": answer.strip(),
+                          "accepted": [r.get("id") for r in accepted],
+                          "rejected": [r.get("id") for r in rejected]}, indent=2))
+        return 0
+    print(f"kahibaw said: {answer.strip() or '(no answer)'}")
+    for rule in accepted:
+        print(f"  [verified] {rule.get('id')}  {str(rule.get('text'))[:150]}")
+    for rule in rejected:
+        print(f"  [dropped]  {rule.get('id')}  (not grounded in the change text)")
+    if not cited:
+        print("  nothing cited; the deterministic block still applies")
+    print(f"\n{len(accepted)} citation(s) verified, {len(rejected)} dropped of {len(candidates)} rules considered")
+    return 0
+
+
 def cmd_llm_eval(args) -> int:
     """Score the built model against the base on experience recall. Prints a table, no verdict spin."""
     lessons = _llm_lessons(200)
@@ -2085,6 +2148,13 @@ def _parser() -> argparse.ArgumentParser:
     llm_corpus = llm_sub.add_parser("corpus", help="emit the fine-tuning set (Tier 2 prerequisite)")
     llm_corpus.add_argument("--out", required=True, help="destination .jsonl")
     llm_corpus.set_defaults(func=cmd_llm_corpus)
+    llm_review = llm_sub.add_parser("review", help="Kahibaw proposes rules; the tool verifies each")
+    llm_review.add_argument("brief", nargs="?", default="", help="the change or task to review")
+    llm_review.add_argument("--scope")
+    llm_review.add_argument("--model", default="kahibaw")
+    llm_review.add_argument("--limit", type=int, default=12)
+    llm_review.add_argument("--json", action="store_true")
+    llm_review.set_defaults(func=cmd_llm_review)
     llm_eval = llm_sub.add_parser("eval", help="does the built model recall experience the base cannot?")
     llm_eval.add_argument("--base", default="qwen2.5-coder:1.5b")
     llm_eval.add_argument("--name", default="kahibaw")
