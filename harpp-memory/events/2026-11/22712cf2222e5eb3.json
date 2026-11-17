@@ -1,0 +1,15 @@
+{
+  "digest": "22712cf2222e5eb363dabb057a3ad076d37a005d87a7e4b00c76f1ce2ded0d31",
+  "event_id": "22712cf2222e5eb3",
+  "evidence": [],
+  "legacy_added_at": "2026-11-17T06:17:16+00:00",
+  "legacy_id": "H-0002",
+  "lesson_id": "L-aebbcb6f07",
+  "proposed_by": "migrated",
+  "reason": "no_report",
+  "recorded_at": "2026-11-17T09:47:01.324861Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "The run log must contain a line starting with `Status:` (optionally markdown-decorated). Without it the landing is recorded as no_report and the work counts as unclaimed. 9 prior landings.",
+  "type": "propose"
+}

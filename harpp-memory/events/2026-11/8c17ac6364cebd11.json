@@ -1,0 +1,17 @@
+{
+  "digest": "8c17ac6364cebd1198cdf4731de7ccccaee3f5dd74c304fc6def91d44316c79f",
+  "event_id": "8c17ac6364cebd11",
+  "evidence": [
+    "dl-substitute-dispatch-item"
+  ],
+  "legacy_added_at": "2026-11-17T09:11:52+00:00",
+  "legacy_id": "H-0004",
+  "lesson_id": "L-12fd3f8df3",
+  "proposed_by": "migrated",
+  "reason": "any",
+  "recorded_at": "2026-11-17T09:47:01.327834Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "A source-grepping contract test cannot prove a feature works. Before claiming done, apply the module migrations to the tenant and exercise the real endpoint or screen; a 403, a constraint violation, a double count and an ENUM rejection are all invisible to str_contains().",
+  "type": "propose"
+}

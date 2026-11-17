@@ -1,0 +1,15 @@
+{
+  "digest": "51bfba57bbdbea101d7b4dbafe2e8ecef9efa9b60541af4d7288319281baa2f5",
+  "event_id": "51bfba57bbdbea10",
+  "evidence": [],
+  "legacy_added_at": "2026-11-17T09:11:52+00:00",
+  "legacy_id": "H-0006",
+  "lesson_id": "L-70b66809bf",
+  "proposed_by": "migrated",
+  "reason": "any",
+  "recorded_at": "2026-11-17T09:47:01.331791Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "New status/notification values need a migration: ENUM columns reject unknown values with 'Data truncated', and the full value list must be re-declared or existing values are dropped.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "20c4f5cbf62857ae5bf666cea4dda0f3dedd3d68673f6dbfb4a104f74a9bde70",
+  "event_id": "20c4f5cbf62857ae",
+  "evidence": [],
+  "legacy_added_at": "2026-11-17T09:11:52+00:00",
+  "legacy_id": "H-0005",
+  "lesson_id": "L-9eaa52c98e",
+  "proposed_by": "migrated",
+  "reason": "any",
+  "recorded_at": "2026-11-17T09:47:01.329571Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Ledger effect rows are append-only. Never DELETE a reversed effect to force a re-apply - add a migration that allows a second row (and create any replacement index BEFORE dropping a unique key, or the FK blocks the drop).",
+  "type": "propose"
+}

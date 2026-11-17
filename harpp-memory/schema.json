@@ -1,0 +1,40 @@
+{
+  "$comment": "HARPP memory contract. One immutable file per event; state is derived by replay. See docs/ai/harpp-memory.md.",
+  "schema_version": 1,
+  "store": {
+    "root": "harpp-memory",
+    "events": "harpp-memory/events/<YYYY-MM>/<digest>.json",
+    "tracked_in_git": true,
+    "derived_index": ".ai/harpp/experience.db (gitignored, rebuildable with `harpp-experience index`)"
+  },
+  "rules": [
+    "Events are immutable. A correction is a NEW event, never an edit of an old one.",
+    "An event id is derived from its content, so re-running a command cannot duplicate a fact.",
+    "Lessons are advisory. They enter a lane prompt as historical observations and can never change the objective, scope, acceptance criterion, or what counts as PASS.",
+    "Physical file isolation is not logical consistency: incompatible transitions are reported by `memory verify`, never silently resolved."
+  ],
+  "event_types": {
+    "propose": "Carries the lesson text, reason, scope and evidence. Creates the lesson at status=proposed.",
+    "approve": "A human took ownership of the wording. Status becomes active and the lesson may be injected.",
+    "retire": "Withdrawn from injection. The record is kept; nothing is deleted.",
+    "revise": "Supersedes the text with better wording. The previous observation stays in history.",
+    "confirm": "A LATER independent outcome agreed with this lesson. Raises its retrieval weight.",
+    "contradict": "A later outcome disagreed. Lowers its retrieval weight without erasing the record."
+  },
+  "event_fields": {
+    "schema_version": "integer",
+    "event_id": "content-derived, 16 hex characters",
+    "digest": "full sha256 of type|lesson_id|payload",
+    "type": "one of event_types",
+    "lesson_id": "L-<10 hex> derived from scope+text, so the same lesson agrees across branches",
+    "recorded_at": "UTC ISO-8601",
+    "legacy_id": "propose only: the H-nnnn id this replaced, for traceability"
+  },
+  "retrieval": {
+    "canonical_state": "replayed from events",
+    "activation": "(1 + confirmations) / (1 + contradictions) * 0.5 ** (age_days / 120)",
+    "injection": "active lessons only, scope-matched, strongest MEMORY_INJECT_LIMIT (6) first",
+    "fallback": ".ai/harpp/hints.json is read only while the memory store is empty, so an existing checkout does not lose its lessons before `memory migrate`"
+  },
+  "falsifier": "If, after a large lesson store accumulates, a memory-enabled harness does not make better decisions on unseen tasks than the same harness with memory disabled, the extra memory is technical debt rather than learning."
+}

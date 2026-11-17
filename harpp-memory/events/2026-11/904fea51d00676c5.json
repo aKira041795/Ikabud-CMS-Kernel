@@ -1,0 +1,13 @@
+{
+  "digest": "904fea51d00676c56d389e57f686176d0b9d3fb1181277513c454d18da305a00",
+  "event_id": "904fea51d00676c5",
+  "evidence": [],
+  "lesson_id": "L-43624fdd69",
+  "proposed_by": "owner",
+  "reason": "no_report",
+  "recorded_at": "2026-11-17T09:50:15.849233Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Verify with an explicit clean environment. A HARPP_* or LANE_AUTONOMY_DIR exported during debugging silently redirects the real store: on 2026-11-17 a leaked override made 'status' report 0 rows and rebuilt the index empty while the true store held 7 lessons. Run 'env | grep HARPP_' before believing a quiet result.",
+  "type": "propose"
+}

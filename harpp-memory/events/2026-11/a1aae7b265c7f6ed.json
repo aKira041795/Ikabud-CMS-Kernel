@@ -1,0 +1,15 @@
+{
+  "digest": "a1aae7b265c7f6ed321354fe73e5e7a856e30977969ad2ef908e04e6f0d9aa13",
+  "event_id": "a1aae7b265c7f6ed",
+  "evidence": [],
+  "legacy_added_at": "2026-11-17T06:17:16+00:00",
+  "legacy_id": "H-0003",
+  "lesson_id": "L-f5d42bc123",
+  "proposed_by": "migrated",
+  "reason": "timeout",
+  "recorded_at": "2026-11-17T09:47:01.326453Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "24 prior landings were killed by their own budget. Keep the diff small and verify early rather than exploring exhaustively; if the task cannot fit the budget, report BLOCKED early.",
+  "type": "propose"
+}

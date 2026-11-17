@@ -1,0 +1,18 @@
+{
+  "digest": "63dcc58d500d8b31ba6b4db6b1e832392556b1a20a5626a427a32f1bedd2186d",
+  "event_id": "63dcc58d500d8b31",
+  "evidence": [
+    "census-empty-routes",
+    "completion-blocked-strict"
+  ],
+  "legacy_added_at": "2026-11-17T06:17:16+00:00",
+  "legacy_id": "H-0001",
+  "lesson_id": "L-937e43009e",
+  "proposed_by": "migrated",
+  "reason": "report_present",
+  "recorded_at": "2026-11-17T09:47:01.322106Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Print `Status: PASS` only when the acceptance command has just exited 0 in this run. 34 prior landings here claimed PASS while the acceptance criterion failed or was skipped; the harness records that contradiction and blocks completion.",
+  "type": "propose"
+}
