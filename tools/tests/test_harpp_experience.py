@@ -416,6 +416,39 @@ class HarppExperienceTest(unittest.TestCase):
         self.assertEqual([m["role"] for m in rows[0]["messages"]], ["system", "user", "assistant"])
         self.assertIn("a rule that becomes a training example", rows[0]["messages"][2]["content"])
 
+    # ------------------------------------------------------------------ task-aware retrieval
+    def test_the_task_text_decides_which_rules_are_injected(self) -> None:
+        """Six slots must follow the brief, not the id order.
+
+        Measured 2026-11-17: a CMS lane received six Daily Ledger UI rules and none of the 104 CMS
+        lessons, because selection ignored the task entirely.
+        """
+        wanted = self._add("variant templates must never alter the capability data contract")
+        for index in range(8):
+            self._add(f"unrelated filler rule number {index} about scheduling")
+        block = _run([str(TOOL), "hints", "--query",
+                      "add a new block variant to the theme card"], env=self.env).stdout
+        self.assertIn("variant templates must never alter", block)
+        first_rule = next(line for line in block.splitlines() if line.startswith("- ["))
+        self.assertIn("variant templates", first_rule,
+                      f"the relevant rule was not first: {first_rule}")
+
+    def test_the_module_is_inferred_from_the_brief_without_a_flag(self) -> None:
+        scoped = _run([str(TOOL), "lesson", "propose", "--reason", "harvested",
+                       "--scope", "cms", "--text",
+                       "cms-scoped rule: variants are presentation only", "--json"], env=self.env)
+        self.assertEqual(scoped.returncode, 0, scoped.stderr)
+        lesson_id = json.loads(scoped.stdout)["id"]
+        _run([str(TOOL), "lesson", "approve", lesson_id], env=self.env)
+
+        without = _run([str(TOOL), "hints"], env=self.env).stdout
+        self.assertNotIn("cms-scoped rule", without,
+                         "a module rule leaked into a lane that named no module")
+        with_brief = _run([str(TOOL), "hints", "--query",
+                           "fix modules/cms theme rendering"], env=self.env).stdout
+        self.assertIn("cms-scoped rule", with_brief,
+                      "the module named in the brief did not unlock its rules")
+
     def test_hints_can_be_filtered_by_reason(self) -> None:
         _run([str(TOOL), "hint", "add", "--reason", "timeout", "--text", "T lesson"], env=self.env)
         _run([str(TOOL), "hint", "add", "--reason", "crash", "--text", "C lesson"], env=self.env)

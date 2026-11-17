@@ -224,6 +224,10 @@ lane_model_run() {
     local _exp _exp_len
     local -a _exp_args=(--max-chars 1800)
     if [ -n "${LANE_SCOPE:-}" ]; then _exp_args+=(--scope "$LANE_SCOPE"); fi
+    # The task text decides which rules are relevant and, when LANE_SCOPE is unset, which module
+    # the lane is about. A CMS lane that received only universal rules was the defect measured
+    # 2026-11-17: 104 cms lessons existed and none of them reached the lane.
+    if [ -n "$prompt" ]; then _exp_args+=(--query "${prompt:0:800}"); fi
     _exp="$(python3 "$_LANE_MODEL_TOOLS_DIR/harpp-experience.py" hints "${_exp_args[@]}" 2>/dev/null || true)"
     case "$_exp" in
       ""|"(no hints"*|"(no experience"*)

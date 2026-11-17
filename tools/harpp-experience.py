@@ -547,8 +547,54 @@ def load_lessons() -> list[dict]:
     return load_hints()
 
 
+_QUERY_STOPWORDS = frozenset("""
+    the and for with that this from have has are was were will would can could should not but into
+    than then when where which while there their they them you your our its it's about over under
+    make made need needs must never only also just like more most some such same very what who how
+    """.split())
+
+
+def _query_overlap(query: str | None, text: str) -> int:
+    """Shared content words between a task brief and a lesson.
+
+    Cheap on purpose: a lane prompt decides which six rules it sees, and without this the slots go
+    to whichever lessons happen to have the lowest ids. A CMS lane about theme variants should be
+    handed the variant rules, not the backup-GC rule, and both are equally activated until someone
+    confirms either.
+    """
+    if not query:
+        return 0
+    words = {w for w in re.findall(r"[a-z0-9_]{5,}", str(query).lower())
+             if w not in _QUERY_STOPWORDS}
+    if not words:
+        return 0
+    haystack = set(re.findall(r"[a-z0-9_]{5,}", str(text).lower()))
+    return len(words & haystack)
+
+
+def _scope_from_query(query: str | None) -> str | None:
+    """Infer the module a task is about from its text.
+
+    Lanes rarely set LANE_SCOPE, and without a scope a CMS task receives only the universal rules -
+    zero of its own. Naming the module in the brief is the normal case, so the tool reads it rather
+    than requiring every caller to repeat it.
+    """
+    if not query:
+        return None
+    lowered = str(query).lower()
+    modules_dir = ROOT / "modules"
+    if not modules_dir.is_dir():
+        return None
+    # Longest match first: `daily-ledger` must beat a module called `daily`.
+    for module in sorted((p.name for p in modules_dir.iterdir() if p.is_dir()),
+                         key=len, reverse=True):
+        if re.search(rf"\b{re.escape(module)}\b", lowered):
+            return module
+    return None
+
+
 def hint_block(reason: str | None = None, max_chars: int = 1800,
-               scope: str | None = None) -> str:
+               scope: str | None = None, query: str | None = None) -> str:
     """The text injected into a lane prompt: what already went wrong, and what was learned.
 
     Only `active` lessons are injected. A `proposed` lesson is machine-authored text and a human
@@ -559,6 +605,8 @@ def hint_block(reason: str | None = None, max_chars: int = 1800,
     the landing records, so a lane can never be told something the evidence does not say.
     """
     lines: list[str] = []
+    if not scope:
+        scope = _scope_from_query(query)
     candidates = [h for h in load_lessons()
                   if h.get("text")
                   and _lesson_status(h) == "active"
@@ -571,6 +619,7 @@ def hint_block(reason: str | None = None, max_chars: int = 1800,
     # activation 1.0 until someone confirms or contradicts it, so "top 6" would be arbitrary and a
     # module's own rules could lose to generic ones.
     candidates.sort(key=lambda h: (0 if _scope_value(h) not in ("", "any") else 1,
+                                  -_query_overlap(query, h.get("text")),
                                   -float(h.get("activation") or 0.0),
                                   str(h.get("id") or "")))
     hints = candidates[:MEMORY_INJECT_LIMIT]
@@ -1237,6 +1286,19 @@ def _harvest_is_fragment(body: str) -> bool:
     return bool(_HARVEST_FRAGMENT.match(body))
 
 
+_HARVEST_NOT_PROSE = re.compile(r"^(?:\||```|\s*[|+][-=|])", re.M)
+
+
+def _harvest_is_not_prose(body: str) -> bool:
+    """Reject tables, code fences and benchmark grids.
+
+    Measured 2026-11-17 on the cms pool: `| Endpoint | Avg |` and "``` WordPress: wp-load.php..."
+    were being harvested as rules. They are data and source listing, and a lane told to follow them
+    learns nothing it can act on.
+    """
+    return bool(_HARVEST_NOT_PROSE.match(body)) or body.count("|") >= 3
+
+
 def _harvest_test_candidates(paths: list[Path]) -> list[dict]:
     """Assertion labels ARE experience, already compiled into a gate.
 
@@ -1302,7 +1364,7 @@ def _harvest_candidates(paths: list[Path], kind: str = "docs") -> list[dict]:
                     continue
                 if body.startswith("---") or "applyTo:" in body or "description:" in body:
                     continue
-                if _harvest_is_fragment(body):
+                if _harvest_is_fragment(body) or _harvest_is_not_prose(body):
                     continue
                 lowered = body.lower()
                 hits = [signal for signal in _HARVEST_STRONG if signal in lowered]
@@ -1673,7 +1735,8 @@ def cmd_signatures(args) -> int:
 
 
 def cmd_hints(args) -> int:
-    block = hint_block(args.reason, args.max_chars, getattr(args, "scope", None))
+    block = hint_block(args.reason, args.max_chars, getattr(args, "scope", None),
+                       getattr(args, "query", None))
     if args.json:
         print(json.dumps({"reason": args.reason, "scope": getattr(args, "scope", None),
                           "hints": load_lessons(), "block": block}, indent=2))
@@ -1942,6 +2005,7 @@ def _parser() -> argparse.ArgumentParser:
     hints = sub.add_parser("hints", help="prompt block of known failure modes")
     hints.add_argument("--reason", help="restrict to one failure class")
     hints.add_argument("--scope", help="module id the lesson must apply to (e.g. daily-ledger)")
+    hints.add_argument("--query", help="task text: rank the injected rules by relevance to it")
     hints.add_argument("--max-chars", type=int, default=1800)
     hints.add_argument("--json", action="store_true")
     hints.set_defaults(func=cmd_hints)
