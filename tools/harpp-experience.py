@@ -1802,7 +1802,7 @@ def _llm_lessons(limit: int = 40) -> list[dict]:
     return rows[:limit]
 
 
-def render_modelfile(base: str, lessons: list[dict], name: str) -> str:
+def render_modelfile(base: str, lessons: list[dict], name: str, num_ctx: int = 2048) -> str:
     """The model's behaviour, as a diffable file rather than a UI setting.
 
     Every rule in the SYSTEM block is an APPROVED lesson from harpp-memory, so the model can only
@@ -1817,7 +1817,7 @@ def render_modelfile(base: str, lessons: list[dict], name: str) -> str:
         f"# lessons: {len(lessons)} approved",
         f"FROM {base}",
         "PARAMETER temperature 0.2",
-        "PARAMETER num_ctx 8192",
+        f"PARAMETER num_ctx {num_ctx}",
         'SYSTEM """',
         "You are Kahibaw, the experience layer of the Ikabud repository.",
         "",
@@ -1835,12 +1835,12 @@ def render_modelfile(base: str, lessons: list[dict], name: str) -> str:
 
 
 def cmd_llm_build(args) -> int:
-    lessons = _llm_lessons(args.limit)
-    if not lessons:
+    lessons = _llm_lessons(args.limit) if args.limit > 0 else []
+    if args.limit > 0 and not lessons:
         print("harpp-experience: no approved lessons yet - nothing to build behaviour from",
               file=sys.stderr)
         return 2
-    content = render_modelfile(args.base, lessons, args.name)
+    content = render_modelfile(args.base, lessons, args.name, args.num_ctx)
     path = LLM_DIR / "Modelfile"
     if args.dry_run:
         print(content)
@@ -1942,7 +1942,9 @@ def cmd_llm_review(args) -> int:
         print(f"no active rules in scope {scope_value or 'any'}")
         return 0
 
-    numbered = "\n".join(f"{i}. {str(r.get('text')).strip()}" for i, r in enumerate(candidates, 1))
+    numbered = "\n".join(
+        f"{i}. {str(r.get('text')).strip()[: getattr(args, 'rule_chars', 150)]}"
+        for i, r in enumerate(candidates, 1))
     prompt = ("RULES (numbered):\n" + numbered +
               "\n\nCHANGE:\n" + brief +
               "\n\nWhich rule numbers are violated or must be respected by this change? "
@@ -1979,6 +1981,73 @@ def cmd_llm_review(args) -> int:
         print("  nothing cited; the deterministic block still applies")
     print(f"\n{len(accepted)} citation(s) verified, {len(rejected)} dropped of {len(candidates)} rules considered")
     return 0
+
+
+def cmd_llm_bench(args) -> int:
+    """Acceptance benchmark for the experience model: accuracy AND latency, on fixed cases.
+
+    "Acceptable to use" needs a number, otherwise every change is an opinion. The bar is stated
+    here and enforced by the exit code:
+
+        accuracy >= 4/5   AND   median latency <= 15s
+
+    Cases are drawn from rules the store already holds, so a pass means the model found real
+    repository experience rather than plausible prose.
+    """
+    cases = (
+        ("add a compact variant to the list-card block so density changes",
+         "variants", "variants control presentation"),
+        ("reverse a posted ledger effect that was applied twice",
+         "append-only", "append-only"),
+        ("add a new notification type to the status column",
+         "migration", "migration"),
+        ("a grep-based contract test passed, can I claim the feature works",
+         "contract", "contract test"),
+        ("a dispatch line was corrected, who should the notice name",
+         "actor", "performed the action"),
+    )
+    results = []
+    for brief, _key, expected in cases:
+        scope_value = args.scope or _scope_from_query(brief)
+        candidates = [r for r in load_lessons()
+                      if _lesson_status(r) == "active" and _scope_matches(r, scope_value)]
+        candidates.sort(key=lambda r: (-_query_overlap(brief, r.get("text")), str(r.get("id"))))
+        candidates = candidates[: args.k]
+        numbered = "\n".join(
+            f"{i}. {str(r.get('text')).strip()[: args.rule_chars]}" for i, r in enumerate(candidates, 1))
+        prompt = ("RULES:\n" + numbered + "\n\nTASK:\n" + brief +
+                  "\n\nWhich single rule number applies? Answer with the number only.")
+        started = _dt.datetime.now()
+        answer = _ollama(args.model, prompt, num_predict=6, timeout=args.timeout)
+        elapsed = (_dt.datetime.now() - started).total_seconds()
+        picked = ""
+        for token in re.findall(r"\d+", answer or ""):
+            index = int(token) - 1
+            if 0 <= index < len(candidates):
+                picked = str(candidates[index].get("text") or "")
+                break
+        correct = bool(picked) and expected.lower() in picked.lower()
+        results.append({"brief": brief[:46], "correct": correct, "seconds": round(elapsed, 1),
+                        "picked": picked[:70] or "(no answer)"})
+        # Stream each case: a five-case run at ~60 s each is otherwise seven silent minutes, and a
+        # benchmark you cannot watch is a benchmark you cannot debug.
+        if not args.json:
+            print(f"  {'HIT ' if correct else 'miss'} {elapsed:>5.1f}s  {brief[:46]}", flush=True)
+            if not correct:
+                print(f"        picked: {picked[:70] or '(no answer)'}", flush=True)
+
+    hits = sum(1 for r in results if r["correct"])
+    times = sorted(r["seconds"] for r in results)
+    median = times[len(times) // 2] if times else 0.0
+    if args.json:
+        print(json.dumps({"model": args.model, "k": args.k, "hits": hits, "of": len(results),
+                          "median_seconds": median, "results": results}, indent=2))
+    else:
+        print(f"\naccuracy {hits}/{len(results)}   median {median:.1f}s   (k={args.k})")
+    acceptable = hits >= 4 and median <= 15
+    print(("ACCEPTABLE: kahibaw may be used for review" if acceptable
+           else "NOT ACCEPTABLE: keep retrieval deterministic and the model offline"))
+    return 0 if acceptable else 1
 
 
 def cmd_llm_eval(args) -> int:
@@ -2140,9 +2209,12 @@ def _parser() -> argparse.ArgumentParser:
     llm = sub.add_parser("llm", help="build the repository's own model from approved memory")
     llm_sub = llm.add_subparsers(dest="llm_command", required=True)
     llm_build = llm_sub.add_parser("build", help="render the Modelfile and create the model")
-    llm_build.add_argument("--base", default="qwen2.5-coder:1.5b", help="base model to borrow")
+    llm_build.add_argument("--base", default="qwen2.5:0.5b",
+                           help="base model; 0.5b is 2x faster on CPU than 1.5b (measured)")
     llm_build.add_argument("--name", default="kahibaw", help="name of the built model")
-    llm_build.add_argument("--limit", type=int, default=40, help="max approved lessons to embed")
+    llm_build.add_argument("--limit", type=int, default=40, help="max approved lessons to embed (0 = role only)")
+    llm_build.add_argument("--num-ctx", type=int, default=2048,
+                           help="context window; larger means slower prompt processing on CPU")
     llm_build.add_argument("--dry-run", action="store_true", help="print the Modelfile only")
     llm_build.set_defaults(func=cmd_llm_build)
     llm_corpus = llm_sub.add_parser("corpus", help="emit the fine-tuning set (Tier 2 prerequisite)")
@@ -2152,9 +2224,21 @@ def _parser() -> argparse.ArgumentParser:
     llm_review.add_argument("brief", nargs="?", default="", help="the change or task to review")
     llm_review.add_argument("--scope")
     llm_review.add_argument("--model", default="kahibaw")
-    llm_review.add_argument("--limit", type=int, default=12)
+    llm_review.add_argument("--limit", type=int, default=3,
+                            help="candidates offered; 3 is the benchmarked configuration")
+    llm_review.add_argument("--rule-chars", type=int, default=150)
     llm_review.add_argument("--json", action="store_true")
     llm_review.set_defaults(func=cmd_llm_review)
+    llm_bench = llm_sub.add_parser("bench", help="acceptance: accuracy + latency on fixed cases")
+    llm_bench.add_argument("--model", default="kahibaw")
+    llm_bench.add_argument("--scope")
+    llm_bench.add_argument("--k", type=int, default=3,
+                           help="candidate rules offered; measured 2026-11-17: k=3 scored 4/5, k=5 3/5")
+    llm_bench.add_argument("--rule-chars", type=int, default=150,
+                           help="truncate each candidate: prompt size dominates CPU latency")
+    llm_bench.add_argument("--timeout", type=int, default=90)
+    llm_bench.add_argument("--json", action="store_true")
+    llm_bench.set_defaults(func=cmd_llm_bench)
     llm_eval = llm_sub.add_parser("eval", help="does the built model recall experience the base cannot?")
     llm_eval.add_argument("--base", default="qwen2.5-coder:1.5b")
     llm_eval.add_argument("--name", default="kahibaw")

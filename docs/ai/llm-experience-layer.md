@@ -72,15 +72,51 @@ story rather than an artefact.
 
 ```bash
 python3 tools/harpp-experience.py llm build      # render + create Kahibaw
+python3 tools/harpp-experience.py llm bench      # accept/reject, exit code enforced
 python3 tools/harpp-experience.py llm eval       # base vs ours on experience recall
 ```
 
-`llm eval` asks questions whose answers exist **only** in `harpp-memory` and scores whether each
-model returns the applicable rule. It prints a verdict, including the uncomfortable one:
+### The acceptance bar (this is the number, not an opinion)
 
-- ours **worse** than base → do not wire it in front of agents;
-- ours **equal** at full marks → the questions are too easy, raise the difficulty before trusting it;
-- ours **better** → the memory-carrying model recalls experience the base does not.
+```
+accuracy >= 4 of 5 fixed cases   AND   median latency <= 15 s
+```
+
+`llm bench` asks five tasks whose answers exist only in `harpp-memory`, offers the model `k`
+numbered candidate rules, and scores whether it picked the rule that applies — while timing every
+call. It exits non-zero until the bar is met, so "acceptable to use" cannot drift into a feeling.
+
+**Current verdict: ACCEPTABLE for review (2026-11-17), after three measured iterations.**
+
+| Iteration | Change | Accuracy | Median | Verdict |
+|---|---|---|---|---|
+| 1 | 1.5B base, 24 rules in the system prompt, k=6 | **0/5** | **90.1 s** | every call hit the timeout |
+| 2 | 0.5B base, role-only system, `num_ctx 2048`, k=3, 150-char rules | **4/5** | **7.4 s** | passes the bar |
+| — | 0.5B, k=5 | 3/5 | 12.8 s | **worse** — more candidates confuse a 0.5B model |
+
+**The diagnosis that mattered:** latency was never the model, it was prompt size. Measured directly
+on identical input — the 1.5B base answered 53 prompt tokens in **9.0 s**; the same model carrying
+its rules answered 423 tokens in **61.8 s**. This CPU processes roughly 6–15 prompt tokens per
+second, so **every rule embedded in the system prompt costs ~150 ms per call**. Kahibaw's own memory
+growth is what had made it unusable.
+
+**The accepted configuration** (now the defaults):
+
+```
+base qwen2.5:0.5b · num_ctx 2048 · role-only system prompt
+candidates k=3 · each rule truncated to 150 chars · timeout 40 s
+```
+
+Rules arrive **per request** from deterministic retrieval, not from the model's weights. The model
+is a chooser among three, which is a task a 0.5B can pass — not a keeper of the rules, which is not.
+
+`llm review` uses the same k=3/150-char configuration, so what ships is what was benchmarked.
+
+### Why the model is not simply replaced by a bigger one
+
+A 7B model is ~5× the compute on 4 cores, so it would make the latency bar worse, not better. The
+honest routes are a fine-tune (Tier 2, corpus already emitted by `llm corpus`) or accepting that the
+experience layer is retrieval, not inference.
 
 ### Measured 2026-11-17 — the uncomfortable verdict, recorded
 
