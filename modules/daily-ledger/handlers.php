@@ -1016,6 +1016,109 @@ function dl_commissaryDepartedQtyByProduct($db, int $commissaryId, string $date,
 }
 
 /**
+ * The ONE definition of "stock on hand" for a commissary product.
+ *
+ * STOCK IS NOT A SUM OF FLOWS. A ledger row's balance is
+ * `beg_qty + produced_qty - dispatched_qty - wastage_qty`, and every later row's
+ * `beg_qty` is the balance carried out of the previous row. Summing a column
+ * across rows therefore counts the same carried stock once per shift, and
+ * `remaining_qty` - a GENERATED column equal to `produced - dispatched - wastage`
+ * (migrations 036/037) - excludes the beginning entirely, so summing IT gives
+ * everything ever produced but not dispatched: a FLOW.
+ *
+ * Measured on RIZAL-COMMIS · B.FOREST @430 (2026-11-17): 87 rows summed to 6 by
+ * that flow while the stock actually held was 4, and the branch's real beginning
+ * was 2 - the client's "beginning is 2 but the DR shows 6". The number also
+ * disagreed with the check that gates the dispatch itself, so the modal offered
+ * stock the server then refused.
+ *
+ * The stock that exists is the LATEST row's own balance, and when that row was
+ * physically counted (`actual_end_qty`) the COUNT is the stock - the count is
+ * also what the next shift's beginning is carried from, which is why a settled
+ * row must win over its book balance.
+ *
+ * @param array<int,int|string> $commissaryIds Commissaries to include; empty matrix on none.
+ * @param ?string $asOfDate Latest row ON/BEFORE this date. NULL = latest row overall.
+ * @return array<int,array<int,array{on_hand:int,as_of_date:?string,as_of_shift:?string,settled:bool}>> [commissary_id][product_id]
+ *
+ * @mysql57-compat one table in FROM, a correlated MAX() subquery, no CTE, no window function.
+ */
+function dl_commissaryOnHandByProduct($db, array $commissaryIds, ?string $asOfDate = null): array
+{
+    $ids = [];
+    foreach ($commissaryIds as $candidate) {
+        $value = (int)$candidate;
+        if ($value > 0) {
+            $ids[$value] = $value;
+        }
+    }
+    if ($ids === []) {
+        return [];
+    }
+    $inList = implode(',', $ids);
+    $dateFilter = ($asOfDate !== null && preg_match('/^\d{4}-\d{2}-\d{2}$/', $asOfDate))
+        ? ' AND l2.ledger_date <= :asof'
+        : '';
+    $sql = 'SELECT l.commissary_branch_id, l.product_id, l.ledger_date, l.shift,
+                   l.actual_end_qty IS NOT NULL AS settled,
+                   (CASE WHEN l.actual_end_qty IS NOT NULL THEN l.actual_end_qty
+                         ELSE (l.beg_qty + l.produced_qty - l.dispatched_qty - l.wastage_qty) END) AS on_hand
+              FROM dl_commissary_product_ledger l
+             WHERE l.commissary_branch_id IN (' . $inList . ')
+               AND l.ledger_date = (
+                     SELECT MAX(l2.ledger_date)
+                       FROM dl_commissary_product_ledger l2
+                      WHERE l2.commissary_branch_id = l.commissary_branch_id
+                        AND l2.product_id = l.product_id' . $dateFilter . '
+                   )
+             ORDER BY l.commissary_branch_id, l.product_id,
+                      CASE l.shift WHEN \'PM\' THEN 2 WHEN \'AM\' THEN 1 ELSE 0 END DESC, l.id DESC';
+    $bind = [];
+    if ($dateFilter !== '') {
+        $bind[':asof'] = $asOfDate;
+    }
+    $stmt = $db->prepare($sql);
+    $stmt->execute($bind);
+
+    $onHand = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+        $commissaryId = (int)$row['commissary_branch_id'];
+        $productId = (int)$row['product_id'];
+        // The ORDER BY puts the day's LAST shift first, so the first row seen for a
+        // (commissary, product) is the carried balance that matters.
+        if (isset($onHand[$commissaryId][$productId])) {
+            continue;
+        }
+        $onHand[$commissaryId][$productId] = [
+            'on_hand' => (int)$row['on_hand'],
+            'as_of_date' => $row['ledger_date'] !== null ? (string)$row['ledger_date'] : null,
+            'as_of_shift' => $row['shift'] !== null ? (string)$row['shift'] : null,
+            'settled' => (bool)$row['settled'],
+        ];
+    }
+    return $onHand;
+}
+
+/**
+ * One product's on hand, through the single definition above.
+ *
+ * Used where the number is ENFORCED, not just displayed (the dispatch stock
+ * check), so the quantity an operator is offered and the quantity the server
+ * accepts can never be two different figures.
+ *
+ * @return array{on_hand:int,as_of_date:?string,as_of_shift:?string,settled:bool}
+ */
+function dl_commissaryOnHandForProduct($db, int $commissaryId, int $productId, ?string $asOfDate = null): array
+{
+    $none = ['on_hand' => 0, 'as_of_date' => null, 'as_of_shift' => null, 'settled' => false];
+    if ($commissaryId <= 0 || $productId <= 0) {
+        return $none;
+    }
+    $matrix = dl_commissaryOnHandByProduct($db, [$commissaryId], $asOfDate);
+    return $matrix[$commissaryId][$productId] ?? $none;
+}
+
+/**
  * Reconcile the projection against the single departure derivation.
  *
  * READ-ONLY. dl_commissary_product_ledger.dispatched_qty is a read model; this
@@ -24742,16 +24845,10 @@ function handleAdminCommissary(): void
                 cpl.actual_end_qty,
                 cpl.calc_variance,
                 " . dl_productionBalanceSql('cpl.') . " AS book_balance,
-                COALESCE(cum.cumulative_remaining, cpl.remaining_qty) AS cumulative_remaining,
                 cpl.updated_at
            FROM dl_commissary_product_ledger cpl
            INNER JOIN dl_products p ON p.id = cpl.product_id
            LEFT JOIN dl_branches b ON b.id = cpl.commissary_branch_id
-           LEFT JOIN (
-               SELECT commissary_branch_id, product_id, SUM(remaining_qty) AS cumulative_remaining
-                 FROM dl_commissary_product_ledger
-                GROUP BY commissary_branch_id, product_id
-           ) cum ON cum.commissary_branch_id = cpl.commissary_branch_id AND cum.product_id = cpl.product_id
           WHERE cpl.ledger_date = :date
             AND (cpl.produced_qty > 0 OR cpl.dispatched_qty > 0 OR cpl.wastage_qty > 0)";
     $inventoryBind = [':date' => $rawDate];
@@ -24767,26 +24864,50 @@ function handleAdminCommissary(): void
     $inventoryStmt->execute($inventoryBind);
     $inventoryRows = $inventoryStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-    // ── Cumulative stock (all dates) for dispatch dropdown ──
-    $cumulativeStockStmt = $db->prepare(
+    // ── Stock on hand for every hub in scope, from the ONE definition ──
+    // $onHandMatrix[commissary][product] = the latest carried balance (or the physical
+    // count when that shift was counted). It replaces every SUM(remaining_qty) on this
+    // page: that column is a GENERATED flow (produced - dispatched - wastage) which
+    // ignores the carried beginning, so summing it reported net production surplus as
+    // "on hand" - RIZAL-COMMIS · B.FOREST @430 showed 6 with 4 in stock.
+    $onHandScopeIds = $selectedCommissaryId > 0 ? [$selectedCommissaryId] : $availableCommissaryIds;
+    $onHandMatrix = dl_commissaryOnHandByProduct($db, $onHandScopeIds, $rawDate);
+    foreach ($inventoryRows as &$inventoryRow) {
+        $inventoryRow['on_hand'] = (int)($onHandMatrix[(int)$inventoryRow['commissary_branch_id']][(int)$inventoryRow['product_id']]['on_hand'] ?? 0);
+    }
+    unset($inventoryRow);
+
+    // ── Stock on hand (as of the sheet date) for the dispatch dropdown ──
+    $cumulativeStockRows = $db->prepare(
         "SELECT cpl.commissary_branch_id,
                 COALESCE(b.name, 'Commissary') AS commissary_name,
                 cpl.product_id,
                 p.name AS product_name,
                 p.sku,
                 SUM(cpl.produced_qty) AS total_produced,
-                SUM(cpl.dispatched_qty) AS total_dispatched,
-                SUM(cpl.remaining_qty) AS cumulative_remaining
+                SUM(cpl.dispatched_qty) AS total_dispatched
            FROM dl_commissary_product_ledger cpl
            INNER JOIN dl_products p ON p.id = cpl.product_id AND p.is_active = 1
            LEFT JOIN dl_branches b ON b.id = cpl.commissary_branch_id
           " . ($applyViewBranchFilter ? "WHERE cpl.commissary_branch_id IN ({$viewBranchSql})" : '') . "
           GROUP BY cpl.commissary_branch_id, cpl.product_id, b.name, p.name, p.sku
-         HAVING cumulative_remaining > 0
           ORDER BY p.name ASC"
     );
-    $cumulativeStockStmt->execute();
-    $cumulativeStock = $cumulativeStockStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $cumulativeStockRows->execute();
+    $cumulativeStock = [];
+    foreach ($cumulativeStockRows->fetchAll(PDO::FETCH_ASSOC) ?: [] as $stockRow) {
+        $stockOnHand = $onHandMatrix[(int)$stockRow['commissary_branch_id']][(int)$stockRow['product_id']] ?? null;
+        // Nothing on hand is not an offer. This gate used to read the FLOW, so a product
+        // whose net flow was negative vanished from the dispatch table even while it held
+        // stock (measured: BDAY CAKE 1 LAYER summed -7 while the shift held 3).
+        if ($stockOnHand === null || (int)$stockOnHand['on_hand'] <= 0) {
+            continue;
+        }
+        $stockRow['on_hand'] = (int)$stockOnHand['on_hand'];
+        $stockRow['on_hand_as_of'] = $stockOnHand['as_of_date'];
+        $stockRow['on_hand_settled'] = $stockOnHand['settled'];
+        $cumulativeStock[] = $stockRow;
+    }
 
     // ── Tab 2: Deliveries to branches ──
     $deliverySql = "SELECT d.id AS delivery_id,
@@ -24889,17 +25010,14 @@ function handleAdminCommissary(): void
                 COALESCE(inv.produced_qty, 0) AS produced_qty,
                 COALESCE(inv.dispatched_qty, 0) AS dispatched_qty,
                 COALESCE(inv.wastage_qty, 0) AS wastage_qty,
-                COALESCE(inv.remaining_qty, 0) AS remaining_qty,
-                COALESCE(ret.returned_qty, 0) AS returned_qty,
-                (COALESCE(inv.remaining_qty, 0) + COALESCE(ret.returned_qty, 0)) AS net_available
+                COALESCE(ret.returned_qty, 0) AS returned_qty
            FROM dl_products p
            LEFT JOIN (
                SELECT product_id,
                       SUM(beg_qty) AS beg_qty,
                       SUM(produced_qty) AS produced_qty,
                       SUM(dispatched_qty) AS dispatched_qty,
-                      SUM(wastage_qty) AS wastage_qty,
-                      SUM(remaining_qty) AS remaining_qty
+                      SUM(wastage_qty) AS wastage_qty
                  FROM dl_commissary_product_ledger
                 WHERE ledger_date = :date1";
     $summaryBind = [':date1' => $rawDate];
@@ -24939,6 +25057,18 @@ function handleAdminCommissary(): void
     $summaryStmt = $db->prepare($summarySql);
     $summaryStmt->execute($summaryBind);
     $summaryRows = $summaryStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    // "Available" is STOCK ON HAND plus what came back, never a sum of the day's flow:
+    // summing produced-minus-dispatched over both shifts counted the same carried balance
+    // twice and ignored every beginning (the DR modal's "beginning 2, on hand 6").
+    foreach ($summaryRows as &$summaryRow) {
+        $summaryOnHand = 0;
+        foreach ($onHandScopeIds as $scopeCommissaryId) {
+            $summaryOnHand += (int)($onHandMatrix[(int)$scopeCommissaryId][(int)$summaryRow['product_id']]['on_hand'] ?? 0);
+        }
+        $summaryRow['on_hand'] = $summaryOnHand;
+        $summaryRow['net_available'] = $summaryOnHand + (int)($summaryRow['returned_qty'] ?? 0);
+    }
+    unset($summaryRow);
 
     // ── Tab 5: Daily Sheet ──
     // The product set is exactly the cashier set for the selected production
@@ -25460,6 +25590,7 @@ function handleAdminCommissary(): void
         'total_wastage' => 0,
         'total_returned' => 0,
         'total_remaining' => 0,
+        'total_on_hand' => 0,
         'total_deliveries' => count($deliveryRows),
         'total_pullouts' => count($pulloutRows),
     ];
@@ -25467,7 +25598,17 @@ function handleAdminCommissary(): void
         $totals['total_produced'] += (int)($row['produced_qty'] ?? 0);
         $totals['total_dispatched'] += (int)($row['dispatched_qty'] ?? 0);
         $totals['total_wastage'] += (int)($row['wastage_qty'] ?? 0);
+        // A per-shift FLOW sum: each row's remaining_qty is that shift's own
+        // produced-minus-dispatched-minus-wastage. Correct as "remaining today", which is what
+        // this card sits beside (Produced/Dispatched/Wastage today) — it is NOT stock.
         $totals['total_remaining'] += (int)($row['remaining_qty'] ?? 0);
+    }
+    // Stock on hand, counted ONCE per (hub, product): $inventoryRows carries one row per shift,
+    // so summing their on-hand would count the same stock twice.
+    foreach ($onHandMatrix as $hubProducts) {
+        foreach ($hubProducts as $hubProduct) {
+            $totals['total_on_hand'] += (int)$hubProduct['on_hand'];
+        }
     }
     foreach ($pulloutRows as $row) {
         // Wastage returns are physically moved but already counted as
@@ -26437,10 +26578,9 @@ function apiCommissaryDispatchPrefill(array $params = []): void
     }
 
     // Sheet-first entries can name a product the modal's on-hand table does not carry: that
-    // table keeps only products whose CUMULATIVE historical remaining is positive, so one
-    // negative day hides a product that still has stock today (measured: BDAY CAKE 1 LAYER
-    // at RIZAL-COMMIS summed to -7 while this shift held 3). Without these details the modal
-    // receives a quantity for a row that does not exist and silently shows nothing.
+    // table offers only products with stock on hand, so a sheet line can name one it does not
+    // list. Without these details the modal receives a quantity for a row that does not exist
+    // and silently shows nothing.
     $items = [];
     foreach (array_keys($lines) as $productIdKey) {
         $productId = (int)$productIdKey;
@@ -26456,24 +26596,13 @@ function apiCommissaryDispatchPrefill(array $params = []): void
                 $items[$key]['sku'] = (string)($prod['sku'] ?? '');
             }
         }
-        // Physical on-hand for THIS business date: beg + produced - dispatched - wastage,
-        // summed across shifts. This is what an operator can still send today, and it is a
-        // different number from the cumulative historical sum that gates the on-hand table.
-        $onHandStmt = $db->prepare(
-            "SELECT product_id,
-                    SUM(beg_qty + produced_qty - dispatched_qty - wastage_qty) AS on_hand
-               FROM dl_commissary_product_ledger
-              WHERE ledger_date = :ledger_date
-                AND commissary_branch_id = :commissary_id
-                AND product_id IN ({$inList})
-              GROUP BY product_id"
-        );
-        $onHandStmt->execute([':ledger_date' => $ledgerDate, ':commissary_id' => $commissaryId]);
-        foreach ($onHandStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
-            $key = (string)(int)$row['product_id'];
-            if (isset($items[$key])) {
-                $items[$key]['on_hand'] = (int)$row['on_hand'];
-            }
+        // Stock on hand as of this business date, from the ONE definition (the latest
+        // carried balance, or the physical count when that shift was counted). Summing
+        // `beg + produced - dispatched - wastage` ACROSS SHIFTS counted the carried balance
+        // once per shift: 2026-11-16 measured 8 for stock that was 4.
+        $onHandForDate = dl_commissaryOnHandByProduct($db, [$commissaryId], $ledgerDate)[$commissaryId] ?? [];
+        foreach (array_keys($items) as $productIdKey) {
+            $items[(string)$productIdKey]['on_hand'] = (int)($onHandForDate[(int)$productIdKey]['on_hand'] ?? 0);
         }
     }
 
@@ -26778,20 +26907,14 @@ function apiCommissaryDispatch(): void
                 $commissaryNames[$cid] = $comm['name'];
             }
 
-            // Available stock is the CURRENT ledger balance, not net production surplus.
-            // SUM(produced - dispatched) ignores carried beginnings and wastage, so a
-            // commissary that holds stock as a beginning could never dispatch it: product 22
-            // held 3 (beg 5, dispatched 2) while this check reported "Available: 0" and
-            // refused, which blocked a legitimate dispatch outright.
-            $balanceStmt = $db->prepare(
-                'SELECT (beg_qty + produced_qty - dispatched_qty - wastage_qty) AS balance
-                   FROM dl_commissary_product_ledger
-                  WHERE commissary_branch_id = :cb AND product_id = :pid
-                  ORDER BY ledger_date DESC, shift DESC
-                  LIMIT 1'
-            );
-            $balanceStmt->execute([':cb' => $cid, ':pid' => $pid]);
-            $cumulativeRemaining = (int)($balanceStmt->fetchColumn() ?: 0);
+            // Available stock is the CURRENT stock on hand, through the ONE definition used
+            // by every screen. Not SUM(produced - dispatched): that ignores carried
+            // beginnings and wastage, so a commissary holding stock as a beginning could
+            // never dispatch it (product 22 held 3 while this check said "Available: 0").
+            // The same call also honours a physically counted ending, which the bare
+            // balance ignored - so the quantity offered and the quantity accepted agree.
+            $onHandNow = dl_commissaryOnHandForProduct($db, $cid, $pid);
+            $cumulativeRemaining = (int)$onHandNow['on_hand'];
             if ($cumulativeRemaining < $qty) {
                 throw new RuntimeException('Insufficient commissary stock for product #' . $pid . '. Available: ' . $cumulativeRemaining . ', requested: ' . $qty . '.');
             }
