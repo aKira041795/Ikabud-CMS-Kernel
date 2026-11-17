@@ -12,7 +12,7 @@ That division of labour is the whole design, and it settles what we are **not** 
 | Role | Who | What it is good at |
 |---|---|---|
 | **Thinking** | DeepSeek, Sol, chair models | reasoning, code generation, planning, repair |
-| **Experience** | `ikabud:coder` + `harpp-memory` | what already happened *in this repository*, and what it cost |
+| **Experience** | **Kahibaw** + `harpp-memory` | what already happened *in this repository*, and what it cost |
 
 A general model cannot know that migration 104 must create the index before dropping the FK-backed
 unique key, or that a green 12/12 contract test certified code that then failed five ways in a
@@ -27,7 +27,7 @@ experience that applies.
 
 ```mermaid
 flowchart LR
-    T["task brief"] --> S["experience layer<br/>ikabud:coder + harpp-memory"]
+    T["task brief"] --> S["experience layer<br/>Kahibaw + harpp-memory"]
     S -->|"the rules that apply here"| A["agentic model<br/>DeepSeek / Sol"]
     A -->|"work, tests, failures"| O["outcome"]
     O -->|"confirm / contradict"| M[("harpp-memory<br/>append-only events")]
@@ -41,7 +41,7 @@ small model would just be a second copy of the docs.
 ## Two tiers, and why only one is built
 
 **Tier 1 — own the artefact (built 2026-11-17).** `llm build` renders the approved lessons into
-`tools/llm/Modelfile` — a tracked, diffable file — and creates `ikabud:coder` from a borrowed base.
+`tools/llm/Modelfile` — a tracked, diffable file — and creates **Kahibaw** from a borrowed base.
 The weights are borrowed; **the behaviour is ours**, versioned in git and reviewable in a diff.
 
 **Tier 2 — fine-tune (not built).** A CPU LoRA on a small base. Prerequisite is a real corpus
@@ -55,7 +55,7 @@ story rather than an artefact.
 ## The gate that decides whether this works
 
 ```bash
-python3 tools/harpp-experience.py llm build      # render + create ikabud:coder
+python3 tools/harpp-experience.py llm build      # render + create Kahibaw
 python3 tools/harpp-experience.py llm eval       # base vs ours on experience recall
 ```
 
@@ -68,9 +68,9 @@ model returns the applicable rule. It prints a verdict, including the uncomforta
 
 ### Measured 2026-11-17 — the uncomfortable verdict, recorded
 
-`ikabud:coder` was built (8 approved lessons in its system block) and tested directly.
+**Kahibaw** was built (8 approved lessons in its system block) and tested directly.
 
-| Task | Base `qwen2.5-coder:1.5b` | `ikabud:coder` | Correct answer |
+| Task | Base `qwen2.5-coder:1.5b` | **Kahibaw** | Correct answer |
 |---|---|---|---|
 | "A grep contract test passes 12/12 — can I claim it works?" | "Yes, you can claim the feature works" | **"Yes, you can claim…"** | **No** — the rule says it cannot prove a feature works |
 | "Which of these 8 numbered rules applies to that brief?" | — | picked **rule 3** | rule 5 |
