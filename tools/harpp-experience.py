@@ -25,7 +25,10 @@ import hashlib
 import json
 import os
 import re
+import subprocess
 import sys
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -1141,6 +1144,151 @@ def cmd_memory_path(args) -> int:
     return 0
 
 
+# -------------------------------------------------------------------- harvest
+#
+# Owner directive 2026-11-17: "there's a wealth of concepts/ideas and experiences we can harvest
+# and store now. a small LLM is where it starts."
+#
+# The corpus is 328 markdown files under docs/ (~20 MB) that were written but never read back by
+# the harness. Harvesting turns them into PROPOSED lessons: machine-authored, stored, and NOT
+# injected until the owner approves. That is the Class B rule the memory store already enforces -
+# harvesting writes candidates, it never promotes them.
+#
+# Cheap first, model second: a deterministic pass selects paragraphs that actually assert something
+# durable ("measured", "rejected", "never", "owner direction"). Only those candidates are worth a
+# model call, which keeps a 20 MB corpus from becoming a 20 MB prompt.
+
+_HARVEST_STRONG = (
+    "measured", "measured:", "owner direction", "owner directive", "owner report",
+    "must never", "must not", "do not", "never ", "root cause", "rejected",
+    "trap", "gotcha", "pitfall", "regression",
+)
+_HARVEST_MIN_CHARS = 70
+_HARVEST_MAX_CHARS = 420
+
+
+def _harvest_scope(path: Path) -> str:
+    """A rule found in docs/<module>/ belongs to that module, not to every task."""
+    parts = path.parts
+    if "docs" in parts:
+        index = parts.index("docs")
+        if index + 1 < len(parts):
+            candidate = parts[index + 1]
+            if (ROOT / "modules" / candidate).is_dir():
+                return candidate
+    return "any"
+
+
+def _harvest_candidates(paths: list[Path]) -> list[dict]:
+    """Paragraphs that assert something durable, with file:line provenance."""
+    found: list[dict] = []
+    for base in paths:
+        files = sorted(base.rglob("*.md")) if base.is_dir() else [base]
+        for path in files:
+            try:
+                text = path.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            offset = 0
+            for block in re.split(r"\n\s*\n", text):
+                line_no = text.count("\n", 0, offset) + 1
+                offset += len(block) + 2
+                body = " ".join(block.split())
+                if not (_HARVEST_MIN_CHARS <= len(body) <= _HARVEST_MAX_CHARS):
+                    continue
+                lowered = body.lower()
+                hits = [signal for signal in _HARVEST_STRONG if signal in lowered]
+                if not hits:
+                    continue
+                try:
+                    relative = path.relative_to(ROOT)
+                except ValueError:
+                    relative = path
+                found.append({
+                    "text": body,
+                    "source": f"{relative}:{line_no}",
+                    "signals": hits,
+                    "scope": _harvest_scope(path),
+                })
+    return found
+
+
+def _llm_refine(text: str, model: str, timeout: int = 60) -> str | None:
+    """Compress one candidate into a reusable rule with a local model.
+
+    Returns None on any failure so a missing daemon or a slow model degrades to the deterministic
+    text instead of losing the candidate. The local runtime is ollama; nothing leaves the machine.
+    """
+    prompt = (
+        "Rewrite this engineering note as ONE imperative rule a future developer can apply.\n"
+        "Keep the concrete number, filename or failure if it carries the lesson.\n"
+        "Answer with the rule only, at most 240 characters, no preamble, no quotes.\n\n"
+        f"NOTE:\n{text}"
+    )
+    payload = json.dumps({"model": model, "prompt": prompt, "stream": False,
+                          "options": {"temperature": 0, "num_predict": 120}}).encode("utf-8")
+    request = urllib.request.Request(
+        "http://127.0.0.1:11434/api/generate", data=payload,
+        headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            data = json.loads(response.read().decode("utf-8", errors="replace"))
+    except (urllib.error.URLError, OSError, ValueError, TimeoutError):
+        return None
+    rule = " ".join(str(data.get("response") or "").split()).strip().strip('"')
+    return rule[:400] or None
+
+
+def cmd_harvest(args) -> int:
+    """Turn documented experience into PROPOSED lessons. Never injects; approval stays human."""
+    targets = [Path(item) for item in (args.paths or ["docs"])]
+    targets = [t if t.is_absolute() else ROOT / t for t in targets]
+    missing = [str(t) for t in targets if not t.exists()]
+    if missing:
+        print(f"harpp-experience: no such path: {', '.join(missing)}", file=sys.stderr)
+        return 2
+
+    candidates = _harvest_candidates(targets)
+    if args.limit:
+        # Highest-signal first, so a capped run takes the densest paragraphs.
+        candidates.sort(key=lambda c: len(c["signals"]), reverse=True)
+        candidates = candidates[: args.limit]
+
+    stored = 0
+    duplicates = 0
+    refined = 0
+    for index, candidate in enumerate(candidates, 1):
+        text = candidate["text"]
+        if args.llm:
+            rule = _llm_refine(text, args.model)
+            if rule:
+                text = rule
+                refined += 1
+        lesson_id = lesson_key(candidate["scope"], text)
+        if args.dry_run:
+            print(f"[{index}] {candidate['source']}  scope={candidate['scope']}  {text[:110]}")
+            continue
+        _, created = write_memory_event("propose", lesson_id, {
+            "text": text,
+            "reason": "harvested",
+            "scope": candidate["scope"],
+            "evidence": [candidate["source"]],
+            "proposed_by": "harvest" + (f":{args.model}" if args.llm else ""),
+        })
+        if created:
+            stored += 1
+        else:
+            duplicates += 1
+
+    if args.dry_run:
+        print(f"\n{len(candidates)} candidate(s) from {len(targets)} path(s) — nothing written (dry run)")
+        return 0
+    print(f"{stored} new proposed lesson(s), {duplicates} already known"
+          + (f", {refined} refined by {args.model}" if args.llm else ""))
+    print("They are NOT injected. Review with `memory list --status proposed`, then `lesson approve <id>`.")
+    return 0
+
+
 def _write_event_file(event: dict) -> Path:
     """Write one event verbatim, keeping its original id and timestamp."""
     recorded_at = str(event.get("recorded_at") or _memory_now())
@@ -1450,6 +1598,178 @@ def cmd_hint_add(args) -> int:
     return 0
 
 
+# -------------------------------------------------------------------------- llm
+#
+# Owner directive 2026-11-17: "we build our llm."
+#
+# What is honestly buildable on this machine (measured: 4 cores, 19 GiB RAM, no NVIDIA GPU, no
+# torch/transformers installed): NOT pretraining, and not a credible from-scratch model. Two real
+# tiers exist.
+#
+#   Tier 1 (built here): OWN THE ARTEFACT. A named model whose behaviour is defined by OUR approved
+#   memory - system rules and worked failures drawn from harpp-memory - rendered into a tracked
+#   Modelfile and created with the local runtime. The weights are borrowed; the behaviour, the
+#   versioning and the provenance are ours. Cheap, reproducible, reviewable in a diff.
+#
+#   Tier 2 (needs a corpus first): fine-tune a small base on CPU with LoRA. Slow, so it is only
+#   worth spending once `llm corpus` can produce a real training set and there is an evaluation that
+#   can tell whether the tune helped. Building the corpus now costs nothing and is the prerequisite.
+#
+# Pretraining from scratch is refused deliberately: at 4 CPU cores it would produce a worse model
+# than the one already on disk, and calling that "our LLM" would be a story rather than an artefact.
+
+LLM_DIR = Path(os.environ.get("HARPP_LLM_DIR") or ROOT / "tools" / "llm")
+OLLAMA_HOST = os.environ.get("OLLAMA_HOST") or "http://127.0.0.1:11434"
+
+
+def _llm_lessons(limit: int = 40) -> list[dict]:
+    rows = [r for r in load_lessons() if _lesson_status(r) == "active" and r.get("text")]
+    rows.sort(key=lambda r: float(r.get("activation") or 0.0), reverse=True)
+    return rows[:limit]
+
+
+def render_modelfile(base: str, lessons: list[dict], name: str) -> str:
+    """The model's behaviour, as a diffable file rather than a UI setting.
+
+    Every rule in the SYSTEM block is an APPROVED lesson from harpp-memory, so the model can only
+    inherit knowledge a human took ownership of - the same Class B boundary the lane prompt uses.
+    """
+    lines = [
+        f"# generated by `harpp-experience.py llm build` - do not edit by hand",
+        f"# model: {name}",
+        f"# lessons: {len(lessons)} approved",
+        f"FROM {base}",
+        "PARAMETER temperature 0.2",
+        "PARAMETER num_ctx 8192",
+        'SYSTEM """',
+        "You are the Ikabud repository engineer.",
+        "",
+        "Rules recorded on this repository, learned from failures that actually happened here.",
+        "Apply them; do not restate them unless asked.",
+        "",
+    ]
+    for lesson in lessons:
+        lines.append(f"- {str(lesson.get('text')).strip()}")
+    lines.append('"""')
+    return "\n".join(lines) + "\n"
+
+
+def cmd_llm_build(args) -> int:
+    lessons = _llm_lessons(args.limit)
+    if not lessons:
+        print("harpp-experience: no approved lessons yet - nothing to build behaviour from",
+              file=sys.stderr)
+        return 2
+    content = render_modelfile(args.base, lessons, args.name)
+    path = LLM_DIR / "Modelfile"
+    if args.dry_run:
+        print(content)
+        return 0
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
+    print(f"wrote {path} ({len(lessons)} approved lessons)")
+    try:
+        created = subprocess.run(["ollama", "create", args.name, "-f", str(path)],
+                                 capture_output=True, text=True, timeout=600)
+    except (OSError, subprocess.SubprocessError) as exc:
+        print(f"harpp-experience: could not run ollama: {exc}", file=sys.stderr)
+        return 2
+    if created.returncode != 0:
+        print(f"harpp-experience: ollama create failed:\n{created.stderr.strip()}", file=sys.stderr)
+        return 2
+    print(created.stdout.strip())
+    print(f"built {args.name} from {args.base} - behaviour is ours, weights are borrowed")
+    return 0
+
+
+def cmd_llm_corpus(args) -> int:
+    """Emit the fine-tuning set: one JSON object per line, provenance attached.
+
+    This is the prerequisite for Tier 2. It is deliberately built before any training run, because
+    a CPU tune without a corpus and an evaluation is spend with no way to tell improvement from
+    noise.
+    """
+    out = Path(args.out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    rows = 0
+    with out.open("w", encoding="utf-8") as handle:
+        for lesson in load_lessons():
+            if _lesson_status(lesson) != "active" or not lesson.get("text"):
+                continue
+            record = {
+                "messages": [
+                    {"role": "system", "content": "You are the Ikabud repository engineer. "
+                                                  "Answer with the repository rule that applies."},
+                    {"role": "user", "content": f"What rule applies in {_scope_value(lesson)}?"},
+                    {"role": "assistant", "content": str(lesson.get("text")).strip()},
+                ],
+                "source": (lesson.get("evidence") or ["harpp-memory"])[0],
+                "lesson_id": lesson.get("id"),
+            }
+            handle.write(json.dumps(record, sort_keys=True) + "\n")
+            rows += 1
+    print(f"wrote {rows} training example(s) -> {out}")
+    return 0
+
+
+def _ollama(model: str, prompt: str, num_predict: int = 120, timeout: int = 120) -> str:
+    """One completion from the local runtime. Empty string on any failure, never an exception."""
+    payload = json.dumps({"model": model, "prompt": prompt, "stream": False,
+                          "options": {"temperature": 0, "num_predict": num_predict}}).encode("utf-8")
+    request = urllib.request.Request(f"{OLLAMA_HOST}/api/generate", data=payload,
+                                     headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            data = json.loads(response.read().decode("utf-8", errors="replace"))
+    except (urllib.error.URLError, OSError, ValueError, TimeoutError):
+        return ""
+    return str(data.get("response") or "")
+
+
+# The evaluation is the falsifier the architecture doc asks for, in a form that can run: does the
+# memory-carrying model actually return the lesson a task needs, where the base does not?
+_LLM_EVAL_CASES = (
+    ("A grep-based contract test passes 12/12. Can I claim the feature works?",
+     ("cannot prove", "not prove", "real endpoint", "exercise", "screen", "screen real")),
+    ("I need to reverse a posted ledger effect. Can I delete the reversed row?",
+     ("append-only", "never delete", "new row", "second row", "migration")),
+    ("I am adding a new notification type to an ENUM column. Anything to watch?",
+     ("migration", "enum", "data truncated", "re-declare", "redeclare")),
+)
+
+
+def cmd_llm_eval(args) -> int:
+    """Score the built model against the base on experience recall. Prints a table, no verdict spin."""
+    lessons = _llm_lessons(200)
+    if not lessons:
+        print("harpp-experience: no approved lessons - nothing to evaluate", file=sys.stderr)
+        return 2
+    models = [("base", args.base), ("ours", args.name)]
+    rows: list[tuple[str, str, bool]] = []
+    for question, expected in _LLM_EVAL_CASES:
+        for label, model in models:
+            answer = _ollama(model, question, num_predict=90).lower()
+            hit = any(needle in answer for needle in expected)
+            rows.append((question[:44], label, hit))
+    if args.json:
+        print(json.dumps([{"question": q, "model": m, "recalled": h} for q, m, h in rows], indent=2))
+    else:
+        for question, label, hit in rows:
+            print(f"  {'HIT ' if hit else 'miss'}  {label:<5} {question}")
+    base_hits = sum(1 for q, m, h in rows if m == "base" and h)
+    our_hits = sum(1 for q, m, h in rows if m == "ours" and h)
+    total = len(_LLM_EVAL_CASES)
+    print(f"\nrecall  base {base_hits}/{total}   ours {our_hits}/{total}")
+    if our_hits < base_hits:
+        print("VERDICT: the built model is WORSE than its base - do not wire it in front of agents")
+        return 1
+    if our_hits == base_hits == total:
+        print("VERDICT: both recall everything here - raise the difficulty before trusting this")
+        return 0
+    print("VERDICT: the memory-carrying model recalls repository experience the base does not")
+    return 0
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="HARPP experience reporting (Phase 1, no database)")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -1560,6 +1880,31 @@ def _parser() -> argparse.ArgumentParser:
     memory_import = memory_sub.add_parser("import", help="reconstitute the store from an export")
     memory_import.add_argument("--from", dest="source", required=True, help="export file to read")
     memory_import.set_defaults(func=cmd_memory_import)
+
+    harvest = sub.add_parser("harvest", help="turn documented experience into PROPOSED lessons")
+    harvest.add_argument("paths", nargs="*", help="files or directories (default: docs)")
+    harvest.add_argument("--limit", type=int, default=0, help="cap the candidates taken")
+    harvest.add_argument("--llm", action="store_true", help="refine each rule with a local model")
+    harvest.add_argument("--model", default="qwen2.5-coder:3b", help="ollama model for --llm")
+    harvest.add_argument("--dry-run", action="store_true", help="show candidates, write nothing")
+    harvest.set_defaults(func=cmd_harvest)
+
+    llm = sub.add_parser("llm", help="build the repository's own model from approved memory")
+    llm_sub = llm.add_subparsers(dest="llm_command", required=True)
+    llm_build = llm_sub.add_parser("build", help="render the Modelfile and create the model")
+    llm_build.add_argument("--base", default="qwen2.5-coder:1.5b", help="base model to borrow")
+    llm_build.add_argument("--name", default="ikabud:coder", help="name of the built model")
+    llm_build.add_argument("--limit", type=int, default=40, help="max approved lessons to embed")
+    llm_build.add_argument("--dry-run", action="store_true", help="print the Modelfile only")
+    llm_build.set_defaults(func=cmd_llm_build)
+    llm_corpus = llm_sub.add_parser("corpus", help="emit the fine-tuning set (Tier 2 prerequisite)")
+    llm_corpus.add_argument("--out", required=True, help="destination .jsonl")
+    llm_corpus.set_defaults(func=cmd_llm_corpus)
+    llm_eval = llm_sub.add_parser("eval", help="does the built model recall experience the base cannot?")
+    llm_eval.add_argument("--base", default="qwen2.5-coder:1.5b")
+    llm_eval.add_argument("--name", default="ikabud:coder")
+    llm_eval.add_argument("--json", action="store_true")
+    llm_eval.set_defaults(func=cmd_llm_eval)
 
     status = sub.add_parser("status", help="one screen: lessons, cost, signatures, coverage")
     status.add_argument("--json", action="store_true")

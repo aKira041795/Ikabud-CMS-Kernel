@@ -1,0 +1,13 @@
+{
+  "digest": "1986b608abc7734291d0ca4fd3265cf9a4eca801f679d120e8cdff303a65a6e4",
+  "event_id": "1986b608abc77342",
+  "evidence": [],
+  "lesson_id": "L-318c978249",
+  "proposed_by": "owner",
+  "reason": "no_report",
+  "recorded_at": "2026-11-17T10:13:39.430801Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Do not put a small model in front of an agentic model on the strength of a system prompt. Measured 2026-11-17: ikabud:coder (qwen2.5-coder:1.5b + 8 approved lessons in SYSTEM) answered 'yes you can claim it works' to a question its own embedded rule forbids, and picked the wrong rule (3 of 8) when asked to select one. The deterministic FTS5 retriever returned the correct lesson at rank 1 on the same brief. Prove recall against the deterministic control before wiring any model into a prompt path.",
+  "type": "propose"
+}

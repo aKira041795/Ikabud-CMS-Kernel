@@ -72,7 +72,27 @@ python3 tools/harpp-experience.py memory verify      # incompatible transitions,
 python3 tools/harpp-experience.py memory confirm  L-xxxx
 python3 tools/harpp-experience.py memory contradict L-xxxx
 python3 tools/harpp-experience.py memory path
+python3 tools/harpp-experience.py memory export --out ~/backups/harpp-memory-$(date +%F).jsonl
+python3 tools/harpp-experience.py memory import --from <export.jsonl>
 ```
+
+### Harvesting the corpus into memory
+
+There are **328 markdown files (~20 MB)** under `docs/` that were written over months and never read
+back by the harness. `harvest` turns the durable statements in them into **proposed** lessons:
+
+```bash
+python3 tools/harpp-experience.py harvest docs/daily-ledger --limit 10 --dry-run   # look first
+python3 tools/harpp-experience.py harvest docs --llm --model qwen2.5-coder:3b      # refine + store
+```
+
+A deterministic pass picks paragraphs that assert something durable — "measured", "rejected",
+"must never", "owner direction", "trap", "root cause" — and records `path:line` as evidence. Only
+those candidates are offered to a local model, so a 20 MB corpus never becomes a 20 MB prompt.
+
+Harvested lessons are stored at `status: proposed` and are **not injected**. They enter the prompt
+only after `lesson approve`, which is the same Class B boundary as everything else here: the machine
+proposes, a human takes ownership.
 
 Lesson ids are content-addressed (`L-` + 10 hex of scope+text), so two branches proposing the same
 lesson agree instead of inventing `H-0001` twice.

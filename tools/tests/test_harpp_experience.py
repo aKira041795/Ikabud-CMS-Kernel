@@ -385,6 +385,37 @@ class HarppExperienceTest(unittest.TestCase):
         self.assertEqual(list((self.tmp / "harpp-memory").rglob("*.json")), [],
                          "a refused import must not write anything")
 
+    # ------------------------------------------------------------------ experience layer
+    def test_the_model_definition_is_built_from_approved_lessons_only(self) -> None:
+        """The experience layer may only inherit knowledge a human approved."""
+        self._add("an APPROVED rule that must reach the model")
+        proposed = _run([str(TOOL), "lesson", "propose", "--reason", "timeout",
+                         "--text", "an UNAPPROVED proposal that must not reach it"], env=self.env)
+        self.assertEqual(proposed.returncode, 0, proposed.stderr)
+
+        rendered = _run([str(TOOL), "llm", "build", "--dry-run"], env=self.env)
+        self.assertEqual(rendered.returncode, 0, rendered.stderr)
+        self.assertIn("an APPROVED rule that must reach the model", rendered.stdout)
+        self.assertNotIn("UNAPPROVED proposal", rendered.stdout,
+                         "a proposal leaked into the model's behaviour before approval")
+        self.assertIn("FROM ", rendered.stdout, "no base model declared")
+
+    def test_a_model_with_no_approved_lessons_is_refused(self) -> None:
+        result = _run([str(TOOL), "llm", "build", "--dry-run"], env=self.env)
+        self.assertEqual(result.returncode, 2, result.stdout)
+        self.assertIn("no approved lessons", result.stderr)
+
+    def test_corpus_is_the_finetuning_prerequisite_and_carries_provenance(self) -> None:
+        lesson = self._add("a rule that becomes a training example")
+        corpus = self.tmp / "corpus.jsonl"
+        result = _run([str(TOOL), "llm", "corpus", "--out", str(corpus)], env=self.env)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        rows = [json.loads(line) for line in corpus.read_text().splitlines() if line.strip()]
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["lesson_id"], lesson)
+        self.assertEqual([m["role"] for m in rows[0]["messages"]], ["system", "user", "assistant"])
+        self.assertIn("a rule that becomes a training example", rows[0]["messages"][2]["content"])
+
     def test_hints_can_be_filtered_by_reason(self) -> None:
         _run([str(TOOL), "hint", "add", "--reason", "timeout", "--text", "T lesson"], env=self.env)
         _run([str(TOOL), "hint", "add", "--reason", "crash", "--text", "C lesson"], env=self.env)
