@@ -38,6 +38,22 @@ The loop closes only because outcomes actually move the weights of memory: `conf
 lesson's activation, `contradict` lowers it, and disuse decays it. Without that return path the
 small model would just be a second copy of the docs.
 
+### How experience reaches a lane (wired 2026-11-17)
+
+Injection happens in **`lane_model_run()`** in `tools/lane-model.sh` — the one function every lane
+passes through. DeepSeek, Sol and terra therefore receive the same experience block; a rule that
+reached only one of them is a rule the others break again.
+
+```bash
+LANE_SCOPE=daily-ledger   # narrow the block to that module's rules + the universal ones
+LANE_EXPERIENCE=0         # opt a lane out and hand it the bare prompt
+```
+
+The block follows the task in the prompt, not in front of it, and always carries the advisory
+boundary. Retrieval is deterministic — the **model** is not consulted to decide what applies, because
+measured 2026-11-17 it answered against a rule sitting in its own system prompt while plain FTS5
+returned the right lesson at rank 1.
+
 ## Two tiers, and why only one is built
 
 **Tier 1 — own the artefact (built 2026-11-17).** `llm build` renders the approved lessons into

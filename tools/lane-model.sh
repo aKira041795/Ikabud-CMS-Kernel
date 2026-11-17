@@ -44,6 +44,72 @@ _lane_event() {
 }
 MODEL_UNAVAILABLE_PATTERNS="$_LANE_MODEL_TOOLS_DIR/model-unavailable.patterns"
 
+# RETAIN THE MODEL'S OWN OUTPUT.
+#
+# It used to exist only at /tmp/<prefix>-<model>.log - outside the repository, outside
+# every backup, and cleared by the OS. Measured 2026-11-17: all historical model logs were
+# gone, so the 40 landings that ended in timeout/no_report (15% of 263) could not be
+# diagnosed at all, by a human or by the experience reporter. Capped, because an uncapped
+# log once reached 280 MiB and filled the disk.
+LANE_MODEL_LOG_MAX_BYTES="${LANE_MODEL_LOG_MAX_BYTES:-1048576}"
+# Cap a copy while keeping BOTH ends: a failure's cause is usually at the end, so a plain
+# head-capped archive kept the least useful bytes.
+_lane_cap_file() {
+  local src="$1" dest="$2" size half
+  [ -s "$src" ] || return 1
+  size=$(wc -c < "$src" 2>/dev/null || echo 0)
+  if [ "$size" -gt "$LANE_MODEL_LOG_MAX_BYTES" ]; then
+    half=$((LANE_MODEL_LOG_MAX_BYTES / 2))
+    {
+      head -c "$half" "$src"
+      printf '\n[... %s bytes truncated ...]\n' "$((size - LANE_MODEL_LOG_MAX_BYTES))"
+      tail -c "$half" "$src"
+    } > "$dest" 2>/dev/null || return 1
+  else
+    cp "$src" "$dest" 2>/dev/null || return 1
+  fi
+  return 0
+}
+
+_lane_archive_model_log() {
+  local log="$1" model="$2" attempt="$3" dest runs safe
+  [ -s "$log" ] || return 0
+  runs="${LANE_RUNS_DIR:-}"
+  if [ -z "$runs" ]; then
+    runs="$(cd "$_LANE_MODEL_TOOLS_DIR/.." 2>/dev/null && pwd)/.ai/runs"
+  fi
+  [ -d "$runs" ] || return 0
+  # A model name contains '/', which is not usable in a filename.
+  safe="$(printf '%s' "$model" | tr '/:' '__')"
+  dest="${runs}/${LANE_EVENT_RUN:-lane}.model-a${attempt}-${safe}.log"
+  # A re-run of the same lane/attempt/model must not overwrite the earlier evidence.
+  [ -e "$dest" ] && dest="${dest%.log}-${SECONDS}-$$.log"
+  _lane_cap_file "$log" "$dest" || return 0
+  LANE_MODEL_ARCHIVE="$dest"
+  return 0
+}
+
+# USAGE CAPTURE. `pi --mode text` (the default) prints only the reply, so token and cost
+# figures were unavailable and every ledger row carried cost_usd=0.0. `pi --mode json`
+# does expose them (measured 2026-11-17: totalTokens plus a cost block, and responseModel
+# - the SERVED model, which tools/model-chain.txt warns can roll without any tree change).
+# The log must stay plain text because status_line() and classify_log() grep it, so JSON
+# mode writes to a sidecar and tools/lane-usage.py splits the two.
+LANE_MODEL_USAGE="${LANE_MODEL_USAGE:-auto}"
+_lane_usage_enabled() {
+  case "$LANE_MODEL_USAGE" in
+    0|off|false|no) return 1;;
+    1|on|true|yes) return 0;;
+  esac
+  # auto: only for the pi CLI, because a stub or a third-party command rejects --mode.
+  # Match the command's basename, not a substring of the whole string: an absolute path
+  # or an argument containing "pi" must not enable a flag the command cannot accept.
+  local first
+  first="${LANE_MODEL_CMD%% *}"
+  [ "$(basename -- "$first" 2>/dev/null)" = "pi" ] && return 0
+  return 1
+}
+
 # Remember exhausted models ACROSS runs. Without this, every dispatch rediscovers exhaustion by
 # burning an attempt: lane `st13b` retried 8 times in 40 minutes on 2026-10-07, every one
 # `reason=quota`, `exit=1`, `files=0`.
@@ -141,6 +207,35 @@ lane_model_run() {
   fi
 
   local models="$1" prompt="$2" prefix="$3"
+
+  # EXPERIENCE TRAVELS WITH THE LANE.
+  #
+  # Owner direction 2026-11-17: the small model provides the unique experiences, the established
+  # models provide the thinking. Injection belongs HERE rather than in each lane script, because
+  # every lane - DeepSeek, Sol, terra - passes through this function, and a rule that only reaches
+  # one of them is a rule the others will violate again.
+  #
+  # Retrieval is deterministic (harpp-memory + FTS5/scope). Kahibaw the MODEL is deliberately not
+  # consulted: measured 2026-11-17, a 1.5B model answered against a rule sitting in its own system
+  # prompt, while the deterministic retriever returned the correct lesson at rank 1.
+  #
+  # LANE_EXPERIENCE=0 opts a lane out; LANE_SCOPE=<module> narrows to that module's rules.
+  if [ "${LANE_EXPERIENCE:-1}" != "0" ] && [ -f "$_LANE_MODEL_TOOLS_DIR/harpp-experience.py" ]; then
+    local _exp _exp_len
+    local -a _exp_args=(--max-chars 1800)
+    if [ -n "${LANE_SCOPE:-}" ]; then _exp_args+=(--scope "$LANE_SCOPE"); fi
+    _exp="$(python3 "$_LANE_MODEL_TOOLS_DIR/harpp-experience.py" hints "${_exp_args[@]}" 2>/dev/null || true)"
+    case "$_exp" in
+      ""|"(no hints"*|"(no experience"*)
+        : ;;
+      *)
+        _exp_len=${#_exp}
+        prompt="$prompt
+
+$_exp"
+        echo "lane_model_run: experience injected (${_exp_len} chars${LANE_SCOPE:+, scope=$LANE_SCOPE})" >&2 ;;
+    esac
+  fi
   # Event log identity: the lane harness sets this; direct callers fall back to the log prefix.
   export LANE_EVENT_RUN="${LANE_EVENT_RUN:-$(basename "$prefix")}"
 
@@ -227,14 +322,56 @@ lane_model_run() {
     fi
     local attempt_started=$SECONDS
     _lane_event attempt_started model="$model" attempt="$attempt" cap="$attempt_cap"
-    # shellcheck disable=SC2086
-    timeout --signal=TERM --kill-after=60 "$attempt_cap" \
-      $LANE_MODEL_CMD ${LANE_POLICY_PI_FLAGS:-} --model "$model" "$prompt" > "$log" 2>&1
-    rc=$?
+    local usage_json="" raw=""
+    if _lane_usage_enabled; then
+      raw="$log.raw.jsonl"
+      # shellcheck disable=SC2086
+      timeout --signal=TERM --kill-after=60 "$attempt_cap" \
+        $LANE_MODEL_CMD --mode json ${LANE_POLICY_PI_FLAGS:-} --model "$model" "$prompt" > "$raw" 2>&1
+      rc=$?
+      # FAIL-OPEN. A wrapper that cannot emit JSON must still yield a usable plain-text log,
+      # so anything unparseable is copied through unchanged.
+      # FAIL-OPEN, AND NEVER TRUNCATE WHAT YOU CANNOT REPLACE. Extraction writes to a
+      # temporary file and only replaces the log once it has content, so a killed run can
+      # never leave an empty log behind. The raw stream is kept as a sidecar whenever the
+      # text could not be extracted or the attempt failed: it is the only place the actual
+      # error is recorded, and deleting it is what made historical failures undiagnosable.
+      if python3 "$_LANE_MODEL_TOOLS_DIR/lane-usage.py" extract "$raw" > "$raw.text" 2>/dev/null && [ -s "$raw.text" ]; then
+        mv -f "$raw.text" "$log" 2>/dev/null || cp "$raw.text" "$log" 2>/dev/null || true
+        usage_json="$(python3 "$_LANE_MODEL_TOOLS_DIR/lane-usage.py" usage "$raw" --json 2>/dev/null || true)"
+        # CLASSIFICATION MUST SURVIVE THE SPLIT. A quota/rate-limit message can exist only
+        # inside the JSON stream, never in the assistant text, so surface the first matching
+        # line into the plain-text log that classify_log() reads. Only for a FAILED attempt:
+        # a successful reply that merely discusses quotas must never be overruled.
+        if [ "$rc" -ne 0 ] && [ -f "$MODEL_UNAVAILABLE_PATTERNS" ] \
+           && grep -qiE -f "$MODEL_UNAVAILABLE_PATTERNS" "$raw" 2>/dev/null; then
+          { printf '\n'; grep -miE -f "$MODEL_UNAVAILABLE_PATTERNS" "$raw" 2>/dev/null | head -1; } >> "$log" 2>/dev/null || true
+        fi
+      else
+        rm -f "$raw.text" 2>/dev/null || true
+        cp "$raw" "$log" 2>/dev/null || : > "$log"
+      fi
+      if [ "$rc" -eq 0 ] && [ -n "$usage_json" ]; then
+        rm -f "$raw" 2>/dev/null || true
+      else
+        _lane_cap_file "$raw" "$log.stream.jsonl" 2>/dev/null || true
+        rm -f "$raw" 2>/dev/null || true
+      fi
+    else
+      # shellcheck disable=SC2086
+      timeout --signal=TERM --kill-after=60 "$attempt_cap" \
+        $LANE_MODEL_CMD ${LANE_POLICY_PI_FLAGS:-} --model "$model" "$prompt" > "$log" 2>&1
+      rc=$?
+    fi
     local log_bytes
     log_bytes=$(wc -c < "$log" 2>/dev/null || echo 0)
     echo "    exit=${rc} log=${log_bytes}b"
-    _lane_event attempt_finished model="$model" exit="$rc" log="$log" bytes="$log_bytes" duration="$((SECONDS - attempt_started))"
+    LANE_MODEL_ARCHIVE=""
+    _lane_archive_model_log "$log" "$model" "$attempt"
+    local archive_arg="" usage_arg=""
+    [ -n "$LANE_MODEL_ARCHIVE" ] && archive_arg="archived=$LANE_MODEL_ARCHIVE"
+    [ -n "$usage_json" ] && usage_arg="usage=$usage_json"
+    _lane_event attempt_finished model="$model" exit="$rc" log="$log" bytes="$log_bytes" duration="$((SECONDS - attempt_started))" ${archive_arg:+"$archive_arg"} ${usage_arg:+"$usage_arg"}
 
     if [ "$rc" -eq 0 ]; then
       # SUCCESS IS DECIDED BY THE EXIT STATUS ALONE.
