@@ -156,7 +156,10 @@ try {
     // ─── AC6 — offered == enforced ───────────────────────────────────────
     $h->section('AC6 — the figure shown is the figure enforced');
 
-    $h->test('the dispatch stock check uses the one definition', str_contains($handlers, 'dl_commissaryOnHandForProduct($db, $cid, $pid)'));
+    // The enforcement reads the SAME matrix the screens read, once per hub, instead of asking
+    // per item (which re-ran the hub for every DR line: 82 ms for 10 items).
+    $h->test('the dispatch stock check reads the one definition, once per hub', str_contains($handlers, '$dispatchOnHand = dl_commissaryOnHandByProduct(')
+        && str_contains($handlers, '$cumulativeRemaining = (int)($dispatchOnHand[$cid][$pid][\'on_hand\'] ?? 0);'));
     $h->test('the definition is written once', substr_count($handlers, 'function dl_commissaryOnHandByProduct(') === 1);
     $h->test('the single-product reader delegates to it', str_contains($handlers, 'dl_commissaryOnHandByProduct($db, [$commissaryId], $asOfDate)'));
 } finally {
