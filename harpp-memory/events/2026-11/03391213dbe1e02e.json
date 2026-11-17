@@ -1,0 +1,15 @@
+{
+  "digest": "03391213dbe1e02e830ed84f862846519a0eef906a9916ec7958fc44e9a699d1",
+  "event_id": "03391213dbe1e02e",
+  "evidence": [
+    "docs/reviews/ark-workbench-comprehension-architecture-review-and-plan-2026-07-16.md:259"
+  ],
+  "lesson_id": "L-80b8586a66",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.160060Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "```text risk(e) = Bayesian failure probability with recency and sample confidence novelty(e) = time/source changes since last successful traversal gap(e) = coverage deficit impact(e) = downstream business and cross-module impact uncertainty(e)= missing or conflicting evidence cost(e) = measured execution time and setup cost ```",
+  "type": "propose"
+}

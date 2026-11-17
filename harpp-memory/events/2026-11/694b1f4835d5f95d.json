@@ -1,0 +1,15 @@
+{
+  "digest": "694b1f4835d5f95db91ae412fdaf6de240ddf2b83d4abc5b8817dc6b1ba52d34",
+  "event_id": "694b1f4835d5f95d",
+  "evidence": [
+    "docs/kernel/production-deployment-guide.md:263"
+  ],
+  "lesson_id": "L-345c5890fb",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.817508Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Also confirm: every migration `CREATE TABLE` ends with `ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`, FK column types match referenced columns exactly (signedness + width), and there is no `JSON_TABLE()`, `EXCEPT`, or `INTERSECT`. **Do not proceed until the audit is clean.**",
+  "type": "propose"
+}

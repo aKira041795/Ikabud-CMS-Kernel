@@ -1,0 +1,15 @@
+{
+  "digest": "bd4f3c51f149fa8271b1cd97a6679fa0ac5aee512542fbf69f252b308a0b7e17",
+  "event_id": "bd4f3c51f149fa82",
+  "evidence": [
+    "docs/kernel/6.3-gate0-gate1-report-2026-10-12.md:58"
+  ],
+  "lesson_id": "L-b40c564be7",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.531433Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "daily-ledger admin batch 2 (+16, total 21), harpp management batch 2 (+13, total 20 writes + 2 admin reads), attendance-wage data batch 1 (+12) and config batch 2 (+13, total 25). Owner directive: \"set the next items pending\u2026 deploy once everything is set\" \u2014 queue: `docs/kernel/6.3-coverage-rollout-queue.md`. Healthcare deferred to backlog (survey: ehr-core empty routes, patient-registry skeletal).",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "561dfbfed8e99d69ecfc0b7a2a7d8bbbe2cb33740776491ec936035c40901fa7",
+  "event_id": "561dfbfed8e99d69",
+  "evidence": [
+    "docs/kernel/6.3-settings-contract-spec-2026-10-12.md:42"
+  ],
+  "lesson_id": "L-9f272ac98b",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.538130Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "| policy | blank write | effective resolution | |---|---|---| | `inherit` | stored as today | blank is skipped and the fallback applies (today's merge-helper behavior) | | `value` | stored as today | blank **is** the effective value | | `reject` | rejected at write | fallback preserved |",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "d78472c8800dc9019a5e60c959207ea96e1d33ec8b4e21ffa9fd839d9dc23b92",
+  "event_id": "d78472c8800dc901",
+  "evidence": [
+    "docs/reviews/capability-bus-evolution-2026-10-11.md:95"
+  ],
+  "lesson_id": "L-ee0e1b66a7",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.183020Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "The key falsifier is a representative prototype showing measured savings survive the added composition + activation costs.",
+  "type": "propose"
+}

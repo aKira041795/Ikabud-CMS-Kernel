@@ -1,0 +1,15 @@
+{
+  "digest": "225cc2959d0f8d7488f17633bd5b6dca867c9e05050c961482c259625e07e650",
+  "event_id": "225cc2959d0f8d74",
+  "evidence": [
+    "docs/bakeshop/bakeshop-module.md:174"
+  ],
+  "lesson_id": "L-76f797712f",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.191480Z",
+  "schema_version": 1,
+  "scope": "bakeshop",
+  "text": "The bakeshop bootstrap admin **must** be seeded through the trusted provisioning pipeline. The kernel CLI guards this:",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "5778689e48fb89f1791773fd1cd9a381b43999c86cc33b774514c305dfa355d8",
+  "event_id": "5778689e48fb89f1",
+  "evidence": [
+    "docs/architecture/academic-suite.md:45"
+  ],
+  "lesson_id": "L-bf36ad97e4",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.152088Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Every module in the Academic Suite: 1. Declares `academic_similarity` as an optional dependency 2. Accesses AISS exclusively through the capability bus 3. Never queries AISS tables directly 4. Stores AISS output as immutable evidence snapshots 5. Separates machine evidence from human decisions 6. Treats AISS unavailability as a non-blocking condition",
+  "type": "propose"
+}

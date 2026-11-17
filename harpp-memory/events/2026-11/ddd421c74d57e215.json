@@ -1,0 +1,15 @@
+{
+  "digest": "ddd421c74d57e215f18b8c5ede9da71cf44d7be5ce218aaeac303166cb36a419",
+  "event_id": "ddd421c74d57e215",
+  "evidence": [
+    "docs/evaluations/ikabud-kernel-security-architecture-evaluation-2026-04-10.md:511"
+  ],
+  "lesson_id": "L-a99d09037c",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.482590Z",
+  "schema_version": 1,
+  "scope": "security",
+  "text": "`bootstrap.php` `kernel_csp_nonce()`, `kernel/Http/SecurityHeaders.php`",
+  "type": "propose"
+}

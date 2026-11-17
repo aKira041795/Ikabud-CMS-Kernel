@@ -1,0 +1,15 @@
+{
+  "digest": "5c07b79d2a82403495b29203a048430aa458363f9e69882a5418b0efa860443e",
+  "event_id": "5c07b79d2a824034",
+  "evidence": [
+    "docs/daily-ledger/pos-operations.md:3"
+  ],
+  "lesson_id": "L-7529b9211f",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.322976Z",
+  "schema_version": 1,
+  "scope": "daily-ledger",
+  "text": "The Point of Sale (POS) workflow is an **optional, bounded feature** of Daily Ledger. The manual stock-ledger workflow is unchanged: POS never writes `beg_bal`, `addtl`, `withdraw`, or `bal_end`, and never stores sales in `dl_daily_ledger.sales`.",
+  "type": "propose"
+}

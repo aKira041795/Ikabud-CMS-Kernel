@@ -1,0 +1,15 @@
+{
+  "digest": "c3b2856ef19dfbd5e68321042b6f6ea697a48877f6c02b77301d0e482274b52d",
+  "event_id": "c3b2856ef19dfbd5",
+  "evidence": [
+    "docs/reviews/daily-ledger-area-rollout-plan-2026-10-10.md:122"
+  ],
+  "lesson_id": "L-868f3e33af",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.250111Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "6. **Do NOT build now:** a separate area-role hierarchy, automatic reassignment by area, or a full area-settings subsystem. Keep the registry deliberately small.",
+  "type": "propose"
+}

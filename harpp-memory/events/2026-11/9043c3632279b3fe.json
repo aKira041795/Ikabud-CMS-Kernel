@@ -1,0 +1,15 @@
+{
+  "digest": "9043c3632279b3fe44a55987602512e19b974b472e0cf2d90a322eb28d46f125",
+  "event_id": "9043c3632279b3fe",
+  "evidence": [
+    "docs/ecommerce/ecommerce-payment-gateway-spec.md:147"
+  ],
+  "lesson_id": "L-daa359414c",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.366211Z",
+  "schema_version": 1,
+  "scope": "ecommerce",
+  "text": "Webhook signature verification is **mandatory** \u2014 unsigned payloads are rejected. - Secret keys are stored per-tenant in module settings (never logged). - The payment return handler validates `confirmation_token` to prevent order enumeration. - `ecOrderMarkPaid()` is idempotent \u2014 duplicate webhook deliveries are safe.",
+  "type": "propose"
+}

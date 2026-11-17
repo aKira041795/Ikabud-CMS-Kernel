@@ -1,0 +1,15 @@
+{
+  "digest": "eb5d5cc251df6a052640161ec3066da66e66b72a171f0a48d4114520030c2844",
+  "event_id": "eb5d5cc251df6a05",
+  "evidence": [
+    "docs/reviews/perf-metrics-2026-10-10.md:1102"
+  ],
+  "lesson_id": "L-03378c5d26",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.437102Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "`probe_tenant` was never set, so `Settings preload` reported `skipped (no tenant)` and every figure described the kernel host path. The branch path \u2014 the one the live tenants actually use \u2014 was unmeasurable from the page. - the render probe ran once. Interleaved runs on this host drift \u00b110\u201330%, so a single reading is not a measurement.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "a6978be9909e2d9236486f40e8bcebd7df25710595fd69f66ddf3bd27a3515a3",
+  "event_id": "a6978be9909e2d92",
+  "evidence": [
+    "docs/reviews/system-review-2026-07-05.md:180"
+  ],
+  "lesson_id": "L-b6176acd95",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.530478Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Remove the contradicting bullet from Common Pitfalls. Keep only the confirmed-working statement.",
+  "type": "propose"
+}

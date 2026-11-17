@@ -1,0 +1,15 @@
+{
+  "digest": "a2f9019cd79d9f3d5c4f34f7a04c6c89c00f0b45ee63167678da99e15411de5c",
+  "event_id": "a2f9019cd79d9f3d",
+  "evidence": [
+    "docs/kernel/disyl-grammar-v11-planned-types.md:11"
+  ],
+  "lesson_id": "L-c3267cd70c",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.620629Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "The v11 advanced type constants (`TYPE_UNION`, `TYPE_GENERIC`, etc.) were declared in `Grammar.php` as forward-looking placeholders. They were **never wired** into any runtime path:",
+  "type": "propose"
+}

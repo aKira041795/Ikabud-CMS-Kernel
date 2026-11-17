@@ -1,0 +1,15 @@
+{
+  "digest": "f195f106d19bb29f6728e0d8b46d89ed67038e84a16e7c71db46c95f01dfecef",
+  "event_id": "f195f106d19bb29f",
+  "evidence": [
+    "docs/evaluations/stress-and-load-test-findings-2026-04-16.md:399"
+  ],
+  "lesson_id": "L-599653f3d4",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.516510Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "> **Critical difference:** Our dev server degrades gracefully \u2014 latency climbs but requests never fail (0% error at 50 concurrent). Bluehost shared hosting has a hard PHP worker ceiling. When all workers are busy, additional requests receive **503 Service Unavailable** immediately rather than queuing.",
+  "type": "propose"
+}

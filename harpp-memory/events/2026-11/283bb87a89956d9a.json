@@ -1,0 +1,15 @@
+{
+  "digest": "283bb87a89956d9a58b42f329b40799895a4b4438655d1c5f00975dda7df6a96",
+  "event_id": "283bb87a89956d9a",
+  "evidence": [
+    "docs/reviews/kernel-modular-runtime-evidence-2026-07-24.md:493"
+  ],
+  "lesson_id": "L-98bc680b81",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.275756Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "`CompetitiveBenchmark.php` \u2014 evaluates pattern classifier against golden corpus - `AiCalibrationBenchmark.php` \u2014 measures deterministic recall, AI citation validity, false-positive rate, top-3 root cause accuracy - `tests/workbench_competitive_phase6_test.php` \u2014 spawns 12 concurrent `proc_open` workers, verifies index lock prevents lost concurrent run summaries",
+  "type": "propose"
+}

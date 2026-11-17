@@ -1,0 +1,15 @@
+{
+  "digest": "3001a9da4d32d321ba357f872c11f67f6c1a72961e176ed4ae3bf462c8b00a3d",
+  "event_id": "3001a9da4d32d321",
+  "evidence": [
+    "docs/marketing/positioning.md:152"
+  ],
+  "lesson_id": "L-d8867fec12",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.862997Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Many teams need modularity, but do not need the operational cost of splitting everything into separate services.",
+  "type": "propose"
+}

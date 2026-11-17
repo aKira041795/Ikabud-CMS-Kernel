@@ -1,0 +1,15 @@
+{
+  "digest": "910689cbf6eeff624dee9f19e49a312f925653cc61dd6b2d8f6b788f2febcc7a",
+  "event_id": "910689cbf6eeff62",
+  "evidence": [
+    "docs/kernel/6.3-coverage-rollout-queue.md:3"
+  ],
+  "lesson_id": "L-a7ef591980",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.527828Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Status ledger for the coverage program (owner directive 2026-10-13: *\"set the next items pending\u2026 I will deploy once everything is set\"*). Each item is dispatched only after its gate shape is recon-verified, lands through the lane harness with an acceptance gate **pre-verified failing on base**, and is committed with a rollback falsifier. Full per-slice evidence: `docs/kernel/6.3-gate0-gate1-report-2026-10-12.md`.",
+  "type": "propose"
+}

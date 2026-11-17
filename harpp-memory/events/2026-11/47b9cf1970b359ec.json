@@ -1,0 +1,15 @@
+{
+  "digest": "47b9cf1970b359ec34954e4d0612d0578835b4012d081770d6404afb2a3fbaf2",
+  "event_id": "47b9cf1970b359ec",
+  "evidence": [
+    "docs/kernel/disyl-development-workflow.md:149"
+  ],
+  "lesson_id": "L-93d87e0563",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.615858Z",
+  "schema_version": 1,
+  "scope": "workflow",
+  "text": "Measured benefit (tenant 207, `DISYL_SHARED_OUTPUT_TTL=0`, medians of 8 warmed requests, A/B/A \u2014 flag off, on, off again):",
+  "type": "propose"
+}

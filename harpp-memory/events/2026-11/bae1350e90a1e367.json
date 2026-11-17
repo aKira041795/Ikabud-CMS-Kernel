@@ -1,0 +1,15 @@
+{
+  "digest": "bae1350e90a1e367e7b9c5f935c6a87a32c035c3296d0b515cb19a53f7af091b",
+  "event_id": "bae1350e90a1e367",
+  "evidence": [
+    "docs/cms/cms-route-inventory.md:59"
+  ],
+  "lesson_id": "L-a013a45d89",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.243355Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "Next completion steps - Add exact auth requirement labels per route group (capability-level map). - Add tenant-specific route behavior notes for profile installs. - Link each critical route group to an owning regression test file.",
+  "type": "propose"
+}

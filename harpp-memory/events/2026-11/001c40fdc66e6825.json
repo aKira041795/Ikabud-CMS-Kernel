@@ -1,0 +1,15 @@
+{
+  "digest": "001c40fdc66e6825fcfea4675f49a2161af19a33d3deced34fd3a733561fb4e3",
+  "event_id": "001c40fdc66e6825",
+  "evidence": [
+    "docs/pal/ark-workbench-reference-guide.md:1060"
+  ],
+  "lesson_id": "L-2a2a272670",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.951599Z",
+  "schema_version": 1,
+  "scope": "pal",
+  "text": "| Harness | File | Coverage | |---|---|---| | `ShellHarness` | `ShellHarness.js` | Sidebar nav, user display, page titles, toast | | `DialogHarness` | `DialogHarness.js` | Open/close/confirm/cancel, focus trap, backdrop | | `TableHarness` | `TableHarness.js` | Row counts, cell values, empty state |",
+  "type": "propose"
+}

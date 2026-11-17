@@ -1,0 +1,15 @@
+{
+  "digest": "22d509613617f46e079b59e67cbea90810ec903fd4f3915fa870dd9618eac58f",
+  "event_id": "22d509613617f46e",
+  "evidence": [
+    "docs/reviews/perf-page-accuracy-2026-10-20/brief.md:104"
+  ],
+  "lesson_id": "L-3fc82cd1a1",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.485765Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Commit only your files, do not push. Report: `status`, files changed, the check output, the three test results, and anything you could not verify.",
+  "type": "propose"
+}

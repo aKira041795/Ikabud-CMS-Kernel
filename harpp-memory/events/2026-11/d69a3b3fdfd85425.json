@@ -1,0 +1,15 @@
+{
+  "digest": "d69a3b3fdfd85425312977428b09b4dc0f9f44fdc8eb534e86732617af358158",
+  "event_id": "d69a3b3fdfd85425",
+  "evidence": [
+    "docs/kernel/contributor-workflows.md:29"
+  ],
+  "lesson_id": "L-66f346d25a",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.597308Z",
+  "schema_version": 1,
+  "scope": "workflow",
+  "text": "`bootstrap.php` runs on every request and sets up environment loading, error handling, helpers, and autoloading. - `public/index.php` is the request entry point and owns routing, dispatch, security-header setup, tenant entry behavior, and key admin APIs. - multi-tenant behavior is kernel-owned, not module-owned - module enablement, settings, entitlements, and migrations are manifest- and registry-driven",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "57a3f30a8c1b97b487cd0ac1c48c4685d0a0e7134343cad2cfe1e58176912fe4",
+  "event_id": "57a3f30a8c1b97b4",
+  "evidence": [
+    "docs/kernel/choosing-the-right-primitive.md:100"
+  ],
+  "lesson_id": "L-310d1b1bab",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.574238Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Do not use a filter for module-to-module communication \u2014 use a capability. - Do not mutate values the kernel did not explicitly publish via a hook.",
+  "type": "propose"
+}

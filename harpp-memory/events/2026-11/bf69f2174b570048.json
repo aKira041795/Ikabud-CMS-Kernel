@@ -1,0 +1,15 @@
+{
+  "digest": "bf69f2174b5700483045bf137d56a1dce42afbb33d60c0a0898e38fc7871dff5",
+  "event_id": "bf69f2174b570048",
+  "evidence": [
+    "docs/workbench/ark-workbench-data-governance.md:3"
+  ],
+  "lesson_id": "L-7f8b355ae0",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.600161Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Workbench evidence is internal diagnostic data. Secrets, credentials, authorization headers, cookies, CSRF tokens, raw session identifiers, and unrestricted request bodies must never be sent to an AI provider or retained in issue memory.",
+  "type": "propose"
+}

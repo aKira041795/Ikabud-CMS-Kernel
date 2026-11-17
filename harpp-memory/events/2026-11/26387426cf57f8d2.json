@@ -1,0 +1,15 @@
+{
+  "digest": "26387426cf57f8d203da488e75876032f9d01ec601d7b2f88bb51986b49e338f",
+  "event_id": "26387426cf57f8d2",
+  "evidence": [
+    "docs/daily-ledger/three-owner-concerns-2026-11-17.md:21"
+  ],
+  "lesson_id": "L-c8c5be19d9",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.328095Z",
+  "schema_version": 1,
+  "scope": "daily-ledger",
+  "text": "`apiRecordConsigneeReturn()` (`modules/daily-ledger/handlers-deliveries.php:2129`) refused with HTTP 422 *\"A Delivery Receipt number is required when returned stock enters a branch.\"* whenever `branch_id > 0` and the DR was blank.",
+  "type": "propose"
+}

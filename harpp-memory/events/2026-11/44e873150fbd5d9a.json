@@ -1,0 +1,15 @@
+{
+  "digest": "44e873150fbd5d9a7332b3590231e70bd9acf208743739e6a41f2d377090685c",
+  "event_id": "44e873150fbd5d9a",
+  "evidence": [
+    "docs/kernel/module-developer-guide.md:371"
+  ],
+  "lesson_id": "L-7603fe12ce",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.681553Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Tests live in `tests/` at the repo root. Bootstrap the app, clear logs, and assert on behavior.",
+  "type": "propose"
+}

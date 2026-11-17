@@ -1,0 +1,15 @@
+{
+  "digest": "ffb3ebe333d88efb765bd0a626262ced4d67c5a2a216bed7766c91cfe25da5b0",
+  "event_id": "ffb3ebe333d88efb",
+  "evidence": [
+    "docs/ecommerce/ecommerce-summary.md:79"
+  ],
+  "lesson_id": "L-7a880eef59",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.368523Z",
+  "schema_version": 1,
+  "scope": "ecommerce",
+  "text": "Products live inside the CMS content model, not a separate ecommerce silo. This keeps rendering unified, makes memberships, SEO, and content blending trivial, and avoids plugin sprawl and data fragmentation. This decision is permanent and must not be reversed.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "d04e7f01c9b95632e033478b4bcaef1cf30e4585eba1811d6f340ac5721ad4e0",
+  "event_id": "d04e7f01c9b95632",
+  "evidence": [
+    "tests/disyl_v43_cache_exp_test.php:164"
+  ],
+  "lesson_id": "L-5e45995ccd",
+  "proposed_by": "harvest",
+  "reason": "gate",
+  "recorded_at": "2026-11-17T13:22:45.431008Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "engine: convert tag is side-effect only (no output noise)",
+  "type": "propose"
+}

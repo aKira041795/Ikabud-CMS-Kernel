@@ -1,0 +1,15 @@
+{
+  "digest": "bba42dfe384514fe6d53c847da808a870c6784ea08720d0abe2017dba4c91beb",
+  "event_id": "bba42dfe384514fe",
+  "evidence": [
+    "docs/evaluations/stress-and-load-test-findings-2026-04-16.md:891"
+  ],
+  "lesson_id": "L-d547ca11dd",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.526482Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "``` Requests per level: 50 Ecommerce catalog cache: ACTIVE (file-based, 300s TTL) Page-level cache: ACTIVE (file-based, CMS=600s / EC=180s / default=300s, stampede protection) DiSyL extends cache: ACTIVE (file-based, filemtime-validated) OPcache: ACTIVE (128 MB, revalidate_freq=2s) APCu: ACTIVE (in-memory L1 for tenant host + page cache entries) Fast-path cache: ACTIVE (pre-bootstrap, ~2ms cache hits)",
+  "type": "propose"
+}

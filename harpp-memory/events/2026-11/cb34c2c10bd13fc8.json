@@ -1,0 +1,15 @@
+{
+  "digest": "cb34c2c10bd13fc808866f85601d38b839e7801ce131f58fc3ea39169d5783ce",
+  "event_id": "cb34c2c10bd13fc8",
+  "evidence": [
+    "docs/reviews/perf-metrics-2026-10-10.md:284"
+  ],
+  "lesson_id": "L-161da54b82",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.396862Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "It is measured at -58.4% on `route_match` with disjoint ranges (section 2), and it is what makes the live sort 2.714 ms rather than ~7 ms. Removing it would cost real time.",
+  "type": "propose"
+}

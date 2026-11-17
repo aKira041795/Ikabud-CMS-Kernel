@@ -1,0 +1,15 @@
+{
+  "digest": "063ca2408d33bad6a639caf1f46545f8f2d367d8e6649de53ac2664784c13058",
+  "event_id": "063ca2408d33bad6",
+  "evidence": [
+    "docs/kernel/migration-workflow.md:159"
+  ],
+  "lesson_id": "L-10146c58b6",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.676624Z",
+  "schema_version": 1,
+  "scope": "workflow",
+  "text": "Order matters: **add column \u2192 backfill \u2192 add to SELECTs \u2192 then make NOT NULL.** Your services/queries should reference the new column only after the backfill step so reads never hit a partially-populated `NOT NULL` column.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "9ce8c60d0cb73d8df55257751df46d786e9f26c9f4abfaa5bc1d7711ab06fc47",
+  "event_id": "9ce8c60d0cb73d8d",
+  "evidence": [
+    "docs/kernel/cli-tools-reference.md:667"
+  ],
+  "lesson_id": "L-97d275dfd3",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.584734Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Exit codes are deliberately distinct: `0` = pass, `1` = measured failure (ratio exceeded or any request error/timeout), and `2` = not measured (for example, an unreachable URL or a phase with no successful samples). A run that cannot measure the target never reports pass.",
+  "type": "propose"
+}

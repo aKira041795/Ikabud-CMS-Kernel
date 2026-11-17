@@ -1,0 +1,15 @@
+{
+  "digest": "3cd902101058bc529948a3f16de461b18b7ee8313a766ba604f2192cdb32446a",
+  "event_id": "3cd902101058bc52",
+  "evidence": [
+    "docs/engineering/harness-operating-modes.md:127"
+  ],
+  "lesson_id": "L-ee3af69fd8",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.409197Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "This is why `--offline` refuses rather than runs. A verdict measured at 600 tokens is not evidence for a 12,000-token prompt, and on a CPU the time penalty makes the attempt pointless anyway.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "53b38bde293356dab2a62218e429fdcb9d72fc8412d5900fe1c769156d7b8d62",
+  "event_id": "53b38bde293356da",
+  "evidence": [
+    "docs/archive/disyl-plans/disyl-v11-intermediate-roadmap.md:110"
+  ],
+  "lesson_id": "L-3f750ae48b",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.185824Z",
+  "schema_version": 1,
+  "scope": "media",
+  "text": "`kernel/EntityContext/DefaultEntityRenderer.php` \u2014 entity list/detail rendering (replaces trait) - `modules/attendance-wage/handlers/00-bootstrap.php` \u2014 token validation in `attendanceWageGuard()` - `src/helpers/security.php` \u2014 `csrfTokenFromJwt()` helper + `csrfEnforceFromJwt()` validator",
+  "type": "propose"
+}

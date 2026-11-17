@@ -1,0 +1,15 @@
+{
+  "digest": "4adfdbb829af4eb60f0a3b2b256697edac992017bd6c640b02926721e04c57e9",
+  "event_id": "4adfdbb829af4eb6",
+  "evidence": [
+    "docs/daily-ledger/HANDOFF-2026-10-11.md:409"
+  ],
+  "lesson_id": "L-39d658aa4b",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.299412Z",
+  "schema_version": 1,
+  "scope": "daily-ledger",
+  "text": "Measured first: **534 of 788 forecast rows (68%) neither sold nor moved** \u2014 keys whose ledger rows carry every quantity at zero (a cell someone opened, or a carry that wrote a 0). They were burying the rows a planner can act on.",
+  "type": "propose"
+}

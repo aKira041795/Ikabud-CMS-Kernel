@@ -1,0 +1,15 @@
+{
+  "digest": "5adae68947fe4144f56fedfd18af29aa600b1f77084c526d650038e1fa29c09d",
+  "event_id": "5adae68947fe4144",
+  "evidence": [
+    "tests/kernel_ensure_table_cache_test.php:68"
+  ],
+  "lesson_id": "L-69bf4d23bf",
+  "proposed_by": "harvest",
+  "reason": "gate",
+  "recorded_at": "2026-11-17T13:22:45.465028Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "cleared genuinely cold flag cannot skip DDL",
+  "type": "propose"
+}

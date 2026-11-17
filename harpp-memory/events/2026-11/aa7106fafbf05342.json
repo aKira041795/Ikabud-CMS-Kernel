@@ -1,0 +1,15 @@
+{
+  "digest": "aa7106fafbf05342ec01c4a7d71830251be0c9d89536ee5cb3eb646a1fb46b5b",
+  "event_id": "aa7106fafbf05342",
+  "evidence": [
+    "docs/reviews/cms-akira-comprehensive-review-2026-09-26.md:245"
+  ],
+  "lesson_id": "L-70c67700d2",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.184952Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "Consequence: do not start by growing Akira in A. Fix the legacy defects that a rewrite would otherwise carry into Akira (the FK-suppressing duplicate migrations are exactly the kind of thing a \"port\" would forget). Then port B's already-built native modules behind the legacy capabilities, one at a time, with B's tests as the acceptance harness.",
+  "type": "propose"
+}

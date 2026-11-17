@@ -1,0 +1,15 @@
+{
+  "digest": "2b062835b0b82a9666abddfd25167886658b6ff22a9b3a8c29c06709c304b614",
+  "event_id": "2b062835b0b82a96",
+  "evidence": [
+    "docs/releases/release-notes-2026-10-09-disyl-compiled-extends.md:121"
+  ],
+  "lesson_id": "L-214d56c1e1",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.117685Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Enable by appending to `.env`. It must be `.env`: `bootstrap.php` loads that file per request via `putenv()`, so a shell variable does not reach php-fpm. No restart is required.",
+  "type": "propose"
+}

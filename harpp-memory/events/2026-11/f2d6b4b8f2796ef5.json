@@ -1,0 +1,15 @@
+{
+  "digest": "f2d6b4b8f2796ef55268678ce414675c8afc0dd0be781f8499f667d532da6e5d",
+  "event_id": "f2d6b4b8f2796ef5",
+  "evidence": [
+    "docs/daily-ledger/android-integration.md:43"
+  ],
+  "lesson_id": "L-39b6b33673",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.312573Z",
+  "schema_version": 1,
+  "scope": "daily-ledger",
+  "text": "Production traffic is HTTPS only. * Login, refresh, and bearer-authenticated API traffic must never depend on cleartext endpoints. * Refresh and primary API clients must use short timeouts so unreachable servers fail fast. * Android release builds must not log request or response bodies. * Offline PIN verification must be salted, slow-hashed, and throttled after repeated failures.",
+  "type": "propose"
+}

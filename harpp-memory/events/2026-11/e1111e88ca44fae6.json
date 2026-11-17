@@ -1,0 +1,15 @@
+{
+  "digest": "e1111e88ca44fae6c812a8bf82cf32b3da6f30ab9b6f19e41dddc2e0c14f40e8",
+  "event_id": "e1111e88ca44fae6",
+  "evidence": [
+    "docs/evaluations/ikabud-kernel-technical-evaluation-2026-04-10.md:196"
+  ],
+  "lesson_id": "L-c123610f94",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.493964Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "JWT verification is implemented with signature validation and claim checks - `App::user()` supports both cookie and Bearer token flows - module-defined auth cookies are recognized without forcing module bootstrap recursion - tenant-aware JWT rejection is present when multi-tenancy is enabled",
+  "type": "propose"
+}

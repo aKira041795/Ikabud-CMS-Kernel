@@ -1,0 +1,15 @@
+{
+  "digest": "f7614b49792f629738d1513f4e4f513123827979be8967a862de7e58d2570620",
+  "event_id": "f7614b49792f6297",
+  "evidence": [
+    "tests/disyl_v44_sandbox_test.php:216"
+  ],
+  "lesson_id": "L-e3304a9b82",
+  "proposed_by": "harvest",
+  "reason": "gate",
+  "recorded_at": "2026-11-17T13:22:45.445710Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "engine: depth restored after strict violation",
+  "type": "propose"
+}

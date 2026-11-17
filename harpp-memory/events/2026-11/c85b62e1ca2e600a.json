@@ -1,0 +1,15 @@
+{
+  "digest": "c85b62e1ca2e600a34d1b168228fc190a2cce19900f258f8d9162e62836dc22b",
+  "event_id": "c85b62e1ca2e600a",
+  "evidence": [
+    "docs/kernel/polyglot-service-guide.md:509"
+  ],
+  "lesson_id": "L-be6308d693",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.808468Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Never bind to a public interface (`0.0.0.0`) unless behind an internal firewall/reverse proxy - Log JSON lines when possible (easier to parse with `jq`, log aggregators) - Set resource limits (memory, CPU) in your process manager - The kernel handles circuit breaking and retries \u2014 don't implement your own",
+  "type": "propose"
+}

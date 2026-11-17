@@ -1,0 +1,15 @@
+{
+  "digest": "bc55d78d6e0e6c1584fcea8e5a391675e899d96f94f56bc5a584d0de0826f8fe",
+  "event_id": "bc55d78d6e0e6c15",
+  "evidence": [
+    "docs/reviews/aiss-architecture-audit-2026-07-24.md:125"
+  ],
+  "lesson_id": "L-40c276306b",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.132570Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": ": Segment limits are capped at 500 each via `SEMANTIC_MAX_SEGMENTS`, but the **product** (250,000 pairs) has no limit. The `token_overlap` and `tfidf` backends iterate all N\u00d7M pairs. At 500\u00d7500 = 250k iterations, this produces a ~2MB+ response and seconds of CPU time. The Groq backend limits to 20 pairs, but other backends do not.",
+  "type": "propose"
+}

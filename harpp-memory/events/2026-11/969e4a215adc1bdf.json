@@ -1,0 +1,15 @@
+{
+  "digest": "969e4a215adc1bdf784aab0097791d40c084389cdd1e0ab9528d358f1bf31bdb",
+  "event_id": "969e4a215adc1bdf",
+  "evidence": [
+    "docs/daily-ledger/VIEWER-SURFACE-ASSESSMENT-PLAN-2026-10-12.md:373"
+  ],
+  "lesson_id": "L-1a2e148cca",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.309050Z",
+  "schema_version": 1,
+  "scope": "daily-ledger",
+  "text": "D4b \u2014 The statistics-that-do-not-lie contract (NEW REQUIREMENT) Every metric must carry a defined **time range, population, numerator, denominator, and data-completeness status.** Measured example to fix: with **22 branches and only 2 recording official sales**, an aggregate headline implies coverage it does not have. Required shape:",
+  "type": "propose"
+}

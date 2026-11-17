@@ -1,0 +1,15 @@
+{
+  "digest": "d73c68220da840f116883dc602be1fe6b5e7cb9db4c1ed17c99d7ad50fa2a76f",
+  "event_id": "d73c68220da840f1",
+  "evidence": [
+    "docs/kernel/module-development-guide.md:1594"
+  ],
+  "lesson_id": "L-7f8f6b532e",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.772878Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "| Endpoint | Avg | Notes | |----------|-----|-------| | Homepage (page-cached) | ~2ms | Fast-path cache bypasses kernel | | CMS Login page | ~475ms | Full kernel bootstrap + DiSyL render | | Health check | ~1ms (fast) / ~480ms (full) | Minimal liveness by default; `?full=1` for kernel payload |",
+  "type": "propose"
+}

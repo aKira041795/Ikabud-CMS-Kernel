@@ -1,0 +1,15 @@
+{
+  "digest": "4ab8ce2c6f98350b4fbe26dcf2c47db6e285e0abeb410200cab39bdd22f8f292",
+  "event_id": "4ab8ce2c6f98350b",
+  "evidence": [
+    "docs/reviews/2026-04-14-multistore-regression-findings.md:155"
+  ],
+  "lesson_id": "L-3f1e3c86c7",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.127184Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "`php ikabud capability:test kernel.auth.authenticate@1 --with-modules` exits non-zero. Likely a module loading or capability registry issue during CLI bootstrap. May cascade from manifest inconsistencies.",
+  "type": "propose"
+}

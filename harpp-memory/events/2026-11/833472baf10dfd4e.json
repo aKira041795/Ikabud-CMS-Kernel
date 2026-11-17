@@ -1,0 +1,15 @@
+{
+  "digest": "833472baf10dfd4ee071b5cc96e504027421a29ee85517d48397243f335448ba",
+  "event_id": "833472baf10dfd4e",
+  "evidence": [
+    "docs/reviews/perf-metrics-2026-10-10.md:876"
+  ],
+  "lesson_id": "L-ce052bad7f",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.423141Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "4i closed with *\"that must be established before any fix\"*. It was established \u2014 by Sol, on a second pass \u2014 and the mechanism is more precise than the one I had inferred from reading the document. I had written that \"the nested `{` after `@media(min-width:700px)` appears to swallow the rest of the document\". Measured:",
+  "type": "propose"
+}

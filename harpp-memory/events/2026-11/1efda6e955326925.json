@@ -1,0 +1,15 @@
+{
+  "digest": "1efda6e955326925a9b70fc72cc577d1c88875e8b6b37d9f5e08ddb324652d6d",
+  "event_id": "1efda6e955326925",
+  "evidence": [
+    "docs/dc-cafe/pos-inventory-alignment-review.md:45"
+  ],
+  "lesson_id": "L-13c7adec74",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.342810Z",
+  "schema_version": 1,
+  "scope": "dc-cafe",
+  "text": "No customizer opens on click (`is_variable = 0` for every box/bundle). Per-flavour inventory is therefore fiction: a flavour sold only inside boxes never decrements.",
+  "type": "propose"
+}

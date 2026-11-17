@@ -1,0 +1,15 @@
+{
+  "digest": "220d2f87f8d0b558eb8d0f066741f655f9bbf61c62b945dae5015bd287995f4d",
+  "event_id": "220d2f87f8d0b558",
+  "evidence": [
+    "docs/reviews/perf-metrics-2026-10-10.md:357"
+  ],
+  "lesson_id": "L-414d6c8223",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.400545Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "key = pattern set **+ `filemtime('module-routes.php')`**, so a change to the comparator *or* either helper invalidates automatically \u2014 no hand-maintained version constant to forget to bump; - validate membership on every hit, fall back to the untouched `usort` on any miss, mismatch or absent APCu \u2014 the failure mode is **slow, never misrouted**; - the comparator stays byte-identical, so route precedence cannot shift.",
+  "type": "propose"
+}

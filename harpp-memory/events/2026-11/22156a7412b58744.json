@@ -1,0 +1,15 @@
+{
+  "digest": "22156a7412b58744afbc584b5b82b5934d7ea7faf094f6a3fd8c8d20cf40c6c7",
+  "event_id": "22156a7412b58744",
+  "evidence": [
+    ".github/instructions/testing-conventions.instructions.md:154"
+  ],
+  "lesson_id": "L-3df14d465a",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.978925Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Entity-List Selector Gotcha (Module-Agnostic) `DefaultEntityRenderer` at `kernel/EntityContext/DefaultEntityRenderer.php:225` emits: - `data-wb-component=\"responsive-table\"` when `use=\"workbench\"` AND `view=\"table\"` (most PAL list pages) - `data-wb-component=\"entity-list\"` otherwise",
+  "type": "propose"
+}

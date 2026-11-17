@@ -1,0 +1,15 @@
+{
+  "digest": "544533b5198ebebd16bb66f11c56fc5e1556f61fb14a692a3084bc6fae0f8fa2",
+  "event_id": "544533b5198ebebd",
+  "evidence": [
+    "docs/kernel/choosing-the-right-primitive.md:77"
+  ],
+  "lesson_id": "L-710d773b59",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.571555Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Do not use events for control flow (caller depends on outcome). - Do not emit events that cannot be safely ignored.",
+  "type": "propose"
+}

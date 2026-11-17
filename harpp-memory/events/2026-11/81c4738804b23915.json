@@ -1,0 +1,15 @@
+{
+  "digest": "81c4738804b239152bcb8bf8a097085468a158163e8ea102e26985bc085cac20",
+  "event_id": "81c4738804b23915",
+  "evidence": [
+    ".github/instructions/ui-ux-conventions.instructions.md:115"
+  ],
+  "lesson_id": "L-cd48f95f89",
+  "proposed_by": "harvest",
+  "reason": "ui-ux",
+  "recorded_at": "2026-11-17T13:22:44.998561Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Find the existing convention before styling anything. If the documentation is incomplete, **fix the documentation** \u2014 do not guess and do not add a new token.",
+  "type": "propose"
+}

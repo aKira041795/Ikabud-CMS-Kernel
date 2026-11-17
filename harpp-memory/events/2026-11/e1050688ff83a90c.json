@@ -1,0 +1,15 @@
+{
+  "digest": "e1050688ff83a90c75eef416e03fd8d0c8954f560613e31f1013eb9456810651",
+  "event_id": "e1050688ff83a90c",
+  "evidence": [
+    "docs/cms/render-schema-spec-v1.md:658"
+  ],
+  "lesson_id": "L-0521e896ec",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.281875Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "`bootstrap.php` - `kernel/App.php` - `modules/cms/helpers/78-public-context.php` - `modules/ecommerce/helpers/05-render-contracts.php`",
+  "type": "propose"
+}

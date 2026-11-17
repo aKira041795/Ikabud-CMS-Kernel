@@ -1,0 +1,15 @@
+{
+  "digest": "8aae3e71d75bf4141d0869b93eec405de9ba84f8e8a79ce526310c204fab7cf5",
+  "event_id": "8aae3e71d75bf414",
+  "evidence": [
+    "docs/TERMINOLOGY.md:25"
+  ],
+  "lesson_id": "L-51e2a71b45",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.119550Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Do not silently rewrite audit records where historical accuracy matters. Current guides, READMEs, website copy, diagrams, and module documents should use only the canonical terminology.",
+  "type": "propose"
+}

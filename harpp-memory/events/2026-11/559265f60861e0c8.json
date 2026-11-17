@@ -1,0 +1,15 @@
+{
+  "digest": "559265f60861e0c86c29f1e37d5afd15fc3fc6dee8a60a11b3c3b5cb2d33310f",
+  "event_id": "559265f60861e0c8",
+  "evidence": [
+    "tests/disyl_v43_cache_exp_test.php:122"
+  ],
+  "lesson_id": "L-6b9186c10a",
+  "proposed_by": "harvest",
+  "reason": "gate",
+  "recorded_at": "2026-11-17T13:22:45.426820Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "bucketer: convert without assignment returns false",
+  "type": "propose"
+}

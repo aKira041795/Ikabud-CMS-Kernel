@@ -1,0 +1,15 @@
+{
+  "digest": "1eada43fc3178d84af690973417614dd56128de6ebdf06a9c3571f8a3e615f90",
+  "event_id": "1eada43fc3178d84",
+  "evidence": [
+    "docs/evaluations/performance-optimization-summary-2026-04-16.md:204"
+  ],
+  "lesson_id": "L-32ccc19489",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.510750Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "All existing regression tests continue to pass (manifest settings: 34, AJAX catalog: 10, store catalog filter: 10, product attributes: 11).",
+  "type": "propose"
+}

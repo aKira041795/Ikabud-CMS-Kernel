@@ -1,0 +1,15 @@
+{
+  "digest": "eb213a76e7c7eb65c3fd24bb4c62545a4100094cc0e124f7688c586b5bc51ecd",
+  "event_id": "eb213a76e7c7eb65",
+  "evidence": [
+    "docs/cms/cms-performance-and-scalability.md:100"
+  ],
+  "lesson_id": "L-d7493bd6bc",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.238222Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "Ikabud's bootstrap loads what the request needs, nothing more. `discoverModules()` caches results in a static variable \u2014 called once per process, reused for every request in that FPM worker.",
+  "type": "propose"
+}

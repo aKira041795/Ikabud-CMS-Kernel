@@ -1,0 +1,15 @@
+{
+  "digest": "e2f71b504815f7f55cf2e4e3c2b25fabce995abc32ba59134387c89b9c9be3c2",
+  "event_id": "e2f71b504815f7f5",
+  "evidence": [
+    "docs/kernel/disyl-grammar-v11-planned-types.md:77"
+  ],
+  "lesson_id": "L-f7f61d45c5",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.624184Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Do NOT add a type constant until steps 2-6 are done. A constant without runtime support is a false promise.",
+  "type": "propose"
+}

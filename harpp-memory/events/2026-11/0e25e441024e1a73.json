@@ -1,0 +1,15 @@
+{
+  "digest": "0e25e441024e1a73384ed3ef0569ca32166bc33aed633a81db832d28672c2704",
+  "event_id": "0e25e441024e1a73",
+  "evidence": [
+    "docs/ai/harpp-memory.md:7"
+  ],
+  "lesson_id": "L-2c57614bb3",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.142480Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "Lessons used to live in `.ai/harpp/hints.json`, which is **gitignored**: every recorded lesson died on a fresh clone. The first proposal was to promote them into a tracked markdown/instruction document. The owner rejected it \u2014 *\"we cannot bloat a document as we gain experiences\"* \u2014 and asked for a system that grows without becoming an unreadable file.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "774f11c381530a786aebc95b1f7d2275cc2723e2069980290e08ac36a8383733",
+  "event_id": "774f11c381530a78",
+  "evidence": [
+    "docs/cms/cms-migration-bridge.md:789"
+  ],
+  "lesson_id": "L-abdfca4a53",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.217733Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "6. **Keep WordPress admin boot demand-gated** - Do not treat embedded WordPress admin as the default next step. - Only advance the admin-boot/runtime path if real tenant demand justifies the extra security, maintenance, and performance cost. - For many migrations, import plus live sync plus governance is sufficient without embedding WordPress itself.",
+  "type": "propose"
+}

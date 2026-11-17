@@ -1,0 +1,15 @@
+{
+  "digest": "fa37f4d6ca2b938961527b0dd9ee6977fa0019d075d62032e976326c43c05c59",
+  "event_id": "fa37f4d6ca2b9389",
+  "evidence": [
+    "docs/themes/theme-infrastructure-plan.md:78"
+  ],
+  "lesson_id": "L-f98c9025eb",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.562623Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "`registerContribution(string $slot, array $config)` \u2014 called by modules at bootstrap - Contribution config: `{slot, component, conditions, priority}` - Conditions: entity_type, route, tenant, role, capabilities - `resolveSlot(string $slot, array $context)` \u2014 returns ordered array of contributions matching context - Module manifest support: `\"slot_contributions\": [...]` in `module.json`",
+  "type": "propose"
+}

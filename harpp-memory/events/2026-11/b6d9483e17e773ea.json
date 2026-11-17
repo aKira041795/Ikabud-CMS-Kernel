@@ -1,0 +1,15 @@
+{
+  "digest": "b6d9483e17e773eae46082a8830c85ea585499f4c6a8309d7daced83be1d57e2",
+  "event_id": "b6d9483e17e773ea",
+  "evidence": [
+    "docs/reviews/perf-metrics-2026-10-10/sol-brief-disyl-fallback-round2.md:7"
+  ],
+  "lesson_id": "L-d476864cee",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.344668Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "It was **rejected as incomplete**, because it converts a slow-but-correct page into a fast-but-broken one. Full evidence: `docs/reviews/perf-metrics-2026-10-10/sol-fix-verification.md`.",
+  "type": "propose"
+}

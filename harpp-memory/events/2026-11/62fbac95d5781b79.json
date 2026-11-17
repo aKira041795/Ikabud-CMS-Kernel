@@ -1,0 +1,15 @@
+{
+  "digest": "62fbac95d5781b79ba18e260a05f7bdea795541bd2049a6464a2e3ee818ef05d",
+  "event_id": "62fbac95d5781b79",
+  "evidence": [
+    "docs/archive/disyl-plans/disyl-4.3-plan.md:65"
+  ],
+  "lesson_id": "L-1ab8221e49",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.179961Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "`DISYL_CACHE_INVALID_TTL`, `DISYL_CACHE_DYNAMIC_DEP_REJECTED` (when a dep tag would resolve to non-string), `DISYL_CACHE_NESTED_LIMIT` (max 4 levels nested).",
+  "type": "propose"
+}

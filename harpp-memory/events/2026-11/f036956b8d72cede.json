@@ -1,0 +1,15 @@
+{
+  "digest": "f036956b8d72cede318bfa52334d8e818e4e15eacbc0feec10c68a81e4055fd6",
+  "event_id": "f036956b8d72cede",
+  "evidence": [
+    "docs/page-builder/page-builder-technical-spec.md:508"
+  ],
+  "lesson_id": "L-179f1e947a",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.897501Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "builder documents carry `schema_version` - widgets carry `version` - breaking widget changes must ship with migration handlers - the public renderer must not silently reinterpret incompatible nodes",
+  "type": "propose"
+}

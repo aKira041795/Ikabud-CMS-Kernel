@@ -1,0 +1,15 @@
+{
+  "digest": "aefc37093103f0202a0f735abb5e45401565cda1998b263a6fb0cbaff324daa4",
+  "event_id": "aefc37093103f020",
+  "evidence": [
+    "docs/kernel/6.3-settings-contract-spec-2026-10-12.md:34"
+  ],
+  "lesson_id": "L-a7d419400f",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.534186Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "**absent** (no row) \u2260 `\"\"` \u2260 `false` \u2260 `0` \u2260 `\"0\"` \u2014 all five are different states. - Consumers MUST NOT use PHP truthiness to distinguish them; use `array_key_exists` / strict comparisons. New code violating this fails review.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "040836bea0c92f3feeea58ec4687b07338dde9490b30c11f47ab9f077ab488ed",
+  "event_id": "040836bea0c92f3f",
+  "evidence": [
+    "docs/reviews/cms-page-builder-review-2026-10-10.md:69"
+  ],
+  "lesson_id": "L-79ea77e837",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.193235Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "\u00a712 (`docs/kernel/kernel-stable-contracts.md`) owns builder nodes to the builder: *\"the theme may style around them, never restyle them\"*, and *\"a theme rule whose selector names a `cms-builder-*` class is a finding, not a fix\"*.",
+  "type": "propose"
+}

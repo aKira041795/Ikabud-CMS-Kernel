@@ -1,0 +1,15 @@
+{
+  "digest": "27f014376d61ac35d6f519cf6b06301ce792d810a911ca932b870cdc7593c1c7",
+  "event_id": "27f014376d61ac35",
+  "evidence": [
+    "tests/kernel_concurrency_gate_test.php:57"
+  ],
+  "lesson_id": "L-ebec5b28d4",
+  "proposed_by": "harvest",
+  "reason": "gate",
+  "recorded_at": "2026-11-17T13:22:45.460748Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "loose ratio and zero errors passes with exit 0",
+  "type": "propose"
+}

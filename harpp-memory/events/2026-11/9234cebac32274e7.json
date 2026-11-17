@@ -1,0 +1,15 @@
+{
+  "digest": "9234cebac32274e78dbb24f023999810a3c5b6fd4e90761e7fab520772f62ae9",
+  "event_id": "9234cebac32274e7",
+  "evidence": [
+    "docs/engineering/lane-harness-issue.md:273"
+  ],
+  "lesson_id": "L-7d57ba2b3c",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.428030Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "The fix is that **the record must not live inside the tree that gets killed**: `run` now spawns a **detached deadline recorder** (`lane.sh watchdog <name> <secs>`), which outlives the kill and commits `unverified` / `reason: timeout` if nothing else recorded by `timeout + --deadline-grace` (default 90s). It refuses to invent a verdict while the lane is still running. Guarded by **S8**.",
+  "type": "propose"
+}

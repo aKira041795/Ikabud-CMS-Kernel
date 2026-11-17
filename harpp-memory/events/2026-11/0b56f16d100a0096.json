@@ -1,0 +1,15 @@
+{
+  "digest": "0b56f16d100a00964ab0e401224570bc6342783ebc5854fd268312156c01d41a",
+  "event_id": "0b56f16d100a0096",
+  "evidence": [
+    "docs/releases/release-notes-2026-05-08-kernel-4.4.md:108"
+  ],
+  "lesson_id": "L-801fddfc46",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.099946Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Runtime capability set + sandbox stack - 3 new template tags wired into the engine - Gates at every concrete sink that exists today (`| raw`, `{invalidate}`, `{experiment}`, `{convert}`) - File-backed audit with secret redaction - Strict mode \u2014 promotes denial to thrown exception - Untrusted trapdoor semantics \u2014 `{trusted}` cannot re-elevate",
+  "type": "propose"
+}

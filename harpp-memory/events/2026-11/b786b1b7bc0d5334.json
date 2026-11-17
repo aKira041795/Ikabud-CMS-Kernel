@@ -1,0 +1,15 @@
+{
+  "digest": "b786b1b7bc0d5334ca00f5ca966b7fe67768a6b9577328df1d8b5a6b83d97b53",
+  "event_id": "b786b1b7bc0d5334",
+  "evidence": [
+    "docs/evaluations/ikabud-kernel-technical-evaluation-2026-04-10.md:284"
+  ],
+  "lesson_id": "L-414b4b68d2",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.495042Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "integration-heavy coverage - subprocess-based test execution reduces state leakage - focused tests exist for tenancy and hardening regressions",
+  "type": "propose"
+}

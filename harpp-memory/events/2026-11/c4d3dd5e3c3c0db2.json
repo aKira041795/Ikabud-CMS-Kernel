@@ -1,0 +1,15 @@
+{
+  "digest": "c4d3dd5e3c3c0db2e867ae48591dc7bff19b96933efe730edb4f2dcdd0ed3ca6",
+  "event_id": "c4d3dd5e3c3c0db2",
+  "evidence": [
+    "docs/reviews/2026-04-14-multistore-regression-findings.md:163"
+  ],
+  "lesson_id": "L-6aed4e5f2b",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.129274Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "`ecEnforceCurrentPrices()` has no concept of \"this item's price was set by a bundle parent.\" Bundle pricing semantics need an explicit contract: items with `bundle_parent_id` must not be re-priced by authoritative pricing.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "799b18e30e1144b698b13e91e4e23eaf89e82c9bd11690be1d841063fbe4900d",
+  "event_id": "799b18e30e1144b6",
+  "evidence": [
+    "docs/reviews/perf-metrics-2026-10-10.md:295"
+  ],
+  "lesson_id": "L-30dba8fa27",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.398860Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "So the memo is the weaker rung of a two-rung ladder. Measured with `probe-route-sort-cache.php` (fresh process per sample, n=8, because the memo is per-process):",
+  "type": "propose"
+}

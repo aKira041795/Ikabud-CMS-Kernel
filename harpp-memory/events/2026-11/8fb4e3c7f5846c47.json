@@ -1,0 +1,15 @@
+{
+  "digest": "8fb4e3c7f5846c4749a44096c7b049a8804c6365d6ca711a4f436149b865e60d",
+  "event_id": "8fb4e3c7f5846c47",
+  "evidence": [
+    "docs/architecture/product-suite-extension-architecture-plan.md:239"
+  ],
+  "lesson_id": "L-e6a56500d9",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.177168Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Status: \u2705 Implemented. `validateModuleCertification()` gains C12 (product suite contract \u2014 strict when declared) and C13 (admin contribution shape \u2014 advisory). `ok` now depends only on CertificationBlocker checks; advisory checks inform but never block. The manifest guard runs fleet-level suite checks via `validateModuleSuiteFleetV1()`. `score`/`max` preserve full check counts for CLI/Workbench/superadmin consumers.",
+  "type": "propose"
+}

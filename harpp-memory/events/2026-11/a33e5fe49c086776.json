@@ -1,0 +1,15 @@
+{
+  "digest": "a33e5fe49c0867769fec33a71ad94b8b9aa24ee850dbec3946b9c2c3c7dc45b1",
+  "event_id": "a33e5fe49c086776",
+  "evidence": [
+    "docs/evaluations/daily-ledger-load-and-concurrency-2026-09-16.md:48"
+  ],
+  "lesson_id": "L-8215ea701b",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.445115Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "Concurrency is driven from **N distinct sessions**. This is essential, not cosmetic: daily-ledger handlers never call `releaseSessionAfterRender()`, so PHP holds the session file lock for the whole request and simultaneous requests from one login serialize. A single-session test would measure the session lock, not the server.",
+  "type": "propose"
+}

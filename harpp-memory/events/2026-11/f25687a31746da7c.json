@@ -1,0 +1,15 @@
+{
+  "digest": "f25687a31746da7c20c668dd48edce66a753217a14c777e49687872b76280a31",
+  "event_id": "f25687a31746da7c",
+  "evidence": [
+    "docs/reviews/perf-metrics-2026-10-10/sol-brief-disyl-fallback.md:96"
+  ],
+  "lesson_id": "L-69a46eddb7",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.360308Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "**Engine-level fix only.** No edits to any `.disyl` template. If DiSyL does not support a construct, fix DiSyL \u2014 this is a standing repo rule. - The compiler affects all 555 templates, so regressions matter more than the repro. - Do NOT git commit and do NOT push. Leave the change in the working tree and report it. - Keep changes minimal and in the existing style of the file you touch.",
+  "type": "propose"
+}

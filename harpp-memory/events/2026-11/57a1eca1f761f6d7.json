@@ -1,0 +1,15 @@
+{
+  "digest": "57a1eca1f761f6d7cfba8d7830ffd02907084644388a17465db00fb42c5e6bf0",
+  "event_id": "57a1eca1f761f6d7",
+  "evidence": [
+    "docs/kernel/module-development-guide.md:107"
+  ],
+  "lesson_id": "L-9730d3bf75",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.694741Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "A non-core module that is discovered and installed but NOT explicitly activated for the current tenant MUST NOT participate in the host application's runtime surface. This invariant is enforced at the kernel boundary \u2014 the Capability Bus, hook dispatch, route resolution, and UI-contribution rendering all consult `moduleIsActive()` before allowing a module to participate.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "ed58460f874ce7bf59d700739e2a186e27e66c6fd067bfc62db5e2170ccf2090",
+  "event_id": "ed58460f874ce7bf",
+  "evidence": [
+    "docs/workbench/ai-pattern-intelligence-roadmap.md:146"
+  ],
+  "lesson_id": "L-8e996c3207",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.574070Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "External retrieval must not silently expand the testing scope, expose confidential information, or turn generic recommendations into application requirements.",
+  "type": "propose"
+}

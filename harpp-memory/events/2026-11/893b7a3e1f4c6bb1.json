@@ -1,0 +1,15 @@
+{
+  "digest": "893b7a3e1f4c6bb16617119b0bc594a41b0ebccde2c7e0662a77b4e83a3e95b7",
+  "event_id": "893b7a3e1f4c6bb1",
+  "evidence": [
+    "docs/evaluations/ikabud-kernel-action-plan-2026-04-10.md:44"
+  ],
+  "lesson_id": "L-36c9f9ea71",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.454422Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "request bootstrap and request-context initialization - session and cookie policy setup - CORS and security header application - core route registration - module route merge and dispatch orchestration - admin and superadmin handler closures that can move into dedicated files",
+  "type": "propose"
+}

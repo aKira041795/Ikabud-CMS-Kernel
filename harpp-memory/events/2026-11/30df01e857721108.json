@@ -1,0 +1,15 @@
+{
+  "digest": "30df01e8577211084a543d006904a65136681e6a262fc9b27610730b07228bf1",
+  "event_id": "30df01e857721108",
+  "evidence": [
+    "docs/workbench/ai-pattern-intelligence-roadmap.md:530"
+  ],
+  "lesson_id": "L-ebe1a41fe4",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.596400Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "Generate evidence-linked patch proposals. - Predict expected telemetry improvement. - Require explicit approval. - Apply in isolated workspace. - Run deterministic regression and UX comparison. - Accept or revert based on measured outcomes.",
+  "type": "propose"
+}

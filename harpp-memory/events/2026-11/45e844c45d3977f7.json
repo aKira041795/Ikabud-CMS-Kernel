@@ -1,0 +1,15 @@
+{
+  "digest": "45e844c45d3977f78cd9044f8676565cfef5067b1a4c2b43b0bd1e97c7c299fc",
+  "event_id": "45e844c45d3977f7",
+  "evidence": [
+    "docs/kernel/ARCHITECTURE.md:511"
+  ],
+  "lesson_id": "L-4c9a2050e1",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.547133Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Cache keys are scoped by `role` and `source` so a superadmin and a regular admin never share a response. Writing through (`adminViewCacheSet`) and invalidation (`adminViewCacheInvalidate`) happen at the same mutation points so the cache stays consistent with database state.",
+  "type": "propose"
+}

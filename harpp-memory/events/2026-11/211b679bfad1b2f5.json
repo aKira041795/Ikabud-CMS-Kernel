@@ -1,0 +1,15 @@
+{
+  "digest": "211b679bfad1b2f5b2e50c3ccf9928262c089af0a4ec2e565bebc9c564a70162",
+  "event_id": "211b679bfad1b2f5",
+  "evidence": [
+    "docs/evaluations/ikabud-kernel-action-plan-2026-04-10.md:220"
+  ],
+  "lesson_id": "L-cdac424b55",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.465740Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "extract tenant/control DB connection logic into a dedicated service - extract auth state resolution and user lookup into an auth context service - extract render context assembly into a render-context factory - extract CSRF handling into a dedicated service - isolate kernel capability registration into a bootstrap class or function set",
+  "type": "propose"
+}

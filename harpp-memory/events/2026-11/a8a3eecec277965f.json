@@ -1,0 +1,15 @@
+{
+  "digest": "a8a3eecec277965f178dd28d311db71b1a1a65cac84ae7db9daf1dbdcb60bdc9",
+  "event_id": "a8a3eecec277965f",
+  "evidence": [
+    "docs/daily-ledger/VIEWER-SURFACE-ASSESSMENT-PLAN-2026-10-12.md:285"
+  ],
+  "lesson_id": "L-b6ddfac116",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.308038Z",
+  "schema_version": 1,
+  "scope": "daily-ledger",
+  "text": "9.5 RE-INVENTORY EVIDENCE \u2014 re-measured 2026-10-12, post-wave (DoD items 1 and 5)",
+  "type": "propose"
+}

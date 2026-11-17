@@ -1,0 +1,15 @@
+{
+  "digest": "cf851eae165377f9fafaec0436553a458e6137b079b333cb2f407a9660ed1a26",
+  "event_id": "cf851eae165377f9",
+  "evidence": [
+    "docs/reviews/perf-page-accuracy-2026-10-20/brief.md:40"
+  ],
+  "lesson_id": "L-613e31e39d",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.477248Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "this page **echoes raw HTML** \u2014 it is not template-rendered \u2014 so it has no render phase to measure; - `shutdown` happens **after the response is sent** and cannot be measured inside the request, ever.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "003c81bafe9e7cd8c67015e8ada80e32f2e48a1af35c19c0c50e9422af5ba22b",
+  "event_id": "003c81bafe9e7cd8",
+  "evidence": [
+    "docs/ai/llm-experience-layer.md:51"
+  ],
+  "lesson_id": "L-735bc6bffc",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.149739Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "Measured here: 4 CPU cores, 19 GiB RAM, no NVIDIA GPU. A from-scratch model would be worse than the one already on disk, and calling it \"our LLM\" would be a story rather than an artefact.",
+  "type": "propose"
+}

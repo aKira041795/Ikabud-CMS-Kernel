@@ -1,0 +1,15 @@
+{
+  "digest": "d3b4aaff89f276451f59b9986c576debb49e2a2ce7fe91a32b4f4f66eec3d899",
+  "event_id": "d3b4aaff89f27645",
+  "evidence": [
+    "docs/disyl/entity-rendering-trait-improvements.md:397"
+  ],
+  "lesson_id": "L-b22dd389b3",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.351115Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "Use one URL builder that preserves: filters, sort, direction, list ID, and unrelated page parameters. Do not concatenate query strings manually inside the table renderer.",
+  "type": "propose"
+}

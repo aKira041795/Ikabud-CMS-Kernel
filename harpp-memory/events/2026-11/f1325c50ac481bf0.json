@@ -1,0 +1,15 @@
+{
+  "digest": "f1325c50ac481bf07167742d5f7b192de296bc351e04a3b4b47c7d49e944cf23",
+  "event_id": "f1325c50ac481bf0",
+  "evidence": [
+    "docs/ai/llm-experience-layer.md:102"
+  ],
+  "lesson_id": "L-38d83e665b",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.151104Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "The experience layer is **advisory**. It feeds rules into a prompt; it never sets the objective, the scope, the acceptance criterion, or what counts as PASS. That is the same boundary `hint_block()` enforces on lessons, and it applies here unchanged \u2014 a remembered workaround must never become permanent authority because it once worked.",
+  "type": "propose"
+}

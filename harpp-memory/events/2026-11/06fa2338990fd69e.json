@@ -1,0 +1,15 @@
+{
+  "digest": "06fa2338990fd69ef0e23a121668fbd41248277b46e05f5d0416c1e2dfc1bb73",
+  "event_id": "06fa2338990fd69e",
+  "evidence": [
+    "docs/kernel/production-deployment-guide.md:310"
+  ],
+  "lesson_id": "L-8cfb422661",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.821178Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "See [Migration Workflow](migration-workflow.md) for the tenant-vs-base decision and the \"Nothing to migrate\" registration gotcha.",
+  "type": "propose"
+}

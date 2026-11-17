@@ -1,0 +1,15 @@
+{
+  "digest": "e9b61c10a8903a6c28eb3ede749d7aeb2851ba3981e62863192228b272143d8b",
+  "event_id": "e9b61c10a8903a6c",
+  "evidence": [
+    "docs/archive/disyl-plans/disyl-4.1-plan.md:174"
+  ],
+  "lesson_id": "L-c1ed237572",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.179320Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "All 8 + 8 = 16 new tests pass. - `php -l` clean across changed files. - `storage/logs/{app,error}.log` clean after suite. - No regression in existing `disyl_v4_test.php` (36/36 still PASS). - Guard manifests still 0/0.",
+  "type": "propose"
+}

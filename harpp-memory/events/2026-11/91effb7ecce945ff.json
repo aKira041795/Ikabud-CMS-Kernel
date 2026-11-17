@@ -1,0 +1,15 @@
+{
+  "digest": "91effb7ecce945ff91d286871bb99ae40b10f65c462c633e25863e3ddd69e8a1",
+  "event_id": "91effb7ecce945ff",
+  "evidence": [
+    "docs/kernel/module-development-guide.md:1398"
+  ],
+  "lesson_id": "L-031f807c78",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.737763Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Registry is keyed by `_installed_submodules` in `tenant_module_settings` for `module_id='cms'`. - Use `_cmsRegisterSubModule($id)` and `_cmsUnregisterSubModule($id)` \u2014 both are tenant-aware. - **Never write directly to `storage/cms-installed-modules.json`** from tenant context. That file is the legacy global fallback used only when `moduleTenantSettingsTenantId()` returns null.",
+  "type": "propose"
+}

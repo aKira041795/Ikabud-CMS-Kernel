@@ -1,0 +1,15 @@
+{
+  "digest": "f01a5cd30a2c1f6047abd887568da8a3e83cd09a683ea88b572d198b40363c78",
+  "event_id": "f01a5cd30a2c1f60",
+  "evidence": [
+    "docs/reviews/perf-page-accuracy-2026-10-20/brief.md:52"
+  ],
+  "lesson_id": "L-4d4e39e23f",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.482638Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "use a distinct sentinel for a missing key (`not collected`), so `not measured` / `not applicable` / `not collected` each mean one thing.",
+  "type": "propose"
+}

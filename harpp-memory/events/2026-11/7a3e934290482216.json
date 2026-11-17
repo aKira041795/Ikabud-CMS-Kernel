@@ -1,0 +1,15 @@
+{
+  "digest": "7a3e93429048221681274da46399c033df2fde76851b12625e0d8a59610848d5",
+  "event_id": "7a3e934290482216",
+  "evidence": [
+    "docs/daily-ledger/HANDOFF-2026-10-11.md:270"
+  ],
+  "lesson_id": "L-68a1a3f13b",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.292983Z",
+  "schema_version": 1,
+  "scope": "daily-ledger",
+  "text": "`sample_days` **must not be clamped** in the returned row. The clamp is only for the division:",
+  "type": "propose"
+}

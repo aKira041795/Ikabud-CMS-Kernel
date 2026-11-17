@@ -1,0 +1,15 @@
+{
+  "digest": "a1d942f46b283b2c602063376b6b7bad59eb2f539de92a087530cc57e7213a11",
+  "event_id": "a1d942f46b283b2c",
+  "evidence": [
+    "docs/disyl/inline-editing-rfc.md:40"
+  ],
+  "lesson_id": "L-6415f577d1",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.354629Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "This is **rejected** because it: - Moves business behavior (validation, authorization) into a view contract - Bypasses the capability system - Duplicates URL routing logic across view contracts - Cannot enforce consistency (field transitions, audit trail)",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "a78c6048d8761fec96e7fa86db3520375d16261d5698c53aaafd31abe3bc6583",
+  "event_id": "a78c6048d8761fec",
+  "evidence": [
+    "docs/page-builder/page-builder-visual-blueprint.md:510"
+  ],
+  "lesson_id": "L-2b181d7f03",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.906763Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "The beauty of this builder will be that the user never sees the machine \u2014 they only see their page coming to life.",
+  "type": "propose"
+}

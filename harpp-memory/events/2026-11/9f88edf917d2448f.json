@@ -1,0 +1,15 @@
+{
+  "digest": "9f88edf917d2448fb62617cb86f3e62e8eb0f2f4fcdbc21210afcc65634c65b2",
+  "event_id": "9f88edf917d2448f",
+  "evidence": [
+    "docs/releases/release-notes-2026-03-27.md:20"
+  ],
+  "lesson_id": "L-8829a9fea9",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.092113Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "CMS cache regression suite passes. - Targeted tenancy router regression coverage now includes fast-reject probe cases. - Targeted WordPress importer regression coverage now verifies internal URL rewriting during WXR parsing.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "385974430dc5d206c165e6ba53472990daafdf45e77e5a6afb1b6a67bbb80cd7",
+  "event_id": "385974430dc5d206",
+  "evidence": [
+    "docs/ai/llm-experience-layer.md:65"
+  ],
+  "lesson_id": "L-d6e057ba95",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.150376Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "ours **worse** than base \u2192 do not wire it in front of agents; - ours **equal** at full marks \u2192 the questions are too easy, raise the difficulty before trusting it; - ours **better** \u2192 the memory-carrying model recalls experience the base does not.",
+  "type": "propose"
+}

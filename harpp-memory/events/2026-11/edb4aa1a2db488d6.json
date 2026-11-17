@@ -1,0 +1,15 @@
+{
+  "digest": "edb4aa1a2db488d610f3038698e22d5d1306ff0a16c92da9c0a7e5eb0100c6b9",
+  "event_id": "edb4aa1a2db488d6",
+  "evidence": [
+    "docs/workbench/deepseek-v4-ark-workbench-improvement-instructions.md:91"
+  ],
+  "lesson_id": "L-eafbadfd5b",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.623157Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Do not publish a single \u201cAI confidence\u201d number without stating the sample size and metric. - Keep a strict all-or-nothing rejection until per-claim filtering can preserve only independently valid claims with clear provenance. - Promote a pattern to Case Memory only after human or deterministic verification.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "269ef1ed93ac80194970e57911adb08d73862c9250ec3d1b03bbdb6b54e6a313",
+  "event_id": "269ef1ed93ac8019",
+  "evidence": [
+    "docs/ai/ai-module.md:151"
+  ],
+  "lesson_id": "L-eaedff5732",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.124124Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "These live in `kernel/EventTriggers.php`. This file is auto-required by `bootstrap.php` \u2014 no module needs to include it.",
+  "type": "propose"
+}

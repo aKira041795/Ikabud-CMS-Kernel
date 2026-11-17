@@ -1,0 +1,15 @@
+{
+  "digest": "e0c98962ea39e92536e64c97d8ff7d33e5a26b3c7be88dddeab88ef5e2b96696",
+  "event_id": "e0c98962ea39e925",
+  "evidence": [
+    "docs/reviews/windows-desktop-client-feasibility-2026-10-07.md:263"
+  ],
+  "lesson_id": "L-e8d49d87e9",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.544293Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "It explicitly rejected a Linux-only Windows release pipeline, while conceding that \"100% Linux cross-compilation\" should not be a design requirement.",
+  "type": "propose"
+}

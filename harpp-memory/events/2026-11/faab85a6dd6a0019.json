@@ -1,0 +1,15 @@
+{
+  "digest": "faab85a6dd6a0019cf591db13fa170911dc09fd8df96b9ef6c5124ace7e009e6",
+  "event_id": "faab85a6dd6a0019",
+  "evidence": [
+    "docs/kernel/choosing-the-right-primitive.md:129"
+  ],
+  "lesson_id": "L-e1d1d82e5f",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.578532Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Do not hard-code trigger logic in PHP \u2014 make it manifest-declared so tenants control it. - Do not chain triggers without explicit capability version locks.",
+  "type": "propose"
+}

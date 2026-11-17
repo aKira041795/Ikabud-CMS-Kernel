@@ -1,0 +1,15 @@
+{
+  "digest": "6ce981e76feb25eff716764c8cfb9ba1e36a89a179db9648f938e9c712f1f0df",
+  "event_id": "6ce981e76feb25ef",
+  "evidence": [
+    "docs/engineering/lane-harness-issue.md:572"
+  ],
+  "lesson_id": "L-3437ac3264",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.438828Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "So \"make it part of the harness\" cannot mean *turning MCP on for a lane* \u2014 that is the guard-that-can-never -fire this document already has a rule about. What the harness can do is say the true thing at the moment the decision is made. `run` now takes an optional `--touches=\"<path,path>\"` and, when the touched set is **python-dominant**, prints:",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "d63188c3a4575ff3eaa412dde1cd3c39c157a1aaa6167f298ba338ef77cddd42",
+  "event_id": "d63188c3a4575ff3",
+  "evidence": [
+    "docs/pal/pal-ark-workbench-architecture-plan.md:1141"
+  ],
+  "lesson_id": "L-9c36eaaadf",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.020341Z",
+  "schema_version": 1,
+  "scope": "pal",
+  "text": "`workbench:app_shell` must not directly understand PAL navigation. Instead, PAL supplies a generic shell view model:",
+  "type": "propose"
+}

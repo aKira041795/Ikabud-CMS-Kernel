@@ -1,0 +1,15 @@
+{
+  "digest": "992fe5b1a0035ac5133fdb0f4f9e94e6a9bb9480ed45135402fe62cb8dd89972",
+  "event_id": "992fe5b1a0035ac5",
+  "evidence": [
+    "docs/ai/ai-module.md:155"
+  ],
+  "lesson_id": "L-2438c20c20",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.125472Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "This is the **most important addition**. Modules call this instead of `app()->events()->fire()`. The kernel intercepts the emission, looks up active triggers in `kernel_event_triggers`, and dispatches the appropriate capability calls. **Modules do not need to know triggers exist.**",
+  "type": "propose"
+}

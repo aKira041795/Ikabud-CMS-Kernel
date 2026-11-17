@@ -1,0 +1,15 @@
+{
+  "digest": "25b677b9a8924104c8857c104e15b63e7c67346640391f265a9f338c7a375e00",
+  "event_id": "25b677b9a8924104",
+  "evidence": [
+    "docs/kernel/kernel-auto-wiring.md:380"
+  ],
+  "lesson_id": "L-d7c7138271",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.645225Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "make seeds idempotent - seed only safe defaults - keep them editable in admin - do not bury business rules inside editor modules",
+  "type": "propose"
+}

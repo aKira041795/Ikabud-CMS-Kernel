@@ -1,0 +1,15 @@
+{
+  "digest": "de21a757e5c3e2c07ac68b135536ce2cacfad7631eddb90e06aff4ce4eb51614",
+  "event_id": "de21a757e5c3e2c0",
+  "evidence": [
+    "docs/workbench/ark-workbench-ui-testing-guide.md:801"
+  ],
+  "lesson_id": "L-0c915e9736",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.607814Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "1. Create `*Harness.ts` in `testing/harnesses/` 2. Constructor receives `Page` object 3. Expose behavioral methods (`open()`, `close()`, `select()`, etc.) 4. Expose assertion methods (`expectVisible()`, `expectTitle()`, etc.) 5. Never expose internal CSS class names or DOM structure",
+  "type": "propose"
+}

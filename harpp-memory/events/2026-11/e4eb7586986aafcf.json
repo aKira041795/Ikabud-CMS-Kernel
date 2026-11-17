@@ -1,0 +1,15 @@
+{
+  "digest": "e4eb7586986aafcf5a19b8bcbeffaad75e98fc841788b21d2e9d7f6acf9a4bc1",
+  "event_id": "e4eb7586986aafcf",
+  "evidence": [
+    "docs/daily-ledger/VIEWER-SURFACE-ASSESSMENT-PLAN-2026-10-12.md:433"
+  ],
+  "lesson_id": "L-057accc4b0",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.311753Z",
+  "schema_version": 1,
+  "scope": "daily-ledger",
+  "text": "\u26a0\ufe0f Chair caveats to honour: do not subtract sales from production across commissary/branch/consignee \u2014 **transfers are not sales** and double counting is a real risk; a waste rate needs one declared denominator (and production-stage vs branch-stage waste are different things); sales coverage must distinguish **missing reporting from a measured zero**.",
+  "type": "propose"
+}

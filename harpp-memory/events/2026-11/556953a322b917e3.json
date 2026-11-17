@@ -1,0 +1,15 @@
+{
+  "digest": "556953a322b917e3ac07e8d247ff36bdbc8e0ae870b0ca36e4a3fd1747a9ac1a",
+  "event_id": "556953a322b917e3",
+  "evidence": [
+    "docs/engineering/lane-event-log-and-policy.md:74"
+  ],
+  "lesson_id": "L-14278d1a42",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.414030Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "| Role | PI tool flags | Intent | |---|---|---| | `architect` | `--exclude-tools edit,write` | inspect and reason; never edit | | `review` | `--exclude-tools edit,write` | read the diff; never edit | | `release-gate` | `--exclude-tools edit,write` | verify; never edit | | `implement` | none | full tools; path scope enforced by `--touches` |",
+  "type": "propose"
+}

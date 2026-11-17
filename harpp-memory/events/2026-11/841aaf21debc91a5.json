@@ -1,0 +1,15 @@
+{
+  "digest": "841aaf21debc91a5d3a9b18495e00464d298abd98cefcd5ce3e4dffe8d70a051",
+  "event_id": "841aaf21debc91a5",
+  "evidence": [
+    "docs/kernel/contributor-workflows.md:114"
+  ],
+  "lesson_id": "L-d3932edc6e",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.601804Z",
+  "schema_version": 1,
+  "scope": "workflow",
+  "text": "1. update the manifest and any owned table or migration declarations 2. validate manifest defaults and tenant settings behavior 3. verify no module DB guard regressions are introduced",
+  "type": "propose"
+}

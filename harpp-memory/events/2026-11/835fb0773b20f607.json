@@ -1,0 +1,15 @@
+{
+  "digest": "835fb0773b20f607c8b1b9982d364eb928f34c926b7a9dc687f6d602fe6c6437",
+  "event_id": "835fb0773b20f607",
+  "evidence": [
+    "docs/reviews/kernel-disyl-review-2026-10-20.md:64"
+  ],
+  "lesson_id": "L-e33210ef10",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.262324Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "3. Gate-found regression: the fallback swallowed the compiled loop limit",
+  "type": "propose"
+}

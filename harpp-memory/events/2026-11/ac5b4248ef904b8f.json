@@ -1,0 +1,15 @@
+{
+  "digest": "ac5b4248ef904b8f21e64580940e85bd7f3b6c8a73ff26d4491283ed04ea5bed",
+  "event_id": "ac5b4248ef904b8f",
+  "evidence": [
+    "docs/reviews/production-deployment-readiness-assessment-2026-08-05.md:602"
+  ],
+  "lesson_id": "L-e0a9a2d48c",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.496496Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "> All remediation tasks from the roadmap were implemented on the same day as the > assessment. Status reflects the code state after the fixes and before the > follow-up regression run.",
+  "type": "propose"
+}

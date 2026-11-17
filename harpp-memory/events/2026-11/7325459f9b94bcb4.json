@@ -1,0 +1,15 @@
+{
+  "digest": "7325459f9b94bcb491ca7e9706b4f02fc9582b23d7d73fb662642b32324125e5",
+  "event_id": "7325459f9b94bcb4",
+  "evidence": [
+    "docs/evaluations/multitenant-isolation-fix-first-roadmap-2026-04-16.md:258"
+  ],
+  "lesson_id": "L-ae124c9a8f",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.505051Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "1. **Tenant-agnostic login cache key**: Simplified WMS login page cache key from host-specific `md5($host|$base)` to shared `'wms:login:html'`. - Hypothesis: different tenant subdomains were preventing cache hits. - Result: **Made things worse** \u2014 ratio jumped to `1.61x`. Immediately reverted. - Root cause: Kernel login handler needs module differentiation; oversimplification broke context isolation.",
+  "type": "propose"
+}

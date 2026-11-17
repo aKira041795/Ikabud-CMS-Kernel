@@ -1,0 +1,15 @@
+{
+  "digest": "530bfe41cfb56e35cbcc14f58201963c157f59614241e21abb8e620b7681fb41",
+  "event_id": "530bfe41cfb56e35",
+  "evidence": [
+    "docs/ai/harpp-memory.md:27"
+  ],
+  "lesson_id": "L-821973cdd1",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.143537Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "One file per event, not one append-only log. Three reasons: a single record stays readable at any store size, separate paths do not collide across branches, and one corrupt line does not break replay of everything after it.",
+  "type": "propose"
+}

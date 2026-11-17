@@ -1,0 +1,15 @@
+{
+  "digest": "afb27a5542ee452425c3446149c7ea8d431adefff6c69051541648b0dea416ce",
+  "event_id": "afb27a5542ee4524",
+  "evidence": [
+    "docs/evaluations/ikabud-kernel-action-plan-2026-04-10.md:67"
+  ],
+  "lesson_id": "L-a7f226b588",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.458851Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "tenant DB pool and reconnection logic - auth user resolution and auth state handling - render context construction and render failure handling - CSRF token lifecycle - kernel capability registration bootstrap",
+  "type": "propose"
+}

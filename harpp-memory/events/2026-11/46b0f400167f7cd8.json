@@ -1,0 +1,15 @@
+{
+  "digest": "46b0f400167f7cd83f7b011bbc991fd95208d084c383725557ad306aef1fb728",
+  "event_id": "46b0f400167f7cd8",
+  "evidence": [
+    "docs/reviews/cms-user-review-2026.md:227"
+  ],
+  "lesson_id": "L-1f45eae211",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.245241Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "Do not position it yet as: \"largest ecosystem / no-code app-store CMS,\" until extension marketplace and connectors mature.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "71230474d913f2fd36e00a39603e61f43fed3043b3089fc6f9e53034cba7cfcd",
+  "event_id": "71230474d913f2fd",
+  "evidence": [
+    "docs/modules/healthcare-entity-view-adoption.md:21"
+  ],
+  "lesson_id": "L-66f7b81247",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.869824Z",
+  "schema_version": 1,
+  "scope": "healthcare",
+  "text": "All three modules load view configs through `TemplateEngine::loadViewConfigs(__DIR__ . '/helpers/views')` in handlers bootstrap.",
+  "type": "propose"
+}

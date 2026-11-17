@@ -1,0 +1,15 @@
+{
+  "digest": "d7fc4f07042651b7215618886733a484b2401cf693147cd0c306c98191d105eb",
+  "event_id": "d7fc4f07042651b7",
+  "evidence": [
+    "docs/ecommerce/multistore-roadmap.md:701"
+  ],
+  "lesson_id": "L-be4ec26a91",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.374928Z",
+  "schema_version": 1,
+  "scope": "ecommerce",
+  "text": "5. **Integration bridges are store-agnostic** \u2014 the bridge definitions do not need to change. They pass `warehouse_id` from the order, which is stamped at checkout (7B). The WMS module routes by warehouse internally.",
+  "type": "propose"
+}

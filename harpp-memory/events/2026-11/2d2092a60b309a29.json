@@ -1,0 +1,15 @@
+{
+  "digest": "2d2092a60b309a293844fb5d05de30043cd4978fce685220cea021002bc8ed10",
+  "event_id": "2d2092a60b309a29",
+  "evidence": [
+    "docs/TERMINOLOGY.md:33"
+  ],
+  "lesson_id": "L-45be84bc5b",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.120578Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "| Use | Do not use | |---|---| | Ikabud Kernel OS | Hyperkernel, hyper-kernel, universal kernel | | modular application runtime | operating system (literal) | | application-kernel infrastructure | CMS, framework, plugin system | | governed business application platform | multi-CMS environment | | PHP-hosted, polyglot-capable runtime | PHP-only platform |",
+  "type": "propose"
+}

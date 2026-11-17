@@ -1,0 +1,15 @@
+{
+  "digest": "f6da6c29810ce5277a75af961de1dabfb214b5619f167493db69f1ec18f1a1a5",
+  "event_id": "f6da6c29810ce527",
+  "evidence": [
+    "docs/pal/ark-workbench-candidate-0.1.md:201"
+  ],
+  "lesson_id": "L-32447dad9c",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.912515Z",
+  "schema_version": 1,
+  "scope": "pal",
+  "text": "`workbench:dialog` **PAL precedent:** Modal patterns in `pal-core.js` (toast, confirmation). **Extraction:** Formalize with focus trap, Escape close, aria-modal.",
+  "type": "propose"
+}

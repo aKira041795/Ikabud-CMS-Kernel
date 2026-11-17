@@ -1,0 +1,15 @@
+{
+  "digest": "a0effd3784bbee3c2b44005de467fc73bcfdd43e2c01af2a2ae90128b7430f9a",
+  "event_id": "a0effd3784bbee3c",
+  "evidence": [
+    "docs/releases/release-notes-2026-06-07-kernel-6.0-ecosystem.md:94"
+  ],
+  "lesson_id": "L-5c869f385c",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.104904Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "| Metric | Value | |---|---| | Tests | 385 total (308 regression + 25 CMS + 52 polyglot) | | Linter | 0 errors, 398 templates scanned | | Load test | 22ms for 100 iterations across 6 paths | | Superadmin APIs | 22 observability + governance endpoints | | Example modules | 3 (hello-world, random-facts, weather-service) | | Documentation | 30+ markdown files in docs/ | | error.log | Clean |",
+  "type": "propose"
+}

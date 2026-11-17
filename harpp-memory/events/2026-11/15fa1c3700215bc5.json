@@ -1,0 +1,15 @@
+{
+  "digest": "15fa1c3700215bc50a98499b4c7edfb7174ff6fecd601d14db0ceb7c19d9378c",
+  "event_id": "15fa1c3700215bc5",
+  "evidence": [
+    "docs/engineering/lane-harness-issue.md:188"
+  ],
+  "lesson_id": "L-ca4466ca87",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.423684Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "re-introducing the original defect (treat everything already on disk as already reported) makes **S1 fail** and the suite exit 1. A guard that has never been seen to fail is not evidence.",
+  "type": "propose"
+}

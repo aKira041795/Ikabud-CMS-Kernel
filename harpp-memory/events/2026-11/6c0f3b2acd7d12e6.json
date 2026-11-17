@@ -1,0 +1,15 @@
+{
+  "digest": "6c0f3b2acd7d12e62de590a4cabf8095c521ac298197701b5166f351798cb681",
+  "event_id": "6c0f3b2acd7d12e6",
+  "evidence": [
+    "docs/ai/harpp-memory.md:64"
+  ],
+  "lesson_id": "L-b1439e7bad",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.146538Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "A remembered workaround can warn a lane; it can never rewrite its contract.",
+  "type": "propose"
+}

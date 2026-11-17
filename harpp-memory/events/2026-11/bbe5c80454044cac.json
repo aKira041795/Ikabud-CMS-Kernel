@@ -1,0 +1,15 @@
+{
+  "digest": "bbe5c80454044cacc35d9eb1e0f8c391ead474e89ad5f114814848eb899d8b8d",
+  "event_id": "bbe5c80454044cac",
+  "evidence": [
+    "docs/themes/theme-infrastructure-plan.md:20"
+  ],
+  "lesson_id": "L-f13aa2bb36",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.560694Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "A theme must never: - Access the database or query module tables - Call module services directly - Perform authorization decisions - Require a specific business module to function",
+  "type": "propose"
+}

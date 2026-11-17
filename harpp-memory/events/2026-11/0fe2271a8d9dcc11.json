@@ -1,0 +1,15 @@
+{
+  "digest": "0fe2271a8d9dcc11795d2d7942ee754dccedcb1ee67ff285c08afa6ae315d1e9",
+  "event_id": "0fe2271a8d9dcc11",
+  "evidence": [
+    "docs/daily-ledger/HANDOFF-2026-10-11.md:3"
+  ],
+  "lesson_id": "L-885dcc1937",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.283527Z",
+  "schema_version": 1,
+  "scope": "daily-ledger",
+  "text": "Session end state. Written so a **new session** can execute without re-deriving anything. Everything below is measured, not assumed; every claim names the command that proves it.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "4bdd65c96c21283c6de0b31ecda9ece6884ef7192613f2952fe93a7e5e3b3a06",
+  "event_id": "4bdd65c96c21283c",
+  "evidence": [
+    "docs/kernel/disyl-overview.md:174"
+  ],
+  "lesson_id": "L-89bb3e65c4",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.627070Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Developers do not have to stitch together one template engine, one separate component DSL, one separate hydration layer, and one unrelated progressive-enhancement story. DiSyL provides one kernel-native model for all of those concerns.",
+  "type": "propose"
+}

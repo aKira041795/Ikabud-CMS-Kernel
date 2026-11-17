@@ -1,0 +1,15 @@
+{
+  "digest": "1f74204ecf621709928ad7e16ec1c5943692fe1ca8005a7328beb45678543887",
+  "event_id": "1f74204ecf621709",
+  "evidence": [
+    "docs/cms/moodle-sso-validation-gap-followup.md:5"
+  ],
+  "lesson_id": "L-db024a13d1",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.268710Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "The system review item TD-M6 flagged a gap between the intended SSO validation contract and test coverage. Current tests prove route and interface presence, but they do not assert full inbound-token validation behavior.",
+  "type": "propose"
+}

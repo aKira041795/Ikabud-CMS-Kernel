@@ -1,0 +1,15 @@
+{
+  "digest": "8eec21e00826278d85a8d153a2b4e3f1756a9f0361c8d35f575aa3803a1b4071",
+  "event_id": "8eec21e00826278d",
+  "evidence": [
+    "docs/engineering/identity-and-role-drift-backlog.md:10"
+  ],
+  "lesson_id": "L-c6d21e6a78",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.410153Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "These are classes of defect, not one-offs. Each entry names the pattern, gives a reproducible way to find every instance, and states the fix that removes the class. Add new instances under the relevant class; do not fix them piecemeal in unrelated changes.",
+  "type": "propose"
+}

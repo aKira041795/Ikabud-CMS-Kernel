@@ -1,0 +1,15 @@
+{
+  "digest": "86b9fec628581d14bff8edfd8e6f98b2cba4ec208c07ce43e4e4dcecb24ae5d8",
+  "event_id": "86b9fec628581d14",
+  "evidence": [
+    "docs/reviews/perf-metrics-2026-10-10/sol-fix-verification.md:133"
+  ],
+  "lesson_id": "L-176018188e",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.380815Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "**The rule, now recorded permanently: the sweep proves the fix *applies*; the differential proves it is *safe*. Neither alone is sufficient.** Every acceptance set for a compiler change must include `probe-output-diff.php` against a committed baseline, and every changed template must be listed and justified individually. `output-before.txt` is that baseline and must not be regenerated after a fix.",
+  "type": "propose"
+}

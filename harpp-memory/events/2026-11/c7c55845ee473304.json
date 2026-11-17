@@ -1,0 +1,15 @@
+{
+  "digest": "c7c55845ee47330445e9376fb588bd9ee7d2b387266be168179c10befe05550f",
+  "event_id": "c7c55845ee473304",
+  "evidence": [
+    "docs/reviews/baronledger-db-audit-2026-10-10/PRUNE-AND-CAPTURE.md:32"
+  ],
+  "lesson_id": "L-6748ed548c",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.171254Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "| check | value | |---|---:| | `COUNT(*)` | 118,985 | | `COUNT(DISTINCT aggregate_key)` | 118,985 \u2190 the UNIQUE index never collapsed anything | | `SUM(finding_count)` | 119,102 \u2190 every count is 1 | | notifications whose flag is gone (LEFT JOIN) | **118,491** | | `dl_variance_flags` rows surviving | **982** | | rate | ~13,000 rows/day, ~3.6 MB/day \u2248 **1.3 GB/year** |",
+  "type": "propose"
+}

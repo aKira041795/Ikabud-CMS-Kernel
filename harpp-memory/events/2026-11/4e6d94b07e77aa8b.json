@@ -1,0 +1,15 @@
+{
+  "digest": "4e6d94b07e77aa8b9e98e1f023f6f779a87daefb9c8838ad02f79f9fbd17d85d",
+  "event_id": "4e6d94b07e77aa8b",
+  "evidence": [
+    "docs/releases/release-notes-2026-10-04-daily-ledger-verified-settlement.md:37"
+  ],
+  "lesson_id": "L-bbe7bd4620",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.110507Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "Entry remains refused unless the reopen was deliberate, so a day that was never closed cannot be edited through this path. Every reopen writes an audit row.",
+  "type": "propose"
+}

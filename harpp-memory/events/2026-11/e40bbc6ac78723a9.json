@@ -1,0 +1,15 @@
+{
+  "digest": "e40bbc6ac78723a929d4b4165058b53fdb011fa2897e0bf30f61c5cc5a7dd195",
+  "event_id": "e40bbc6ac78723a9",
+  "evidence": [
+    "docs/reviews/capability-bus-evolution-2026-10-11.md:59"
+  ],
+  "lesson_id": "L-c9fb194377",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.181481Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "| Assertion | Meaning | Evidence source | |---|---|---| | **Declared** | The manifest claims the module exposes it | validated manifest | | **Eligible / Ready** | Provider selectable; implementation or service binding valid | registry, resolution rules, dependency checks | | **Authorized** | This caller may invoke it in this tenant | *current* policy \u2014 contextual, never permanent |",
+  "type": "propose"
+}

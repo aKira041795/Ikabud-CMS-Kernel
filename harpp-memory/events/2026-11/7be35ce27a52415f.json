@@ -1,0 +1,15 @@
+{
+  "digest": "7be35ce27a52415fbbc598b6f704ce96207c0165519c18c382e292f97bdcb723",
+  "event_id": "7be35ce27a52415f",
+  "evidence": [
+    "docs/cms/tinymce-module-plan.md:77"
+  ],
+  "lesson_id": "L-e2eadc9e5a",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.282735Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "TinyMCE must not access CMS or Guidance tables directly. - TinyMCE should not own business workflows. - TinyMCE should only own editor assets, configuration, and HTML transforms. - CMS and Guidance should remain the owners of their domain events.",
+  "type": "propose"
+}

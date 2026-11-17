@@ -1,0 +1,15 @@
+{
+  "digest": "7f3bf75d667a967f3159b1a15ffe229ba91ed15b4c4bd8cfbae4069a9796d183",
+  "event_id": "7f3bf75d667a967f",
+  "evidence": [
+    "docs/pal/pal-ark-workbench-architecture-plan.md:1615"
+  ],
+  "lesson_id": "L-27ff182297",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.037308Z",
+  "schema_version": 1,
+  "scope": "pal",
+  "text": "(focus trapping, keyboard navigation, mobile layouts, responsive tables, dialogs, viewport behavior). Use PHP for backend contracts, browser automation for UX.",
+  "type": "propose"
+}

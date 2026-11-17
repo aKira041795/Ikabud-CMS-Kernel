@@ -1,0 +1,15 @@
+{
+  "digest": "443e1de7912089abd49d6a4af97915b61223008ee7c7077d748b6a29f09ae9c5",
+  "event_id": "443e1de7912089ab",
+  "evidence": [
+    "docs/project-audit-ledger/implementation-plan.md:1327"
+  ],
+  "lesson_id": "L-422d7e7220",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.048844Z",
+  "schema_version": 1,
+  "scope": "project-audit-ledger",
+  "text": "View contracts are registered in the module's `helpers/views/` directory via `{ikb_entity_view}` DiSyL config files, loaded by `TemplateEngine::loadViewConfigs()`. See \u00a717 (Phase 1) for the bootstrap call.",
+  "type": "propose"
+}

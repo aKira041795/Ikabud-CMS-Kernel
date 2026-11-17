@@ -1,0 +1,15 @@
+{
+  "digest": "129f520479f235f5c930f8d1c6a4115091b99890cf1116b9df59dc9581400b34",
+  "event_id": "129f520479f235f5",
+  "evidence": [
+    "docs/cms/cms-implementation-guide.md:14"
+  ],
+  "lesson_id": "L-a8b3e51bb8",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.214481Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "server-rendered HTML is the source of truth - cache lookup happens before expensive render work - public GET responses do not hold the PHP session lock longer than necessary - shared context assembly is centralized - theme rendering does not mutate active-theme state on the read path - frontend behavior cannot hide already-rendered content indefinitely",
+  "type": "propose"
+}

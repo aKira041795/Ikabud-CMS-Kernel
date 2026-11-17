@@ -1,0 +1,15 @@
+{
+  "digest": "09a868ba4db2146fda12c09f03a59d0d0cb18c6857238247ca158590ad0ae615",
+  "event_id": "09a868ba4db2146f",
+  "evidence": [
+    "docs/evaluations/platform-architecture-gap-analysis-2026-04-15.md:320"
+  ],
+  "lesson_id": "L-34dc1ac654",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.514311Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "`ecMembershipsForCustomer()` checks `ends_at` at query time. But memberships with `ends_at` in the past are never cleaned up or transition-evented.",
+  "type": "propose"
+}

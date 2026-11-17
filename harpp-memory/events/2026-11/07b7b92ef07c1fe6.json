@@ -1,0 +1,15 @@
+{
+  "digest": "07b7b92ef07c1fe67750919c9b5a80ff8709bb6173a112acb48b16be88b1777c",
+  "event_id": "07b7b92ef07c1fe6",
+  "evidence": [
+    "docs/reviews/perf-metrics-2026-10-10.md:689"
+  ],
+  "lesson_id": "L-3e14128063",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.417517Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "The single `phase0` failure is *\"ordinary apostrophe value preserved\"*. **Investigated before ranking it, and it is not the bug it looks like \u2014 do not \"fix\" it on sight.**",
+  "type": "propose"
+}

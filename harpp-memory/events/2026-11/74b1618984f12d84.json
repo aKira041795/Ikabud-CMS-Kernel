@@ -1,0 +1,15 @@
+{
+  "digest": "74b1618984f12d84aa93e49fbe609f9600edd84934cc98a7f1d35937601f7879",
+  "event_id": "74b1618984f12d84",
+  "evidence": [
+    "docs/workbench/deepseek-v4-ark-workbench-improvement-instructions.md:97"
+  ],
+  "lesson_id": "L-6b9ff2fd4c",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.626026Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "```text critical deterministic recall: 100% on golden cases AI citation validity: 100% AI false-positive rate: below 5% top-three root cause: at least 85% of verified cases reproducible deterministic plan: 100% for identical recorded inputs ```",
+  "type": "propose"
+}

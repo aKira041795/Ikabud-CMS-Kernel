@@ -1,0 +1,15 @@
+{
+  "digest": "784852ebfa9e6f93583b7fccf2b8c8cc767386a865d5c83d45f5d1b5fcfb5f9a",
+  "event_id": "784852ebfa9e6f93",
+  "evidence": [
+    "docs/reviews/perf-metrics-2026-10-10.md:1034"
+  ],
+  "lesson_id": "L-4ff1829d25",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.434118Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "| metric | before | after | |---|---:|---:| | median warm | 9.33 ms | **4.26 ms** (\u221254%; a separate run measured 3.89) | | min warm | 0.40 ms | 0.27 ms | | max warm | 201.84 ms | **31.30 ms** (\u221284%) | | templates \u2265 20 ms | 22 of 72 | **3 of 72** |",
+  "type": "propose"
+}

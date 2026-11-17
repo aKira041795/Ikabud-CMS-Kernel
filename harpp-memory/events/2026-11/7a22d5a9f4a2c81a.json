@@ -1,0 +1,15 @@
+{
+  "digest": "7a22d5a9f4a2c81a016d7fe0c9e5b405f0669cbe14df87e22495eae59d25ec4d",
+  "event_id": "7a22d5a9f4a2c81a",
+  "evidence": [
+    "docs/ai/cms-assistant-mode.md:127"
+  ],
+  "lesson_id": "L-fe74f6736a",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.132395Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "`harpp cms status` shows `cms_usage` (`count`, `last`, `models`, `messages`). This is a separate ledger from dev and ideation, so CMS-assistant activity never pollutes the dev quota history.",
+  "type": "propose"
+}

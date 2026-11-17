@@ -1,0 +1,15 @@
+{
+  "digest": "21dd49d55ad7abd162d23aa0ec96642aa6a100c37b4ca6c50f2e891f75622e44",
+  "event_id": "21dd49d55ad7abd1",
+  "evidence": [
+    "docs/cms/capability-driven-theme-design.md:637"
+  ],
+  "lesson_id": "L-19c5e4c555",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.202124Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "Variants not in this table are rejected by `cmsResolveBlockTemplate()`. New variants require: (a) a block template file, (b) an entry in this table, (c) a test.",
+  "type": "propose"
+}

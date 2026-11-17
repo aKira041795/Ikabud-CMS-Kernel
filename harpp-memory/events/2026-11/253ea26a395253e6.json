@@ -1,0 +1,15 @@
+{
+  "digest": "253ea26a395253e6ff53e7dd262cd64d9fff83303c210cbfd07f3b8c7a31daa1",
+  "event_id": "253ea26a395253e6",
+  "evidence": [
+    "docs/kernel/choosing-the-right-primitive.md:114"
+  ],
+  "lesson_id": "L-18817e5e7d",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.576653Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Do not perform expensive work in `kernel.boot` listeners. - Do not assume listener order outside of explicit priority hints.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "cd32c9441705f00d5fadda34e5b6ae80ec068456ddbd78e400e4eb150db1a892",
+  "event_id": "cd32c9441705f00d",
+  "evidence": [
+    "docs/releases/release-notes-2026-10-04-daily-ledger-verified-settlement.md:119"
+  ],
+  "lesson_id": "L-4f29e21f47",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.113340Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "Owner directive: *\"the provisional sales amount should not surface again. what the admin sees is the actual, correct amount thus pending sales are not included. my point is, provisional sales amount confuses accounting.\"*",
+  "type": "propose"
+}

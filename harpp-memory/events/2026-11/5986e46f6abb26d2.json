@@ -1,0 +1,15 @@
+{
+  "digest": "5986e46f6abb26d2c9d386c83989fd6614731276b24d02e498258b47e58d52ed",
+  "event_id": "5986e46f6abb26d2",
+  "evidence": [
+    "docs/ai/ai-module.md:884"
+  ],
+  "lesson_id": "L-e61c06d403",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.128329Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "1. **Global settings** \u2014 stored in the module registry (`readModuleRegistry()['ai']['settings']`) 2. **Tenant settings** \u2014 per-tenant overrides (`getModuleSettings('ai')`) Empty-string tenant values do not mask valid global defaults. 3. **Runtime overrides** \u2014 programmatic overrides via `aiRuntimeOverrides()` / `aiWithRuntimeOverrides()` Empty-string runtime values are also ignored.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "ec320e975e0e8043a0795483911678a206c6e38f46a1252b81c8ad7ef5adb628",
+  "event_id": "ec320e975e0e8043",
+  "evidence": [
+    "docs/workbench/ai-pattern-intelligence-roadmap.md:389"
+  ],
+  "lesson_id": "L-1c41c92c52",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.583330Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "known backend/view-model mismatch; - missing prerequisite; - ambiguous selector/test defect; - accessibility defect; - authorization failure; - environment failure; - successful workflow with noisy observations; - temporal regression; - cross-module context loss; - novel case where abstention is correct.",
+  "type": "propose"
+}

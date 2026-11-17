@@ -1,0 +1,15 @@
+{
+  "digest": "7a18c34773fd5fb4698ff3787a636af7858ef52170fc7af20f688c691693fcfe",
+  "event_id": "7a18c34773fd5fb4",
+  "evidence": [
+    "docs/cms/cms-contract-freeze-v1.md:7"
+  ],
+  "lesson_id": "L-11bb5ae4b4",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.211342Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "Purpose Freeze `cms.content.*@1` contract expectations before extraction work so internal refactors do not break consumers.",
+  "type": "propose"
+}

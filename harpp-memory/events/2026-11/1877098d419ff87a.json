@@ -1,0 +1,15 @@
+{
+  "digest": "1877098d419ff87a71dc6b64217b09cf21b77f41c262322dc49ff84af677290d",
+  "event_id": "1877098d419ff87a",
+  "evidence": [
+    "docs/pal/ark-workbench-reference-guide.md:1066"
+  ],
+  "lesson_id": "L-cd6d87b81f",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.954996Z",
+  "schema_version": 1,
+  "scope": "pal",
+  "text": "Each harness uses `data-wb-component` selectors as stable locators \u2014 tests never depend on CSS class names.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "b8a1a5a14e78653115b2c416ae90fa9e1988188c9031f02eefa7052076836da4",
+  "event_id": "b8a1a5a14e786531",
+  "evidence": [
+    "docs/reviews/mobile-api-platform-implementation-plan-2026-07-10.md:47"
+  ],
+  "lesson_id": "L-f6d5d0b07d",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.277325Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "| Location | How it detects | |---|---| | `bootstrap.php` (exception handler) | N/A \u2014 always assumes HTML | | `kernel/App.php` (`requireAuth`) | N/A \u2014 always redirects | | `src/helpers/module-manager.php` | Inline regex `$isApiRoute` | | `public/index.php` (CORS) | `str_starts_with($uri_check, '/api/')` | | `public/index.php` (session_start) | N/A \u2014 always starts session |",
+  "type": "propose"
+}

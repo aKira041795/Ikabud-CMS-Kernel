@@ -1,0 +1,15 @@
+{
+  "digest": "f068b01c07150e8d7a6cca18c04ddd4e3d9c72204adef3305a9e26b16c2f1cab",
+  "event_id": "f068b01c07150e8d",
+  "evidence": [
+    "docs/kernel/6.3-coverage-rollout-queue.md:45"
+  ],
+  "lesson_id": "L-b7fc4f820f",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.529188Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "production updated; owner reports working fine, no issues. Rollback levers remain: per-commit `revert`; `KERNEL_AUTHORITY_DISPATCH_ENFORCE=false` (no deploy needed). Unexpected `403 route_authority_denied` in production \u21d2 check the route's declaration in the module manifest against the handler gate, then decide: fix the declaration or use the lever.",
+  "type": "propose"
+}

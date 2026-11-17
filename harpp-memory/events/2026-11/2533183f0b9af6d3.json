@@ -1,0 +1,15 @@
+{
+  "digest": "2533183f0b9af6d3fc9e057771ae2731fc6eaa678a0d72fd721436bcd5b2ece3",
+  "event_id": "2533183f0b9af6d3",
+  "evidence": [
+    "docs/architecture/product-suite-extension-adr.md:83"
+  ],
+  "lesson_id": "L-eb39ba9fb8",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.175297Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Positive: authoritative hierarchy, dynamic admin composition, install-time compatibility gates, first-class disable/uninstall/purge semantics. - Negative: manifest schema surface grows; requires discipline in new modules. - Trade-off accepted: we do NOT build a deeply nested runtime loader. The loader stays flat; relationships come from manifests.",
+  "type": "propose"
+}

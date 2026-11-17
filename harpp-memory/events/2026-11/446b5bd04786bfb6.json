@@ -1,0 +1,15 @@
+{
+  "digest": "446b5bd04786bfb6336171f549450d1db0c809a379928541c3e489343e3a66a9",
+  "event_id": "446b5bd04786bfb6",
+  "evidence": [
+    "docs/email/EMAIL_CONFIGURATION.md:193"
+  ],
+  "lesson_id": "L-8cb08d1dd7",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.388585Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "```bash # Test email configuration from CLI php -r \" require_once 'bootstrap.php'; require_once 'src/helpers/email.php'; \\$result = sendEmail('your-test@example.com', 'Test', 'This is a test email.'); echo \\$result ? 'Sent OK' : 'Failed - check logs'; \" ```",
+  "type": "propose"
+}

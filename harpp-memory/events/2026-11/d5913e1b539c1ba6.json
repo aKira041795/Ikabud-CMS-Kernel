@@ -1,0 +1,15 @@
+{
+  "digest": "d5913e1b539c1ba679f099f9c8b019729d8a530a94304a9ddeb7766c1815c0d1",
+  "event_id": "d5913e1b539c1ba6",
+  "evidence": [
+    "docs/reviews/kernel-modular-runtime-evidence-2026-07-24.md:42"
+  ],
+  "lesson_id": "L-96930b4199",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.266438Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "These modules are **complete applications** \u2014 they own their authentication, user tables, password reset flow, admin layout, and business logic. They do not depend on CMS for anything.",
+  "type": "propose"
+}

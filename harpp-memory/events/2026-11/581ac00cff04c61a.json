@@ -1,0 +1,15 @@
+{
+  "digest": "581ac00cff04c61aa3dea3e9b5d53a51f5eee7e38b3199c069cc7af51daf71aa",
+  "event_id": "581ac00cff04c61a",
+  "evidence": [
+    "docs/kernel/module-manifest-schema.md:18"
+  ],
+  "lesson_id": "L-eeac5cc010",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.776075Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "`php scripts/guard-module-manifests.php --strict` is the authoritative CLI validation entry point. Runtime manifest loading and `php ikabud architecture:check` consume the same validator in `src/helpers/manifest-validation.php`; they must not define independent shape rules.",
+  "type": "propose"
+}

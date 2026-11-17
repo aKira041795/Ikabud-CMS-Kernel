@@ -1,0 +1,15 @@
+{
+  "digest": "b84f0b95016faa3eff5bb0e678240c1cdca125e1792a56f52ba15bab7edb27cd",
+  "event_id": "b84f0b95016faa3e",
+  "evidence": [
+    "docs/ecommerce/ecommerce-execution-plan.md:478"
+  ],
+  "lesson_id": "L-4bb8d95b19",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.364368Z",
+  "schema_version": 1,
+  "scope": "ecommerce",
+  "text": "Variant selection can change displayed product image (data layer ready; JS swap deferred) - Variants without mapped media fall back to parent gallery - No regression on simple or non-variant products",
+  "type": "propose"
+}

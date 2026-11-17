@@ -1,0 +1,15 @@
+{
+  "digest": "5e99b878959e0a7aed6f45311a5ea74c2af8c2b11b7af65a5432de1dcdeed019",
+  "event_id": "5e99b878959e0a7a",
+  "evidence": [
+    "docs/kernel/module-development-guide.md:1480"
+  ],
+  "lesson_id": "L-23a3db949e",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.757378Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "These are kernel-owned. If your module needs a fast health/liveness endpoint, use `GET /api/v1/health?full=1` to get the full kernel-aware payload, or register a module-specific health route at `/api/v1/<module-id>/health` that runs through the standard bootstrap.",
+  "type": "propose"
+}

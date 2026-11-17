@@ -1,0 +1,15 @@
+{
+  "digest": "074640da9a7f4937d76795b05b2e7b223e6894ed65c282861d4fd7a0f7e32e93",
+  "event_id": "074640da9a7f4937",
+  "evidence": [
+    ".github/instructions/ui-ux-conventions.instructions.md:7"
+  ],
+  "lesson_id": "L-ffd76a19a5",
+  "proposed_by": "harvest",
+  "reason": "ui-ux",
+  "recorded_at": "2026-11-17T13:22:44.980703Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Every rule below ends with **how to verify it**. Verify by measurement, never by eyeballing a screenshot: this repository has produced four \"looks aligned\" claims that were 4px, 9px and 22px wrong.",
+  "type": "propose"
+}

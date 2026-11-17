@@ -1,0 +1,15 @@
+{
+  "digest": "265494c54788a03ffeea7c730c876709c2b96a487200c619dfef5a80db423b31",
+  "event_id": "265494c54788a03f",
+  "evidence": [
+    "docs/pal/ark-workbench-reference-guide.md:968"
+  ],
+  "lesson_id": "L-c89f60f2db",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.947422Z",
+  "schema_version": 1,
+  "scope": "pal",
+  "text": "Tests static methods and pure calculations \u2014 zero bootstrap, zero DB, zero mocking.",
+  "type": "propose"
+}

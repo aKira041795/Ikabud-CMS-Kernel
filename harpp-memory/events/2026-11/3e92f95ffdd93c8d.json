@@ -1,0 +1,15 @@
+{
+  "digest": "3e92f95ffdd93c8dc657a0fdf4f691920c77d58c967db49537caf738bb73eb7e",
+  "event_id": "3e92f95ffdd93c8d",
+  "evidence": [
+    "docs/PHILOSOPHY.md:283"
+  ],
+  "lesson_id": "L-213b9ee5d6",
+  "proposed_by": "harvest",
+  "reason": "principle",
+  "recorded_at": "2026-11-17T13:22:43.117419Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "These limits are intentional. Ikabud targets the space between off-the-shelf SaaS and custom development \u2014 where existing products do not fit the organization's workflows and custom code needs governance.",
+  "type": "propose"
+}

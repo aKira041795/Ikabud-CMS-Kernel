@@ -1,0 +1,15 @@
+{
+  "digest": "48063acc654900c3b6051b1077abddfc04e64a6efe23d5c5a7ba1701c19130ff",
+  "event_id": "48063acc654900c3",
+  "evidence": [
+    "docs/architecture/cms-assistant-contract.md:56"
+  ],
+  "lesson_id": "L-f3fc726afb",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.156996Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "**Never publish/schedule** via the assistant; no settings/user/media-delete/import-export/customizer capabilities. - No Codex usage for CMS content work. - No weakening of existing CMS role/capability checks for normal users. - No cross-module DB access; CMS edits go through CMS APIs only. - No auto-approving or bypassing the CMS workflow/review step.",
+  "type": "propose"
+}

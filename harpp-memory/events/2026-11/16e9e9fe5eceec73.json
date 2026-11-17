@@ -1,0 +1,15 @@
+{
+  "digest": "16e9e9fe5eceec73898063b4fa09d949223cbc1946d44387f7324602a8b4ece1",
+  "event_id": "16e9e9fe5eceec73",
+  "evidence": [
+    "docs/evaluations/platform-architecture-gap-analysis-2026-04-15.md:45"
+  ],
+  "lesson_id": "L-42b5983ecd",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.511958Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "If the first webhook sets status to paid but the license listener throws (e.g., OpenSSL failure), the retry webhook will see `paid` and skip \u2014 licenses never generated.",
+  "type": "propose"
+}

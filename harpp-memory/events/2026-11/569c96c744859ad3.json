@@ -1,0 +1,15 @@
+{
+  "digest": "569c96c744859ad326f045e7bcf4b3c028fac9972fa6bc3fa2bbbdfb7bc0d4b2",
+  "event_id": "569c96c744859ad3",
+  "evidence": [
+    "docs/kernel/module-development-guide.md:1324"
+  ],
+  "lesson_id": "L-391026af96",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.732487Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "**Never use `getModuleSettings()` results or `saveModuleSettings()` with static variables.**",
+  "type": "propose"
+}

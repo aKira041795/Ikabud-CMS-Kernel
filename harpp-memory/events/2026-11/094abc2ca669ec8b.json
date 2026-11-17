@@ -1,0 +1,15 @@
+{
+  "digest": "094abc2ca669ec8bb87cc819d880419fd8352a9b1ab45b1eacff6d7451f34c2b",
+  "event_id": "094abc2ca669ec8b",
+  "evidence": [
+    "docs/evaluations/ikabud-kernel-action-plan-2026-04-10.md:236"
+  ],
+  "lesson_id": "L-14e87d073f",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.468608Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "`App` still presents the same external API to callers - extracted services can be reasoned about independently - no tenant DB fail-open regressions are introduced",
+  "type": "propose"
+}

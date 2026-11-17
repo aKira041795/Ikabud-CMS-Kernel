@@ -1,0 +1,15 @@
+{
+  "digest": "a3d4789699f0a4dca7c9e9454236db025f85db7109d04eeac8c447e227e8d449",
+  "event_id": "a3d4789699f0a4dc",
+  "evidence": [
+    "docs/reviews/perf-page-accuracy-2026-10-20/brief.md:32"
+  ],
+  "lesson_id": "L-63d8954464",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.470341Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "run it only when `?deep=1` is present. On the default path it must not be called at all, and the row must say so (e.g. \"not run (add ?deep=1)\"). When it does run, its cost must be labelled as probe-induced rather than as request cost.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "9347d29637a223156ea0a99527f202aaf58e469c55b1fd6cb612cc86c957b3c7",
+  "event_id": "9347d29637a22315",
+  "evidence": [
+    "docs/reviews/ark-workbench-comprehension-architecture-review-and-plan-2026-07-16.md:49"
+  ],
+  "lesson_id": "L-dd1d7cb180",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.150144Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "**Observation memory:** persist every normalized issue and occurrence. - **Validated knowledge:** promote only issues with a verified outcome, such as reproduced, fixed and regression-tested, accepted as known, or explicitly dismissed with a reason.",
+  "type": "propose"
+}

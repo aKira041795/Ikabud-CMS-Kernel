@@ -1,0 +1,15 @@
+{
+  "digest": "294f28f5c4b20fbdf126b4238037d89b872ae56d02fb73c220cba4e79787bf5c",
+  "event_id": "294f28f5c4b20fbd",
+  "evidence": [
+    "docs/cms/capability-driven-theme-design.md:593"
+  ],
+  "lesson_id": "L-e622e0c49e",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.201245Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "This means: **DiSyL templates may always assume the contract is satisfied.** They must never defensively handle missing keys beyond the gates already defined in each block.",
+  "type": "propose"
+}

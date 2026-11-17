@@ -1,0 +1,15 @@
+{
+  "digest": "81bbd8bfa045859e46c477176d5f05edf556363a805e6f62b1f2a4b8ea806cad",
+  "event_id": "81bbd8bfa045859e",
+  "evidence": [
+    "tests/disyl_v44_sandbox_test.php:203"
+  ],
+  "lesson_id": "L-1c966351ab",
+  "proposed_by": "harvest",
+  "reason": "gate",
+  "recorded_at": "2026-11-17T13:22:45.443671Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "engine: untrusted blocks invalidate side-effect",
+  "type": "propose"
+}

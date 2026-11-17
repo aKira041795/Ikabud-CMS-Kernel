@@ -1,0 +1,15 @@
+{
+  "digest": "aac8bff2ab5bfbbbaafc140d5e80f111c43f4f0e0b8a5c8d69941d7abe71c575",
+  "event_id": "aac8bff2ab5bfbbb",
+  "evidence": [
+    "docs/ehr/implementation-plan.md:2315"
+  ],
+  "lesson_id": "L-38b128cdb0",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.377195Z",
+  "schema_version": 1,
+  "scope": "ehr",
+  "text": "[ ] **Patient context header always shows allergies.** Prominently, in red, never silent. \"No known allergies (last reviewed 2026-05-01)\" is explicit.",
+  "type": "propose"
+}

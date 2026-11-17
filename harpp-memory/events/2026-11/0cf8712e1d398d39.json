@@ -1,0 +1,15 @@
+{
+  "digest": "0cf8712e1d398d39951499de7d24303222d97acd014dd7b2cba5996ad0e411f1",
+  "event_id": "0cf8712e1d398d39",
+  "evidence": [
+    "docs/workbench/system-analyst-pipeline.md:151"
+  ],
+  "lesson_id": "L-d24daf2307",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.660903Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Final measured penalties are limited to 20 unnamed controls on the dashboard, project form, quotation form, and sales form. Heading, structure, responsive, keyboard, terminology, and task-effort penalties are zero. These remaining controls form the next accessibility hardening backlog; they do not prevent the approved 80-point threshold from passing.",
+  "type": "propose"
+}

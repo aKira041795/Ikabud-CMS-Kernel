@@ -1,0 +1,15 @@
+{
+  "digest": "d5d0ff3d3d6bc3a55cd02113f4a06e2a82d21769090255404e0686e1228a3ba8",
+  "event_id": "d5d0ff3d3d6bc3a5",
+  "evidence": [
+    ".github/instructions/ai-development-execution-handoff.instructions.md:249"
+  ],
+  "lesson_id": "L-82e12dde1a",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.933437Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "A genuinely non-verifiable lane may pass `--no-acceptance-gate=\"<reason>\"`; the override and its reason are appended to `.ai/runs/acceptance-gate.log`. Never bypass silently.",
+  "type": "propose"
+}

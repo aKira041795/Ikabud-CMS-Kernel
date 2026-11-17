@@ -1,0 +1,15 @@
+{
+  "digest": "eb34303cb27a218e84b490d2ad20ddeec96878ef3ab06933efe025c3bf5a6ed8",
+  "event_id": "eb34303cb27a218e",
+  "evidence": [
+    "tests/disyl_v43_cache_exp_test.php:59"
+  ],
+  "lesson_id": "L-235f9da86a",
+  "proposed_by": "harvest",
+  "reason": "gate",
+  "recorded_at": "2026-11-17T13:22:45.416856Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "store: invalidate tenant A unrelated tag does not affect tenant B",
+  "type": "propose"
+}

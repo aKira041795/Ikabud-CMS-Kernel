@@ -1,0 +1,15 @@
+{
+  "digest": "b5628225ad58964f46f5ceccc49bc4948a9dffc4483ebb303e66f1143eade06c",
+  "event_id": "b5628225ad58964f",
+  "evidence": [
+    "docs/bakeshop/bakeshop-module.md:183"
+  ],
+  "lesson_id": "L-55a6c261c4",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.192783Z",
+  "schema_version": 1,
+  "scope": "bakeshop",
+  "text": "When the tenant's entry module resolves to `bakeshop`, [TenantProvisioner](kernel/Services/TenantProvisioner.php) refuses to proceed without `--admin-user` and `--admin-pass`, then inserts the named admin into `bakeshop_users` (replacing the placeholder bootstrap row). The operation is **idempotent** \u2014 re-running is safe and does not duplicate the admin.",
+  "type": "propose"
+}

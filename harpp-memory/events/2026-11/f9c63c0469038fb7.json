@@ -1,0 +1,15 @@
+{
+  "digest": "f9c63c0469038fb70b5c0f057ead3f8400c2c698618931a4c26d2656ce34a2a3",
+  "event_id": "f9c63c0469038fb7",
+  "evidence": [
+    "docs/kernel/tenancy-roadmap.md:217"
+  ],
+  "lesson_id": "L-f8280cc949",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.837654Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Cross-tenant token replay prevention A JWT minted on tenant A must not work on tenant B.",
+  "type": "propose"
+}

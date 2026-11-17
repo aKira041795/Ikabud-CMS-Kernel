@@ -1,0 +1,15 @@
+{
+  "digest": "d942e7f9348e2ba14690082cfc48119c0c928bdba06b120d5847e44fa94c50fc",
+  "event_id": "d942e7f9348e2ba1",
+  "evidence": [
+    "docs/cms/cms-performance-and-scalability.md:95"
+  ],
+  "lesson_id": "L-a58021b5c6",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.236353Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "``` WordPress: wp-load.php \u2192 wp-config.php \u2192 wp-settings.php \u2192 30+ files \u2192 plugins \u2192 theme \u2192 init \u2192 wp() Ikabud: bootstrap.php \u2192 config merge \u2192 module-manager \u2192 route match \u2192 handler \u2192 exit ```",
+  "type": "propose"
+}

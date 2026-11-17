@@ -1,0 +1,15 @@
+{
+  "digest": "b093b782e8f7f95bc7e18470010b351b1fba52b727e713f3eb1bf9f50b89f872",
+  "event_id": "b093b782e8f7f95b",
+  "evidence": [
+    "docs/pal/pal-ark-workbench-architecture-plan.md:518"
+  ],
+  "lesson_id": "L-59c184bb1b",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.981326Z",
+  "schema_version": 1,
+  "scope": "pal",
+  "text": "ARK Workbench must NOT decide financial formatting. PAL or a platform-level localization service produces the formatted string.",
+  "type": "propose"
+}

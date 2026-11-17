@@ -1,0 +1,15 @@
+{
+  "digest": "beb8facdca8ddb21d936d0f7306c472e8cff12052aca014106615fd9991e321c",
+  "event_id": "beb8facdca8ddb21",
+  "evidence": [
+    "docs/daily-ledger/three-owner-concerns-2026-11-17.md:253"
+  ],
+  "lesson_id": "L-c523076e27",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.335265Z",
+  "schema_version": 1,
+  "scope": "daily-ledger",
+  "text": "Reusing the existing `variance` finding type was rejected: it would put stock corrections into the variance review list and distort its counts. Migration **105** therefore appends `delivery_item_substituted` to the `finding_type` ENUM (plain idempotent MODIFY, the 093/058 pattern).",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "649b26137401293829b356f9ae7d7b659690a5a0a5ec42c5827b8e2dbbe8501c",
+  "event_id": "649b261374012938",
+  "evidence": [
+    "docs/disyl/entity-rendering-trait-improvements.md:252"
+  ],
+  "lesson_id": "L-961632eadb",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.350101Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "```php // Do NOT do this: catch (\\Throwable) { return legacyFallback(); // hides malformed expressions forever } ```",
+  "type": "propose"
+}

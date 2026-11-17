@@ -1,0 +1,15 @@
+{
+  "digest": "c90827608c3ed194966bfc8a6d393f514bef28edb212081faf7bfeb14fa62351",
+  "event_id": "c90827608c3ed194",
+  "evidence": [
+    "docs/cms/cms-performance-and-scalability.md:24"
+  ],
+  "lesson_id": "L-85d4d72042",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.231056Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "| Endpoint | Avg | Notes | |----------|-----|-------| | Homepage (page-cached) | ~2 ms | Fast-path cache \u2014 skips kernel bootstrap | | Health check (fast) | ~4 ms | Ultra-early handler \u2014 PHP-only liveness probe | | CMS Login page | ~5 ms | Full kernel + compiled DiSyL render | | API /me (auth) | ~5 ms | JWT decode + capability check |",
+  "type": "propose"
+}

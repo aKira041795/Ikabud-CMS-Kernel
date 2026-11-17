@@ -1,0 +1,15 @@
+{
+  "digest": "73e954d0e97d687e7394033eb87b1d9950f5f2ed4d28946f782d3d4347c0200c",
+  "event_id": "73e954d0e97d687e",
+  "evidence": [
+    "docs/reviews/harness-v2-adversarial-review-2026-10-07.md:113"
+  ],
+  "lesson_id": "L-e9fdeda8e6",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.257370Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "`grep -nE 'attempt_cap=|LANE_MODEL_TIMEOUT_MIN' tools/lane-model.sh` shows the share at line 169 and the unconditional minimum floor at line 170. The measured `elapsed=2 budget=1` result contradicts \u201cdivide the remaining run budget\u201d and the probe's \u201cTHE WHOLE RUN must finish inside its budget\u201d statement. I found no acceptance-verdict or classification comment contradicted by the measured normal-path evidence.",
+  "type": "propose"
+}

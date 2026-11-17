@@ -1,0 +1,15 @@
+{
+  "digest": "f0753444ed411e77b8f35653022146bd4106385e587c658aa53fc2459936b9d3",
+  "event_id": "f0753444ed411e77",
+  "evidence": [
+    "docs/pal/pal-ark-workbench-architecture-plan.md:814"
+  ],
+  "lesson_id": "L-f21b23fb47",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.016312Z",
+  "schema_version": 1,
+  "scope": "pal",
+  "text": "```php // MoneyValue \u2014 integer minor units (never float), converted from DECIMAL strings final readonly class MoneyValue implements TemplateContextValue { public function __construct( public int $minorUnits, // 123456 (= \u20b11,234.56) public string $currency, // \"PHP\" public string $formatted, // \"\u20b11,234.56\" \u2014 produced by PAL/localization public bool $isNegative, ) {}",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "990547018e3da0c10f8bd1b5f9d95cc52ba2f7f5300358ffaa5d1323f1c17b43",
+  "event_id": "990547018e3da0c1",
+  "evidence": [
+    "docs/evaluations/stress-and-load-test-findings-2026-04-16.md:552"
+  ],
+  "lesson_id": "L-f92e6a4bcc",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.517749Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Measured on the dev server (i3-2100, HDD, no OPcache) with 70 products in catalog:",
+  "type": "propose"
+}

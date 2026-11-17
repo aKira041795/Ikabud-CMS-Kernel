@@ -1,0 +1,15 @@
+{
+  "digest": "66a09ca017a60baaf5e4b56eb6820fe7b5814e3984f959e5765159db206e44b3",
+  "event_id": "66a09ca017a60baa",
+  "evidence": [
+    "docs/reviews/2026-04-14-multistore-regression-findings.md:193"
+  ],
+  "lesson_id": "L-d781584492",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.131030Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Most test fixtures create products without store assignments (`store_id = null`). The new multi-store code must treat `store_id = null` as the default/fallback path, not as an edge case requiring special handling. Several regressions stem from null store_id products hitting store-resolution code paths that expect a valid store.",
+  "type": "propose"
+}

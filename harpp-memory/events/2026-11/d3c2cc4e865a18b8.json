@@ -1,0 +1,15 @@
+{
+  "digest": "d3c2cc4e865a18b899b8b415fd7558d3c1e58bba1f3fcf651524fc4eb040fd72",
+  "event_id": "d3c2cc4e865a18b8",
+  "evidence": [
+    "docs/architecture/decisions/ADR-005-one-assortment-per-branch.md:39"
+  ],
+  "lesson_id": "L-9ca2144606",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.163001Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "`is_active` continues to mean *\"this branch handles this product\"*. The production sheet reads it as its production list. `is_commissary` chooses which **surface** you are looking at, never which assortment applies.",
+  "type": "propose"
+}

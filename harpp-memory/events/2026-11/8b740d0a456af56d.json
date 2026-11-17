@@ -1,0 +1,15 @@
+{
+  "digest": "8b740d0a456af56df1d97fe5e74dd8ab4e51e61cc39e0c4b168910f8bfd0463c",
+  "event_id": "8b740d0a456af56d",
+  "evidence": [
+    "docs/engineering/harness-operating-modes.md:99"
+  ],
+  "lesson_id": "L-eab1222658",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.406956Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "1. **Write the failing acceptance command first.** Local, instant, and it defines \"done\". 2. **Ask the local model for one thing.** One function, short prompt, no context dump. 3. **Verify with the gate you just wrote.** 4. **Repeat.** Commit at each green step so an outage never costs uncommitted work.",
+  "type": "propose"
+}

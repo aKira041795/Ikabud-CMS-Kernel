@@ -1,0 +1,15 @@
+{
+  "digest": "00c50f2d3214efbc3495469d6181ad9ec3fdd054759a184ea8db7ba09ae515c3",
+  "event_id": "00c50f2d3214efbc",
+  "evidence": [
+    "docs/email/EMAIL_CONFIGURATION.md:213"
+  ],
+  "lesson_id": "L-266ab4b427",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.391164Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "\u26a0\ufe0f **What to Be Careful About:** - Never commit `.env` with real credentials - Validate email addresses before sending - Sanitize user content in email body - Don't send sensitive data (passwords, tokens) unencrypted - Set `Reply-To` headers when appropriate",
+  "type": "propose"
+}

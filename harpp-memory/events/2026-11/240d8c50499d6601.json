@@ -1,0 +1,15 @@
+{
+  "digest": "240d8c50499d660109ba03f659db1a6bd919b60dc68b90ba0ad0f2c26a172c2d",
+  "event_id": "240d8c50499d6601",
+  "evidence": [
+    "docs/kernel/theme-owned-customizer-architecture.md:350"
+  ],
+  "lesson_id": "L-beaf52164e",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.853003Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "| Scenario | Phase 1-2 | Phase 3+ | |---|---|---| | Theme without `customizer.owns` | `LegacyCmsCustomizerAdapter` wraps CMS generic | Same | | Theme with `owns: true`, no valid provider | Activation rejected | Same | | Theme with `owns: true`, valid provider | Orchestrator dispatches to theme | Same | | ARK sub-theme with `extends` | Explicit inheritance, independent scope | Same |",
+  "type": "propose"
+}

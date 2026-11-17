@@ -1,0 +1,15 @@
+{
+  "digest": "e581e60b8f22a437eeae3d94bcc52de6af943b672766c1fceda894e8e4bb5d6a",
+  "event_id": "e581e60b8f22a437",
+  "evidence": [
+    "docs/pal/pal-ark-workbench-architecture-plan.md:553"
+  ],
+  "lesson_id": "L-4e57f81504",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.002723Z",
+  "schema_version": 1,
+  "scope": "pal",
+  "text": "``` approved \u2192 success pending \u2192 warning rejected \u2192 danger overdue \u2192 danger draft \u2192 neutral started \u2192 success ongoing \u2192 success ```",
+  "type": "propose"
+}

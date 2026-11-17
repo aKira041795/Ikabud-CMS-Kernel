@@ -1,0 +1,15 @@
+{
+  "digest": "87199d70271c99020c81c262a4c608959ff707f97f099904c75249bee6311a16",
+  "event_id": "87199d70271c9902",
+  "evidence": [
+    "docs/workbench/competitive-roadmap.md:22"
+  ],
+  "lesson_id": "L-663061596b",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.609833Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Its competitive advantage is module honesty: a module must not declare navigation, authority, workflows, effects, or release readiness that it cannot serve and prove.",
+  "type": "propose"
+}

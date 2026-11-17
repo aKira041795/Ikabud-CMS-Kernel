@@ -1,0 +1,15 @@
+{
+  "digest": "b84f8e6ded6216bf3dd79d4083869cd5ff5d8a7ce561d25a5809438eb959e82d",
+  "event_id": "b84f8e6ded6216bf",
+  "evidence": [
+    "docs/reviews/production-deployment-readiness-assessment-2026-08-05.md:694"
+  ],
+  "lesson_id": "L-44c0e2a5da",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.498262Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "> **Next review:** After the follow-up regression test run completes, re-verify > D1-D7 and K1-K7 against the DiSyL + kernel test suites, then close out the > remaining scheduled architectural item (P4-1 \u2014 interpreted-pipeline removal; > D8 and P4-3 are done as of 2026-08-06). > **Signed:** Automated code review + remediation \u2014 August 5, 2026",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "612c5bc56acec999eab140754f6fe6c60f643578cd61d198a710c698dc8c962f",
+  "event_id": "612c5bc56acec999",
+  "evidence": [
+    "docs/reviews/perf-metrics-2026-10-10.md:443"
+  ],
+  "lesson_id": "L-955edb3400",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.409019Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Request phase: render not measured Request phase: shutdown not measured",
+  "type": "propose"
+}

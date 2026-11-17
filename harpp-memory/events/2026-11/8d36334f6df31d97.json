@@ -1,0 +1,15 @@
+{
+  "digest": "8d36334f6df31d97f99b6a718163961610047cca44ca96e0b6c6c980f122ffe2",
+  "event_id": "8d36334f6df31d97",
+  "evidence": [
+    "docs/reviews/mobile-api-platform-implementation-plan-2026-07-10.md:400"
+  ],
+  "lesson_id": "L-d12b428a6e",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.287902Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "/** * Error: nested \"error\" object for extensibility. */ public static function error( string $code, string $message, int $status = 400, mixed $details = null ): never { $error = ['code' => $code, 'message' => $message]; if ($details !== null) { $error['details'] = $details; } self::emit(['ok' => false, 'error' => $error], $status); }",
+  "type": "propose"
+}

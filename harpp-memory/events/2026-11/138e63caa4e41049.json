@@ -1,0 +1,15 @@
+{
+  "digest": "138e63caa4e410496dd8e5ae86ec6e2c34de6bf25161da512169fec7f432af39",
+  "event_id": "138e63caa4e41049",
+  "evidence": [
+    "docs/reviews/ark-workbench-comprehension-architecture-review-and-plan-2026-07-16.md:144"
+  ],
+  "lesson_id": "L-f54f78e732",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.151976Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "The deterministic engine must report the first **observed failure**, not the first absent key. Unobserved steps reduce coverage confidence but must not train failure probability.",
+  "type": "propose"
+}

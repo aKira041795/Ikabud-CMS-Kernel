@@ -1,0 +1,15 @@
+{
+  "digest": "f9e26169cad42cf28a713d93f4f13978446240bd0069539f73b63817b01a4fb6",
+  "event_id": "f9e26169cad42cf2",
+  "evidence": [
+    "docs/evaluations/daily-ledger-load-and-concurrency-2026-09-16.md:83"
+  ],
+  "lesson_id": "L-010a2d4205",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.446115Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "Note the shape: the probe returns **31 bytes** for ~379 ms of PHP worker time \u2014 the cost is almost entirely the per-request kernel bootstrap, not the payload.",
+  "type": "propose"
+}

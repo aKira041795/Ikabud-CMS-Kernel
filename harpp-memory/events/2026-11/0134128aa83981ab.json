@@ -1,0 +1,15 @@
+{
+  "digest": "0134128aa83981abd95d8ac9f5c9a41f776db0d038e633553f6d8cd6d1b8c065",
+  "event_id": "0134128aa83981ab",
+  "evidence": [
+    "docs/kernel/module-development-guide.md:1437"
+  ],
+  "lesson_id": "L-f5b2c16300",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.743826Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Stored in `tenant_module_settings` with a `_`-prefixed key (e.g. `_module_enabled`, `_installed_submodules`). - **Automatically stripped** by `getModuleSettings()` \u2014 code consuming settings via that function will never see them. - **Never accessed directly** by module business logic; only via dedicated kernel APIs (`isModuleEnabled()`, `_cmsGetRegisteredSubModules()`, etc.).",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "7a140d84cc5498167f05e886202d96ea4ebc08c0ea15b90ff6046d8c87ab8bb8",
+  "event_id": "7a140d84cc549816",
+  "evidence": [
+    "docs/reviews/perf-metrics-2026-10-10.md:196"
+  ],
+  "lesson_id": "L-890c22c103",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.391289Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "This reading was taken from a page whose row list is hardcoded in `src/http/page-handlers.php`, so the new `Boot: -> require block` and `Route match: sort` rows do not appear in it and cannot tell us whether the instrumentation shipped. After redeploying, those rows prove it themselves: **values present = kernel changes live; \"not measured\" = they are not.**",
+  "type": "propose"
+}

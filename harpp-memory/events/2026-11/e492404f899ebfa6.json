@@ -1,0 +1,15 @@
+{
+  "digest": "e492404f899ebfa61bb2067e6cfd9e17974aa6166bf09eb709a98af98f8e3649",
+  "event_id": "e492404f899ebfa6",
+  "evidence": [
+    "docs/workbench/deepseek-v4-ark-workbench-improvement-instructions.md:105"
+  ],
+  "lesson_id": "L-b44f2834eb",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.627881Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Exit condition: the Superadmin report shows measured calibration status, not a subjective AI-quality label.",
+  "type": "propose"
+}

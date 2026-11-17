@@ -1,0 +1,15 @@
+{
+  "digest": "dea902db35221af930040be2c0e0fe5495fd5b9efd7516b2fad40aa6e2c211f3",
+  "event_id": "dea902db35221af9",
+  "evidence": [
+    "docs/pal/ark-workbench-reference-guide.md:526"
+  ],
+  "lesson_id": "L-8f4dc7dac2",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.934200Z",
+  "schema_version": 1,
+  "scope": "pal",
+  "text": "Focus trap: Tab/Shift+Tab cycle within dialog - Escape closes - `aria-modal=\"true\"`, `aria-labelledby` pointing to title - Focus restored to trigger element on close - Alert variant: destructive action styling - Confirm variant: requires explicit confirm/cancel",
+  "type": "propose"
+}

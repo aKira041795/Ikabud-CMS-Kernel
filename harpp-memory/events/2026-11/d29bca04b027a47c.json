@@ -1,0 +1,15 @@
+{
+  "digest": "d29bca04b027a47c75ac9fbda2d7bda0d6ef7beeb28561b94425267030dcf583",
+  "event_id": "d29bca04b027a47c",
+  "evidence": [
+    "docs/workbench/scenario-and-test-data-engine.md:15"
+  ],
+  "lesson_id": "L-d90fd25255",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.650137Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "No scenario may contain arbitrary SQL or shell commands. Workbench consumes module-owned providers through `workbench.scenario.describe@1`, `seed@1`, `verify@1`, and `cleanup@1`. The built-in JSON sandbox remains an explicit `--provider=sandbox` fallback for modules that do not yet expose the capability contract.",
+  "type": "propose"
+}

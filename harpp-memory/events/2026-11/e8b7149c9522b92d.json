@@ -1,0 +1,15 @@
+{
+  "digest": "e8b7149c9522b92d2363b91a9592213e3d88b6bee3c8f57f4332454e914a0772",
+  "event_id": "e8b7149c9522b92d",
+  "evidence": [
+    "docs/workbench/ai-pattern-intelligence-roadmap.md:591"
+  ],
+  "lesson_id": "L-4743891311",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.598127Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "The phase regression suite is `tests/workbench_ai_pattern_intelligence_test.php`. It currently passes 18/18 assertions, including the gap discovered during integration where an empty verified-case set previously caused a latent-risk crash.",
+  "type": "propose"
+}

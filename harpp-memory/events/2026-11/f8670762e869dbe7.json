@@ -1,0 +1,15 @@
+{
+  "digest": "f8670762e869dbe70e4c19928a95727975952687294cdf92621b2da0676bb702",
+  "event_id": "f8670762e869dbe7",
+  "evidence": [
+    "docs/daily-ledger/HANDOFF-2026-10-11.md:340"
+  ],
+  "lesson_id": "L-6c40c8cecd",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.295698Z",
+  "schema_version": 1,
+  "scope": "daily-ledger",
+  "text": "`e2ba1e76` had made the denominator \"the days the BRANCH recorded that shift\", which counted a product with no row on a traded day as a measured zero \u2014 the opposite.",
+  "type": "propose"
+}

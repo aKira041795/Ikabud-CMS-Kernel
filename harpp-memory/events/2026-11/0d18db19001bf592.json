@@ -1,0 +1,15 @@
+{
+  "digest": "0d18db19001bf5924c7e097181e4f43778d2f1f45735cdb9cdac40a63f858b92",
+  "event_id": "0d18db19001bf592",
+  "evidence": [
+    "docs/reviews/application-kernel-os-review-2026.md:44"
+  ],
+  "lesson_id": "L-a5dc018d3d",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.145898Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "5. Operationally useful observability primitives - Request ID propagation and centralized log writing are built into bootstrap/runtime. - Capability telemetry and breaker state provide actionable health insight.",
+  "type": "propose"
+}

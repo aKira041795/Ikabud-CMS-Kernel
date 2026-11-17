@@ -1,0 +1,15 @@
+{
+  "digest": "7447766cdbb9667975d9618c11b9b12938508931c0fb4331767bb0bf47bf7250",
+  "event_id": "7447766cdbb96679",
+  "evidence": [
+    "docs/reviews/aiss-architecture-audit-2026-07-24.md:230"
+  ],
+  "lesson_id": "L-a8b5ed916f",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.141295Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": ": `assembleMatchedPassages()` builds passage arrays with `'source_title' => ''` and `'source_author' => ''` but never fills them. By contrast, `buildSpans()` correctly populates these fields from the source cache.",
+  "type": "propose"
+}

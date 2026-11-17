@@ -1,0 +1,15 @@
+{
+  "digest": "74568ab5002ffab41ed79b5ff6841cb934baf27d35e52a66ffc6cf908ebc30a9",
+  "event_id": "74568ab5002ffab4",
+  "evidence": [
+    ".github/instructions/ai-development-execution-handoff.instructions.md:798"
+  ],
+  "lesson_id": "L-5ce7fc4c26",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.955428Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "architecture compliance; - scope compliance; - module/domain ownership; - contract preservation; - security; - concurrency; - idempotency; - integration boundaries; - unintended coupling; - regression risk; - acceptance criteria; - test adequacy.",
+  "type": "propose"
+}

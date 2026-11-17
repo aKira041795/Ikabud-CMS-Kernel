@@ -1,0 +1,15 @@
+{
+  "digest": "0b209f22188535d431a7f993f3fa3f7470d9f69faedd6a199a8187c7e108f010",
+  "event_id": "0b209f22188535d4",
+  "evidence": [
+    "docs/cms/cms-modularization-execution-plan.md:7"
+  ],
+  "lesson_id": "L-02c9c54f55",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.219180Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "Execution Principle Do not treat this as a single release refactor. Implement one phase at a time with hard gates and rollback before advancing.",
+  "type": "propose"
+}

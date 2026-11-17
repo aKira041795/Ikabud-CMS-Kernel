@@ -1,0 +1,15 @@
+{
+  "digest": "cec638dbb39716912e71b1f9157c0771291de4d7548d8f8adefeae50f3666be4",
+  "event_id": "cec638dbb3971691",
+  "evidence": [
+    "docs/daily-ledger/sweep-baseline.md:3"
+  ],
+  "lesson_id": "L-92a2fb0411",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.325042Z",
+  "schema_version": 1,
+  "scope": "daily-ledger",
+  "text": "Recorded by the preservation lane that restored the lost auto-DR offline guard (2026-10-01). The point of this file is that a future lane compares against numbers that were **measured**, across **all** daily-ledger suites, not the 37-and-one-format subset the earlier sweeps used.",
+  "type": "propose"
+}

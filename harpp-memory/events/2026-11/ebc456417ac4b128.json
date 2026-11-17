@@ -1,0 +1,15 @@
+{
+  "digest": "ebc456417ac4b128cdf1159bcd2b7a9472e1e1e6bd267fafdaee171d90ef392a",
+  "event_id": "ebc456417ac4b128",
+  "evidence": [
+    "docs/workbench/guidance-showcase.md:63"
+  ],
+  "lesson_id": "L-9a171ca421",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.647381Z",
+  "schema_version": 1,
+  "scope": "guidance",
+  "text": "Use `workbench:explain` with the emitted run ID when a run is blocked, fails, or times out. Contract failure remains a release blocker; missing browser infrastructure is environment evidence, never converted into a passing result.",
+  "type": "propose"
+}

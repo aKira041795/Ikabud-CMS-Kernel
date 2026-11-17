@@ -1,0 +1,15 @@
+{
+  "digest": "f7f937355dded9aad9f2aac294428644290922b208ebed1be2fae7c019d2bb31",
+  "event_id": "f7f937355dded9aa",
+  "evidence": [
+    "docs/reviews/cms-page-builder-review-2026-10-10.md:302"
+  ],
+  "lesson_id": "L-646b6349f2",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.211020Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "Live builder page under ARK \u2014 `/cms/page/ark` (owner report, 2026-10-10)",
+  "type": "propose"
+}

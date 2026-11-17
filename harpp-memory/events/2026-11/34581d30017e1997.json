@@ -1,0 +1,15 @@
+{
+  "digest": "34581d30017e19974784a1add32e43ac917895de4eeb50cf595cace0ea388f13",
+  "event_id": "34581d30017e1997",
+  "evidence": [
+    "docs/kernel/6.3-settings-contract-spec-2026-10-12.md:40"
+  ],
+  "lesson_id": "L-b78bfed803",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.535718Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "**Ruling (chair):** adopt an optional per-field declaration `blank_means: inherit | value | reject` \u2014 but **do not change runtime behavior from it in this cycle**; the annotation describes existing behavior, it does not authorize changing it.",
+  "type": "propose"
+}

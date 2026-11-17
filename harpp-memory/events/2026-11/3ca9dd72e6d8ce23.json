@@ -1,0 +1,15 @@
+{
+  "digest": "3ca9dd72e6d8ce23bfcb62a98152ddf8188691a8a055bf625586948abcedf704",
+  "event_id": "3ca9dd72e6d8ce23",
+  "evidence": [
+    "docs/architecture/decisions/ADR-001-module-communication.md:78"
+  ],
+  "lesson_id": "L-b03568a902",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.159139Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Event-driven communication (events only) **Rejected for request/response patterns** \u2014 Events are fire-and-forget. Many cross-module interactions need a synchronous response (e.g., \"is this SKU in stock?\"). Events remain the pattern for asynchronous side effects.",
+  "type": "propose"
+}

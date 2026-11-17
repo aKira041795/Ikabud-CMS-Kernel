@@ -1,0 +1,15 @@
+{
+  "digest": "4f681cfcf3191481180fd24d3a47bd9d5b131fbd05a72113c0f264a7b90b7463",
+  "event_id": "4f681cfcf3191481",
+  "evidence": [
+    ".github/instructions/ui-ux-conventions.instructions.md:93"
+  ],
+  "lesson_id": "L-0d25b1a158",
+  "proposed_by": "harvest",
+  "reason": "ui-ux",
+  "recorded_at": "2026-11-17T13:22:44.994721Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Measured trap Placing a trigger beside \"Print Daily Sheet\" in a flex bar let the bar wrap and drop Print alone onto the next row: adjacent in the DOM, never adjacent on screen. Group such a pair as **one flex item** so they move together.",
+  "type": "propose"
+}

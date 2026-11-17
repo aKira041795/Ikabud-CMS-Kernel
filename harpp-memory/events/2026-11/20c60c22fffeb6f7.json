@@ -1,0 +1,15 @@
+{
+  "digest": "20c60c22fffeb6f7eb80e0009f6a639abe15278ca8c493119822ffcf968d9720",
+  "event_id": "20c60c22fffeb6f7",
+  "evidence": [
+    "docs/kernel/boundary-violations-backlog.md:9"
+  ],
+  "lesson_id": "L-1a2d687f24",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.560590Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Run `php ikabud architecture:check` after each significant code change. Any new violation must be added here with an owner and sprint target before merging. Existing violations must not regress.",
+  "type": "propose"
+}

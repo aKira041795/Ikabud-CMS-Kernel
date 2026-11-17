@@ -1,0 +1,15 @@
+{
+  "digest": "31b202b363cdbb43c6b1b9496635815ab9670fa50e2148c5d997643f3bf8450d",
+  "event_id": "31b202b363cdbb43",
+  "evidence": [
+    "docs/cms/entity-view-block-schema.md:745"
+  ],
+  "lesson_id": "L-de70cc734e",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.263397Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "The active theme customizer owns the final selected profile for public entity presentation. - A theme package may declare a default profile, but that is only a default. - If no customizer or default profile is declared, `default` applies. - Profiles that do not appear in this table are rejected at render time. - New profiles require a doc update here AND a kernel-level registration.",
+  "type": "propose"
+}

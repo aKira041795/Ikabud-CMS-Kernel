@@ -1,0 +1,15 @@
+{
+  "digest": "a4f47e7e2cb536395c0e7fea24859d481a1a1d8b3a239306c55fe304b2e82654",
+  "event_id": "a4f47e7e2cb53639",
+  "evidence": [
+    "docs/ehr/system-design-and-architecture-plan.md:518"
+  ],
+  "lesson_id": "L-26bbe9976f",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.386805Z",
+  "schema_version": 1,
+  "scope": "ehr",
+  "text": "\u2014 \u2705 done (commit `9b6ed00`: `_page_header`, `_kpi_strip`, `_empty_state`, `_workboard`, `_list_detail`, `_form_page`, `_report`, `_settings`, `_patient_chart_tabs` under `templates/modules/healthcare/ehr/partials/`) - Move every page onto layout archetypes (\u00a7E) - Visual regression suite for header / context bars - Accessibility audit (focus rings, contrast, keyboard nav)",
+  "type": "propose"
+}

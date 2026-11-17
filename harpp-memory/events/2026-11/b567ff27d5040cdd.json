@@ -1,0 +1,15 @@
+{
+  "digest": "b567ff27d5040cdd587b710a664143c66f6e406d58230c69197f280437f7be2e",
+  "event_id": "b567ff27d5040cdd",
+  "evidence": [
+    "docs/architecture/harpp-ui-phase1-contract.md:34"
+  ],
+  "lesson_id": "L-0516b40dad",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.174413Z",
+  "schema_version": 1,
+  "scope": "harpp",
+  "text": "One persistent, organized shell with a clear information architecture. - An overview surface so the owner sees system state without hopping between 8 pages. - Consistent component vocabulary across templates (no per-page invention). - Zero regressions to existing production flows (messenger, decisions, advisor, deploy).",
+  "type": "propose"
+}

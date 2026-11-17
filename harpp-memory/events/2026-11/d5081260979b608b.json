@@ -1,0 +1,15 @@
+{
+  "digest": "d5081260979b608b353602c61b6941a142e4b94aaf45c7a69dd09bdf391e7c75",
+  "event_id": "d5081260979b608b",
+  "evidence": [
+    "docs/pal/ark-workbench-reference-guide.md:334"
+  ],
+  "lesson_id": "L-93e8af6061",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.921723Z",
+  "schema_version": 1,
+  "scope": "pal",
+  "text": "PAL or a localization service produces `formatted`. Workbench never performs currency formatting or locale decisions.",
+  "type": "propose"
+}

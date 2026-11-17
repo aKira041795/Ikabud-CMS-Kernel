@@ -1,0 +1,15 @@
+{
+  "digest": "eec83a652ed15c643828ec5976263f30b70b52b5aebcd81641e1819d50a62a1d",
+  "event_id": "eec83a652ed15c64",
+  "evidence": [
+    ".github/instructions/ai-development-execution-handoff.instructions.md:257"
+  ],
+  "lesson_id": "L-7e79d81954",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.936491Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "`tools/model-chain.txt` holds three models in fallback order, so one exhausted provider cannot stop the work (measured 2026-10-03: a two-model lane stopped dead when both providers were unavailable; a short chain now warns at the moment of the defect). See `docs/engineering/lane-harness-issue.md` for the evidence and the checks that prove both directions.",
+  "type": "propose"
+}

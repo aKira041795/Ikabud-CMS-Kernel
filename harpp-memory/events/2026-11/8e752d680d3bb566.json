@@ -1,0 +1,15 @@
+{
+  "digest": "8e752d680d3bb5661a5ba4bc713bf7ddfa86236e21bd0942685b3cbec30fb7d4",
+  "event_id": "8e752d680d3bb566",
+  "evidence": [
+    "docs/daily-ledger/android-integration.md:68"
+  ],
+  "lesson_id": "L-edffac6c4e",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.313386Z",
+  "schema_version": 1,
+  "scope": "daily-ledger",
+  "text": "These endpoints accept the same bearer-token / cookie auth as the rest of the module and are tenant-scoped. They never serve the offline shell to APIs or unrelated routes, and they do not affect the Android Retrofit contract.",
+  "type": "propose"
+}

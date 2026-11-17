@@ -1,0 +1,15 @@
+{
+  "digest": "67768ead9069aa29ca3c1d1d2cbc1239080b8c2f7c5e876c04bb4669e0bf9958",
+  "event_id": "67768ead9069aa29",
+  "evidence": [
+    ".github/instructions/ai-development-execution-handoff.instructions.md:154"
+  ],
+  "lesson_id": "L-c38fe95ad8",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.927471Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "Do NOT dispatch Sol for repetitive repair loops, bulk mechanical edits, or routine test execution.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "e86b08ca7f6f0c2776fabfd7eebbda606ade005daac84c1b6ccacb5aa8e1e584",
+  "event_id": "e86b08ca7f6f0c27",
+  "evidence": [
+    "docs/kernel/disyl-development-workflow.md:161"
+  ],
+  "lesson_id": "L-486b9e2120",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.617783Z",
+  "schema_version": 1,
+  "scope": "workflow",
+  "text": "\u2014 append to `.env`. It must be `.env`: `bootstrap.php` loads that file per request via `putenv()`, so a shell variable does **not** reach php-fpm.",
+  "type": "propose"
+}

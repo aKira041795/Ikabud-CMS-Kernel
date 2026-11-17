@@ -1,0 +1,15 @@
+{
+  "digest": "e34ec1fb46d1f111f43038b621ee84903110d020cb045c0432bffb280426da3d",
+  "event_id": "e34ec1fb46d1f111",
+  "evidence": [
+    "docs/evaluations/ikabud-kernel-action-plan-2026-04-10.md:193"
+  ],
+  "lesson_id": "L-b21cc2dd85",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.464066Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "extract request bootstrap helpers from `public/index.php` into dedicated files under `src/http/` - extract core route registration arrays into dedicated route builder files - move large inline admin and superadmin handlers out of the front controller - keep `public/index.php` as the composition root that wires these pieces together - preserve existing route paths and auth behavior exactly",
+  "type": "propose"
+}

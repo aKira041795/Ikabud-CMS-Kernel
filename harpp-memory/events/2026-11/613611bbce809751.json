@@ -1,0 +1,15 @@
+{
+  "digest": "613611bbce809751f2e3a686ad171755ee4b01e42bc52f428e5bde9e9218a8c7",
+  "event_id": "613611bbce809751",
+  "evidence": [
+    "docs/workbench/system-analyst-pipeline.md:162"
+  ],
+  "lesson_id": "L-bf5d987cdf",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.663044Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "The focused four-page inventory returned zero unnamed controls. Full run `20260716080334-29848ff7` then scored 100/100, improved 52 points over the unchanged baseline, passed the 80-point gate, and reported zero UX penalty in every measured category.",
+  "type": "propose"
+}

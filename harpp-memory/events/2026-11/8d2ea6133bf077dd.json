@@ -1,0 +1,15 @@
+{
+  "digest": "8d2ea6133bf077ddc3113b4afaf92d097398a83e06da4bd403e08e6e6fbfa6cb",
+  "event_id": "8d2ea6133bf077dd",
+  "evidence": [
+    "docs/releases/release-notes-2026-04-16-disyl-performance.md:42"
+  ],
+  "lesson_id": "L-ff4ad6ec33",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.096694Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Measured under concurrent multi-tenant load (100 requests, 12 workers, 4 tenants):",
+  "type": "propose"
+}

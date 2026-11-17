@@ -1,0 +1,15 @@
+{
+  "digest": "acee2310cfe104221a5bb57a468339ae6408cdbea3bfba2b9b22aa6759c72818",
+  "event_id": "acee2310cfe10422",
+  "evidence": [
+    "docs/modules/ticketing.md:67"
+  ],
+  "lesson_id": "L-a8a98444cc",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.878884Z",
+  "schema_version": 1,
+  "scope": "ticketing",
+  "text": "1. Capability contract checks for `entity.list.ticket@1` and `entity.get.ticket@1`. 2. CMS entity-list rendering integration for ticket table/compact contracts. 3. Public submit + attachment flow regressions.",
+  "type": "propose"
+}

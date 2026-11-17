@@ -1,0 +1,15 @@
+{
+  "digest": "c26ccb182bd5f19d00c5267a90e73ee0adaebe5dc857c2f15c882abd02609e29",
+  "event_id": "c26ccb182bd5f19d",
+  "evidence": [
+    "docs/case-studies/dc-cafe-standalone-analysis.md:27"
+  ],
+  "lesson_id": "L-b8578970e0",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.195008Z",
+  "schema_version": 1,
+  "scope": "dc-cafe",
+  "text": "**Framework**: CodeIgniter 4 (PHP 7.4+/8.x) - **Database**: MySQL 5.7 (Bluehost shared hosting) \u2014 `jbakeshop_live` - **Frontend**: Server-rendered Bootstrap 5 views, jQuery, vanilla JS - **QR Codes**: phpqrcode library, PNG generation - **No**: REST API, SPA, offline support, mobile app, WebSocket/push",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "2a5a70235b1703d5f69a191a853a8495304e50779b1f977d05499baa48d6a787",
+  "event_id": "2a5a70235b1703d5",
+  "evidence": [
+    "docs/releases/release-notes-2026-10-04-daily-ledger-verified-settlement.md:97"
+  ],
+  "lesson_id": "L-a7cb6c88f6",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.111965Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "`bal_end === null` \u2192 provisional - `shift_status === null` \u2192 provisional **only when the shift is `PM`** \u2014 this preserves history: AM rows written before shift rows existed have a recorded ending and stay official (measured: 3,149 rows / 20,680 units) - otherwise \u2192 `shift_status !== 'finalized'`",
+  "type": "propose"
+}

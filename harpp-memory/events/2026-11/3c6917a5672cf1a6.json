@@ -1,0 +1,15 @@
+{
+  "digest": "3c6917a5672cf1a66981490edf900fa8dac80022c637a3acd5ae1188f9a67d24",
+  "event_id": "3c6917a5672cf1a6",
+  "evidence": [
+    "docs/evaluations/stress-and-load-test-findings-2026-04-16.md:316"
+  ],
+  "lesson_id": "L-bae19c8b38",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.515385Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "To translate our measured performance to Bluehost shared hosting, we apply these factors:",
+  "type": "propose"
+}

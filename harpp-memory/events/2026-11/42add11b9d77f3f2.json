@@ -1,0 +1,15 @@
+{
+  "digest": "42add11b9d77f3f26fb752c7d9ab56758064e2c62cd7b71ba8a8c29154484be1",
+  "event_id": "42add11b9d77f3f2",
+  "evidence": [
+    "docs/pal/ark-workbench-reference-guide.md:1094"
+  ],
+  "lesson_id": "L-708d93f48a",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.965881Z",
+  "schema_version": 1,
+  "scope": "pal",
+  "text": "```typescript test('dialog traps focus', async ({ page }) => { await page.goto('/admin/project-audit-ledger'); await page.click('[data-testid=\"open-dialog\"]');",
+  "type": "propose"
+}

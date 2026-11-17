@@ -1,0 +1,15 @@
+{
+  "digest": "35a4443c86206277d32292067d1695506e4cfb60b9c44ea5935e0ba2c4fee44f",
+  "event_id": "35a4443c86206277",
+  "evidence": [
+    "docs/architecture/aiss-capability-contracts.md:107"
+  ],
+  "lesson_id": "L-ec80b320a3",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.154188Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "1. Call capabilities through the capability bus (`app()->capabilities()->call(...)`) 2. Record the capability ID and version in evidence snapshots 3. Never interpret AISS output as a decision (passed/failed/plagiarism) 4. Store machine output and human interpretation in separate columns 5. Handle AISS unavailability gracefully (non-blocking) 6. Display feature maturity metadata to reviewers",
+  "type": "propose"
+}

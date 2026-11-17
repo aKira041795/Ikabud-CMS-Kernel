@@ -1,0 +1,15 @@
+{
+  "digest": "df8fd3d0d0faa8367a1f0fb3b8a5dccef5db001be13f90d4e99469c7cc916c74",
+  "event_id": "df8fd3d0d0faa836",
+  "evidence": [
+    "docs/workbench/ai-pattern-intelligence-roadmap.md:303"
+  ],
+  "lesson_id": "L-4981de7a84",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.579809Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "The response is rejected when it contains invalid evidence IDs, unobserved entity IDs, unknown routes, unsupported numeric claims, actions above the configured authority, or invalid schema.",
+  "type": "propose"
+}

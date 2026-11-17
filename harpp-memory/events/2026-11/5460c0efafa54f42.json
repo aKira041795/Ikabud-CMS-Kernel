@@ -1,0 +1,15 @@
+{
+  "digest": "5460c0efafa54f42055495350ffd8a9f3afb8e24e832d6fcba566ee0c64e4e29",
+  "event_id": "5460c0efafa54f42",
+  "evidence": [
+    "docs/cms/disyl-implementation-spec.md:832"
+  ],
+  "lesson_id": "L-2137667cc9",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.253498Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "> **Shared output cache must not compete with handler-level cache; conflicts must log warnings.**",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "051518b2b7d8adb192938578dad662264744d5b07e562ee4d197f0d8b8989276",
+  "event_id": "051518b2b7d8adb1",
+  "evidence": [
+    "docs/architecture/decisions/ADR-006-registration-implementation-separation.md:113"
+  ],
+  "lesson_id": "L-22579aeb8f",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.165982Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "So **32.16 ms \u2014 69% of the framework \u2014 still sits in three components this work never examined** (boot 14.37, module discovery 10.59, route match 7.21). That remains a better place to look than anything in this ADR.",
+  "type": "propose"
+}

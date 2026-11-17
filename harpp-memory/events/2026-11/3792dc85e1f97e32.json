@@ -1,0 +1,15 @@
+{
+  "digest": "3792dc85e1f97e32dad2b6ee5a207d8b10b80a81b8c6eea7bd01392dbd96cf96",
+  "event_id": "3792dc85e1f97e32",
+  "evidence": [
+    "docs/reviews/mobile-offline-db-readiness-review-2026-07-10.md:34"
+  ],
+  "lesson_id": "L-f0bc0933d4",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.327567Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "API routes **bypass DiSyL entirely**. When a request hits `/api/v1/...`, the kernel routes to a PHP handler function that returns data structures \u2014 DiSyL is never invoked.",
+  "type": "propose"
+}

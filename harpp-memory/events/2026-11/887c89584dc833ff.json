@@ -1,0 +1,15 @@
+{
+  "digest": "887c89584dc833ffd4f84ecbb2c5cf5ba8aed1c559f8864adc97515fb5293bed",
+  "event_id": "887c89584dc833ff",
+  "evidence": [
+    "docs/pal/pal-ark-workbench-architecture-plan.md:1411"
+  ],
+  "lesson_id": "L-a092cd68e9",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.031817Z",
+  "schema_version": 1,
+  "scope": "pal",
+  "text": "1. **Do not expose** locked properties in the Theme Studio form at all. 2. **Reject** them if submitted manually (API defense). 3. **Validate again** during profile activation. 4. **Normalize** them during rendering as a final safety layer.",
+  "type": "propose"
+}

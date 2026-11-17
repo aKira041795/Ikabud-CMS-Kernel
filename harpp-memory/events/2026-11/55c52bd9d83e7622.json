@@ -1,0 +1,15 @@
+{
+  "digest": "55c52bd9d83e762226970358126140e4113b499b98fc0cd2c8b0a1db1df7eec5",
+  "event_id": "55c52bd9d83e7622",
+  "evidence": [
+    "docs/reviews/perf-metrics-2026-10-10.md:1259"
+  ],
+  "lesson_id": "L-c3de874f80",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.455301Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": ", and because the two probes make the question re-answerable in seconds. Falsifier that would reopen it: a live profile showing registration materially above the 7.65 ms measured here, or evidence that the concern files' side effects are order-insensitive and confined to operations rather than boot.",
+  "type": "propose"
+}

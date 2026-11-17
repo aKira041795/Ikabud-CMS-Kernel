@@ -1,0 +1,15 @@
+{
+  "digest": "61fe45771f291b51d7cb141282ba442e550dbbc39a7a1cd916128a2e804c3675",
+  "event_id": "61fe45771f291b51",
+  "evidence": [
+    "docs/evaluations/ikabud-kernel-refactor-baseline-2026-04-10.md:10"
+  ],
+  "lesson_id": "L-23061c9385",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.475917Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "| File | Lines | Primary risk | |---|---:|---| | `public/index.php` | 4962 | request lifecycle, routing, admin handlers, dispatch coupling | | `src/helpers/module-manager.php` | 4988 | discovery, settings, entitlements, catalog, migrations in one file | | `bootstrap.php` | 1888 | bootstrap and global runtime complexity | | `kernel/App.php` | 1636 | god-object pressure across DB, auth, render, tenancy |",
+  "type": "propose"
+}

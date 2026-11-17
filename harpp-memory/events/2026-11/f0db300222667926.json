@@ -1,0 +1,15 @@
+{
+  "digest": "f0db3002226679264d35c696689fe6e27b988a5350b2139d3505aedf747bbfa3",
+  "event_id": "f0db300222667926",
+  "evidence": [
+    "docs/agent/DECISIONS.md:67"
+  ],
+  "lesson_id": "L-40a31ea828",
+  "proposed_by": "harvest",
+  "reason": "decision",
+  "recorded_at": "2026-11-17T13:22:43.122177Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": ": - Deeply nested runtime loader \u2014 rejected: loader stays flat; relationships come from manifests. - WordPress-style plugin hierarchy \u2014 rejected: needs kernel-owned host contract enforcement. - No model (status quo) \u2014 rejected: cannot support suites as extensible product platforms.",
+  "type": "propose"
+}

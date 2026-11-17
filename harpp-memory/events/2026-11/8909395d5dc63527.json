@@ -1,0 +1,15 @@
+{
+  "digest": "8909395d5dc63527f574bc55f090ffe1ca483cf4b2ad3237bc3858885f14e7d0",
+  "event_id": "8909395d5dc63527",
+  "evidence": [
+    "docs/evaluations/ikabud-kernel-action-plan-2026-04-10.md:53"
+  ],
+  "lesson_id": "L-fe586a5f33",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.456798Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "`src/http/request-bootstrap.php` - `src/http/core-routes.php` - `src/http/dispatch.php` - `src/http/admin-handlers.php` - `src/http/superadmin-handlers.php`",
+  "type": "propose"
+}

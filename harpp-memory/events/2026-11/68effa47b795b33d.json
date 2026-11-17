@@ -1,0 +1,15 @@
+{
+  "digest": "68effa47b795b33db0361da6bc8147cd7ef8ae85b2ba957be47d9d329d7877a4",
+  "event_id": "68effa47b795b33d",
+  "evidence": [
+    ".github/instructions/disyl-grammar-gaps.instructions.md:4"
+  ],
+  "lesson_id": "L-09d69deeb6",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.962707Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Core directive **If DiSyL does not support a PHP syntax construct that a template needs, improve DiSyL at the engine/root level. Do NOT add template-level workarounds.** If DiSyL has gaps rendering from any programming language, update DiSyL, not the template.",
+  "type": "propose"
+}

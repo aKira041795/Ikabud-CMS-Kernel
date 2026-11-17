@@ -1,0 +1,15 @@
+{
+  "digest": "46b46a4d86978f91300a94a0b084b1175b7a1623451c64cfe9c778c809ea20dd",
+  "event_id": "46b46a4d86978f91",
+  "evidence": [
+    "docs/reviews/cms-user-review-2026.md:147"
+  ],
+  "lesson_id": "L-2310c2e714",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.238173Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "Interpretation: - Better than average for architecture discipline and long-term platform governance. - Competitive for core publishing + builder capability. - Still behind WordPress/Drupal/Strapi on ecosystem, hardening completeness, and integration maturity.",
+  "type": "propose"
+}

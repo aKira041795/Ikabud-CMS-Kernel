@@ -1,0 +1,15 @@
+{
+  "digest": "da9178ef0f4246b27450bb8bc2f28b501f712980b1dfef5822c0d56853405f92",
+  "event_id": "da9178ef0f4246b2",
+  "evidence": [
+    "docs/evaluations/daily-ledger-load-and-concurrency-2026-09-16.md:191"
+  ],
+  "lesson_id": "L-563727e7ac",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.448328Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "`CLOUD_PROBE_MS = 120000`, hidden tabs skip the probe entirely, returning to the tab probes immediately, and a 15 s tick drains queued work early (issuing no request at all when nothing is pending). The probe was confirmed to be a pure connectivity/sync heartbeat \u2014 it never repaints `day_status` into the UI \u2014 so slowing it down cannot make the cashier's view stale.",
+  "type": "propose"
+}

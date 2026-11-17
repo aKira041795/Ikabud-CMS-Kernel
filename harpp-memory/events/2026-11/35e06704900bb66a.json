@@ -1,0 +1,15 @@
+{
+  "digest": "35e06704900bb66a035de3eaa129f4ee24c73a821b1eca87acb944afc353bade",
+  "event_id": "35e06704900bb66a",
+  "evidence": [
+    "docs/archive/disyl-plans/disyl-4.3-plan.md:144"
+  ],
+  "lesson_id": "L-3b576672e0",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.181148Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "All tests pass. - New tables added to `migrations/`, marked `owns_tables` for `kernel` (or `co_owns_tables` if a module wants to read). - No regression on prior suites. - `php scripts/guard-module-manifests.php` still 0 / 0.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "4f7a9d64cb3d37e75877d239b2b8ffbaecaf99cfa8c0d24898b6f72f3359b1a1",
+  "event_id": "4f7a9d64cb3d37e7",
+  "evidence": [
+    "docs/daily-ledger/unfinalized-shift-sales-semantics.md:39"
+  ],
+  "lesson_id": "L-892d84bb76",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.341783Z",
+  "schema_version": 1,
+  "scope": "daily-ledger",
+  "text": "The **NULL-versus-recorded-zero principle and the anti-circularity rule apply to both**, but the data models and \u201csales\u201d meaning do not.",
+  "type": "propose"
+}

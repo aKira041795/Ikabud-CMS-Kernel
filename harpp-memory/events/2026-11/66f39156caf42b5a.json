@@ -1,0 +1,15 @@
+{
+  "digest": "66f39156caf42b5ace90bff1945c20469c67cf86808712c2ef1cf4f953da81a4",
+  "event_id": "66f39156caf42b5a",
+  "evidence": [
+    "docs/architecture/decisions/ADR-006-registration-implementation-separation.md:28"
+  ],
+  "lesson_id": "L-0ba92cc9cb",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.164171Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Measured on the live host (`/superadmin/perf`), before and after a deployment the same day:",
+  "type": "propose"
+}

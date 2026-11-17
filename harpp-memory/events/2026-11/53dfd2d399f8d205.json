@@ -1,0 +1,15 @@
+{
+  "digest": "53dfd2d399f8d205a76413f0549a5ca0c88bef1a4c28c3041b2c602b110bc6f9",
+  "event_id": "53dfd2d399f8d205",
+  "evidence": [
+    "docs/engineering/identity-and-role-drift-backlog.md:97"
+  ],
+  "lesson_id": "L-3c9e428f2c",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.412103Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "```bash php -r 'require \"bootstrap.php\"; foreach ([\"base\" => app()->db(), \"tenant\" => app()->dbForTenant(583)] as $l => $db) { $n = $db->query(\"SELECT DATABASE()\")->fetchColumn(); echo \"$l ($n): dc_users=\" . $db->query(\"SELECT COUNT(*) FROM dc_users\")->fetchColumn() . \"\\n\"; echo \" role enum: \" . $db->query(\"SHOW COLUMNS FROM dc_users LIKE \\\"role\\\"\")->fetch(PDO::FETCH_ASSOC)[\"Type\"] . \"\\n\"; }' | grep -v SECURITY ```",
+  "type": "propose"
+}

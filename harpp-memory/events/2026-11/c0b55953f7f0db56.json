@@ -1,0 +1,15 @@
+{
+  "digest": "c0b55953f7f0db566a0e582f04c72ce85ccfa3c3b3c4e2076aaf36be1afc9ffc",
+  "event_id": "c0b55953f7f0db56",
+  "evidence": [
+    "tests/disyl_v42_types_test.php:110"
+  ],
+  "lesson_id": "L-88bf3b0a92",
+  "proposed_by": "harvest",
+  "reason": "gate",
+  "recorded_at": "2026-11-17T13:22:45.407135Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "sub: object width (extra source props ok)",
+  "type": "propose"
+}

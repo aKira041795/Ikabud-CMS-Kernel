@@ -1,0 +1,15 @@
+{
+  "digest": "dd62751359ef68bf2ee6b4ac3b438783945a24e50d0ad0ee39d80815b2acfad8",
+  "event_id": "dd62751359ef68bf",
+  "evidence": [
+    "docs/pal/ark-workbench-reference-guide.md:383"
+  ],
+  "lesson_id": "L-0ecb307e97",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.931199Z",
+  "schema_version": 1,
+  "scope": "pal",
+  "text": "Badge always includes visible text. Tone is never communicated through color alone.",
+  "type": "propose"
+}

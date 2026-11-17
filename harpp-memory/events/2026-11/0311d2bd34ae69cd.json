@@ -1,0 +1,15 @@
+{
+  "digest": "0311d2bd34ae69cdcbe760b42e39b956f899c5c74ae5bcafe7d2ef22edd5db64",
+  "event_id": "0311d2bd34ae69cd",
+  "evidence": [
+    "docs/kernel/module-development-guide.md:558"
+  ],
+  "lesson_id": "L-85d1d0a62d",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.718922Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "If the tenant should receive that module's users/auth tables, the module must be selected in Admin > Tenants for that tenant. - If the module is intended to be provisioned for every tenant, make it part of the entry-module bundle or an explicit dependency path. - Do not rely on a hidden default; the tenant selection is the provisioning decision.",
+  "type": "propose"
+}

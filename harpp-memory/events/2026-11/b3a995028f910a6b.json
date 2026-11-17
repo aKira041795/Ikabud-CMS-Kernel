@@ -1,0 +1,15 @@
+{
+  "digest": "b3a995028f910a6b727049cc8cb3f8eb4687eb9de8404fa946a3d217053c9ff9",
+  "event_id": "b3a995028f910a6b",
+  "evidence": [
+    "docs/reviews/settings-change-stability-2026-10-11.md:22"
+  ],
+  "lesson_id": "L-ce6d8cdc34",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.499955Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Chair verdict (advice): **GO \u2014 retain architecture, strengthen contracts.** Architecture `KEEP` \u00b7 Manifest as schema authority `STRENGTHEN` \u00b7 Per-tenant override storage `KEEP` \u00b7 Type/default compatibility tests `PRIORITIZE` \u00b7 Setting evolution & migration `FORMALIZE` \u00b7 New generic settings framework `DO NOT BUILD YET`.",
+  "type": "propose"
+}

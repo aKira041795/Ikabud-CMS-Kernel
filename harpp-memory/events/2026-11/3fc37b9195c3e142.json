@@ -1,0 +1,15 @@
+{
+  "digest": "3fc37b9195c3e142e071db84e3cf05a8b4e4c65f2ac594c83ef3a7880f787157",
+  "event_id": "3fc37b9195c3e142",
+  "evidence": [
+    "docs/kernel/kernel-os-disyl-roadmap-status.md:660"
+  ],
+  "lesson_id": "L-f124e0c496",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.652923Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "> **DiSyL v11** (referenced in older docs as `docs/kernel/disyl-grammar-v11-planned-types.md`) was an experimental grammar expansion that was never implemented. The dead code was removed in 4.7.0. The archived plan remains for reference only \u2014 there are no active plans to pursue v11.",
+  "type": "propose"
+}

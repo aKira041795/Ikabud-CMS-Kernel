@@ -1,0 +1,15 @@
+{
+  "digest": "fa530625a506607d43b139fcd09d2cd7b001f8211311ec787c722c75d57d51f7",
+  "event_id": "fa530625a506607d",
+  "evidence": [
+    "docs/themes/ark-safety-policy.md:103"
+  ],
+  "lesson_id": "L-a9f6f1b44d",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.558416Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Default to escaped output. - Use `|raw` only for contract-approved content channels. - Keep template logic declarative; move imperative behavior into PHP or governed JS. - Never add direct persistence, session, or filesystem behavior to DiSyL templates. - When a safety exception is real, update `safety-policy.json`, documentation, and tests in the same patch.",
+  "type": "propose"
+}

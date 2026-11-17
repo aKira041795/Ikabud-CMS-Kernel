@@ -1,0 +1,15 @@
+{
+  "digest": "4858033b0ec9a2b68d20141aa35766909fde6c14fb4d7bdf4231e6fe189d43f8",
+  "event_id": "4858033b0ec9a2b6",
+  "evidence": [
+    "docs/kernel/module-quickstart.md:24"
+  ],
+  "lesson_id": "L-e0ade816ef",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.786601Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "`php ikabud make:module` is the only supported module scaffolder. The former `scripts/scaffold-module.php` entry point is a non-operational deprecation tombstone and must not be used by tooling or documentation.",
+  "type": "propose"
+}

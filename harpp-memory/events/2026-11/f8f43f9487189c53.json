@@ -1,0 +1,15 @@
+{
+  "digest": "f8f43f9487189c531368e71e92b3fdf2d172d35c3f660bb151917d55c3601075",
+  "event_id": "f8f43f9487189c53",
+  "evidence": [
+    "docs/reviews/sol-production-attribution-2026-10-11.md:421"
+  ],
+  "lesson_id": "L-8c379dacbf",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.512974Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Render branch 8 for 2026-09-01..2026-10-11: it must say \u201cSupplied by RIZAL-COMMIS\u201d and must not render \u201c0 produced\u201d as measured branch output.",
+  "type": "propose"
+}

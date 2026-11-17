@@ -1,0 +1,15 @@
+{
+  "digest": "2333ce04c0ff7fd74cbca48c3970e85bf3ac36efa370ab3d24cd3244d1545c18",
+  "event_id": "2333ce04c0ff7fd7",
+  "evidence": [
+    "docs/reviews/perf-metrics-2026-10-10/sol-brief-disyl-fallback-round2.md:49"
+  ],
+  "lesson_id": "L-3351b061ea",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.348055Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "`output-before.txt` is the committed baseline (555 templates, rendered on the tree with your changes stashed). It is the reference arm; do not regenerate it.",
+  "type": "propose"
+}

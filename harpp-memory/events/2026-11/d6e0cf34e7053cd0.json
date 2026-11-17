@@ -1,0 +1,15 @@
+{
+  "digest": "d6e0cf34e7053cd0ece2980a79e86ff7e7910cfea7c7755ddd1b83fdd6ac6d17",
+  "event_id": "d6e0cf34e7053cd0",
+  "evidence": [
+    "docs/pal/ark-workbench-reference-guide.md:1077"
+  ],
+  "lesson_id": "L-73b258b8b3",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.961559Z",
+  "schema_version": 1,
+  "scope": "pal",
+  "text": "This means: if source changes but tests don't update, the fingerprint mismatch is visible in the JSON output. No silent regressions. }",
+  "type": "propose"
+}

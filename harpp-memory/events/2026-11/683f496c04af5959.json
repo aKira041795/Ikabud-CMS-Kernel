@@ -1,0 +1,15 @@
+{
+  "digest": "683f496c04af595979bd056a75844c7bc2670dbf54a78a8964423cae32e081b4",
+  "event_id": "683f496c04af5959",
+  "evidence": [
+    "docs/kernel/migration-workflow.md:142"
+  ],
+  "lesson_id": "L-45c2e934f0",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.673974Z",
+  "schema_version": 1,
+  "scope": "workflow",
+  "text": "Never blindly `ALTER TABLE ... ADD COLUMN ... NOT NULL` on a populated table \u2014 the ALTER will fail or corrupt data if existing rows can't satisfy the constraint. Use one of:",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "ec911a5db324e3393ed7c41ddb4ba9a301fb18cdd0376816b98c4ac2f5aab89e",
+  "event_id": "ec911a5db324e339",
+  "evidence": [
+    "docs/reviews/mobile-offline-db-readiness-review-2026-07-10.md:115"
+  ],
+  "lesson_id": "L-a88700a657",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.330517Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Origins are explicitly allowlisted via `CORS_ORIGINS` env var (comma-separated). Mirrors the origin (never `*`) to support credentials. `Authorization` header is allowed \u2014 good for mobile Bearer tokens.",
+  "type": "propose"
+}

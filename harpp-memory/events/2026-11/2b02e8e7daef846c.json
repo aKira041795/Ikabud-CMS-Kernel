@@ -1,0 +1,15 @@
+{
+  "digest": "2b02e8e7daef846c52a3c0e78041014d31fb43a40c780888fcf41993b73e1e36",
+  "event_id": "2b02e8e7daef846c",
+  "evidence": [
+    "docs/reviews/baronledger-db-audit-2026-10-10/OPTIMIZE-RESULTS-2026-10-20.md:1"
+  ],
+  "lesson_id": "L-ec33d21c3f",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.164861Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "baronledger table optimisation \u2014 measured on the 2026-10-20 live import",
+  "type": "propose"
+}

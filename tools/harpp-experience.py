@@ -566,8 +566,15 @@ def hint_block(reason: str | None = None, max_chars: int = 1800,
                   and (not reason or h.get("reason") in (reason, "", None, "any"))]
     # Bounded working memory. A store of a thousand lessons must never become a thousand-line
     # prompt, so the ranking decides who reaches the lane rather than the file deciding.
-    candidates.sort(key=lambda h: float(h.get("activation") or 0.0), reverse=True)
+    #
+    # Order is module-scoped first, then activation. Without the scope term every rule sits at
+    # activation 1.0 until someone confirms or contradicts it, so "top 6" would be arbitrary and a
+    # module's own rules could lose to generic ones.
+    candidates.sort(key=lambda h: (0 if _scope_value(h) not in ("", "any") else 1,
+                                  -float(h.get("activation") or 0.0),
+                                  str(h.get("id") or "")))
     hints = candidates[:MEMORY_INJECT_LIMIT]
+    hidden = max(0, len(candidates) - len(hints))
     if hints:
         # A hint travels into an autonomous implementation prompt, so it must never read like
         # an instruction that could outrank the task. Only owner-authored text appears here;
@@ -579,6 +586,11 @@ def hint_block(reason: str | None = None, max_chars: int = 1800,
         for hint in hints:
             scope = hint.get("reason") or "any"
             lines.append(f"- [{scope}] {str(hint['text']).strip()}")
+        if hidden:
+            # Never let a cap look like the whole truth. The lane is told the set is larger and how
+            # to reach the rest, rather than quietly receiving six of twenty-four.
+            lines.append(f"- ({hidden} more recorded rule(s) not shown; `harpp-experience.py "
+                         f"memory search \"<topic>\"` retrieves them)")
     observed = [s for s in failure_signatures() if not reason or s["reason"] == reason][:3]
     if observed:
         # Counts only. Quoting a prior run's status line would feed model-authored text back
@@ -1076,7 +1088,11 @@ def cmd_memory_list(args) -> int:
     rows = load_lessons()
     if args.status:
         rows = [r for r in rows if _lesson_status(r) == args.status]
+    if getattr(args, "reason", None):
+        rows = [r for r in rows if str(r.get("reason")) == args.reason]
     rows.sort(key=lambda r: float(r.get("activation") or 0.0), reverse=True)
+    if getattr(args, "limit", 0):
+        rows = rows[: args.limit]
     if args.json:
         print(json.dumps(rows, indent=2))
         return 0
@@ -1176,25 +1192,117 @@ def _harvest_scope(path: Path) -> str:
             candidate = parts[index + 1]
             if (ROOT / "modules" / candidate).is_dir():
                 return candidate
+    # Instruction files name their subject in the filename; ui-ux rules govern every screen.
+    name = path.name.lower()
+    for module in sorted(p.name for p in (ROOT / "modules").iterdir() if p.is_dir()):
+        if module in name:
+            return module
     return "any"
 
 
-def _harvest_candidates(paths: list[Path]) -> list[dict]:
+def _harvest_reason(path: Path) -> str:
+    """Category, so a harvested rule can be filtered and reviewed by where it came from."""
+    name = path.name.lower()
+    if "ui-ux" in name or "template" in name:
+        return "ui-ux"
+    if name.startswith("decisions") or "decision" in name:
+        return "decision"
+    if "philosophy" in name or name.startswith("philosophy"):
+        return "principle"
+    return "harvested"
+
+
+def _harvest_clean(body: str) -> str:
+    """Strip the markdown scaffolding that a rule carries in its source document.
+
+    `### Measured trap` and `**How to verify:**` are document structure, not part of the rule, and
+    carrying them into a prompt makes a lesson read like a heading rather than a fact.
+    """
+    body = re.sub(r"^\s*#{1,6}\s*", "", body)
+    body = re.sub(r"^\s*\*\*[^*]{0,80}\*\*\s*", "", body)      # a bold lead-in label
+    body = re.sub(r"^\s*[-*+]\s+", "", body)
+    return " ".join(body.split()).strip()
+
+
+_HARVEST_FRAGMENT = re.compile(r"^(?:\s*:|\s*\d+\.\s|\s*and\s|\s*or\s|\s*•)", re.I)
+
+
+def _harvest_is_fragment(body: str) -> bool:
+    """Reject list debris that survived cleaning.
+
+    `: - Deeply nested runtime loader - rejected: ...` and `1. Measured: alignment ...` are tails of
+    a bulleted list, not standalone rules; approving one would put half a sentence in front of an
+    agent. Measured 2026-11-17: four of twenty decision/ui-ux candidates were this shape.
+    """
+    return bool(_HARVEST_FRAGMENT.match(body))
+
+
+def _harvest_test_candidates(paths: list[Path]) -> list[dict]:
+    """Assertion labels ARE experience, already compiled into a gate.
+
+    A test named "the producing commissary is never named as the corrector" is the same knowledge as
+    a lesson, but bound to an executable check. Reading them back into memory links the gate to the
+    experience that produced it, which is the compile direction of the three-loop design: an
+    approved lesson can later be retired as `compiled_as: <this test>`.
+    """
+    found: list[dict] = []
+    label_pattern = re.compile(
+        r"(?:->test|dlSubTest|\$h->test|assert(?:_equal|_same|_true)?\s*\()\s*"
+        r"'((?:[^'\\]|\\.){40,300})'", re.S)
+    for base in paths:
+        files = sorted(base.rglob("*Test.php")) + sorted(base.rglob("*_test.php"))
+        for path in files or ([base] if base.is_file() else []):
+            try:
+                text = path.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            for match in label_pattern.finditer(text):
+                label = _harvest_clean(match.group(1).replace("\\'", "'"))
+                if len(label) < 40 or label.lower().startswith("http"):
+                    continue
+                line_no = text.count("\n", 0, match.start()) + 1
+                try:
+                    relative = path.relative_to(ROOT)
+                except ValueError:
+                    relative = path
+                found.append({
+                    "text": label,
+                    "source": f"{relative}:{line_no}",
+                    "signals": ["test"],
+                    "scope": _harvest_scope(path),
+                    "reason": "gate",
+                })
+    return found
+
+
+def _harvest_candidates(paths: list[Path], kind: str = "docs") -> list[dict]:
     """Paragraphs that assert something durable, with file:line provenance."""
     found: list[dict] = []
     for base in paths:
-        files = sorted(base.rglob("*.md")) if base.is_dir() else [base]
+        if kind not in ("docs", "all"):
+            break
+        files = sorted(base.rglob("*.md")) if base.is_dir() else ([base] if base.suffix == ".md" else [])
         for path in files:
             try:
                 text = path.read_text(encoding="utf-8", errors="replace")
             except OSError:
                 continue
+            # YAML frontmatter is metadata, never a lesson: `description:` and `applyTo:` lines were
+            # the first two "rules" the naive extractor produced from an instruction file.
+            if text.startswith("---"):
+                end = text.find("\n---", 3)
+                if end != -1:
+                    text = text[end + 4:]
             offset = 0
             for block in re.split(r"\n\s*\n", text):
                 line_no = text.count("\n", 0, offset) + 1
                 offset += len(block) + 2
-                body = " ".join(block.split())
+                body = _harvest_clean(" ".join(block.split()))
                 if not (_HARVEST_MIN_CHARS <= len(body) <= _HARVEST_MAX_CHARS):
+                    continue
+                if body.startswith("---") or "applyTo:" in body or "description:" in body:
+                    continue
+                if _harvest_is_fragment(body):
                     continue
                 lowered = body.lower()
                 hits = [signal for signal in _HARVEST_STRONG if signal in lowered]
@@ -1209,6 +1317,7 @@ def _harvest_candidates(paths: list[Path]) -> list[dict]:
                     "source": f"{relative}:{line_no}",
                     "signals": hits,
                     "scope": _harvest_scope(path),
+                    "reason": _harvest_reason(path),
                 })
     return found
 
@@ -1248,7 +1357,9 @@ def cmd_harvest(args) -> int:
         print(f"harpp-experience: no such path: {', '.join(missing)}", file=sys.stderr)
         return 2
 
-    candidates = _harvest_candidates(targets)
+    candidates = _harvest_candidates(targets, args.kind)
+    if args.kind in ("tests", "all"):
+        candidates += _harvest_test_candidates(targets)
     if args.limit:
         # Highest-signal first, so a capped run takes the densest paragraphs.
         candidates.sort(key=lambda c: len(c["signals"]), reverse=True)
@@ -1270,7 +1381,7 @@ def cmd_harvest(args) -> int:
             continue
         _, created = write_memory_event("propose", lesson_id, {
             "text": text,
-            "reason": "harvested",
+            "reason": candidate["reason"],
             "scope": candidate["scope"],
             "evidence": [candidate["source"]],
             "proposed_by": "harvest" + (f":{args.model}" if args.llm else ""),
@@ -1871,6 +1982,8 @@ def _parser() -> argparse.ArgumentParser:
     contradict.set_defaults(func=cmd_memory_contradict)
     memory_list = memory_sub.add_parser("list", help="lessons ranked by activation")
     memory_list.add_argument("--status", choices=["active", "proposed", "retired"])
+    memory_list.add_argument("--reason", help="filter by harvest category (ui-ux, decision, gate, ...)")
+    memory_list.add_argument("--limit", type=int, default=0)
     memory_list.add_argument("--json", action="store_true")
     memory_list.set_defaults(func=cmd_memory_list)
     memory_verify = memory_sub.add_parser("verify", help="detect incompatible transitions")
@@ -1892,6 +2005,8 @@ def _parser() -> argparse.ArgumentParser:
     harvest.add_argument("--limit", type=int, default=0, help="cap the candidates taken")
     harvest.add_argument("--llm", action="store_true", help="refine each rule with a local model")
     harvest.add_argument("--model", default="qwen2.5-coder:3b", help="ollama model for --llm")
+    harvest.add_argument("--kind", choices=["docs", "tests", "all"], default="docs",
+                         help="docs = markdown prose, tests = assertion labels, all = both")
     harvest.add_argument("--dry-run", action="store_true", help="show candidates, write nothing")
     harvest.set_defaults(func=cmd_harvest)
 

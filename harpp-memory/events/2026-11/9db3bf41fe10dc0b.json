@@ -1,0 +1,15 @@
+{
+  "digest": "9db3bf41fe10dc0b8fa9d0410fbdc565aa50b0f1a98b8c1f8763e650683ec345",
+  "event_id": "9db3bf41fe10dc0b",
+  "evidence": [
+    "docs/pal/pal-ark-workbench-architecture-plan.md:545"
+  ],
+  "lesson_id": "L-d1b66f16ba",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.998173Z",
+  "schema_version": 1,
+  "scope": "pal",
+  "text": "| Tone | Meaning | Visual | |---|---|---| | `neutral` | Inactive, draft, informational | Gray | | `informational` | Note, reference, hint | Blue | | `warning` | Needs attention, pending, due soon | Yellow/amber | | `success` | Completed, approved, paid, active | Green | | `danger` | Rejected, overdue, error, blocked | Red |",
+  "type": "propose"
+}

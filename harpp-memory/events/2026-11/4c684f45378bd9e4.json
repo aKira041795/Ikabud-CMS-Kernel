@@ -1,0 +1,15 @@
+{
+  "digest": "4c684f45378bd9e49a2a45356af62f027fd21db3ecd3950bffce936d654f97bd",
+  "event_id": "4c684f45378bd9e4",
+  "evidence": [
+    ".github/instructions/ai-development-execution-handoff.instructions.md:94"
+  ],
+  "lesson_id": "L-2fcdb0b75e",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.924875Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "Do NOT consult it for mechanical refactoring, known dead-code deletion, routine test execution, formatting or lint, already-defined acceptance checks, or straightforward isolated fixes.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "c7f8fad33086775579c9df25f906933cd8a0f9529f5645ed4b3ca31bb7a519ce",
+  "event_id": "c7f8fad330867755",
+  "evidence": [
+    "docs/kernel/adopter-guide.md:95"
+  ],
+  "lesson_id": "L-3a43635dc9",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.548715Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "1. **Databases** \u2014 each tenant database individually + the control-plane database 2. **`storage/uploads/` directory** \u2014 uploaded media files (do not back up the entire `storage/` directory; compiled caches and logs are ephemeral) 3. **`.env` file** \u2014 contains database credentials and app key \u2014 **encrypt this backup separately** 4. **`config/` directory** \u2014 environment-specific configuration",
+  "type": "propose"
+}

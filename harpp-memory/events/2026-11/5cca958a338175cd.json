@@ -1,0 +1,15 @@
+{
+  "digest": "5cca958a338175cd2c4e3ff48175e27f92a2eb1448857de384fb3443bbe888cc",
+  "event_id": "5cca958a338175cd",
+  "evidence": [
+    "docs/cms/entity-view-block-schema.md:679"
+  ],
+  "lesson_id": "L-2dfe252486",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.261695Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "Theme packages MUST NOT freeform-rewrite structural layout for entity pages. The active theme customizer MAY select approved layout profiles and block variants. Theme styling MAY override tokens, border-radius, spacing, and typography through the design-token system.",
+  "type": "propose"
+}

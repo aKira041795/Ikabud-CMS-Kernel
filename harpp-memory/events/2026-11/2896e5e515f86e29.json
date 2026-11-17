@@ -1,0 +1,15 @@
+{
+  "digest": "2896e5e515f86e29056ca09dfa24c04986acff37cffa43263cb4004e0ee8e879",
+  "event_id": "2896e5e515f86e29",
+  "evidence": [
+    "docs/ai/harpp-memory.md:102"
+  ],
+  "lesson_id": "L-6a611bed9f",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.148321Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "Physical file isolation is not logical consistency: two branches can approve and retire the same lesson independently. `memory verify` reports `approved after it was retired`, `retired twice`, and signals recorded before their proposal. A merge must not silently pick a winner, because a memory nobody can trust is worse than no memory.",
+  "type": "propose"
+}

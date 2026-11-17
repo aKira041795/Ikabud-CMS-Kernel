@@ -1,0 +1,15 @@
+{
+  "digest": "fbfe280f17a2316530d029c7abbc64a75724a61ea419c71019136f651df14b7e",
+  "event_id": "fbfe280f17a23165",
+  "evidence": [
+    "docs/architecture/decisions/ADR-001-module-communication.md:81"
+  ],
+  "lesson_id": "L-2cc2e9d237",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.160277Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Shared kernel library **Rejected** \u2014 Would require all modules to depend on the shared library version. Upgrading the library forces all modules to upgrade simultaneously. Violates independent module versioning.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "e16749d6ea6b5f7489f3dfd08669fb5c35a29331b967a40233c7607f245fbd09",
+  "event_id": "e16749d6ea6b5f74",
+  "evidence": [
+    ".github/instructions/ui-ux-conventions.instructions.md:89"
+  ],
+  "lesson_id": "L-7a822ac46d",
+  "proposed_by": "harvest",
+  "reason": "ui-ux",
+  "recorded_at": "2026-11-17T13:22:44.992464Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "A trigger belongs beside the thing it acts on, at the top of the surface \u2014 not in a block below the content it creates. Related actions are grouped so a wrap can never separate them.",
+  "type": "propose"
+}

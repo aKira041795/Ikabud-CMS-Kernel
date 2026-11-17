@@ -1,0 +1,15 @@
+{
+  "digest": "9150e44b1cdea2f62d6d6ae23476c706500f42bada8bb7ac42e77158b4f4c0e8",
+  "event_id": "9150e44b1cdea2f6",
+  "evidence": [
+    "docs/ai/harpp-cognitive-architecture.md:192"
+  ],
+  "lesson_id": "L-cbd4d55c38",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.134796Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "**JSONL remains the truth** \u2014 append-only, crash-safe, diffable. - **SQLite + FTS5 is the derived index** \u2014 `.ai/harpp/experience.db`, deletable and rebuildable from the sources at any time, so it can never become a second source of divergent truth. - **The swap point is two functions** (`cmd_index` / `cmd_search`). Callers never write SQL, so moving to PostgreSQL or MySQL changes no interface and no record.",
+  "type": "propose"
+}

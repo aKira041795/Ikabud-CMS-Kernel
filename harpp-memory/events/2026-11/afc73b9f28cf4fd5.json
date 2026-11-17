@@ -1,0 +1,15 @@
+{
+  "digest": "afc73b9f28cf4fd5c3f2142f8d3878183f01f2b3be4f822dc7e713876f54d465",
+  "event_id": "afc73b9f28cf4fd5",
+  "evidence": [
+    "docs/reviews/system-review-2026-07-05.md:177"
+  ],
+  "lesson_id": "L-3ae65f5cda",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.528454Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "**TD-INS2 \u2014 `disyl-template-conventions.instructions.md` Repeats the Same Stale Note** The \"Common Pitfalls\" section contains: *\"If compiled mode is enabled and a template uses `isset()`/`empty()`/`is_array()`, those will silently return null\"* \u2014 contradicted by the bullet immediately above it that says they're now in the whitelist.",
+  "type": "propose"
+}

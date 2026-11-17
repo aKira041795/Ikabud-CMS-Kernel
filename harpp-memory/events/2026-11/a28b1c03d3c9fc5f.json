@@ -1,0 +1,15 @@
+{
+  "digest": "a28b1c03d3c9fc5f404bfc150063247798e267154b4c44b793001864c052f086",
+  "event_id": "a28b1c03d3c9fc5f",
+  "evidence": [
+    "docs/kernel/polyglot-service-guide.md:324"
+  ],
+  "lesson_id": "L-98d7bff919",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.804410Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "```bash php -r ' require_once \"bootstrap.php\"; echo app()->capabilities()->has(\"myservice.action@1\") ? \"REGISTERED\" : \"MISSING\"; ' ```",
+  "type": "propose"
+}

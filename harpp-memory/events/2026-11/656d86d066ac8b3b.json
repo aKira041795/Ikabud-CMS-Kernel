@@ -1,0 +1,15 @@
+{
+  "digest": "656d86d066ac8b3b1b8348b3f90055b1001f04e5371acc9066c79a3fdd75be94",
+  "event_id": "656d86d066ac8b3b",
+  "evidence": [
+    "docs/project-audit-ledger/implementation-plan.md:1557"
+  ],
+  "lesson_id": "L-f1f9fbb49e",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.065176Z",
+  "schema_version": 1,
+  "scope": "project-audit-ledger",
+  "text": "Only applies on `stock_in` movements (purchases) - Stored in `pal_materials.current_avg_cost` - Snapshot at time of issuance is stored in `pal_material_issuance_items.unit_cost` - Future price changes do NOT retroactively affect issued costs",
+  "type": "propose"
+}

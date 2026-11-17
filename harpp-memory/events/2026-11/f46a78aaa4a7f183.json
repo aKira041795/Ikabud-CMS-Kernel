@@ -1,0 +1,15 @@
+{
+  "digest": "f46a78aaa4a7f18306d831db84f4e88cade849cd98e5ccf9014b511914502bd7",
+  "event_id": "f46a78aaa4a7f183",
+  "evidence": [
+    "docs/kernel/comprehension-engine.md:9"
+  ],
+  "lesson_id": "L-2eb0ff10da",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.590078Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "The Comprehension Engine is a **layered hybrid reasoning system** that analyzes module behavior by combining six complementary algorithms. It takes declared contracts (what a module should do) and runtime evidence (what actually happened) and produces a structured diagnosis with root cause hypothesis, confidence scoring, and temporal analysis.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "7fe73aec436b036941e84c43d1fc7d1628d70f8cba814fe346896527dfb07497",
+  "event_id": "7fe73aec436b0369",
+  "evidence": [
+    "docs/ai/ai-module.md:213"
+  ],
+  "lesson_id": "L-6ce7549f8f",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.126467Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "try { app()->cap()->call($capId, $capPayload, ['caller' => $module ?: '_kernel']); } catch (Throwable $e) { write_log(\"kernelEmitEvent: capability '{$capId}' failed for event '{$eventKey}': \" . $e->getMessage(), 'error', [ 'event' => $eventKey, 'capability' => $capId, 'module' => $module, ]); // Continue \u2014 one failed trigger never blocks the others } } } ```",
+  "type": "propose"
+}

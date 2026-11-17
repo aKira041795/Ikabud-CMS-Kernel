@@ -1,0 +1,15 @@
+{
+  "digest": "f0c4ffc53bae7a9ff799b0cbec3d204e15f0be05078c1ac519b1074536d7f428",
+  "event_id": "f0c4ffc53bae7a9f",
+  "evidence": [
+    "docs/agent/DECISIONS.md:20"
+  ],
+  "lesson_id": "L-b62aa38f85",
+  "proposed_by": "harvest",
+  "reason": "decision",
+  "recorded_at": "2026-11-17T13:22:43.121307Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": ": - `lean-ctx/*` for all agents \u2014 rejected: would give read-only agents shell/edit access, violating least-privilege - No MCP tools, rely on native tools only \u2014 rejected: wastes context budget, contradicts established guidance - Individual tool listing per agent \u2014 accepted: allows precise scoping",
+  "type": "propose"
+}

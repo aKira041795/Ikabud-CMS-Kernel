@@ -1,0 +1,15 @@
+{
+  "digest": "cb6f7f4fb3e82f8c6a550c13a7627495e9402e57575ce3d3f2d0b9d8eec7d0e8",
+  "event_id": "cb6f7f4fb3e82f8c",
+  "evidence": [
+    "docs/reviews/cms-kernel-reconciliation-review-2026.md:3"
+  ],
+  "lesson_id": "L-1ec9ea189f",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.187867Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "Updated: March 2026 Scope included: bootstrap.php, public/index.php, kernel/*, src/helpers/module-manager.php, modules/cms docs and architecture Scope excluded: ikabud-kernel directory (reference only)",
+  "type": "propose"
+}

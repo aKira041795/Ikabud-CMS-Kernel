@@ -1,0 +1,15 @@
+{
+  "digest": "1fd1f0ae9c8c764f540f7dd31e96d200079d4fcb154d05e76a09624d3852556d",
+  "event_id": "1fd1f0ae9c8c764f",
+  "evidence": [
+    "docs/reviews/perf-metrics-2026-10-10.md:438"
+  ],
+  "lesson_id": "L-6217c5b70a",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.406618Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "`kernelPerfMarkRequestPhase('render')` is called from inside `register_shutdown_function()` (`src/http/perf-attribution.php:381-384`), i.e. after the response is built. The perf payload is assembled *during* the request, so `render` and `shutdown` can never appear in the request's own payload \u2014 which is exactly why every reading, local and live, shows",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "38cf63e8fdf3411abe3a6059759b74f500f05c3ca5cf69a692b6f5b9d6f003b4",
+  "event_id": "38cf63e8fdf3411a",
+  "evidence": [
+    "docs/reviews/capability-bus-evolution-2026-10-11.md:8"
+  ],
+  "lesson_id": "L-03598ab19e",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.180038Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "the capability bus is mature (circuit breaker, retry, metrics, schema validation, signed polyglot dispatch, persisted default-deny authorization); the highest-value next improvement is **provider-resolution truth** \u2014 making declarations, readiness, eligibility and authorization *independently explainable* \u2014 while **deferring** ADR-006's lazy-loading migration until its benefits are measured.",
+  "type": "propose"
+}

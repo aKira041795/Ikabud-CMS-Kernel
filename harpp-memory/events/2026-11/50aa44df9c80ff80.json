@@ -1,0 +1,15 @@
+{
+  "digest": "50aa44df9c80ff808d92cb34cd99f644cd3c40431ef8af93ab0e0b4a60196194",
+  "event_id": "50aa44df9c80ff80",
+  "evidence": [
+    "docs/evaluations/daily-ledger-load-and-concurrency-2026-09-16.md:209"
+  ],
+  "lesson_id": "L-5d6155956d",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.449512Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "That is ~49% of the measured 5.2 req/s mixed ceiling **on this box**, but the April study projected Bluehost shared hosting at only **1.5\u20133 req/s** \u2014 so the fleet lands at **86\u2013172% of projected capacity**. A single endpoint returning 31 bytes is consuming the majority of that budget.",
+  "type": "propose"
+}

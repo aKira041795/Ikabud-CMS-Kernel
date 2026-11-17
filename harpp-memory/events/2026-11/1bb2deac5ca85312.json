@@ -1,0 +1,15 @@
+{
+  "digest": "1bb2deac5ca85312f3c30c130f844b4e5bcad4d5df1e4dc6dff3f2c4080925cd",
+  "event_id": "1bb2deac5ca85312",
+  "evidence": [
+    "docs/cms/disyl-implementation-spec.md:787"
+  ],
+  "lesson_id": "L-e3ccf8158a",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.251560Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "DiSyL templates exist for presentation: formatting, visibility toggles, iteration over pre-shaped data. Logic that evaluates relationships across multiple domain entities (pricing rules, permission matrices, multi-variable decision trees) belongs in kernel or module PHP code, never in template expressions.",
+  "type": "propose"
+}

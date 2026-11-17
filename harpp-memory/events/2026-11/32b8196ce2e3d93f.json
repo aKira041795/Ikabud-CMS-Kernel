@@ -1,0 +1,15 @@
+{
+  "digest": "32b8196ce2e3d93f381247ff354628781747e1d84bad2f9d8dbf09fcd74516f3",
+  "event_id": "32b8196ce2e3d93f",
+  "evidence": [
+    "docs/reviews/baronledger-db-audit-2026-10-10/README.md:47"
+  ],
+  "lesson_id": "L-2ff42e819b",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.173641Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "``` COUNT(*) = 118,985 COUNT(DISTINCT aggregate_key) = 118,985 <- the unique key never collapses anything SUM(finding_count) = 119,102 <- finding_count is always 1 ```",
+  "type": "propose"
+}

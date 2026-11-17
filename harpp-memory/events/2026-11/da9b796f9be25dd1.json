@@ -1,0 +1,15 @@
+{
+  "digest": "da9b796f9be25dd1aa41d065fc512a0f076c0f372a47f5bcaef991ae91f7bd0a",
+  "event_id": "da9b796f9be25dd1",
+  "evidence": [
+    "docs/cms/cms-extension-lifecycle.md:109"
+  ],
+  "lesson_id": "L-292d963a44",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.212082Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "`modulePackageBackupGc($keepDays = 7)` removes stale backups. It refuses every path that does not end in `.bak_\\d{8}_\\d{6}`, so an imprecise name can never authorise a recursive delete of a module or suite directory.",
+  "type": "propose"
+}

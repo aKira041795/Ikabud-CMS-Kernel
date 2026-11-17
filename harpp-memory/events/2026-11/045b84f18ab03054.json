@@ -1,0 +1,15 @@
+{
+  "digest": "045b84f18ab03054ccdaa4166fc3a2067a7f515b8a1d850f3b0c262cd7c3464c",
+  "event_id": "045b84f18ab03054",
+  "evidence": [
+    "docs/reviews/ark-workbench-comprehension-architecture-review-and-plan-2026-07-16.md:251"
+  ],
+  "lesson_id": "L-2627578ba5",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.157917Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Store negative feedback too: incorrect AI hypothesis, ineffective remediation, flaky test, and false graph suggestion. Retrieval should favor verified cases and penalize rejected hypotheses.",
+  "type": "propose"
+}

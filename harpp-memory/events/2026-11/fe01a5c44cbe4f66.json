@@ -1,0 +1,15 @@
+{
+  "digest": "fe01a5c44cbe4f66cb61c3abbe3f62f6bc99502d727cc6c53d3404a34a5b25fa",
+  "event_id": "fe01a5c44cbe4f66",
+  "evidence": [
+    "docs/architecture/decisions/ADR-005-one-assortment-per-branch.md:37"
+  ],
+  "lesson_id": "L-bd0bea027d",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.162385Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "**Keep one assortment. Do not add a role/channel dimension to `dl_branch_products`.**",
+  "type": "propose"
+}

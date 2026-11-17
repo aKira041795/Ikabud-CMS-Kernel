@@ -1,0 +1,15 @@
+{
+  "digest": "53e2a7c8a259e00b25e06224b10a5b0044e7c2de9542dd2f840ca002a1d38889",
+  "event_id": "53e2a7c8a259e00b",
+  "evidence": [
+    "docs/kernel/operability-explainability-extensibility-plan.md:203"
+  ],
+  "lesson_id": "L-d5c490c0ca",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.800613Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "Phase 1: `composer test` green, `error.log` clean, `app.log` clean - Phase 2: `composer benchmark:disyl` no regression, compiled-mode test passes - Phase 3: No new `$GLOBALS` usage, `disyl:lint` clean - Phase 4: `module:certify --all` \u2265 30/41 pass, CSP headers unchanged - Phase 5: LSP returns diagnostics on sample template",
+  "type": "propose"
+}

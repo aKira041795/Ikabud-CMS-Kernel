@@ -1,0 +1,15 @@
+{
+  "digest": "0cf90afc8733bf7d21ec350a2c0b3fc206c15e5e02f17ca9b4111a04b472c3fc",
+  "event_id": "0cf90afc8733bf7d",
+  "evidence": [
+    "docs/reviews/cms-page-builder-review-2026-10-10.md:120"
+  ],
+  "lesson_id": "L-a9e75ff218",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.198226Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "F5 \u2014 The fallback CMS public layout never loaded the builder stylesheet *(fixed)*",
+  "type": "propose"
+}

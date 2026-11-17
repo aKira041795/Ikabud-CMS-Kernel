@@ -1,0 +1,15 @@
+{
+  "digest": "22e22019023a7f801f1312b5ac1b019c07f8af1a34bb0052c1fb5012abe67f27",
+  "event_id": "22e22019023a7f80",
+  "evidence": [
+    "docs/reviews/perf-metrics-2026-10-10.md:1130"
+  ],
+  "lesson_id": "L-08904286ad",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.439860Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "4n. Phase 1 was measured and rejected \u2014 the lazy-helper lever is 0.4%, not 7.65 ms",
+  "type": "propose"
+}

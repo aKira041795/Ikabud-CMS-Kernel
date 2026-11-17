@@ -1,0 +1,15 @@
+{
+  "digest": "32649d34321f4d05be44c5f38eecb3a2750d8ae5f263294db328b48c7a1e1d36",
+  "event_id": "32649d34321f4d05",
+  "evidence": [
+    "docs/architecture/decisions/ADR-001-module-communication.md:75"
+  ],
+  "lesson_id": "L-98f908fbd6",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.158137Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Direct function calls **Rejected** \u2014 Creates hidden dependency graphs. Impossible to test modules in isolation. Breaks module ownership.",
+  "type": "propose"
+}

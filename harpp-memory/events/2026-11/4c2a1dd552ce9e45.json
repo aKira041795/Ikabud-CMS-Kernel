@@ -1,0 +1,15 @@
+{
+  "digest": "4c2a1dd552ce9e455eef165038ed8ea5a54394e8f4cda4999aab4d175159be9e",
+  "event_id": "4c2a1dd552ce9e45",
+  "evidence": [
+    "docs/project-audit-ledger/implementation-plan.md:1680"
+  ],
+  "lesson_id": "L-a65fbe18c7",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.068804Z",
+  "schema_version": 1,
+  "scope": "project-audit-ledger",
+  "text": "14.2 Authorization - [x] Role-based access (admin / supervisor / encoder) - [x] Capability-based permission checks - [x] Server-side permission enforcement (never only in UI/DiSyL) - [x] No self-approval by default - [x] Tenant-scoped every query (`WHERE tenant_id = ?`) - [x] User ownership checks (encoders see own records)",
+  "type": "propose"
+}

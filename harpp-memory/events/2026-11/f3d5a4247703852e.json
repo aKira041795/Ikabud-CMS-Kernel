@@ -1,0 +1,15 @@
+{
+  "digest": "f3d5a4247703852eb7e6687942553db477d3b00a3620f6ad5f656cb5b704f1ec",
+  "event_id": "f3d5a4247703852e",
+  "evidence": [
+    "docs/engineering/lane-harness-issue.md:362"
+  ],
+  "lesson_id": "L-3736690533",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.429083Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "A push subscription needs a service worker; a service worker needs a **secure context**. So on this origin push is impossible, `harpp_push_subscriptions = 0`, and the notification sits at `status=pending` forever. HARPP's whole purpose is notifying the owner **away from the workstation**, and that has **never once worked**. This cannot be coded around.",
+  "type": "propose"
+}

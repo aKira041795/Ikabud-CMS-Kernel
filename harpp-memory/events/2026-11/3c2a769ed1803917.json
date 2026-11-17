@@ -1,0 +1,15 @@
+{
+  "digest": "3c2a769ed18039176de8da1d09332d7132dd65dae2dde49d448040de4036a40f",
+  "event_id": "3c2a769ed1803917",
+  "evidence": [
+    "tests/disyl_v42_types_test.php:248"
+  ],
+  "lesson_id": "L-64ab0548c6",
+  "proposed_by": "harvest",
+  "reason": "gate",
+  "recorded_at": "2026-11-17T13:22:45.414729Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "safety: cyclic alias bails (no infinite loop)",
+  "type": "propose"
+}

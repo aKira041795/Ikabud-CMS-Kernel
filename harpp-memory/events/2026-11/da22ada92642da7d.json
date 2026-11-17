@@ -1,0 +1,15 @@
+{
+  "digest": "da22ada92642da7d72a4351736c62753d7a604ca46d4fb239c3dfb39c92eebd8",
+  "event_id": "da22ada92642da7d",
+  "evidence": [
+    "docs/kernel/disyl-development-workflow.md:145"
+  ],
+  "lesson_id": "L-6ed50441bf",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.614045Z",
+  "schema_version": 1,
+  "scope": "workflow",
+  "text": "The reason string is generic: it names the symptom, not the cause. Nothing in the template is wrong \u2014 the gate is this flag. The notice is also gated on `APP_ENV`/`IKABUD_ENV` being `production`/`prod`, which is why it never appears locally.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "76336418819e1f39dcc335fbe1fc3370cb788f77e30af7f957dda8ff3c8ec137",
+  "event_id": "76336418819e1f39",
+  "evidence": [
+    "docs/reviews/perf-metrics-2026-10-10/sol-brief-disyl-fallback.md:3"
+  ],
+  "lesson_id": "L-de104d9b32",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.353826Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "You are working in `/var/www/html/applicationostest` (PHP 8.5, DiSyL 4.8, Kernel OS 6.2). This is a real, measured defect with a known blast radius. Fix the ENGINE. Do not patch templates.",
+  "type": "propose"
+}

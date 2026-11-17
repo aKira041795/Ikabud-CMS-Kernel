@@ -1,0 +1,15 @@
+{
+  "digest": "16cbffed5b5d1bf6c3f8b18db6812ce367af32c8bc8238af1d800031019c0be9",
+  "event_id": "16cbffed5b5d1bf6",
+  "evidence": [
+    ".github/instructions/ui-ux-conventions.instructions.md:139"
+  ],
+  "lesson_id": "L-9e59b01c00",
+  "proposed_by": "harvest",
+  "reason": "ui-ux",
+  "recorded_at": "2026-11-17T13:22:45.000396Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "If a record exists, the operator can see it. A filter that omits real data must say so, with counts \u2014 never quietly show a subset.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "7e1c216fc47945cf564cd07fe72ec113fde4fab9ebea2f33134a148a61836343",
+  "event_id": "7e1c216fc47945cf",
+  "evidence": [
+    "docs/reviews/perf-metrics-2026-10-10.md:1209"
+  ],
+  "lesson_id": "L-1f81c6e2bd",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.444428Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "4n rejected lazy helper loading by bucket, which concluded \"99.6% of the cost is in modules that expose capabilities\". Normalising that same data **per KB** (ms/KB, median 0.085) exposed something the bucket split hid: the cost is not distributed with file size at all.",
+  "type": "propose"
+}

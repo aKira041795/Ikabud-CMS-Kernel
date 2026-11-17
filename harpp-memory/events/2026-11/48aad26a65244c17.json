@@ -1,0 +1,15 @@
+{
+  "digest": "48aad26a65244c17df3905900c879fbee515885f85bfe9bf8f1f687fb76ca4a7",
+  "event_id": "48aad26a65244c17",
+  "evidence": [
+    "docs/kernel/ikabud-roadmap.md:246"
+  ],
+  "lesson_id": "L-e6b09a1d59",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.636807Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "product-layer features build on stable kernel truth rather than side systems - new ecosystem features do not weaken contract discipline or kernel authority",
+  "type": "propose"
+}

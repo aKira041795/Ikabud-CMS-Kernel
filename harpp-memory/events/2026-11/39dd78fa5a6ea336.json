@@ -1,0 +1,15 @@
+{
+  "digest": "39dd78fa5a6ea3365d9763950746704be33eb9ebc0191adfdb3d61de888a7fe5",
+  "event_id": "39dd78fa5a6ea336",
+  "evidence": [
+    "docs/architecture/cms-assistant-contract.md:24"
+  ],
+  "lesson_id": "L-78772e1a89",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.156008Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "Let the owner say \"create a post about X\", \"update page Y\", or \"redesign the home page\" in the messenger and have the harness do it durably \u2014 no per-session setup, no Codex. - **Never auto-publish.** The assistant produces drafts only; publishing stays human (existing CMS workflow / approval).",
+  "type": "propose"
+}

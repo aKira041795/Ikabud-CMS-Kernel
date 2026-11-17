@@ -1,0 +1,15 @@
+{
+  "digest": "370812da28c8e6ee2d4500e2436577fae80f7cd2e8d32db7ee0dfbdbf9ad3355",
+  "event_id": "370812da28c8e6ee",
+  "evidence": [
+    "docs/workbench/ai-pattern-intelligence-roadmap.md:13"
+  ],
+  "lesson_id": "L-9e6a31eb6f",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.571887Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "> Does the system exhibit a combination of signals that resembles a healthy pattern, a known defect pattern, or an emerging risk that ordinary assertions do not expose?",
+  "type": "propose"
+}

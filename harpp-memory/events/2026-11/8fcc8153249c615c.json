@@ -1,0 +1,15 @@
+{
+  "digest": "8fcc8153249c615ca56371bf56c2cab2d167a74326762ffd073f55e61f442a35",
+  "event_id": "8fcc8153249c615c",
+  "evidence": [
+    "docs/cms/entity-view-block-schema.md:728"
+  ],
+  "lesson_id": "L-53c0070159",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.262553Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "The block rendering order defined in \u00a72 is fixed and MUST NOT be freely reordered by themes. However, distinct canonical orderings for different editorial contexts are valid \u2014 these are called **layout profiles**.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "1f2ee268fd172cac52785c32c846bd6150745de87e3c33efc830b7885864648f",
+  "event_id": "1f2ee268fd172cac",
+  "evidence": [
+    "docs/evaluations/stress-and-load-test-findings-2026-04-16.md:710"
+  ],
+  "lesson_id": "L-de7c19fd0c",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.519971Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Stress test Scenario 1 confirms: product with 5 stock, 10 order attempts \u2192 exactly 5 succeed, 5 rejected, final stock = 0. No negative stock, no silent acceptance of out-of-stock orders.",
+  "type": "propose"
+}

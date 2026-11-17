@@ -1,0 +1,15 @@
+{
+  "digest": "6bcdcde90fdeb89905e338bbc5ab6c29dc93f22c3e82493a24cf8c278773e5ad",
+  "event_id": "6bcdcde90fdeb899",
+  "evidence": [
+    "docs/reviews/cms-kernel-reconciliation-review-2026.md:133"
+  ],
+  "lesson_id": "L-79505e2f74",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.190773Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "1. Remove wildcard purge drops. - Replace gm_* drop behavior with strict manifest-owned table deletion. - Add integration test: uninstall module A must never drop module B tables. - Status: implemented in code; regression test added and passing.",
+  "type": "propose"
+}

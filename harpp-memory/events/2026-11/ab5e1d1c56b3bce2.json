@@ -1,0 +1,15 @@
+{
+  "digest": "ab5e1d1c56b3bce23ef2d9bb1522befbd453dfda81e6c8d50a222d3be7a139f1",
+  "event_id": "ab5e1d1c56b3bce2",
+  "evidence": [
+    "docs/reviews/sol-production-attribution-2026-10-11.md:398"
+  ],
+  "lesson_id": "L-576e38f265",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.511110Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "display_rule: | When a window has no production evidence, Produced, Wastage, Yield, Sell-through-against-production and Shrinkage must show `Not recorded`/`n/a`. Numeric `0` or `0%` is permitted only for a measured-zero state.",
+  "type": "propose"
+}

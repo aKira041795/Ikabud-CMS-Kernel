@@ -1,0 +1,15 @@
+{
+  "digest": "dd5983cf35bfae58c4f79959ea8f02b86f0a668467e88375699e6d1db6ad77de",
+  "event_id": "dd5983cf35bfae58",
+  "evidence": [
+    "docs/kernel/cli-tools-reference.md:304"
+  ],
+  "lesson_id": "L-e68fb8007d",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.583001Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Creates `modules/cms-akira/cms-akira-analytics/` and writes `\"suite\": \"cms-akira\"` to `module.json`. - Module id must start with the suite prefix (`cms-akira-`). - Nesting under a real module (a suite path that already has `module.json`) is blocked. - Suite container folders are namespace-only; the suite folder itself is never a runtime module.",
+  "type": "propose"
+}

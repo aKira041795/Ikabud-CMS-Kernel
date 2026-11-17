@@ -1,0 +1,15 @@
+{
+  "digest": "ef600c789d16569b010e32b2b914bc409cf95e6c98f76a80c94816b9c8a66d71",
+  "event_id": "ef600c789d16569b",
+  "evidence": [
+    ".github/instructions/testing-conventions.instructions.md:6"
+  ],
+  "lesson_id": "L-233406201c",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.969313Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Every test run follows the same lifecycle, from a clean log slate to a committed change. The two hard gates are **checking both logs** and **inspecting the JSON results** \u2014 never skip them.",
+  "type": "propose"
+}

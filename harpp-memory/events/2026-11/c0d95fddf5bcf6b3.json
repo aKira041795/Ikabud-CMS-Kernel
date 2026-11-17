@@ -1,0 +1,15 @@
+{
+  "digest": "c0d95fddf5bcf6b357e3e857aa6429737b90161d592a6f5938ae528ce623e07a",
+  "event_id": "c0d95fddf5bcf6b3",
+  "evidence": [
+    "docs/reviews/tailwind-build-migration-2026-10-09.md:42"
+  ],
+  "lesson_id": "L-b88807172f",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.534181Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "The following 15 unique class names are not defined by the compiled bundle. They were not assigned invented values because they do not work under the existing CDN setup either:",
+  "type": "propose"
+}

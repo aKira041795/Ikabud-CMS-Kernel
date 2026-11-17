@@ -1,0 +1,15 @@
+{
+  "digest": "239c76cc628c3567940f0387cbb85d21cf53bba0abb35f69ea552afc18719d52",
+  "event_id": "239c76cc628c3567",
+  "evidence": [
+    "docs/cms/capability-driven-theme-design.md:506"
+  ],
+  "lesson_id": "L-84f708b4cb",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.197975Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "Do not start by creating a whole new theme family unless the universal model is provably insufficient.",
+  "type": "propose"
+}

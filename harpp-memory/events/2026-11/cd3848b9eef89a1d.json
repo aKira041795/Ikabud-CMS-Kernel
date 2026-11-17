@@ -1,0 +1,15 @@
+{
+  "digest": "cd3848b9eef89a1dd1e76d8ba06c681c9f4f5fc53932380fe1d73edf093bee24",
+  "event_id": "cd3848b9eef89a1d",
+  "evidence": [
+    ".github/instructions/ai-development-execution-handoff.instructions.md:653"
+  ],
+  "lesson_id": "L-dfe22576bf",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.946060Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "**The failure mode to avoid is the opposite of recklessness: asking about what was already decidable.** Once a decision is made and recorded, do not re-ask it \u2014 proceed.",
+  "type": "propose"
+}

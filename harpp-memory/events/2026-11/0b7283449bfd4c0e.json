@@ -1,0 +1,15 @@
+{
+  "digest": "0b7283449bfd4c0ed049cc4ac332fb7adc031fc40530e4a5a7ba84020432e6d0",
+  "event_id": "0b7283449bfd4c0e",
+  "evidence": [
+    "docs/reviews/aiss-architecture-audit-2026-07-24.md:174"
+  ],
+  "lesson_id": "L-708e86da2a",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.136595Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": ": `apiPublicResults` returns 401 if `$submitterUserId <= 0`. Combined with the `public_results_allow_anonymous` setting which allows unauthenticated submission creation (with `submitter_user_id = 0`), anonymous users can submit documents but can **never retrieve results**. No access token or session link is provided.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "7c8a0a4daa865f83d49712602570c5f8b3c4c28edfd6baefa46cb65d90e2a6ef",
+  "event_id": "7c8a0a4daa865f83",
+  "evidence": [
+    "docs/cms/render-resolution-flow-spec-v1.md:44"
+  ],
+  "lesson_id": "L-90c9580333",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.270696Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "theme override paths must not change contract matching - canonical helper mappings may preserve a stable contract template key even when the rendered file lives under a theme override - route or canonical-family meaning wins over filesystem detail",
+  "type": "propose"
+}

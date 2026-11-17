@@ -1,0 +1,15 @@
+{
+  "digest": "09007af820043c8e17e5b60e88249d15e4273e5bb588ab2260c4ad39c6dc4569",
+  "event_id": "09007af820043c8e",
+  "evidence": [
+    "docs/engineering/autonomy-loop.md:54"
+  ],
+  "lesson_id": "L-2c5640d6d3",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.395654Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "The rate is `autonomous / routine`. High-risk tasks are reported separately and never inflate the rate; a rollback removes the task from the autonomous set.",
+  "type": "propose"
+}

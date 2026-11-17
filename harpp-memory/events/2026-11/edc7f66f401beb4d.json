@@ -1,0 +1,15 @@
+{
+  "digest": "edc7f66f401beb4d3d80aeff91cea891b4c9a44dfc59f4e44a27931f893fd67e",
+  "event_id": "edc7f66f401beb4d",
+  "evidence": [
+    ".github/instructions/ui-ux-conventions.instructions.md:42"
+  ],
+  "lesson_id": "L-8f81c9f4b5",
+  "proposed_by": "harvest",
+  "reason": "ui-ux",
+  "recorded_at": "2026-11-17T13:22:44.982664Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "A record is one row. Its lines are **nested inside** that row, never exploded into rows that repeat the record's identity.",
+  "type": "propose"
+}

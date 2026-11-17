@@ -1,0 +1,15 @@
+{
+  "digest": "681e2779b683725dc8affd4e36335a96accfc986f2dcfeba5e186c675c769fe6",
+  "event_id": "681e2779b683725d",
+  "evidence": [
+    "docs/daily-ledger/HANDOFF-2026-10-11.md:86"
+  ],
+  "lesson_id": "L-b328f33fc0",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.285999Z",
+  "schema_version": 1,
+  "scope": "daily-ledger",
+  "text": "P1-ORIGINAL \u00b7 the superseded plan (kept for the record, do NOT implement as written)",
+  "type": "propose"
+}

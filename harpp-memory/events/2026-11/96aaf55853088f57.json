@@ -1,0 +1,15 @@
+{
+  "digest": "96aaf55853088f577a2d511b5a1229773c62859fc4c607ad22c06f13ae39aea7",
+  "event_id": "96aaf55853088f57",
+  "evidence": [
+    "docs/reviews/cms-page-builder-review-2026-10-10.md:469"
+  ],
+  "lesson_id": "L-1dfa2d0c50",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.217441Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "*Structural*, encoding the failure classes that actually occurred \u2014 so a regression fails even if nobody has refreshed the baseline:",
+  "type": "propose"
+}

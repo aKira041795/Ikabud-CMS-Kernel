@@ -1,0 +1,15 @@
+{
+  "digest": "ff36e28a8565e212da1f47a62a89b79770bacdefab6008d216f798e46a78b5e7",
+  "event_id": "ff36e28a8565e212",
+  "evidence": [
+    "docs/cms/entity-view-block-schema.md:792"
+  ],
+  "lesson_id": "L-bee040071e",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.264170Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "`_version` must be treated as opaque metadata by DiSyL templates \u2014 never render it directly.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "e840eb5db0b5ebe0a327035b41e349c2280916bec628ed8d40a2d51e5fa1400f",
+  "event_id": "e840eb5db0b5ebe0",
+  "evidence": [
+    "docs/pal/pal-ark-workbench-architecture-plan.md:543"
+  ],
+  "lesson_id": "L-a0afc903cb",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.989398Z",
+  "schema_version": 1,
+  "scope": "pal",
+  "text": "ARK must NOT know domain status meanings. Instead, Workbench understands **semantic tones**:",
+  "type": "propose"
+}

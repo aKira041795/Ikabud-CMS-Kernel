@@ -1,0 +1,15 @@
+{
+  "digest": "6483dc6bd61bb0923bd3d0ba05a48bc4913fa43f5a0c2d47e9452abc7210f0ee",
+  "event_id": "6483dc6bd61bb092",
+  "evidence": [
+    "docs/evaluations/multitenant-isolation-fix-first-roadmap-2026-04-16.md:158"
+  ],
+  "lesson_id": "L-376b554db0",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.502683Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "WMS module inherent query complexity - After both above optimizations, WMS p95 still 1.50-1.80x vs peers - Root cause: WMS dashboard loads via COUNT(*) queries on 6 tables + complex JOIN queries - Cannot be fully resolved by kernel or infrastructure changes alone",
+  "type": "propose"
+}

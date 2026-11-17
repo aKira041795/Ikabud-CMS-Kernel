@@ -1,0 +1,15 @@
+{
+  "digest": "e1399ce073228ddc52cd8453e97edb2b248d64631b9f5fdf7b48a2bc761916cc",
+  "event_id": "e1399ce073228ddc",
+  "evidence": [
+    "docs/engineering/lane-harness-issue.md:247"
+  ],
+  "lesson_id": "L-44400ca706",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.425157Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Never a \"is it done yet?\" prompt: every return either reports the landing, or says the lane is still going and what to re-arm.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "45568165192ec8776a7a1f6489d51cd8e1a8976d000be05a59663db9d440d53b",
+  "event_id": "45568165192ec877",
+  "evidence": [
+    "docs/themes/ark-renderer-contract.md:14"
+  ],
+  "lesson_id": "L-d52b1f3af5",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.552327Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "ARK builders do not invent renderer behavior. They select from the renderer contract that the theme publishes.",
+  "type": "propose"
+}

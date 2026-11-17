@@ -1,0 +1,15 @@
+{
+  "digest": "8df85c96ded4981d4dfa7a7e90ac49ba6e6b3980af5cf3402e9e1f9ec4d83f61",
+  "event_id": "8df85c96ded4981d",
+  "evidence": [
+    "docs/evaluations/stress-and-load-test-findings-2026-04-16.md:771"
+  ],
+  "lesson_id": "L-1acc889f11",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.522111Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "A self-contained page cache reader that runs **before `bootstrap.php`** \u2014 before Composer autoloader, before the App singleton, before module-manager, before any DB connection.",
+  "type": "propose"
+}

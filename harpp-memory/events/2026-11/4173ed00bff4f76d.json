@@ -1,0 +1,15 @@
+{
+  "digest": "4173ed00bff4f76d700410641f39f8d38aa647db8ef91fd4101595468afcfdbb",
+  "event_id": "4173ed00bff4f76d",
+  "evidence": [
+    "docs/kernel/api-reference.md:1043"
+  ],
+  "lesson_id": "L-3956bc516e",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.553378Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Notes: - when output feature activation is disabled, operations with `type=output` are rejected per row in `results[]`",
+  "type": "propose"
+}

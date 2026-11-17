@@ -1,0 +1,15 @@
+{
+  "digest": "2835631e8c45f571f1555fd73b88c7d75ab25c7f3faaf784750ef575e682c252",
+  "event_id": "2835631e8c45f571",
+  "evidence": [
+    "docs/reviews/cms-public-render-review-2026-10-09.md:39"
+  ],
+  "lesson_id": "L-bfe7404da3",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.233321Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "Both epoch-looking values are filesystem mtimes. `cmsThemeAssetUrl()` calls `filemtime()` and appends `?v=<mtime>` for active and fallback assets (`modules/cms/helpers/40-theme-settings.php:1262-1279`). They are stable between requests while the deployed file's mtime is unchanged; they do not use request time.",
+  "type": "propose"
+}

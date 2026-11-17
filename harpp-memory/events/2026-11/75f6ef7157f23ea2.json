@@ -1,0 +1,15 @@
+{
+  "digest": "75f6ef7157f23ea2d1a316da39303315091d39e29de17c5af7b21242745a59ab",
+  "event_id": "75f6ef7157f23ea2",
+  "evidence": [
+    "docs/kernel/migration-workflow.md:19"
+  ],
+  "lesson_id": "L-0d18687721",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.670845Z",
+  "schema_version": 1,
+  "scope": "workflow",
+  "text": "A **numbered end-to-end flow** (Input \u2192 Process \u2192 Output). - A **decision gate** for base/control DB vs. tenant DB. - The **\"Nothing to migrate\"** gotcha (unregistered migration). - The MySQL 5.7 / Compatibility-profile rules (see [Database Profiles](database-profiles.md)).",
+  "type": "propose"
+}

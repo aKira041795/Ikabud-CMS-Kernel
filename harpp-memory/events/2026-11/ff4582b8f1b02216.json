@@ -1,0 +1,15 @@
+{
+  "digest": "ff4582b8f1b0221625b895ed897a8550366df3d3b771232922101230a6aaf933",
+  "event_id": "ff4582b8f1b02216",
+  "evidence": [
+    "docs/evaluations/multitenant-isolation-fix-first-roadmap-2026-04-16.md:368"
+  ],
+  "lesson_id": "L-fd7197e295",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.507166Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "The threshold breach is **primarily driven by CMS p95 variance**, not WMS slowness: - When CMS performs well (p95=2600ms): WMS ratio = 4000/2600 = 1.54x (fail) - When CMS is slower (p95=3150ms): WMS ratio = 4000/3150 = 1.27x (pass) - **Root cause:** Median-based comparison amplifies variance from the fastest module (CMS)",
+  "type": "propose"
+}

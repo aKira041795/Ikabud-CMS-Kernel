@@ -1,0 +1,15 @@
+{
+  "digest": "8b60784dec982db719ab7da5d0d64bf934eee9ce9676697e632121135273ff45",
+  "event_id": "8b60784dec982db7",
+  "evidence": [
+    "docs/reviews/application-kernel-os-review-2026.md:58"
+  ],
+  "lesson_id": "L-a46fead462",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.147332Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "3. Module lifecycle hardening improvements already present - stricter manifest validation, safer installer preflight checks, and explicit CLI bootstrap helper pattern.",
+  "type": "propose"
+}

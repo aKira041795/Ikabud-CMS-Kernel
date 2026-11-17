@@ -1,0 +1,15 @@
+{
+  "digest": "b97284ac2e24199169a758f9c52cd6cadac1d6649a6d5b2b8d5007fb4d7aa282",
+  "event_id": "b97284ac2e241991",
+  "evidence": [
+    "docs/cms/cms-performance-and-scalability.md:11"
+  ],
+  "lesson_id": "L-1f73ff008b",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.229867Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "Measured at `kernelappos.ikabudkernel.com` (PHP 8.3, production, OPcache + APCu + compiled DiSyL).",
+  "type": "propose"
+}

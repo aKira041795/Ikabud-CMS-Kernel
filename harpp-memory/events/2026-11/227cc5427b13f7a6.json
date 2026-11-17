@@ -1,0 +1,15 @@
+{
+  "digest": "227cc5427b13f7a6c6025923836e93930f5ed0c6039cb47e4025de9dc8c148c6",
+  "event_id": "227cc5427b13f7a6",
+  "evidence": [
+    "docs/daily-ledger/three-owner-concerns-2026-11-17.md:29"
+  ],
+  "lesson_id": "L-c53796cba4",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.330197Z",
+  "schema_version": 1,
+  "scope": "daily-ledger",
+  "text": "the guard is gone; the DR is still accepted when supplied, and is echoed only when present. The cashier modal no longer lists the slip number in `returnMissing()` and omits `dr_number` from the payload when blank, so a blank field can never look like a real receipt. Acceptance: `tests/daily_ledger_consignee_return_no_dr_test.php` (6 assertions, failed on the pre-change tree, passes now).",
+  "type": "propose"
+}

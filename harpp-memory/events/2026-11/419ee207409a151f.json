@@ -1,0 +1,15 @@
+{
+  "digest": "419ee207409a151fa6d726a7a2be8ae4c5aa2c3199c93a157cb2a42442cca296",
+  "event_id": "419ee207409a151f",
+  "evidence": [
+    "docs/daily-ledger/VIEWER-SURFACE-ASSESSMENT-PLAN-2026-10-12.md:409"
+  ],
+  "lesson_id": "L-12aa9e8e1d",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.310897Z",
+  "schema_version": 1,
+  "scope": "daily-ledger",
+  "text": "Add a result count and pagination or an explicit \"show more\". **Apply filters and sort BEFORE pagination** (never paginate first and sort each page), and never sort client-side over only the visible page. \u2192 **W13**.",
+  "type": "propose"
+}

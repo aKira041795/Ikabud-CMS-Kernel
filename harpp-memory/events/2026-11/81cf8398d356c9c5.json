@@ -1,0 +1,15 @@
+{
+  "digest": "81cf8398d356c9c54b728bcb5e8827a59c9a0e06aaee3b1f751ccda87f366b7c",
+  "event_id": "81cf8398d356c9c5",
+  "evidence": [
+    "docs/cms/entity-view-block-schema.md:490"
+  ],
+  "lesson_id": "L-5425b8dc04",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.260379Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "These variants change presentation only; they do not alter capability gates or data contracts.",
+  "type": "propose"
+}

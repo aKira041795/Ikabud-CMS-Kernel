@@ -1,0 +1,15 @@
+{
+  "digest": "9f71959612eb56a2d0a88b10fc689f011d3b1ebd61e7fad79fd3a461f38fe744",
+  "event_id": "9f71959612eb56a2",
+  "evidence": [
+    "docs/engineering/autonomy-loop.md:95"
+  ],
+  "lesson_id": "L-238e0d2114",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.397647Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "or pass the fields directly python3 tools/lane-autonomy.py run \\ --task fix-import \\ --objective \"Fix the import so a duplicate row is rejected with a clear error.\" \\ --acceptance \"php tests/import_contract_test.php\" \\ --pass-looks-like \"the contract test prints OK and exits 0\" \\ --touches \"modules/import/,tests/import_contract_test.php\" \\ --max-attempts 2 ```",
+  "type": "propose"
+}

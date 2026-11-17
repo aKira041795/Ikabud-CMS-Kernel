@@ -1,0 +1,15 @@
+{
+  "digest": "7149485e9627bb0dbd8dd4d5e81c1fecc68a29da771ec69d9a69840146de83bc",
+  "event_id": "7149485e9627bb0d",
+  "evidence": [
+    "docs/reviews/tailwind-build-migration-2026-10-09.md:13"
+  ],
+  "lesson_id": "L-fa2d713922",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.532413Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "The generated bundle is 139,622 bytes raw and 20,860 bytes through `gzip -c`. The difference from the brief's 142,305-byte measured target reflects the current content scan; no utility was added merely to match a byte target.",
+  "type": "propose"
+}

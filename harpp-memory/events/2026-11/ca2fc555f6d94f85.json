@@ -1,0 +1,15 @@
+{
+  "digest": "ca2fc555f6d94f856836e9920db7f38e38083ee69cb2c737a3ad0f89045b6194",
+  "event_id": "ca2fc555f6d94f85",
+  "evidence": [
+    "docs/releases/release-notes-2026-08-23-kernel-6.2-disyl-4.8-proof-program.md:122"
+  ],
+  "lesson_id": "L-1aad18724f",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.108858Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Files: - `src/helpers/module-migrations.php` - consumer paths: `kernel/Services/TenantProvisioner.php`, `ikabud` - regression: `tests/provisioning_coordinator_test.php`",
+  "type": "propose"
+}

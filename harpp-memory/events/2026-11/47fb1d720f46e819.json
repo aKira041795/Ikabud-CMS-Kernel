@@ -1,0 +1,15 @@
+{
+  "digest": "47fb1d720f46e81931b0bc6aca73c8384edb3b03219c70526608488117233292",
+  "event_id": "47fb1d720f46e819",
+  "evidence": [
+    "docs/evaluations/ikabud-kernel-technical-evaluation-2026-04-10.md:129"
+  ],
+  "lesson_id": "L-d93e8852c1",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.490083Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "`bootstrap.php` - `public/index.php` - `kernel/App.php` - `src/helpers/module-manager.php`",
+  "type": "propose"
+}

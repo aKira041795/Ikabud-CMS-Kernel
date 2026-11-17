@@ -1,0 +1,15 @@
+{
+  "digest": "2610cd4777203bbc894f2db6c5423ad984368d9115ffc39ef88f76a6f50e1966",
+  "event_id": "2610cd4777203bbc",
+  "evidence": [
+    "docs/reviews/ark-workbench-comprehension-architecture-review-and-plan-2026-07-16.md:275"
+  ],
+  "lesson_id": "L-5a64c360c7",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.161623Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "All terms must be normalized and weights must be non-negative. Dijkstra then finds the cheapest high-value route from an entry point to an observable effect. Use measured setup/cleanup costs and include state preconditions.",
+  "type": "propose"
+}

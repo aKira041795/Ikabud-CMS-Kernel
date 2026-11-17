@@ -1,0 +1,15 @@
+{
+  "digest": "9189e015eb5314470dc83169843cf125dff83a5c20edc5f9a992601139d86931",
+  "event_id": "9189e015eb531447",
+  "evidence": [
+    "docs/engineering/lane-harness-issue.md:561"
+  ],
+  "lesson_id": "L-f27f70f968",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.436615Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Decision: **off by default, on for interactive Python work.** Every reason is a measured property of the tool, not a preference:",
+  "type": "propose"
+}

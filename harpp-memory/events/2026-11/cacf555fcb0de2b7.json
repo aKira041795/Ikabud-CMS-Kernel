@@ -1,0 +1,15 @@
+{
+  "digest": "cacf555fcb0de2b75c8c5d0433e384eba008b116dd70a9883b4f456e899a31ff",
+  "event_id": "cacf555fcb0de2b7",
+  "evidence": [
+    "docs/project-audit-ledger/implementation-plan.md:1966"
+  ],
+  "lesson_id": "L-a423eeb7d4",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.074930Z",
+  "schema_version": 1,
+  "scope": "project-audit-ledger",
+  "text": ": `palPageTeamLeadAttendance()` in `53-team-lead.php` built a query with `?` placeholders, then immediately rebuilt the same query with named parameters. The first query was never executed.",
+  "type": "propose"
+}

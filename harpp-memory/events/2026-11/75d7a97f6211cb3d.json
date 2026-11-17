@@ -1,0 +1,15 @@
+{
+  "digest": "75d7a97f6211cb3d49eae247362326c8e7c41097c81232dca2fc732722daa320",
+  "event_id": "75d7a97f6211cb3d",
+  "evidence": [
+    "docs/cms/moodle-integration-module.md:31"
+  ],
+  "lesson_id": "L-b3582d4b9b",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.267226Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "When the module is installed or re-enabled from the CMS installer, it bootstraps editable CMS pages for the tenant:",
+  "type": "propose"
+}

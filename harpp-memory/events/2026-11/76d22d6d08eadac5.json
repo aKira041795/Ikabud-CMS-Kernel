@@ -1,0 +1,15 @@
+{
+  "digest": "76d22d6d08eadac536cd404422dcedd045824d1c26ca206dff4f1f0938b44c8d",
+  "event_id": "76d22d6d08eadac5",
+  "evidence": [
+    "docs/architecture/decisions/ADR-006-registration-implementation-separation.md:72"
+  ],
+  "lesson_id": "L-b8f602e6d0",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.165344Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "`scripts/warm-opcache.php` warms the pool in real HTTP requests after a deploy (CLI would build a second opcache the web pool never reads). The cold start is **4.89\u00d7** the warm cost (227.64 / 46.55), and it is paid by whoever arrives first after any PHP restart \u2014 which on shared hosting is the host's decision, not the operator's.",
+  "type": "propose"
+}

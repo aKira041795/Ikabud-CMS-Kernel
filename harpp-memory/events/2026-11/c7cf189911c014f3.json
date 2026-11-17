@@ -1,0 +1,15 @@
+{
+  "digest": "c7cf189911c014f319daeaad84a9bd72f5297199af9dce360ff6939bddfd56ac",
+  "event_id": "c7cf189911c014f3",
+  "evidence": [
+    "docs/pal/pal-ark-workbench-architecture-plan.md:800"
+  ],
+  "lesson_id": "L-c9cbade448",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.013164Z",
+  "schema_version": 1,
+  "scope": "pal",
+  "text": "**Hard rule: View models contain values and semantic structures. They never contain HTML.**",
+  "type": "propose"
+}

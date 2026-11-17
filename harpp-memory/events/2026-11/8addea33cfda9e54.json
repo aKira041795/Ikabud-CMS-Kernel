@@ -1,0 +1,15 @@
+{
+  "digest": "8addea33cfda9e5471df2e551945ef23ba71c9bc9960eb608b97a949d848b2b9",
+  "event_id": "8addea33cfda9e54",
+  "evidence": [
+    "docs/reviews/perf-metrics-2026-10-10.md:476"
+  ],
+  "lesson_id": "L-3e50ad4835",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.410767Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "`probe-include-scaling.php` measured it at a fixed page size over N = 1..20:",
+  "type": "propose"
+}

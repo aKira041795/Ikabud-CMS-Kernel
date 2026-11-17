@@ -1,0 +1,15 @@
+{
+  "digest": "263508e67b343177d27f1cca6718032f1199b126f2919cf27a5251651bfed295",
+  "event_id": "263508e67b343177",
+  "evidence": [
+    "docs/workbench/competitive-roadmap.md:146"
+  ],
+  "lesson_id": "L-d7f540f605",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.615350Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Every governed component has required state scenarios. - Critical accessibility regressions: zero. - Visual baseline changes require an explicit approval artifact. - Component changes identify affected modules.",
+  "type": "propose"
+}

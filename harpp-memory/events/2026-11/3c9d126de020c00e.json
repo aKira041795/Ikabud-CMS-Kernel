@@ -1,0 +1,15 @@
+{
+  "digest": "3c9d126de020c00eacd9a11ed7b62edfd06dceaa73c21e78498562308d9fc282",
+  "event_id": "3c9d126de020c00e",
+  "evidence": [
+    "docs/architecture/decisions/ADR-005-one-assortment-per-branch.md:47"
+  ],
+  "lesson_id": "L-75b068af48",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.163586Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "exactly **one** commissary: branch 18 `RIZAL-COMMIS`, with **178 active pairs and 0 hidden pairs**; - branch 18 has **0** rows in `dl_daily_ledger` \u2014 it is **never used as a till** (branch 8 *Miputak* holds all 12,704); - therefore the two surfaces have **never diverged in practice**, and nothing in the data expresses a need for the split.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "0a66c9fb804972f36a4322b7ef2f77173102e3da1b9a899f1969cb46bbdbdb25",
+  "event_id": "0a66c9fb804972f3",
+  "evidence": [
+    "docs/marketing/positioning.md:45"
+  ],
+  "lesson_id": "L-508dbe6db5",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.860305Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Modules do not need to behave like mini-frameworks inside the app. They operate through a scoped `ModuleContext` boundary.",
+  "type": "propose"
+}

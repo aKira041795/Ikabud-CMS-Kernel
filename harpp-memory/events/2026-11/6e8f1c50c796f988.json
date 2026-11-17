@@ -1,0 +1,15 @@
+{
+  "digest": "6e8f1c50c796f9889f7a975c6dad7def3b1a7cf3046298ec989565cac42e3186",
+  "event_id": "6e8f1c50c796f988",
+  "evidence": [
+    "docs/reviews/kernel-modular-runtime-evidence-2026-07-24.md:84"
+  ],
+  "lesson_id": "L-3c5fb355cf",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.268386Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Kernel bootstrap (`bootstrap.php`) and entrypoint (`public/index.php`)",
+  "type": "propose"
+}

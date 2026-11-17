@@ -1,0 +1,15 @@
+{
+  "digest": "43f6962293197f4383e40ad239598dc0f7c9e42bc79be33f2cd9ef39024adf0b",
+  "event_id": "43f6962293197f43",
+  "evidence": [
+    "docs/architecture/decisions/ADR-006-registration-implementation-separation.md:52"
+  ],
+  "lesson_id": "L-1c0540acfa",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.164745Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "It arrived because the PHP 8.5 upgrade restarted PHP and emptied OPcache, which turned a known-but-unmeasured effect into a live experiment:",
+  "type": "propose"
+}

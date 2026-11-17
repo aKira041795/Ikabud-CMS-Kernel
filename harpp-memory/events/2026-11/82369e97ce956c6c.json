@@ -1,0 +1,15 @@
+{
+  "digest": "82369e97ce956c6cb2359536a5450db8b3007f8024f996df7a9bc506474af543",
+  "event_id": "82369e97ce956c6c",
+  "evidence": [
+    "docs/evaluations/ikabud-kernel-action-plan-2026-04-10.md:75"
+  ],
+  "lesson_id": "L-fb5615a58d",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.460415Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "`kernel/Services/DatabaseManager.php` - `kernel/Services/AuthContext.php` - `kernel/Services/RenderContextFactory.php` - `kernel/Services/CsrfService.php` - `kernel/Bootstrap/KernelCapabilityBootstrap.php`",
+  "type": "propose"
+}

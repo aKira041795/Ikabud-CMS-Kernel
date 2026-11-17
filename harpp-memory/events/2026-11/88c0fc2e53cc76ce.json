@@ -1,0 +1,15 @@
+{
+  "digest": "88c0fc2e53cc76cee5a8b73b14085fd4ccee380b76ccb64da6ca7cd1b6f3bbdc",
+  "event_id": "88c0fc2e53cc76ce",
+  "evidence": [
+    "docs/reviews/sol-production-attribution-2026-10-11.md:429"
+  ],
+  "lesson_id": "L-c9e7d1fb99",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.514920Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "A branch-product with no production evidence must render `Not recorded` or `n/a`, never `0 produced`, `0 wastage`, or `0% wastage`.",
+  "type": "propose"
+}

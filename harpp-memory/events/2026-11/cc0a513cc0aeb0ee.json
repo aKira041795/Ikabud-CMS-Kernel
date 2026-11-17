@@ -1,0 +1,15 @@
+{
+  "digest": "cc0a513cc0aeb0ee2e3f8444a5e96f560ba2713b9acef95358e8feccc2c68f13",
+  "event_id": "cc0a513cc0aeb0ee",
+  "evidence": [
+    "docs/project-audit-ledger/zap-arts-quotation-consolidation-plan.md:905"
+  ],
+  "lesson_id": "L-cbae85c933",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.081355Z",
+  "schema_version": 1,
+  "scope": "project-audit-ledger",
+  "text": "Phase 6 \u2014 Modify - [ ] `module.json` \u2014 add team_lead capabilities - [ ] `handlers/00-bootstrap.php` \u2014 team_lead in role checks - [ ] `handlers/75-users.php` \u2014 team_lead role in create/update - [ ] `handlers/70-settings.php` \u2014 link team leads to users",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "400bbf63b489fd44567ce2fbd703ac6840854a39d77ec1ac427c83bc93e4d6cb",
+  "event_id": "400bbf63b489fd44",
+  "evidence": [
+    "docs/engineering/identity-and-role-drift-backlog.md:37"
+  ],
+  "lesson_id": "L-69445ae24b",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.411143Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "| Module | Occurrences | Notes | |---|---|---| | `guidance` | 105 | largest concentration | | `daily-ledger` | 59 | | | `project-audit-ledger` | 46 | `palCurrentUser()` takes the roles per call, and already carries a default (`00-bootstrap.php:32`) that callers mostly re-specify | | `wms` | 34 | | | `attendance-wage` | 6 | | | `bakeshop` | 5 | | | `ticketing` | 3 | | | **total** | **258** | |",
+  "type": "propose"
+}

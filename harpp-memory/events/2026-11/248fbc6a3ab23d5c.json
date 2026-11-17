@@ -1,0 +1,15 @@
+{
+  "digest": "248fbc6a3ab23d5cb4cfe30424803cd8cebf797f59da9c2f397845eeefc2b1e1",
+  "event_id": "248fbc6a3ab23d5c",
+  "evidence": [
+    "docs/reviews/perf-metrics-2026-10-10/sol-brief-disyl-fallback-round2.md:24"
+  ],
+  "lesson_id": "L-9004aca301",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.346423Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "`content` and `scripts` never reach the parent layout, and the emitted CSS stops dead at `@media(min-width:700px)`. The nested `{` immediately after it appears to swallow the rest of the document \u2014 including `{/block}` and every later block. **Establish this trigger by measurement; do not take my reading of it as fact.**",
+  "type": "propose"
+}

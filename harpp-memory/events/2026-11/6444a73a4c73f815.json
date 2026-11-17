@@ -1,0 +1,15 @@
+{
+  "digest": "6444a73a4c73f815d9ca76bd2e442d1100739d7316321b2b7519a4b65c1a4861",
+  "event_id": "6444a73a4c73f815",
+  "evidence": [
+    "docs/cms/cms-roadmap.md:85"
+  ],
+  "lesson_id": "L-d14536c442",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.241751Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "1. Server-side builder shell bootstrap for first-save reliability 2. Better publish/preview parity checks 3. More builder validation diagnostics 4. Better template selection and starter-theme compatibility",
+  "type": "propose"
+}

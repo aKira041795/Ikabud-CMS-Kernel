@@ -1,0 +1,15 @@
+{
+  "digest": "36deab964095ee5b4d8672f0cfa0d787f8bdfb1c0d19da48af44339abd36dcd3",
+  "event_id": "36deab964095ee5b",
+  "evidence": [
+    "docs/cms/cms-implementation-guide.md:21"
+  ],
+  "lesson_id": "L-014ea70aef",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.215177Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "If a change weakens any of those properties, it should be treated as a regression until proven otherwise.",
+  "type": "propose"
+}

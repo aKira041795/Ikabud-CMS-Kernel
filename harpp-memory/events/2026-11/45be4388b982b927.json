@@ -1,0 +1,15 @@
+{
+  "digest": "45be4388b982b9277de61438c453ca76ebe3b3ff99391aec63ede2ee8687f3d4",
+  "event_id": "45be4388b982b927",
+  "evidence": [
+    "docs/page-builder/page-builder-visual-blueprint.md:454"
+  ],
+  "lesson_id": "L-8b1e474ebc",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.902595Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "power-user features do not crowd novice workflows - advanced controls are discoverable but not intrusive",
+  "type": "propose"
+}

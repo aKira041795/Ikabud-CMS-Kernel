@@ -1,0 +1,15 @@
+{
+  "digest": "1449570f390a3004353112b97650fef3f2d622e142ddec19af772a29c7b83f75",
+  "event_id": "1449570f390a3004",
+  "evidence": [
+    "docs/kernel/co-owns-tables-policy.md:36"
+  ],
+  "lesson_id": "L-3105df89d8",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.587256Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "1. **DDL authority stays with the owner.** The owning module's migrations define the table schema. Co-owning modules must not run DDL (CREATE/ALTER/DROP) on co-owned tables \u2014 `ModuleDB` blocks DDL for all modules anyway, but the convention must be documented.",
+  "type": "propose"
+}

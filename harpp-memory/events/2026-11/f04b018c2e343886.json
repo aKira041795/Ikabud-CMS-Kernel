@@ -1,0 +1,15 @@
+{
+  "digest": "f04b018c2e34388672574c77cb5f94cea3bef3f1f35f05a42db7d828203fe763",
+  "event_id": "f04b018c2e343886",
+  "evidence": [
+    ".github/instructions/ui-ux-conventions.instructions.md:52"
+  ],
+  "lesson_id": "L-eb4d4ad7c1",
+  "proposed_by": "harvest",
+  "reason": "ui-ux",
+  "recorded_at": "2026-11-17T13:22:44.987187Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Measured trap Grouping keyed on the child id (`'delivery:' + delivery_id`) looks correct in code and is wrong in data: a sheet entry writes one delivery row **per product**, so every product showed up as its own row. Group on the identity the operator reads, and make the record's action cover every child in the group.",
+  "type": "propose"
+}

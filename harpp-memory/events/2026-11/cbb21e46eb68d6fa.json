@@ -1,0 +1,15 @@
+{
+  "digest": "cbb21e46eb68d6fa063f609f5d13f04550c9a0978c71753a786ef75484d1891d",
+  "event_id": "cbb21e46eb68d6fa",
+  "evidence": [
+    "docs/engineering/commissary-coherence-audit-2026-10-08.md:246"
+  ],
+  "lesson_id": "L-c5083e6f14",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.400495Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "on a *fresh* restore the projection may be entirely empty, giving `checked = 0` and making the depletion gate FAIL with *\"no projection rows to compare\"*. That is the intended behaviour \u2014 a run that compared nothing may not report success \u2014 and is exactly the vacuous-pass defect repaired above. It is **not** a broken gate and must not be \"fixed\" by restoring a `$rows === [] ||` escape.",
+  "type": "propose"
+}

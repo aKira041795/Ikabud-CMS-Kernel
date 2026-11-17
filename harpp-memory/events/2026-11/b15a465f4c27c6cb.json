@@ -1,0 +1,15 @@
+{
+  "digest": "b15a465f4c27c6cb476089b6437b4963c71df437ce615700daf177eb798a682f",
+  "event_id": "b15a465f4c27c6cb",
+  "evidence": [
+    "tests/disyl_v45_async_test.php:176"
+  ],
+  "lesson_id": "L-8eb1d836ff",
+  "proposed_by": "harvest",
+  "reason": "gate",
+  "recorded_at": "2026-11-17T13:22:45.449723Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "await: missing src sync fallback renders body",
+  "type": "propose"
+}

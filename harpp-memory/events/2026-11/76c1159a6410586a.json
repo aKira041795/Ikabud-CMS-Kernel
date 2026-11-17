@@ -1,0 +1,15 @@
+{
+  "digest": "76c1159a6410586af8befd6cc13739f0dadfcf942a99d88291f89d35e85ae7b7",
+  "event_id": "76c1159a6410586a",
+  "evidence": [
+    "docs/kernel/kernel-stable-contracts.md:53"
+  ],
+  "lesson_id": "L-0fcf8f64a0",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.658383Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "do not rename hook or event identifiers casually - do not silently remove event payload fields relied on by existing listeners - prefer additive payload changes over destructive ones",
+  "type": "propose"
+}

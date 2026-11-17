@@ -1,0 +1,15 @@
+{
+  "digest": "5f8fccc111b4a2ea7c451ba5540c325a25aaadeadb9bc51323d8ddbb24bf333d",
+  "event_id": "5f8fccc111b4a2ea",
+  "evidence": [
+    "docs/kernel/module-development-guide.md:650"
+  ],
+  "lesson_id": "L-b41ec6f230",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.722174Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "9. **`database/migrations/`** \u2014 Users table migration + bootstrap admin migration + password_resets table migration.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "509b44761c8fc1a66a8bc56f741bdba3f51c1391e1bea94701788c770bd8ca3b",
+  "event_id": "509b44761c8fc1a6",
+  "evidence": [
+    "docs/bakeshop/workspace-user-guide.md:85"
+  ],
+  "lesson_id": "L-fd65b85c8a",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.194344Z",
+  "schema_version": 1,
+  "scope": "bakeshop",
+  "text": "Record deliveries before logging production whenever possible. - Use the same branch and date conventions consistently so reports are easier to verify later. - Review received quantities carefully because they feed directly into usage and remaining-balance calculations.",
+  "type": "propose"
+}

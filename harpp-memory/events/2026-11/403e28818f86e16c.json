@@ -1,0 +1,15 @@
+{
+  "digest": "403e28818f86e16c598e76c3c8e593414b02b524bd4129654203aaddd9e2db6f",
+  "event_id": "403e28818f86e16c",
+  "evidence": [
+    "docs/cms/cms-module-boundary-map.md:34"
+  ],
+  "lesson_id": "L-eb9fe0e779",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.226493Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "Data Ownership Rules - Keep existing CMS-owned tables in CMS unless extraction includes explicit migration and ownership handoff. - New adjacent module tables must be declared in owns_tables and migrated by that module. - Shared infrastructure reads must be declared in reads_tables. - Never rely on undeclared table access through ModuleDB.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "92ac55d5d48840b3396e644bdbed0668c2eba5fc604ee2a07660c4c44daa9474",
+  "event_id": "92ac55d5d48840b3",
+  "evidence": [
+    "docs/pal/ark-workbench-reference-guide.md:697"
+  ],
+  "lesson_id": "L-56711bc102",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.941523Z",
+  "schema_version": 1,
+  "scope": "pal",
+  "text": "```php // MoneyValue \u2014 integer minor units, never float final readonly class MoneyValue { public function __construct( public int $minorUnits, // 123456 (= \u20b11,234.56) public string $currency, // \"PHP\" public string $formatted, // \"\u20b11,234.56\" public bool $isNegative, ) {} }",
+  "type": "propose"
+}

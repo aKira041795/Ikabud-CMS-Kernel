@@ -1,0 +1,15 @@
+{
+  "digest": "cb15f56a36fe0f7ed12fe41a9c2a50ad70306f20352d787f1f4d54c8da1341ff",
+  "event_id": "cb15f56a36fe0f7e",
+  "evidence": [
+    "docs/email/EMAIL_SETUP_STATUS.md:69"
+  ],
+  "lesson_id": "L-6011616faa",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.392611Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "\ud83d\udd12 **Security:** - Email credentials should never be in code - Always validate recipient emails before sending - Use proper HTML escaping in templates - Set Reply-To header when appropriate",
+  "type": "propose"
+}

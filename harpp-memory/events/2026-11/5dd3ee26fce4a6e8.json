@@ -1,0 +1,15 @@
+{
+  "digest": "5dd3ee26fce4a6e8b6ca6ed6fb55a5da7ced448f5c8a1ad93d1ff75696f0c423",
+  "event_id": "5dd3ee26fce4a6e8",
+  "evidence": [
+    "docs/kernel/module-development-guide.md:1494"
+  ],
+  "lesson_id": "L-93ef001f12",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.764177Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "**Use parameterized queries always** \u2014 `$db->prepare()` + `$stmt->execute([...])` \u2014 never string interpolation - **Add LIMIT to `fetchAll()`** \u2014 unbounded queries on large tables (orders, content, logs) will exhaust memory - **Use per-request static caches** for settings/config/form-field reads (see standard below) - **Batch queries** \u2014 one query that returns 100 rows is faster than 100 queries returning 1 row each",
+  "type": "propose"
+}

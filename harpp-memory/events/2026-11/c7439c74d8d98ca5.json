@@ -1,0 +1,15 @@
+{
+  "digest": "c7439c74d8d98ca521aa2ec4d791de588cf6e62cc669ac40dcf9731dc3c03f37",
+  "event_id": "c7439c74d8d98ca5",
+  "evidence": [
+    "docs/daily-ledger/HANDOFF-2026-10-11.md:292"
+  ],
+  "lesson_id": "L-faad7fb7e6",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.293970Z",
+  "schema_version": 1,
+  "scope": "daily-ledger",
+  "text": "P2's silence on 06-02 is a measured zero because the branch reported that shift. The old figure overstated P2's daily demand two-fold. An assertion was ADDED pinning `sample_days` to the branch's recorded days (2 for P2, which has **one** sales row) so a return to the product-row denominator cannot pass silently \u2014 re-anchoring a stale oracle must not delete the requirement.",
+  "type": "propose"
+}

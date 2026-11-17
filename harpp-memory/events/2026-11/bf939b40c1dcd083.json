@@ -1,0 +1,15 @@
+{
+  "digest": "bf939b40c1dcd083cdc4904f6847cca03fb5b6d56d249be1169ba5c54cf79eef",
+  "event_id": "bf939b40c1dcd083",
+  "evidence": [
+    "docs/reviews/perf-metrics-2026-10-10.md:129"
+  ],
+  "lesson_id": "L-78ade05379",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.388201Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "So boot is ~71% the 18 `src/` requires, ~23% the pre-bootstrap region plus `bootstrap.php`, ~1% the fast-path cache, ~0% tail.",
+  "type": "propose"
+}

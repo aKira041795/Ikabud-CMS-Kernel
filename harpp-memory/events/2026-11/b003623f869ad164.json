@@ -1,0 +1,15 @@
+{
+  "digest": "b003623f869ad164bdb77f6f00c4007ac81419169a732734c85dc15e7a232dbb",
+  "event_id": "b003623f869ad164",
+  "evidence": [
+    "docs/reviews/perf-metrics-2026-10-10.md:1257"
+  ],
+  "lesson_id": "L-a21201b96f",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.451487Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "~3 ms does not buy that. **Rejected on the same standard as 4n and 4o.**",
+  "type": "propose"
+}

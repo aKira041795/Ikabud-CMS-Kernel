@@ -1,0 +1,15 @@
+{
+  "digest": "a25d3533a33cd093ec4a103c590d156fb3b5c4cbb82624875174787abf89852f",
+  "event_id": "a25d3533a33cd093",
+  "evidence": [
+    "docs/reviews/daily-ledger-area-rollout-plan-2026-10-10.md:89"
+  ],
+  "lesson_id": "L-0fe8ca382f",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.248489Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "2. **Outlet-level assignment is authoritative.** Keep `assigned_commissary_id` on branches AND on consignees; do not centralise it on the area. Area groups recipients for filtering/reporting; each outlet names its own supplier. **Cross-area supply is legitimate** \u2014 Dapitan branches are supplied by the Dipolog commissary, which proves area and supply topology are not equivalent.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "4f9ec6095e700b0815c6e2c99fddfce03b9176978cd227fc271bdc45dbf4ce6f",
+  "event_id": "4f9ec6095e700b08",
+  "evidence": [
+    "docs/pal/pal-ark-workbench-architecture-plan.md:649"
+  ],
+  "lesson_id": "L-1bc9991d8a",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.007715Z",
+  "schema_version": 1,
+  "scope": "pal",
+  "text": "Accessible modal dialog implemented via `workbench-dialog.js` - Focus trap (Tab cycles within dialog) - Escape to close - Click outside to close (configurable) - Three variants: `default`, `alert` (destructive), `confirm` - Title, body, footer action slots",
+  "type": "propose"
+}

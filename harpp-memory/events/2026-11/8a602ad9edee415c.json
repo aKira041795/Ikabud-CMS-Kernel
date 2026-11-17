@@ -1,0 +1,15 @@
+{
+  "digest": "8a602ad9edee415cda102466acbfb837547efaf10a42e4a4c7f88039cc25fe4a",
+  "event_id": "8a602ad9edee415c",
+  "evidence": [
+    "docs/reviews/perf-metrics-2026-10-10/sol-fix-verification.md:29"
+  ],
+  "lesson_id": "L-537a788981",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.365873Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Why it is rejected: it converts a slow-but-correct page into a fast-but-broken one",
+  "type": "propose"
+}

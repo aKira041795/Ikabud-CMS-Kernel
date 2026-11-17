@@ -1,0 +1,15 @@
+{
+  "digest": "9e1e31a093e0a183fae1efd07a8c6c2fc3852f0a0c445cb5f3b7a9d7abe352f0",
+  "event_id": "9e1e31a093e0a183",
+  "evidence": [
+    "docs/reviews/mobile-offline-db-readiness-review-2026-07-10.md:144"
+  ],
+  "lesson_id": "L-10e7dacca0",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.339756Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "GAP-1: No JSON error handler (\ud83d\udd34 CRITICAL) The global exception handler **always returns HTML**, even for API routes: ```php // bootstrap.php:1634 \u2014 global exception handler header('Content-Type: text/html; charset=utf-8'); // \u2190 Always HTML! echo '<!DOCTYPE html>...<h1>Application Error</h1>...'; ```",
+  "type": "propose"
+}

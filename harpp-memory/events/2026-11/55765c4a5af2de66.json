@@ -1,0 +1,15 @@
+{
+  "digest": "55765c4a5af2de665ab26cfc8be5e70eec53035ed56069f1f1410a3745952f7d",
+  "event_id": "55765c4a5af2de66",
+  "evidence": [
+    "docs/releases/release-notes-2026-08-05-cms-akira-product-suite.md:77"
+  ],
+  "lesson_id": "L-bb59b7f7e0",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.106967Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "When the new fields are present they are validated **strictly**; fleet-level checks run in the manifest guard and certification, never at tenant boot for legacy modules.",
+  "type": "propose"
+}

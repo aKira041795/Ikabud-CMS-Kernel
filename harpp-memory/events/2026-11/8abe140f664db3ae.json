@@ -1,0 +1,15 @@
+{
+  "digest": "8abe140f664db3ae5a6bbaa3633cb9938e85c294cd8afc243ac55d56002f234c",
+  "event_id": "8abe140f664db3ae",
+  "evidence": [
+    "docs/engineering/lane-event-log-and-policy.md:69"
+  ],
+  "lesson_id": "L-023f74a7bc",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.413064Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "\"Sol is read-only\", \"the architect must not edit\", and \"no lane may push or merge\" were conventions in prompts and instructions. A convention is not a control.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "63766e5bfcac0fb863e049b033c14c8f73ec467dacfdfbae40f458f59bcbddba",
+  "event_id": "63766e5bfcac0fb8",
+  "evidence": [
+    "docs/ehr/roadmap.md:260"
+  ],
+  "lesson_id": "L-e3520176d4",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.381976Z",
+  "schema_version": 1,
+  "scope": "ehr",
+  "text": "Acceptance criteria: - analytics and AI features never bypass note signing, amendment, privacy, or audit rules - CDS recommendations remain advisory unless explicitly designed otherwise - model-generated content is attributable and reviewable before finalization",
+  "type": "propose"
+}

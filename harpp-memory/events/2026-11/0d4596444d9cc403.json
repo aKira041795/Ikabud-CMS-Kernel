@@ -1,0 +1,15 @@
+{
+  "digest": "0d4596444d9cc4034c6ed98a42f7185c82d54cef3695ba3a9c5c0d759631455e",
+  "event_id": "0d4596444d9cc403",
+  "evidence": [
+    "docs/kernel/kernel-triggers-capabilities-plan.md:90"
+  ],
+  "lesson_id": "L-df4b076502",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.668078Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "migrated modules do not rely on shared global handler state - provider registration origin is inspectable - registration failures identify module, capability, and reason clearly - runtime behavior remains backward compatible during transition",
+  "type": "propose"
+}

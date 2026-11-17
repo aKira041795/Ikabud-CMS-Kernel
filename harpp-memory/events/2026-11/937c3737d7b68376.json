@@ -1,0 +1,15 @@
+{
+  "digest": "937c3737d7b683765fd5c001c149d7779729630da119c38aed64acf9ec8db584",
+  "event_id": "937c3737d7b68376",
+  "evidence": [
+    "docs/reviews/perf-metrics-2026-10-10.md:107"
+  ],
+  "lesson_id": "L-d80663e6aa",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.384914Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "| metric | median | min | max | |---|---:|---:|---:| | `boot_fastpath` | 0.049 | 0.030 | 0.056 | | `boot_bootstrap` | 1.695 | 1.292 | 2.646 | | `boot_requires` | 7.093 | 5.967 | 7.781 | | `boot` (total) | 7.102 | 5.974 | 7.797 | | segment: fastpath -> bootstrap | 1.646 | 1.246 | 2.593 | | segment: bootstrap -> requires | 5.216 | 3.971 | 6.323 | | segment: requires -> boot | 0.012 | 0.008 | 0.016 |",
+  "type": "propose"
+}

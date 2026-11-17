@@ -1,0 +1,15 @@
+{
+  "digest": "203525a849773c47ef19ea97e590f5518d5d8c9ac89265acf964b01f7db5263f",
+  "event_id": "203525a849773c47",
+  "evidence": [
+    "docs/ai/harpp-memory.md:81"
+  ],
+  "lesson_id": "L-663f8060ff",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.147157Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "There are **328 markdown files (~20 MB)** under `docs/` that were written over months and never read back by the harness. `harvest` turns the durable statements in them into **proposed** lessons:",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "f6de9dcd73cbb0b1908072ec9ac0bef418f2c476a8cb569c343a384c559ee6ca",
+  "event_id": "f6de9dcd73cbb0b1",
+  "evidence": [
+    "docs/project-audit-ledger/implementation-plan.md:1483"
+  ],
+  "lesson_id": "L-cd3c2693b9",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.055759Z",
+  "schema_version": 1,
+  "scope": "project-audit-ledger",
+  "text": "``` DRAFT \u2500\u2500submit\u2500\u2500\u25ba SUBMITTED \u2500\u2500approve\u2500\u2500\u25ba APPROVED \u2500\u2500\u25ba (stock-in created) \u2502 \u2502 \u2502 reject \u2502 void \u25bc \u25bc REJECTED VOIDED ```",
+  "type": "propose"
+}

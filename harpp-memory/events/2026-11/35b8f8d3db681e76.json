@@ -1,0 +1,15 @@
+{
+  "digest": "35b8f8d3db681e7668fd9af89cd8b7861982313e7f7731fe772989035c7eddc0",
+  "event_id": "35b8f8d3db681e76",
+  "evidence": [
+    "docs/workbench/extension-sdk-and-ci.md:37"
+  ],
+  "lesson_id": "L-0bd6738463",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.641756Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Use the lightweight container for pull-request contract/benchmark governance. Use the application CI environment or `tests/browser/run-workbench.js` for browser/hybrid evidence. These scopes are deliberately separate so the lightweight runner never implies E2E coverage it did not execute.",
+  "type": "propose"
+}

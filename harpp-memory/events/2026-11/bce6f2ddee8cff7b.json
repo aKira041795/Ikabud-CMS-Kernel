@@ -1,0 +1,15 @@
+{
+  "digest": "bce6f2ddee8cff7b918aa60ac774593855122d65dbda857644ea6ba555236a8b",
+  "event_id": "bce6f2ddee8cff7b",
+  "evidence": [
+    "docs/kernel/module-quickstart.md:485"
+  ],
+  "lesson_id": "L-2dcd05bb0d",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.797747Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "when `make:module --suite=...` or a subsequent scaffold/composer step fails, do not patch around the failure. Capture the error, add a regression test that reproduces it, fix the toolchain at the root, and rerun the scaffold. The scaffolder stays the single source of truth for new modules.",
+  "type": "propose"
+}

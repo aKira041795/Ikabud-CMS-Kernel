@@ -1,0 +1,15 @@
+{
+  "digest": "eb5fda80e6f1cd67cef8d788c65d013f322016cde754fdb1c0b09faec567ae59",
+  "event_id": "eb5fda80e6f1cd67",
+  "evidence": [
+    "docs/engineering/lane-harness-issue.md:776"
+  ],
+  "lesson_id": "L-df04e4f90e",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.442052Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Residual risk, not fixed here: the acceptance re-run happens inside the EXIT trap, so a lane whose process ends within ~210s of its own `--timeout` can still be preceded by the deadline watchdog, which commits `unverified` and (by design) makes `commit_landing` refuse the real record. Narrow, and unfixed rather than papered over.",
+  "type": "propose"
+}

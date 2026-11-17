@@ -1,0 +1,15 @@
+{
+  "digest": "12a19d1ad5e35f17c1414341cb0758ac87316349c22f9120b0e2fb61cb9742d4",
+  "event_id": "12a19d1ad5e35f17",
+  "evidence": [
+    "docs/reviews/system-review-2026-07-05.md:57"
+  ],
+  "lesson_id": "L-d630385843",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.526260Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Compiled DiSyL templates are APCu-cached and survive graceful PHP-FPM restarts. Layout changes to `{extends}` parent templates do not automatically invalidate child templates without `?disyl_nocache=1` or a full FPM stop.",
+  "type": "propose"
+}

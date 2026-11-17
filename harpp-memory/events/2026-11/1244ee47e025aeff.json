@@ -1,0 +1,15 @@
+{
+  "digest": "1244ee47e025aeff87751f16585c31282b059effc08836f53927b7a764c9f5c1",
+  "event_id": "1244ee47e025aeff",
+  "evidence": [
+    "docs/reviews/perf-metrics-2026-10-10/sol-brief-disyl-fallback-round2.md:73"
+  ],
+  "lesson_id": "L-f947b64ec5",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.351402Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "A `BLOCKED` with a precise reason beats a plausible fix. Report in the same STATUS/ROOT CAUSE/TRIGGER/FILES CHANGED/FIX/SWEEP/TESTS/RISKS/UNRESOLVED format, and include the raw `diff` output for the output-equality check \u2014 that diff is the evidence this round turns on.",
+  "type": "propose"
+}

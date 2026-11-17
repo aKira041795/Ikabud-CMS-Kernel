@@ -1,0 +1,15 @@
+{
+  "digest": "9b4053511c4840968cdaac1ea84d1c4d05f05af693ecb2a63d55b7a4228c2cff",
+  "event_id": "9b4053511c484096",
+  "evidence": [
+    "tests/disyl_v46_fed_ai_test.php:78"
+  ],
+  "lesson_id": "L-bd6638401b",
+  "proposed_by": "harvest",
+  "reason": "gate",
+  "recorded_at": "2026-11-17T13:22:45.451752Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "federation: aggregate sees both bindings",
+  "type": "propose"
+}

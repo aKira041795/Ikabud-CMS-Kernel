@@ -1,0 +1,15 @@
+{
+  "digest": "ee06ef3d6982ad0f20176b3e61d178f179696bace093dce725f8e5105a5da887",
+  "event_id": "ee06ef3d6982ad0f",
+  "evidence": [
+    ".github/instructions/disyl-template-conventions.instructions.md:4"
+  ],
+  "lesson_id": "L-d96808d9e9",
+  "proposed_by": "harvest",
+  "reason": "ui-ux",
+  "recorded_at": "2026-11-17T13:22:44.964693Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Core directive **If DiSyL does not support a PHP syntax construct that a template needs, improve DiSyL at the engine/root level. Do NOT add template-level workarounds.** See `.github/instructions/disyl-grammar-gaps.instructions.md` for the full PHP syntax support matrix.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "2e152fef34da4d2f2f5ba4f8d88df2fc5d528c7e527543774c689d1e1530691a",
+  "event_id": "2e152fef34da4d2f",
+  "evidence": [
+    "docs/project-audit-ledger/implementation-plan.md:18"
+  ],
+  "lesson_id": "L-bae58f4422",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.047265Z",
+  "schema_version": 1,
+  "scope": "project-audit-ledger",
+  "text": "The module is a **project-first costing and inventory system** designed for small fabrication/construction/service businesses. It treats every transaction as traceable to a project (or general operations). Financial records are **immutable after approval** \u2014 corrections use reversal/void patterns. Inventory is **movement-derived** \u2014 never mutate stock totals directly.",
+  "type": "propose"
+}

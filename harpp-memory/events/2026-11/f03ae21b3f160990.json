@@ -1,0 +1,15 @@
+{
+  "digest": "f03ae21b3f160990b838b90731bfb50a7c8ef9af42aafe8824c5b19c261bb5af",
+  "event_id": "f03ae21b3f160990",
+  "evidence": [
+    "docs/pal/ark-workbench-reference-guide.md:364"
+  ],
+  "lesson_id": "L-c30fa8bce2",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.926532Z",
+  "schema_version": 1,
+  "scope": "pal",
+  "text": "| Domain Status | Tone | |---|---| | `approved`, `paid`, `completed`, `active`, `started`, `ongoing` | `success` | | `pending`, `submitted`, `due_soon` | `warning` | | `rejected`, `overdue`, `cancelled`, `voided`, `blocked` | `danger` | | `draft`, `inactive`, `archived` | `neutral` | | `note`, `info`, `reference` | `informational` |",
+  "type": "propose"
+}

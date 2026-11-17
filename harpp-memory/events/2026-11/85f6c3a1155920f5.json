@@ -1,0 +1,15 @@
+{
+  "digest": "85f6c3a1155920f5cac9598b5963e0922bbadc0a582eacfb15fb434aebcdab1e",
+  "event_id": "85f6c3a1155920f5",
+  "evidence": [
+    "docs/pal/ark-workbench-candidate-0.1.md:151"
+  ],
+  "lesson_id": "L-336fd3c344",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.909675Z",
+  "schema_version": 1,
+  "scope": "pal",
+  "text": "Domain statuses (`draft`, `pending`, `approved`, `started`, `ongoing`, `completed`, `paid`, `overdue`, `rejected`, `cancelled`) hardcoded - PAL-specific status vocabulary",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "5bcfb5019c548c26dacd2744cd5d698f0b2625c6430ca8b3a75c249e7b3dd66f",
+  "event_id": "5bcfb5019c548c26",
+  "evidence": [
+    "docs/reviews/mobile-api-platform-implementation-plan-2026-07-10.md:953"
+  ],
+  "lesson_id": "L-98d873b665",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.324321Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Claimed HS256 is insecure because a decompiled mobile app can extract the signing secret. In a correct architecture, the mobile app **never receives the HS256 secret** \u2014 only the server holds it. The real reasons to add asymmetric JWT are:",
+  "type": "propose"
+}

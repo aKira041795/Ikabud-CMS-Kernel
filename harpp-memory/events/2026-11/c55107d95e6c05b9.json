@@ -1,0 +1,15 @@
+{
+  "digest": "c55107d95e6c05b92d2293ced21f83751bd7fd61956c169e84f2b8021b93a324",
+  "event_id": "c55107d95e6c05b9",
+  "evidence": [
+    "docs/kernel/comprehension-engine.md:104"
+  ],
+  "lesson_id": "L-74c44473e0",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.592768Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "**Category regressions** \u2014 later step with earlier category (e.g., UI step after Audit) - **Timestamp reversals** \u2014 evidence timestamp earlier than previous step (impossible causality) - **Chain gaps** \u2014 consecutive failures that break continuity - **Suspiciously fast** \u2014 sub-millisecond gaps suggest cache serving stale data - **Suspiciously slow** \u2014 >5s gaps suggest timeouts or background jobs",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "9de40a72e8e032dbe6a1e9b314bb30b4ea69311de4b7ce660d9683d0592f969d",
+  "event_id": "9de40a72e8e032db",
+  "evidence": [
+    "docs/disyl/entity-rendering-trait-improvements.md:153"
+  ],
+  "lesson_id": "L-9204ecdff2",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.347185Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "Verdict from review **Do not make 8 internal methods `protected`.** This creates a permanent inheritance API that blocks refactoring and couples modules to `TemplateEngine`.",
+  "type": "propose"
+}

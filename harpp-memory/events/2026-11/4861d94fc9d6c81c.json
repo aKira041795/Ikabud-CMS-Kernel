@@ -1,0 +1,15 @@
+{
+  "digest": "4861d94fc9d6c81c8915b4f19bd34a627ab9775b7e3063d82f19803a31e73877",
+  "event_id": "4861d94fc9d6c81c",
+  "evidence": [
+    "tests/disyl_v42_types_test.php:183"
+  ],
+  "lesson_id": "L-736409680b",
+  "proposed_by": "harvest",
+  "reason": "gate",
+  "recorded_at": "2026-11-17T13:22:45.409848Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "check: clean template (known + optional)",
+  "type": "propose"
+}

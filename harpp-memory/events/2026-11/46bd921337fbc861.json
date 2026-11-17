@@ -1,0 +1,15 @@
+{
+  "digest": "46bd921337fbc86109993dbfd306308a426df6e5df8d98bb4f61197b93c2bd47",
+  "event_id": "46bd921337fbc861",
+  "evidence": [
+    "docs/workbench/deepseek-v4-ark-workbench-improvement-instructions.md:150"
+  ],
+  "lesson_id": "L-b1dc479bd3",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.629711Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Adapt commands to the repository's current test runner; do not claim success from a stale artifact or an exit code alone.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "e29c71566847ac6cb18b1ec26ab2b23346aa0a6d7f36ec851e0e911c59dd833a",
+  "event_id": "e29c71566847ac6c",
+  "evidence": [
+    "docs/ai/harpp-experience-repository.md:46"
+  ],
+  "lesson_id": "L-334680f15d",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.140981Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "Also measured: `cost_usd` is `0.0` on **all 12** ledger rows, and `lane-model.sh` emits no token usage, so any cost-based metric is uncomputable. That is recorded honestly rather than papered over.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "661ae6594174d9375f39873e171de71b2e843d7f03235b097846338795d144fe",
+  "event_id": "661ae6594174d937",
+  "evidence": [
+    "docs/reviews/perf-page-accuracy-2026-10-20/brief.md:36"
+  ],
+  "lesson_id": "L-f7cea7c9fc",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.473961Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "3. Structurally impossible measurements read as missing instruments `Request phase: render` and `Request phase: shutdown` render `not measured`. Two different facts are being conflated:",
+  "type": "propose"
+}

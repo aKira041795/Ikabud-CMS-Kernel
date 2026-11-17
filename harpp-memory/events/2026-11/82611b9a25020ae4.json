@@ -1,0 +1,15 @@
+{
+  "digest": "82611b9a25020ae4c6e6c7a62542b7ce4fbe5b019aab31c8d8f27b480abcceef",
+  "event_id": "82611b9a25020ae4",
+  "evidence": [
+    "docs/reviews/kernel-disyl-review-2026-10-20.md:12"
+  ],
+  "lesson_id": "L-beabff5a30",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.260407Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "The feature gate caught a regression that the first lane's acceptance test did not. That is recorded below as finding 3, not hidden as a lane failure.",
+  "type": "propose"
+}

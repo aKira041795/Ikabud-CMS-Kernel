@@ -1,0 +1,15 @@
+{
+  "digest": "a492feabcc06abe3b5c8a675a1bca8e3e9b7dff03577cc09b7ed4222ff5ec760",
+  "event_id": "a492feabcc06abe3",
+  "evidence": [
+    "docs/reviews/windows-desktop-client-feasibility-2026-10-07.md:114"
+  ],
+  "lesson_id": "L-5969830095",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.542353Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "That is the correct answer for *developer tooling*. It is not an answer for a *product* delivered to customers. Do not confuse the two.",
+  "type": "propose"
+}

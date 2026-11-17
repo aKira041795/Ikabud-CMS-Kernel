@@ -1,0 +1,15 @@
+{
+  "digest": "2997dc34c64b9447d46ec339ae0e18a60ed93ce8575d8b1d46395c9342ba1db3",
+  "event_id": "2997dc34c64b9447",
+  "evidence": [
+    ".github/instructions/ai-development-execution-handoff.instructions.md:292"
+  ],
+  "lesson_id": "L-7a2466f706",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.939454Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "Do not send huge raw command outputs to the model when a compact failure summary is sufficient.",
+  "type": "propose"
+}

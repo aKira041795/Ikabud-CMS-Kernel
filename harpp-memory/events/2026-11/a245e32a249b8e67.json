@@ -1,0 +1,15 @@
+{
+  "digest": "a245e32a249b8e67850d20a34a995436f1fd7b0bb34e5c77a8c45a1f27c22529",
+  "event_id": "a245e32a249b8e67",
+  "evidence": [
+    "tests/disyl_v43_cache_exp_test.php:109"
+  ],
+  "lesson_id": "L-66282ccd4c",
+  "proposed_by": "harvest",
+  "reason": "gate",
+  "recorded_at": "2026-11-17T13:22:45.420080Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "bucketer: 50/50 within \u00b110% over 2k subjects",
+  "type": "propose"
+}

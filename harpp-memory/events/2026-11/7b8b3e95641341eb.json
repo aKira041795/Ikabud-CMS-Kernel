@@ -1,0 +1,15 @@
+{
+  "digest": "7b8b3e95641341eb39c70c95731e2d586d9da98a674bec61b6e86e45c8ba4ea2",
+  "event_id": "7b8b3e95641341eb",
+  "evidence": [
+    "docs/case-studies/dc-cafe-standalone-analysis.md:145"
+  ],
+  "lesson_id": "L-851410a6c6",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.195702Z",
+  "schema_version": 1,
+  "scope": "dc-cafe",
+  "text": ": QR ordering was built but never operationally adopted \u2014 only 3 test orders exist.",
+  "type": "propose"
+}

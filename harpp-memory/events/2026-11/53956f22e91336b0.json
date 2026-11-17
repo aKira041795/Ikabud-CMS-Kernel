@@ -1,0 +1,15 @@
+{
+  "digest": "53956f22e91336b0405e341f8d0705a5f83c4ad963ae5aed6df58c86d6f3f6ac",
+  "event_id": "53956f22e91336b0",
+  "evidence": [
+    "docs/reviews/baronledger-db-audit-2026-10-10/OPTIMIZE-RESULTS-2026-10-20.md:3"
+  ],
+  "lesson_id": "L-0ec797cab3",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.166354Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Tested against `baronledger` (tenant 207) after the owner imported the live database on 2026-10-20. All numbers below are measured, not projected, and each was taken with `SET SESSION information_schema_stats_expiry = 0` (MySQL 8 otherwise serves 24-hour-old statistics and makes a successful delete look like a no-op).",
+  "type": "propose"
+}

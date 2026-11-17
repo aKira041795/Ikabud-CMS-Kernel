@@ -1,0 +1,15 @@
+{
+  "digest": "7a596e38c41c2fa41641cfd907482a990e2b11a1dd72c504915020ec574526ab",
+  "event_id": "7a596e38c41c2fa4",
+  "evidence": [
+    "docs/engineering/lane-harness-issue.md:269"
+  ],
+  "lesson_id": "L-a0bfab1850",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.426927Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Why the runner cannot solve it: `timeout` signals `script`, and `script` terminates the session with a signal bash never gets to handle. An `EXIT HUP INT TERM` trap in the generated runner **does** fire on a direct `TERM` (verified: `state=landed reason=timeout exit=143`) but is useless in the real chain.",
+  "type": "propose"
+}

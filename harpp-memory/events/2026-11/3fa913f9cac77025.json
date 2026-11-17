@@ -1,0 +1,15 @@
+{
+  "digest": "3fa913f9cac77025c9fd58c4b90599410cfdf8466fa45ceafd4ee430819b0330",
+  "event_id": "3fa913f9cac77025",
+  "evidence": [
+    "docs/kernel/deploy-cache-invalidation.md:32"
+  ],
+  "lesson_id": "L-d996f84030",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.606258Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "`apcu_clear_cache()` in a CLI process clears only that process's own store, which the workers never share. What actually invalidates the workers is the **configuration generation** the command publishes, which each worker revalidates against on its next read. That is also why the pre-bootstrap fast path and the kernel page-cache check compare a file-backed version token instead of trusting APCu.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "e28416c325de36bba599f01782b1338dfec707207d188704b487b289860827cb",
+  "event_id": "e28416c325de36bb",
+  "evidence": [
+    "docs/project-audit-ledger/zap-arts-quotation-consolidation-plan.md:732"
+  ],
+  "lesson_id": "L-a2e30c8e35",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.079500Z",
+  "schema_version": 1,
+  "scope": "project-audit-ledger",
+  "text": ": ``` Team Lead submits mobilization request \u2502 \u25bc pal_mobilization_requests (status: pending) pal_approvals (entity_type='mobilization') Event: pal.mobilization.requested \u2502 \u25bc Admin reviews \u2192 approve/reject \u2502 \u250c\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2510 \u25bc \u25bc approved rejected \u2502 \u25bc Status: disbursed (when funds released) ```",
+  "type": "propose"
+}

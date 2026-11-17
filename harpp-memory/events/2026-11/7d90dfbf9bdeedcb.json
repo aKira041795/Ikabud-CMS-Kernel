@@ -1,0 +1,15 @@
+{
+  "digest": "7d90dfbf9bdeedcb22d93507cdb2da2d7ddb99de555f67125f1587ad6e1225d8",
+  "event_id": "7d90dfbf9bdeedcb",
+  "evidence": [
+    "docs/evaluations/daily-ledger-load-and-concurrency-2026-09-16.md:5"
+  ],
+  "lesson_id": "L-9ecd266417",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.444125Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "This is a different application path from the April 2026 study (`stress-and-load-test-findings-2026-04-16.md`), which measured the CMS/ecommerce storefront. That study's caching conclusions do **not** transfer: the ledger is authenticated, per-user, write-heavy, and never page-cached.",
+  "type": "propose"
+}

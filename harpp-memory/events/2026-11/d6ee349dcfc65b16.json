@@ -1,0 +1,15 @@
+{
+  "digest": "d6ee349dcfc65b1643a6b365612faa17918c457c56ea5d518c1e0a6b44020c5f",
+  "event_id": "d6ee349dcfc65b16",
+  "evidence": [
+    "docs/evaluations/ikabud-kernel-technical-evaluation-2026-04-10.md:186"
+  ],
+  "lesson_id": "L-a83095c60e",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.492497Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "These inconsistencies do not break runtime behavior, but they reduce trust in documentation as a source of truth.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "fc9e7bb17760a38d719f5d24b9bc258a37ac48656277c1881630753d1eb7c208",
+  "event_id": "fc9e7bb17760a38d",
+  "evidence": [
+    "tests/kernel_ensure_table_cache_test.php:75"
+  ],
+  "lesson_id": "L-f978aa215a",
+  "proposed_by": "harvest",
+  "reason": "gate",
+  "recorded_at": "2026-11-17T13:22:45.466986Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "unavailable flag store fails safe by running DDL",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "476c19a47b10cb4083995cc4de6cc9affe3a1dec371cffaa688c96fb0237091f",
+  "event_id": "476c19a47b10cb40",
+  "evidence": [
+    "docs/reviews/daily-ledger-admin-filters-2026-10-10.md:13"
+  ],
+  "lesson_id": "L-499f66cf58",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.246733Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "The \u201cexisting filters\u201d column starts with the contract's measured inventory rather than a new audit.",
+  "type": "propose"
+}

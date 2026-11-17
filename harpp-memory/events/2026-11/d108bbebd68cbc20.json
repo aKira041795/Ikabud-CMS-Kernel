@@ -1,0 +1,15 @@
+{
+  "digest": "d108bbebd68cbc200c4c43e1a5506e39425e134268669418a36dcfa30c878d85",
+  "event_id": "d108bbebd68cbc20",
+  "evidence": [
+    "docs/workbench/ai-pattern-intelligence-roadmap.md:476"
+  ],
+  "lesson_id": "L-74651b5938",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.592166Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "Exit gate: case retrieval passes precision tests and never promotes unverified model output.",
+  "type": "propose"
+}

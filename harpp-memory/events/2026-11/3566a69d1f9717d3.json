@@ -1,0 +1,15 @@
+{
+  "digest": "3566a69d1f9717d3fdde40ba95074634442e794969d374dc9089314d30edc6d5",
+  "event_id": "3566a69d1f9717d3",
+  "evidence": [
+    "docs/engineering/harness-operating-modes.md:88"
+  ],
+  "lesson_id": "L-52b71c02ed",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.405702Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Note what the chair never was: *advice, not evidence*. Verification has always come from acceptance commands, the release gate and the architecture check \u2014 all local. So the chair's absence removes a discussion, not a proof.",
+  "type": "propose"
+}

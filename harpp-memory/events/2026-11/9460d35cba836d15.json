@@ -1,0 +1,15 @@
+{
+  "digest": "9460d35cba836d15207e06fc5cb463af9ef9b2ff0c256c8578b786c358029bfd",
+  "event_id": "9460d35cba836d15",
+  "evidence": [
+    "docs/ecommerce/ecommerce-customizer-entity-view-implementation-spec.md:262"
+  ],
+  "lesson_id": "L-39f03cdd20",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.360359Z",
+  "schema_version": 1,
+  "scope": "ecommerce",
+  "text": "extend `tests/cms_entity_capability_view_test.php` - extend `tests/ecommerce_storefront_media_test.php` - add route-level regression coverage for product detail render mode",
+  "type": "propose"
+}

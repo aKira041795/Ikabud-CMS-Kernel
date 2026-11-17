@@ -1,0 +1,15 @@
+{
+  "digest": "7262a7664a1109c5411d5ed3706716ad4cb5b1b9322aa5ca828e8da06d7d7cb6",
+  "event_id": "7262a7664a1109c5",
+  "evidence": [
+    "docs/architecture/academic-suite.md:67"
+  ],
+  "lesson_id": "L-5af7c6bc28",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.153171Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Any module can consume any subset of these capabilities. AISS itself never determines academic outcomes \u2014 it produces evidence for human reviewers.",
+  "type": "propose"
+}

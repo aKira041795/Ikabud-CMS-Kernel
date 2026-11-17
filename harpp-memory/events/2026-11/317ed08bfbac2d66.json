@@ -1,0 +1,15 @@
+{
+  "digest": "317ed08bfbac2d66b7eaedb3706db230289f766f086ad6f04166c3cde951dc7b",
+  "event_id": "317ed08bfbac2d66",
+  "evidence": [
+    "docs/kernel/caching-strategy.md:144"
+  ],
+  "lesson_id": "L-b400853b51",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.562545Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "| Authority | Covers | Location | |---|---|---| | Generation tokens | `Cache` instances, generation-bound memos, tenant routing and tenant-DB config | `storage/cache/generations/<namespace>/<key>.gen` | | Page-cache markers | Full-page cache (kernel layer and the pre-bootstrap fast path) | `<instance>/.cache_version`, `<instance>/.flush` |",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "f632017f896b72936762fb4e022b69c12cc14c09b6ac2a41d9ac5ba4eaa0e189",
+  "event_id": "f632017f896b7293",
+  "evidence": [
+    "docs/reviews/perf-page-accuracy-2026-10-20/brief.md:48"
+  ],
+  "lesson_id": "L-3cdcf151a3",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.479552Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "4. Absent payload facts are indistinguishable from unmeasured phases Every row is written as `$perfData['x'] ?? 'not measured'`. So a key that the probe never produced looks identical to a phase that was intentionally not measured.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "1e80cc8b8f360c9505c05a7b1c34368314de401526ebdb31e9c0182d845220b5",
+  "event_id": "1e80cc8b8f360c95",
+  "evidence": [
+    "docs/reviews/sol-production-attribution-2026-10-11.md:311"
+  ],
+  "lesson_id": "L-4a374a490f",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.507705Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "figure: \"Wastage rate 1.35%\" problem: Numerically valid for source 18, but presented under an all-branch scope without naming the source. likely_owner_conclusion: Every selected branch had the same measured waste performance.",
+  "type": "propose"
+}

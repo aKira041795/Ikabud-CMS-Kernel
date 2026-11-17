@@ -1,0 +1,15 @@
+{
+  "digest": "4870c1e0867386cd3ae5993bee6c079ed303e5aff38644aa466b8fbf6463d041",
+  "event_id": "4870c1e0867386cd",
+  "evidence": [
+    "docs/evaluations/ikabud-kernel-refactor-baseline-2026-04-10.md:92"
+  ],
+  "lesson_id": "L-ad2caceed8",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.477968Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "`public/index.php` is primarily orchestration - `kernel/App.php` delegates DB, auth, render-context, and CSRF concerns - `src/helpers/module-manager.php` is split by dominant responsibility - the minimum regression suite stays green across each extraction step",
+  "type": "propose"
+}

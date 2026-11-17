@@ -1,0 +1,15 @@
+{
+  "digest": "0422bff73c34f397171cbdd7009703186743053a3a936d5b34648e77ded87faf",
+  "event_id": "0422bff73c34f397",
+  "evidence": [
+    "docs/ecommerce/multistore-roadmap.md:323"
+  ],
+  "lesson_id": "L-2390b883ee",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.373367Z",
+  "schema_version": 1,
+  "scope": "ecommerce",
+  "text": "Validation Plan 1. Keep shared authenticated-home redirect coverage for store-assigned CMS users. 2. Validate direct store-home resolution for single-store and multi-store assignees. 3. Verify no regressions for admin and non-store customer redirect paths. 4. After each implementation phase, check `storage/logs/app.log` and `storage/logs/error.log`.",
+  "type": "propose"
+}

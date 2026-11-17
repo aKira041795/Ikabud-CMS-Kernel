@@ -1,0 +1,15 @@
+{
+  "digest": "ce9fe1fda677f49d99fc8bb0d693f2e3535c10e9308d07426401fb5722caa4b5",
+  "event_id": "ce9fe1fda677f49d",
+  "evidence": [
+    "docs/kernel/production-deployment-guide.md:119"
+  ],
+  "lesson_id": "L-5ba21c1ea1",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.814541Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Deny access to sensitive files location ~ /\\.(env|git|htaccess) { deny all; } location ~ ^/(bootstrap\\.php|composer\\.(json|lock)|kernel|modules|config|storage|templates|vendor) { deny all; } } ```",
+  "type": "propose"
+}

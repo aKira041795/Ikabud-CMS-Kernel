@@ -1,0 +1,15 @@
+{
+  "digest": "abe12b95b9014f47e38f7ba4af52daf1af3a352d2d49c0a2e977b2075e66552f",
+  "event_id": "abe12b95b9014f47",
+  "evidence": [
+    "docs/workbench/generated-matrices.md:7"
+  ],
+  "lesson_id": "L-29296ac3ce",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.645593Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Risk budgets may reduce redundant combinations but may never omit a mandatory critical combination. Release reporting uses the plan's measured pair and critical coverage rather than estimating coverage from test files.",
+  "type": "propose"
+}

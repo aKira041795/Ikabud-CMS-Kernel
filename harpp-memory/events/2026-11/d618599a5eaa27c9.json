@@ -1,0 +1,15 @@
+{
+  "digest": "d618599a5eaa27c98e0dc872ed6e88e724e55a68a5db59b11a32c3c299c0f9fb",
+  "event_id": "d618599a5eaa27c9",
+  "evidence": [
+    "docs/reviews/cms-page-builder-review-2026-10-10.md:398"
+  ],
+  "lesson_id": "L-18ca79ad2b",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.215597Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "So the root accepted a section and the section rejected the root, and **nothing** could be placed at the top level \u2014 via a template, the insert panel, or a block.",
+  "type": "propose"
+}

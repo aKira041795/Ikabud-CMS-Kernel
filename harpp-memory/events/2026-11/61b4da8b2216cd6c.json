@@ -1,0 +1,15 @@
+{
+  "digest": "61b4da8b2216cd6c0748f49eaacfbebc205acbe3e0620d4fa448b6731018ddd5",
+  "event_id": "61b4da8b2216cd6c",
+  "evidence": [
+    "docs/ai/harpp-experience-repository.md:8"
+  ],
+  "lesson_id": "L-82096afda3",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.138755Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "`.ai/consult/harpp-experience-repo-2026-11-17.chatgpt.md` \u2014 processed ChatGPT thread - `.ai/consult/harpp-experience-repo-2026-11-17.claude.md` \u2014 Claude's chair reply - Probes below were run on 2026-11-17 and their raw output is the basis of every claim marked **measured**.",
+  "type": "propose"
+}

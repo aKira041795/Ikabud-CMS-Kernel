@@ -1,0 +1,15 @@
+{
+  "digest": "874ce082d8a86e9556cbff94c61aca76cbca48a81fd985b5aa512a0e454682c4",
+  "event_id": "874ce082d8a86e95",
+  "evidence": [
+    "docs/releases/release-notes-2026-10-09-disyl-compiled-extends.md:78"
+  ],
+  "lesson_id": "L-5ff2c73a7a",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.116100Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Local, tenant 207, `DISYL_SHARED_OUTPUT_TTL=0` (so every request really renders), medians of 8 warmed requests, A/B/A \u2014 measured with the flag off, then on, then off again to rule out drift:",
+  "type": "propose"
+}

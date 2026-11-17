@@ -1,0 +1,15 @@
+{
+  "digest": "f64443ace067d21009034e1f602e5f37986cbf245943f66def6f4ef3e1f866dc",
+  "event_id": "f64443ace067d210",
+  "evidence": [
+    "docs/architecture/decisions/ADR-006-registration-implementation-separation.md:124"
+  ],
+  "lesson_id": "L-3cda531dc0",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.166574Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "**Retraction:** an earlier revision of this section recorded `route match` rising 7.93 \u2192 12.24 ms (+54%) and called it unexplained. It is not a regression: on 8.5 it measures **7.21 ms**, 41% below the warm 8.3 reading, and the 12.24 figure was taken while the cache was in the intermediate state that the 16:42 reading later explained. The rise was an artefact of the instrument, not of the code.",
+  "type": "propose"
+}

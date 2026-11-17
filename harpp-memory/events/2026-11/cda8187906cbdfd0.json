@@ -1,0 +1,15 @@
+{
+  "digest": "cda8187906cbdfd055b0f48db86505899b7787909aa7944525417b7cd27a3d3a",
+  "event_id": "cda8187906cbdfd0",
+  "evidence": [
+    "docs/bakeshop/bakeshop-module.md:143"
+  ],
+  "lesson_id": "L-197d4574e0",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.189802Z",
+  "schema_version": 1,
+  "scope": "bakeshop",
+  "text": "Accepts `username = \"@bakeshop:<username-or-email>\"` (preferred) or bare module credentials. - Looks up `bakeshop_users` by username **or** email, verifies `password_hash` with `password_verify`, and rejects users whose password equals the legacy bootstrap hash or the reset marker. - Returns an identity payload with `id`, `username`, `email`, `full_name`, `role`, `source = 'bakeshop'`, and `token_version`.",
+  "type": "propose"
+}

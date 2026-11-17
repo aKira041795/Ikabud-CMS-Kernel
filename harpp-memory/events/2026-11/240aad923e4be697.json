@@ -1,0 +1,15 @@
+{
+  "digest": "240aad923e4be6975a8837612f30ace11b99373a5d1800455783c7992f081e3a",
+  "event_id": "240aad923e4be697",
+  "evidence": [
+    "docs/project-audit-ledger/implementation-plan.md:1363"
+  ],
+  "lesson_id": "L-294dc7637d",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.050769Z",
+  "schema_version": 1,
+  "scope": "project-audit-ledger",
+  "text": "9.3 `ExpenseService` - CRUD expenses (tenants/users/status aware) - Submit for approval - Status transitions (draft \u2192 submitted \u2192 pending_approval \u2192 approved/rejected/returned) - Void/reverse approved expenses - Validate project assignment - Enforce immutability after approval",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "0b28884bf72ee76cdf138dbc39c038acf20f9fb68a499b4fc3da831ef0ecdd43",
+  "event_id": "0b28884bf72ee76c",
+  "evidence": [
+    "docs/kernel/module-development-guide.md:19"
+  ],
+  "lesson_id": "L-2f7dd9b181",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.685882Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "1. **Capabilities are designed first.** Declare `capabilities.exposes` / `capabilities.depends` in `module.json` *before* writing routes or handlers. 2. **Migration SQL drives everything.** Schema comes before service logic, not after. 3. **The service unit test is written alongside the service** \u2014 never deferred to \"later\".",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "87f1a238fa28438b96be13ae363180cd18b53cb573630c58a3d6a9d095f8bbbc",
+  "event_id": "87f1a238fa28438b",
+  "evidence": [
+    "docs/daily-ledger/HANDOFF-2026-10-11.md:428"
+  ],
+  "lesson_id": "L-1af87c574a",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.300322Z",
+  "schema_version": 1,
+  "scope": "daily-ledger",
+  "text": "A row that MOVED but did not sell is activity and is never excluded: 195 such rows, all 195 survive.",
+  "type": "propose"
+}

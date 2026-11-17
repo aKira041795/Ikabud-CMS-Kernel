@@ -1,0 +1,15 @@
+{
+  "digest": "f59c9175a9450558d5f24aa32c9293879525090014c15785fefb31f53ca2f1ae",
+  "event_id": "f59c9175a9450558",
+  "evidence": [
+    "docs/daily-ledger/VIEWER-SURFACE-ASSESSMENT-PLAN-2026-10-12.md:62"
+  ],
+  "lesson_id": "L-08d0e2bd93",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.301284Z",
+  "schema_version": 1,
+  "scope": "daily-ledger",
+  "text": "Page weight is logged by the renderer \u2014 `storage/logs/app.log`, `disyl.render.breakdown`, `output_bytes`. Forecast measured **426,015 bytes** with no paging.",
+  "type": "propose"
+}

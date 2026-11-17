@@ -1,0 +1,15 @@
+{
+  "digest": "2feb8b1840171fb77100fb5a2243e179e8fddb8f29f45f66a6a0132e4e1373cc",
+  "event_id": "2feb8b1840171fb7",
+  "evidence": [
+    "docs/reviews/mobile-api-platform-implementation-plan-2026-07-10.md:129"
+  ],
+  "lesson_id": "L-b3cc026206",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.278842Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "`bootstrap.php` exception handler \u2192 reads `RequestContext::fromGlobals()->isApi()` - `kernel/App.php` `requireAuth()` \u2192 reads the resolved context - `module-manager.php` \u2192 receives context from the router, not re-detecting - `public/index.php` CORS \u2192 uses context - `public/index.php` session \u2192 uses `$ctx->isStateless`",
+  "type": "propose"
+}

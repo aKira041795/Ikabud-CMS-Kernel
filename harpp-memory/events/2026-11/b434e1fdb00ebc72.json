@@ -1,0 +1,15 @@
+{
+  "digest": "b434e1fdb00ebc72b9510fbb69e46f4ea4b5e280a1b0d0bfd30355c27d88de6d",
+  "event_id": "b434e1fdb00ebc72",
+  "evidence": [
+    "docs/reviews/sol-production-attribution-2026-10-11.md:437"
+  ],
+  "lesson_id": "L-71f9ec6cd0",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.516963Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "`sell_through_exceeds` must not be the mechanism that legitimizes an impossible cohort result; impossible results must fail validation or be marked attribution-incomplete.",
+  "type": "propose"
+}

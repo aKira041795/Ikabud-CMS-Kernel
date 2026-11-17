@@ -1,0 +1,15 @@
+{
+  "digest": "5def100543fcb8e09d586e200df5c07361a4fc3eae0c50ac2f4d92c678220bf1",
+  "event_id": "5def100543fcb8e0",
+  "evidence": [
+    "docs/kernel/module-developer-guide.md:377"
+  ],
+  "lesson_id": "L-2e6c9c6c78",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.683451Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "require_once __DIR__ . '/../bootstrap.php'; require_once __DIR__ . '/../src/helpers/module-manager.php';",
+  "type": "propose"
+}

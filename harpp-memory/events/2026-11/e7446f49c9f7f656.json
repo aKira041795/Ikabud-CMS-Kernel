@@ -1,0 +1,15 @@
+{
+  "digest": "e7446f49c9f7f6564c8b60a730699f30ffe3c57214745828cff63ba5d8592191",
+  "event_id": "e7446f49c9f7f656",
+  "evidence": [
+    ".github/instructions/ui-ux-conventions.instructions.md:166"
+  ],
+  "lesson_id": "L-a1042b15f3",
+  "proposed_by": "harvest",
+  "reason": "ui-ux",
+  "recorded_at": "2026-11-17T13:22:45.009784Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "When a row is tall enough that the eye must travel across columns, add a repeating guide: alternating shades, a baseline rule, or a shared band. The shading index must come from the **same loop array** in every cell so a name and its field can never disagree.",
+  "type": "propose"
+}

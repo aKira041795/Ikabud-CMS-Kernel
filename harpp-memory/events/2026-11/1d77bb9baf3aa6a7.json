@@ -1,0 +1,15 @@
+{
+  "digest": "1d77bb9baf3aa6a73a0bdd31046b57696ad691da6759be2df50cfb6f3b6826c3",
+  "event_id": "1d77bb9baf3aa6a7",
+  "evidence": [
+    "docs/daily-ledger/three-owner-concerns-2026-11-17.md:69"
+  ],
+  "lesson_id": "L-9e0340b852",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.331301Z",
+  "schema_version": 1,
+  "scope": "daily-ledger",
+  "text": "The zero `own_production` **withdrawal** rows on both commissaries were a red herring: that type lives in `dl_cashier_withdrawals`, the **branch cashier** mechanism. Commissaries never use it \u2014 they are not routed to the cashier ledger at all (verified: a `production_in_charge` is refused `/daily-ledger/ledger` with 403 and offered `/daily-ledger/admin/commissary` instead).",
+  "type": "propose"
+}

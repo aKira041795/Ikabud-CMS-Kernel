@@ -1,0 +1,15 @@
+{
+  "digest": "7aeed2bb19322071d4353f0836b3f5040a42a9f09ec21859c29ac7a5b5c319e2",
+  "event_id": "7aeed2bb19322071",
+  "evidence": [
+    "docs/daily-ledger/unfinalized-shift-sales-semantics.md:25"
+  ],
+  "lesson_id": "L-2ee90d30b4",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.339027Z",
+  "schema_version": 1,
+  "scope": "daily-ledger",
+  "text": "A derived ending is usable only as a separately labelled, non-persisted **DERIVATION** (for example, \u201cbook/expected ending\u201d), never as `bal_end` or `actual_end_qty`. Whether physical sales occurred while stock remained on hand cannot be determined from movements alone; an independent ending count is the evidence that settles it.",
+  "type": "propose"
+}

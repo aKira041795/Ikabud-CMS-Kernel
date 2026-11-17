@@ -1,0 +1,15 @@
+{
+  "digest": "1e88960e79d793c858ad8f6e437eb9569bb2632cd8973d551660d5f74867e938",
+  "event_id": "1e88960e79d793c8",
+  "evidence": [
+    "docs/reviews/perf-metrics-2026-10-10.md:757"
+  ],
+  "lesson_id": "L-e3631afbfc",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.421076Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "`r` is a JS variable, never a DiSyL context key, so the failure does not depend on what the handler passes in \u2014 unlike a null from missing data. Local ~988 ms means roughly ~330 ms of live request time on the CMS theme-customizer admin page, per request, with `DISYL_SHARED_OUTPUT_TTL=0`.",
+  "type": "propose"
+}

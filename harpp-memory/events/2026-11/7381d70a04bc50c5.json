@@ -1,0 +1,15 @@
+{
+  "digest": "7381d70a04bc50c522e115487542159db314fbdae6664014ed80bc86ca55e77c",
+  "event_id": "7381d70a04bc50c5",
+  "evidence": [
+    "docs/page-builder/page-builder-schema-api.md:193"
+  ],
+  "lesson_id": "L-32787a0487",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.886322Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "all nodes require `id`, `type`, `kind`, `version` - only allowed `children` may appear under a given parent type - unsupported props are rejected at save time - `meta` is editor-only and not trusted for render semantics - values must conform to the widget definition schema",
+  "type": "propose"
+}

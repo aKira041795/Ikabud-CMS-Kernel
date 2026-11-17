@@ -1,0 +1,15 @@
+{
+  "digest": "3e7d9d91a689efd72cd1f980d34ee26d94ab8ca630b194d188c5d3154f7928ee",
+  "event_id": "3e7d9d91a689efd7",
+  "evidence": [
+    "docs/reviews/perf-metrics-2026-10-10.md:1242"
+  ],
+  "lesson_id": "L-58898cab17",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.448878Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "The tables above are CLI measures and `opcache.enable_cli=0`, so they are **compile** cost, exactly the trap 4n documents. In the production configuration the app's own instrumentation puts the **entire** helper load \u2014 all 348 files, 5039 KB \u2014 at **7.65 ms**. `cms` + `ecommerce` are 43% of the bytes, so about **3.3 ms** of it.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "31582adb82829f0c65f8c2af92cda78e80143229900069a6db8b1878130ec7f6",
+  "event_id": "31582adb82829f0c",
+  "evidence": [
+    "docs/workbench/scenario-and-test-data-engine.md:34"
+  ],
+  "lesson_id": "L-0b7ac2aaa6",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.652581Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "ARK may answer a question only with linked run evidence. - Ambiguous design or semantic judgments are marked `requires-human-validation`. - Seed drift blocks readiness; it is never silently repaired during a run. - Cleanup failure is a distinct runner failure. - Real application seeding requires a reviewed module adapter; the generic engine cannot execute user-provided code.",
+  "type": "propose"
+}

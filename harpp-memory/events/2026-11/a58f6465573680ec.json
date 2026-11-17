@@ -1,0 +1,15 @@
+{
+  "digest": "a58f6465573680ec57289068ddfc9b89d1828513f7f56f669452d817af6524b3",
+  "event_id": "a58f6465573680ec",
+  "evidence": [
+    "docs/reviews/harness-v2-adversarial-review-2026-10-07.md:31"
+  ],
+  "lesson_id": "L-1f2b5ff64c",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.254693Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Every row below is a **RUN**, not a code-reading inference. \u201cRed\u201d means the published probe or selftest rejected the mutation. Commands shown are the test command run while the stated temporary mutation was installed.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "90beaba82a02e7eea0d12fec7057cb1c8924bc3e344c0ee2d66ae48fffeb0f85",
+  "event_id": "90beaba82a02e7ee",
+  "evidence": [
+    "docs/kernel/module-development-guide.md:1441"
+  ],
+  "lesson_id": "L-2314e6d161",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.746722Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "If you need to store private infrastructure metadata in `tenant_module_settings`, prefix the key with `_`. It will be stored but never appear in the public settings API.",
+  "type": "propose"
+}

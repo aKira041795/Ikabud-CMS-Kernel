@@ -1,0 +1,15 @@
+{
+  "digest": "0a055754842ddf0a1a0a4eb185fe41c109a3fd065077d4cb080fa3d762323141",
+  "event_id": "0a055754842ddf0a",
+  "evidence": [
+    "docs/kernel/polyglot-service-guide.md:573"
+  ],
+  "lesson_id": "L-deedb2fcd3",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.811436Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "$proxy = ServiceProxy::fromManifest($manifest); $proxy->setHttpHandler(function (string $url, array $opts): array { // Return mock responses, never hit the network return ['status' => 200, 'body' => json_encode(['ok' => true, 'data' => 'mock'])]; });",
+  "type": "propose"
+}

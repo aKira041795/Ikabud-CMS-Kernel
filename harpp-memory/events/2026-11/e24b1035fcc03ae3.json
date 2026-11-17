@@ -1,0 +1,15 @@
+{
+  "digest": "e24b1035fcc03ae38e2107df5e6cae9ba77a851c052d9d65ee98f7d94a328203",
+  "event_id": "e24b1035fcc03ae3",
+  "evidence": [
+    "docs/daily-ledger/business-analysis-2026-10-11.md:124"
+  ],
+  "lesson_id": "L-49752addb4",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.317653Z",
+  "schema_version": 1,
+  "scope": "daily-ledger",
+  "text": "5. Production cannot yet be measured against sales \u2014 and the page now says so",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "00341c157b0f8fb230881334ba005f75abbba6e88bf304a9318f574e082689de",
+  "event_id": "00341c157b0f8fb2",
+  "evidence": [
+    "docs/releases/release-notes-2026-10-09-disyl-compiled-extends.md:26"
+  ],
+  "lesson_id": "L-0245bb92fc",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.114698Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "The reason string points at the template. The template was never the problem.",
+  "type": "propose"
+}

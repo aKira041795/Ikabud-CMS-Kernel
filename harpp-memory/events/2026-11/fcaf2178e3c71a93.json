@@ -1,0 +1,15 @@
+{
+  "digest": "fcaf2178e3c71a93d0862a356513aabdf93f969b10e1f60c71264a203ad401f7",
+  "event_id": "fcaf2178e3c71a93",
+  "evidence": [
+    "docs/cms/disyl-implementation-spec.md:644"
+  ],
+  "lesson_id": "L-ac1a3c3338",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.249872Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "DiSyL now ships with a dedicated CLI benchmark harness for regression-checking the hot paths that have been under active optimization.",
+  "type": "propose"
+}

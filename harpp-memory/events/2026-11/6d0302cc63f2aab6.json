@@ -1,0 +1,15 @@
+{
+  "digest": "6d0302cc63f2aab67f59a91254505f315c78ed36b3e211bfab9643eb9a8e9532",
+  "event_id": "6d0302cc63f2aab6",
+  "evidence": [
+    "docs/reviews/kernel-disyl-review-2026-10-20.md:102"
+  ],
+  "lesson_id": "L-b9f3641ccf",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.264605Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Full logs: [`evidence/disyl-final-gate.log`](evidence/disyl-final-gate.log), [`evidence/disyl-parity-final.log`](evidence/disyl-parity-final.log), [`evidence/disyl-eligibility-gate.log`](evidence/disyl-eligibility-gate.log), and the failed gate that found the regression: [`evidence/disyl-fallback-gate-failed.log`](evidence/disyl-fallback-gate-failed.log).",
+  "type": "propose"
+}

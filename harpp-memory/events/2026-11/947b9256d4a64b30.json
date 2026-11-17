@@ -1,0 +1,15 @@
+{
+  "digest": "947b9256d4a64b307a49e093b134c65a34de95354943146157358206a02d2911",
+  "event_id": "947b9256d4a64b30",
+  "evidence": [
+    "docs/engineering/autonomy-loop.md:66"
+  ],
+  "lesson_id": "L-287ac243e1",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.396680Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "```bash python3 tools/autonomy-contract.py \\ --task fix-import \\ --objective \"Fix the import so a duplicate row is rejected with a clear error.\" \\ --acceptance \"php tests/import_contract_test.php\" \\ --pass-looks-like \"the contract test prints OK and exits 0\" \\ --touches \"modules/import/,tests/import_contract_test.php\" ```",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "d32a9a2446c466ffe9142b2166ddefb9f9e83dd3b81faaeef83769ddcca92e09",
+  "event_id": "d32a9a2446c466ff",
+  "evidence": [
+    "docs/kernel/kernel-stable-contracts.md:159"
+  ],
+  "lesson_id": "L-c953936df3",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.663351Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "| Surface | Owner | The theme may | |---|---|---| | Nodes the builder renders (`cms-builder-*`, `cms-kb-*`, `cms-lightbox*`) | **the builder** | style *around* them, never restyle them | | Non-builder content (prose, module templates, entity views, chrome) | **the theme** | style freely |",
+  "type": "propose"
+}

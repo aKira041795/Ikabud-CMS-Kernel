@@ -1,0 +1,15 @@
+{
+  "digest": "df2ad22927befaca8995e3849ec5209f750b09c92c7afb2b89dee8a46e0d74d1",
+  "event_id": "df2ad22927befaca",
+  "evidence": [
+    "docs/kernel/module-development-guide.md:132"
+  ],
+  "lesson_id": "L-185cb86796",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.700375Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "A module that is active may interact with another module only through an explicitly declared and enabled integration contract. Capability discovery alone never grants integration authority.",
+  "type": "propose"
+}

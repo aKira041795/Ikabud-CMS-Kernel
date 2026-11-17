@@ -1,0 +1,15 @@
+{
+  "digest": "d7a1b6b293a512ee1e923c5086a10eece20466382f82a28e5d9fc6f4ec8a908e",
+  "event_id": "d7a1b6b293a512ee",
+  "evidence": [
+    "docs/workbench/extension-sdk-and-ci.md:41"
+  ],
+  "lesson_id": "L-cb26dbbdf2",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.643751Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Extensions implement the versioned evidence collector, gate, or exporter interfaces. IDs are unique and stable. Evidence must include provenance and explicit outcome. Extensions may add observations and decisions but cannot replace authoritative evidence or graph digests; invalid outputs are rejected. Existing module comprehension and scenario provider interfaces remain the semantic extension points.",
+  "type": "propose"
+}

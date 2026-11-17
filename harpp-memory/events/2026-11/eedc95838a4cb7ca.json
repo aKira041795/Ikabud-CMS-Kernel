@@ -1,0 +1,15 @@
+{
+  "digest": "eedc95838a4cb7ca4ecbaf1ad7e5420c98847b67241722037b52624e123d670d",
+  "event_id": "eedc95838a4cb7ca",
+  "evidence": [
+    "docs/evaluations/ikabud-kernel-technical-evaluation-2026-04-10.md:327"
+  ],
+  "lesson_id": "L-e90120dd28",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.497177Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Gradually tighten CSP when inline scripts can be nonced consistently - Standardize more of the test workflow if contributor adoption is a goal - Continue expanding regression coverage around dispatch, tenant isolation, and auth boundary conditions",
+  "type": "propose"
+}

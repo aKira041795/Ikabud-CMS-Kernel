@@ -1,0 +1,15 @@
+{
+  "digest": "493d75a6b2edc75dbdfc57be1cda6be5aa4618b14aa0c61260b288d73bdd1927",
+  "event_id": "493d75a6b2edc75d",
+  "evidence": [
+    "docs/kernel/module-development-guide.md:168"
+  ],
+  "lesson_id": "L-087f760e3c",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.710790Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Combined rule: > **Activation Before Participation. Declaration Before Integration.** > A module must be active before it can participate in the runtime. An active module may interact with another module only through an explicitly declared and enabled integration contract. Capability discovery alone never grants integration authority.",
+  "type": "propose"
+}

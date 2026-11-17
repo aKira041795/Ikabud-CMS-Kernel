@@ -1,0 +1,15 @@
+{
+  "digest": "79a3a6f31794587f0b79653229c2cfd156309c8bb4b2557f5376cfe6dfe69e2f",
+  "event_id": "79a3a6f31794587f",
+  "evidence": [
+    "docs/kernel/theme-owned-customizer-architecture.md:35"
+  ],
+  "lesson_id": "L-ead539691d",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.847533Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "```php // NEVER do this \u2014 violates architecture boundary public function renderHeader(object $db, array $ctx): string // \u274c",
+  "type": "propose"
+}

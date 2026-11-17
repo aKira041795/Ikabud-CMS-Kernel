@@ -1,0 +1,15 @@
+{
+  "digest": "c0abd10ddc3b945b42b1e6328c37ff09eeb3b1a70175f626130d3f0ad11d54fa",
+  "event_id": "c0abd10ddc3b945b",
+  "evidence": [
+    "docs/cms/cms-adjacent-module-blueprint.md:20"
+  ],
+  "lesson_id": "L-de306cdf09",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.205408Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "Phase 3: Rendering and Entity Model 1. Use entity views for standard list/detail surfaces. 2. Keep composite dashboards/pages in module templates with handler-fed aggregate data. 3. Do not move rendering concerns into kernel-level special cases. 4. Keep route ownership explicit to avoid collisions with CMS core routes.",
+  "type": "propose"
+}

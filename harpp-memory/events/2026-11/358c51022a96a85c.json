@@ -1,0 +1,15 @@
+{
+  "digest": "358c51022a96a85c4ea48e87b77e356fe2d86d965732a37f6727e16446620b60",
+  "event_id": "358c51022a96a85c",
+  "evidence": [
+    "docs/reviews/mobile-api-platform-implementation-plan-2026-07-10.md:416"
+  ],
+  "lesson_id": "L-b6b552cf98",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.294210Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "/** * Validation error: field-level messages in error.details.fields. */ public static function validationError(array $fieldErrors, string $message = 'Validation failed'): never { self::error('validation_failed', $message, 422, ['fields' => $fieldErrors]); }",
+  "type": "propose"
+}

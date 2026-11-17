@@ -1,0 +1,15 @@
+{
+  "digest": "c4db680d9719d1961fc2d2e957b070db1d96a974e79192be5c0686bf89e6e087",
+  "event_id": "c4db680d9719d196",
+  "evidence": [
+    "docs/project-audit-ledger/implementation-plan.md:1513"
+  ],
+  "lesson_id": "L-bc9717d699",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.062087Z",
+  "schema_version": 1,
+  "scope": "project-audit-ledger",
+  "text": "``` PENDING \u2500\u2500approve\u2500\u2500\u25ba APPROVED \u2500\u2500\u25ba (updates sale status) \u2502 \u2502 reject \u25bc REJECTED ```",
+  "type": "propose"
+}

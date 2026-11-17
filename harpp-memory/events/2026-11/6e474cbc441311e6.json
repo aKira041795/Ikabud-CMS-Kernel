@@ -1,0 +1,15 @@
+{
+  "digest": "6e474cbc441311e6af1a60067030254e4be8e41cf69efbbe6567660bc71133f8",
+  "event_id": "6e474cbc441311e6",
+  "evidence": [
+    "docs/kernel/kernel-stable-contracts.md:211"
+  ],
+  "lesson_id": "L-14d51c0f42",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.665849Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "file placement of helper implementations - service extraction from `kernel/App.php` - front-controller helper extraction from `public/index.php` - decomposition of `src/helpers/module-manager.php` - caching strategy details that do not alter externally visible behavior",
+  "type": "propose"
+}

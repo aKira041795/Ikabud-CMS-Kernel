@@ -1,0 +1,15 @@
+{
+  "digest": "9f5cbc066386857c5ab5a77cd591f6b6713b7f90a5ae4bdf4b436482affd7940",
+  "event_id": "9f5cbc066386857c",
+  "evidence": [
+    "docs/wms/wms-module.md:440"
+  ],
+  "lesson_id": "L-417caf4114",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.566031Z",
+  "schema_version": 1,
+  "scope": "wms",
+  "text": "Reverse logistics header. Tracks goods coming back from customers or rejected inbound shipments.",
+  "type": "propose"
+}

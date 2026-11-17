@@ -1,0 +1,15 @@
+{
+  "digest": "b6d1276985bc4fcb9a71af77431178f5ed013b1f905e0de2cc5be1785c993bfa",
+  "event_id": "b6d1276985bc4fcb",
+  "evidence": [
+    "tests/disyl_v44_sandbox_test.php:163"
+  ],
+  "lesson_id": "L-c704d2d5c9",
+  "proposed_by": "harvest",
+  "reason": "gate",
+  "recorded_at": "2026-11-17T13:22:45.435661Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "engine: untrusted denies invalidate but body still renders",
+  "type": "propose"
+}

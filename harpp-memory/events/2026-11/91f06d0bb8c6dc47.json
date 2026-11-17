@@ -1,0 +1,15 @@
+{
+  "digest": "91f06d0bb8c6dc4758a3c1d6015ba3194f9e07de2b8ad6fa37403fada85428ef",
+  "event_id": "91f06d0bb8c6dc47",
+  "evidence": [
+    "docs/pal/ark-workbench-reference-guide.md:573"
+  ],
+  "lesson_id": "L-bd3e03126e",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.938734Z",
+  "schema_version": 1,
+  "scope": "pal",
+  "text": "Reject action requires a non-empty reason - Financial impact is always visible \u2014 never collapsible or hideable - Previous decisions shown in chronological order - Audit context displayed at bottom",
+  "type": "propose"
+}

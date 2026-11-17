@@ -1,0 +1,15 @@
+{
+  "digest": "eb4d67ace89ace058180421de81dd177da2ba460d06db08a3bb60d5fc80ea63f",
+  "event_id": "eb4d67ace89ace05",
+  "evidence": [
+    "docs/workbench/component-visual-governance.md:13"
+  ],
+  "lesson_id": "L-48dc2f2f54",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.617182Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Baselines are content-addressed. Approval records retain previous hash, approved hash, approver, reason, and timestamp. Updating a screenshot file alone never changes release eligibility.",
+  "type": "propose"
+}

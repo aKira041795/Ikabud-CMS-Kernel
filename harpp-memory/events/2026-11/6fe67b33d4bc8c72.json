@@ -1,0 +1,15 @@
+{
+  "digest": "6fe67b33d4bc8c728ac8678dbe567f11ff73036ee906cc99d39c62306d2fa56a",
+  "event_id": "6fe67b33d4bc8c72",
+  "evidence": [
+    "docs/daily-ledger/own-production-eligibility-decision-2026-11-14.md:75"
+  ],
+  "lesson_id": "L-63bddeef17",
+  "proposed_by": "harvest",
+  "reason": "decision",
+  "recorded_at": "2026-11-17T13:22:43.319120Z",
+  "schema_version": 1,
+  "scope": "daily-ledger",
+  "text": "`adjustment_add` must not become the fallback receiving channel: the existing `dl_canAddStockWithoutPaperDr()` gate stays, and the new eligibility check must not open a side door. - No fake `dr_number`, no synthesised sender branch. - No rewriting/hiding of historical entries when eligibility changes.",
+  "type": "propose"
+}

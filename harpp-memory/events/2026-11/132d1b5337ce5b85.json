@@ -1,0 +1,15 @@
+{
+  "digest": "132d1b5337ce5b85098ead5c3b21559fd93654bd76dba80217ffc347b7f14a5e",
+  "event_id": "132d1b5337ce5b85",
+  "evidence": [
+    "docs/reviews/cms-page-builder-review-2026-10-10.md:655"
+  ],
+  "lesson_id": "L-0abc8bab36",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.226703Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "A2. ROOT CAUSE \u2014 the cache key read the template mtime through a symlink",
+  "type": "propose"
+}

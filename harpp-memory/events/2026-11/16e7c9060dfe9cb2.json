@@ -1,0 +1,15 @@
+{
+  "digest": "16e7c9060dfe9cb2a5a2533f20c1f533f526f3c03c1d397b19769ad739dcb039",
+  "event_id": "16e7c9060dfe9cb2",
+  "evidence": [
+    "docs/architecture/decisions/ADR-006-registration-implementation-separation.md:224"
+  ],
+  "lesson_id": "L-560be0d4a4",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.167185Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Positive - Per-request composition becomes proportional to what the request needs, not to the installed fleet. - The cross-module dependency graph becomes explicit and checkable instead of accidental. - A request that never touches a module stops paying for it.",
+  "type": "propose"
+}

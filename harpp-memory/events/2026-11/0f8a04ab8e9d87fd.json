@@ -1,0 +1,15 @@
+{
+  "digest": "0f8a04ab8e9d87fde83dc1fed375ad712c1436cdcfbbab3ce4ab347f2a1a9a91",
+  "event_id": "0f8a04ab8e9d87fd",
+  "evidence": [
+    "docs/ai/chatgpt-advisor-mode.md:16"
+  ],
+  "lesson_id": "L-9b9f0170e6",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.128881Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "The normal wake lane routes coding/review work to `openai-codex/*`, which draws on **Codex usage limits**. Ideation is second-opinion only, so it must never burn that quota. The advisor lane therefore:",
+  "type": "propose"
+}

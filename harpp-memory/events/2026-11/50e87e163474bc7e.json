@@ -1,0 +1,15 @@
+{
+  "digest": "50e87e163474bc7e1aa28dd3d6c988ea417c118f480b0c901c848e519c9bed5b",
+  "event_id": "50e87e163474bc7e",
+  "evidence": [
+    "docs/modules/ticketing.md:62"
+  ],
+  "lesson_id": "L-ff4c09463c",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.876299Z",
+  "schema_version": 1,
+  "scope": "ticketing",
+  "text": "View configs are loaded at module bootstrap in `handlers.php` via `TemplateEngine::loadViewConfigs`. - Entity rows include normalized display fields (`creator_name`, `assignee_name`, status/priority/category/source timestamps) for CMS/entity-list consumers.",
+  "type": "propose"
+}

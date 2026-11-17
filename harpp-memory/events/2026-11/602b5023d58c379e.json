@@ -1,0 +1,15 @@
+{
+  "digest": "602b5023d58c379eb7f0c894a473fb048c13b642ffe3d9090c209a74945e3e84",
+  "event_id": "602b5023d58c379e",
+  "evidence": [
+    "docs/cms/cms-extension-lifecycle.md:190"
+  ],
+  "lesson_id": "L-16825d9b2c",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.212822Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "The screen offers **Uninstall\u2026** for a disabled module, and the options it shows come from that module's own `uninstall` policy \u2014 the UI never offers a choice the server will refuse:",
+  "type": "propose"
+}

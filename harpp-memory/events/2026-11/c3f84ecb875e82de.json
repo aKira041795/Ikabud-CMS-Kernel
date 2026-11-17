@@ -1,0 +1,15 @@
+{
+  "digest": "c3f84ecb875e82de27b8fccb91182a10df10eb9ee09afabe951d1978a31351cf",
+  "event_id": "c3f84ecb875e82de",
+  "evidence": [
+    "docs/evaluations/ikabud-kernel-security-architecture-evaluation-2026-04-10.md:189"
+  ],
+  "lesson_id": "L-97a161d0d0",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.480291Z",
+  "schema_version": 1,
+  "scope": "security",
+  "text": "Tokens issued **without** a `tenant_id` claim (e.g., superadmin tokens, or tokens from single-tenant bootstrapping) are accepted for **any** tenant specified via header. - If the strategy stack tries JWT first and falls through to header, a request with no JWT but a valid `X-Tenant` header resolves to that tenant with no auth check.",
+  "type": "propose"
+}

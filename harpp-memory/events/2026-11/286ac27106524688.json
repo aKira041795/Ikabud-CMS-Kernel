@@ -1,0 +1,15 @@
+{
+  "digest": "286ac27106524688f97c962f5fc0c52b769030ca713b261dc6ecbd0352526d6a",
+  "event_id": "286ac27106524688",
+  "evidence": [
+    "docs/ecommerce/multistore-roadmap.md:113"
+  ],
+  "lesson_id": "L-a5778489ff",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.370465Z",
+  "schema_version": 1,
+  "scope": "ecommerce",
+  "text": "`modules/cms/handlers/10-auth.php` - `bootstrap.php` - `modules/cms/helpers/00-bootstrap.php` - `modules/cms/helpers/80-customizer.php` - `modules/ecommerce/helpers/38-stores.php` - `modules/ecommerce/handlers/74-store-admin-access.php` - `templates/modules/ecommerce/admin/my-stores.disyl` - `templates/modules/ecommerce/layouts/store-entry.disyl`",
+  "type": "propose"
+}

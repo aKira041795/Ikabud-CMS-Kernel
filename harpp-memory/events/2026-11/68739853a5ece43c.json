@@ -1,0 +1,15 @@
+{
+  "digest": "68739853a5ece43c252977506525be6063c670bf5393bec049b25e232fa9acce",
+  "event_id": "68739853a5ece43c",
+  "evidence": [
+    "docs/attendance-wage/attendance-wage-module.md:177"
+  ],
+  "lesson_id": "L-1acb89cb84",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.187401Z",
+  "schema_version": 1,
+  "scope": "attendance-wage",
+  "text": "The module requires `--admin-user` and `--admin-pass` during `php ikabud tenant:provision`. The bootstrap password hash (`!attendance-wage-bootstrap-password-reset-required!`) cannot match any input \u2014 the only way to obtain a usable first admin is the trusted CLI provisioning path.",
+  "type": "propose"
+}

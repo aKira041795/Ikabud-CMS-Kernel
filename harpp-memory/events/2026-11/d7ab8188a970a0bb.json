@@ -1,0 +1,15 @@
+{
+  "digest": "d7ab8188a970a0bb3566aee9d333294156bf90e09ba1a4045213affa017efaac",
+  "event_id": "d7ab8188a970a0bb",
+  "evidence": [
+    "docs/kernel/6.3-settings-contract-spec-2026-10-12.md:102"
+  ],
+  "lesson_id": "L-305b182ac9",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.541697Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "canonical guarantees apply only to **audited writer paths**. HTTP handlers are the measured coercion boundary; CLI scripts, migrations, provisioning, module jobs and direct SQL are hypotheses needing inventory \u2014 do not label storage **canonical** until every production writer is identified or brought under the same rules.",
+  "type": "propose"
+}

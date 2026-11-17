@@ -1,0 +1,15 @@
+{
+  "digest": "e80372737565057281fc94dc90f15f245951856476a806f903a284e916b94c80",
+  "event_id": "e803727375650572",
+  "evidence": [
+    "docs/page-builder/page-builder-technical-spec.md:331"
+  ],
+  "lesson_id": "L-1a1ffdf4bc",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.892234Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Contains editor-only information and must not be relied upon for public rendering semantics.",
+  "type": "propose"
+}

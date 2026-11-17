@@ -1,0 +1,15 @@
+{
+  "digest": "5b96d1ea9bd00f938a71ed2802d9d817f97bc1755777f8374b46accce7df88ab",
+  "event_id": "5b96d1ea9bd00f93",
+  "evidence": [
+    "docs/ecommerce/ecommerce-execution-plan.md:404"
+  ],
+  "lesson_id": "L-fa31d11523",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.363409Z",
+  "schema_version": 1,
+  "scope": "ecommerce",
+  "text": "Customers in a segment see segment-specific prices in `ecBuildStorefrontCatalogItem` - Non-segmented customers see standard prices (no regression) - Pricing resolution is deterministic: global \u2192 store \u2192 segment (most specific wins) - Schema migrates cleanly",
+  "type": "propose"
+}

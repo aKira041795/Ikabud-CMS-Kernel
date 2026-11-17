@@ -1,0 +1,15 @@
+{
+  "digest": "1e380a5846c41182e29adc1f71f831e969457974707459962b1ecd024eca2f59",
+  "event_id": "1e380a5846c41182",
+  "evidence": [
+    ".github/instructions/testing-conventions.instructions.md:63"
+  ],
+  "lesson_id": "L-2052005033",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.977140Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "(no bootstrap): ```php require_once __DIR__ . '/../harness/TestHarness.php'; $h = new TestHarness('my-suite'); $h->fingerprint('modules/my-module/services/Workflow.php'); $h->section('Transitions'); $h->test('draft \u2192 pending', $workflow::isAllowed('draft', 'pending')); $h->done(); ```",
+  "type": "propose"
+}

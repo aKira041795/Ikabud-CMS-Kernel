@@ -1,0 +1,15 @@
+{
+  "digest": "ca78c63644acbf04d5106c67fa83a25a293c5201df50482e151dd3fef8195461",
+  "event_id": "ca78c63644acbf04",
+  "evidence": [
+    "docs/disyl/entity-rendering-trait-improvements.md:204"
+  ],
+  "lesson_id": "L-180e9db1b0",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.349122Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "But **do not** make the internal rendering methods part of the inheritance contract.",
+  "type": "propose"
+}

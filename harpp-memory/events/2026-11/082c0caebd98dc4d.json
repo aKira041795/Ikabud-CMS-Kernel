@@ -1,0 +1,15 @@
+{
+  "digest": "082c0caebd98dc4d330d634c069cc23f31fcdbad9d969640a7b253b5187726c3",
+  "event_id": "082c0caebd98dc4d",
+  "evidence": [
+    "tests/disyl_v44_sandbox_test.php:182"
+  ],
+  "lesson_id": "L-d1ed02246f",
+  "proposed_by": "harvest",
+  "reason": "gate",
+  "recorded_at": "2026-11-17T13:22:45.441523Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "engine: trusted inside untrusted does not re-allow raw",
+  "type": "propose"
+}

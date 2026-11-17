@@ -1,0 +1,15 @@
+{
+  "digest": "fb5b32c835cd19966378bf7f5279673ca9c5d804c47da546aeddec96b19cdb12",
+  "event_id": "fb5b32c835cd1996",
+  "evidence": [
+    "docs/cms/entity-view-block-schema.md:803"
+  ],
+  "lesson_id": "L-46ac013688",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.264916Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "The rendering engine (DiSyL + PHP blocks) assumes ALL capability_data is already normalized. It MUST NOT contain:",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "05d7562b4462605b647eeaed9e61f8510e3b066fdd6cb9dabaee94cf4c329871",
+  "event_id": "05d7562b4462605b",
+  "evidence": [
+    "docs/evaluations/ikabud-kernel-action-plan-2026-04-10.md:155"
+  ],
+  "lesson_id": "L-44905cd663",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.462691Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "baseline metrics are documented - required regression commands are documented in one place - each later phase can point back to a stable safety checklist",
+  "type": "propose"
+}

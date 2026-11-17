@@ -1,0 +1,15 @@
+{
+  "digest": "70d344a16e866689b9c95ac0624db1c1d17d573c11d618a23dc4bd542091c4f5",
+  "event_id": "70d344a16e866689",
+  "evidence": [
+    "docs/reviews/ark-workbench-comprehension-architecture-review-and-plan-2026-07-16.md:295"
+  ],
+  "lesson_id": "L-d416a01b86",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.163324Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Return multiple explanations when scores are close. A single \u201cshortest\u201d explanation must not be shown as certain.",
+  "type": "propose"
+}

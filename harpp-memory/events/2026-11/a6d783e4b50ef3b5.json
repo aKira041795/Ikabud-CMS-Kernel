@@ -1,0 +1,15 @@
+{
+  "digest": "a6d783e4b50ef3b5c963a72f2079a18833a770734d5e1ef01e77cefb4fbddf52",
+  "event_id": "a6d783e4b50ef3b5",
+  "evidence": [
+    "docs/cms/entity-view-block-schema.md:105"
+  ],
+  "lesson_id": "L-bf563fa752",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.259012Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "Approved layout profiles may suppress or emphasize certain segments, but the entity-view contract is still canonical. Themes and customizer settings must not invent ad hoc block orders outside documented profiles.",
+  "type": "propose"
+}

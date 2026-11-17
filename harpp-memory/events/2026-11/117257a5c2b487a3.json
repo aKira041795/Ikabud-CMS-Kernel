@@ -1,0 +1,15 @@
+{
+  "digest": "117257a5c2b487a39ada8b9a0bc67fa19c37e366fc43ea1736d3b2783a4be465",
+  "event_id": "117257a5c2b487a3",
+  "evidence": [
+    "docs/archive/disyl-plans/disyl-v11-intermediate-roadmap.md:104"
+  ],
+  "lesson_id": "L-f041c3234c",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.184343Z",
+  "schema_version": 1,
+  "scope": "media",
+  "text": "The HKDF-style two-layer derivation (inner hash of cookie + HMAC with app secret) ensures the cookie value is never used directly as a token and that the app secret provides a second factor. When no app secret is configured, the fallback key `'change-me-in-env'` is tolerated (for backward compatibility with test environments) but logs a warning.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "1d806cf1808551687e6782ba89a77cf2ab0df8b2dc64ca772a1f6d5bc608c813",
+  "event_id": "1d806cf180855168",
+  "evidence": [
+    "docs/kernel/theme-owned-customizer-architecture.md:33"
+  ],
+  "lesson_id": "L-13f04992fb",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.844622Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "The theme **never receives a `$db` object**. This is enforced at the contract level:",
+  "type": "propose"
+}

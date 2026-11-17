@@ -1,0 +1,15 @@
+{
+  "digest": "7f41da6c82542a1d5c81f19f397a0c486c4888c5d2fb9b98d24b07e5d5ea5613",
+  "event_id": "7f41da6c82542a1d",
+  "evidence": [
+    "docs/engineering/lane-harness-issue.md:12"
+  ],
+  "lesson_id": "L-7e4ad080d6",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.417237Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "The sandbox condition had cleared on its own; nothing in the code needed changing for it to run. \u00a75 carries the measured results \u2014 including the two gate branches the selftest did **not** cover (the hang refusal and the deliberate override), which were falsified by hand rather than assumed, and the third model in the chain, which had never been proved to exist.",
+  "type": "propose"
+}

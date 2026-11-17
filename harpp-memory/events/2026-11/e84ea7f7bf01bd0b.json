@@ -1,0 +1,15 @@
+{
+  "digest": "e84ea7f7bf01bd0b7f48e5cfa0199c164489fe67151d2f77234391fba24c9988",
+  "event_id": "e84ea7f7bf01bd0b",
+  "evidence": [
+    "docs/reviews/aiss-architecture-audit-2026-07-24.md:290"
+  ],
+  "lesson_id": "L-e106231088",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.142882Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": ": `_error_count` only increments, never decrements. A brief spike of errors permanently inflates health check's `recent_errors`.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "aa7cb96a8867865e05ed609bb1f1e48566500fe4bcfef83e15e81f48a065ff69",
+  "event_id": "aa7cb96a8867865e",
+  "evidence": [
+    "docs/ai/llm-experience-layer.md:22"
+  ],
+  "lesson_id": "L-16904782b8",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.149058Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "This is why the small model must not be evaluated as a coder. Judging it by \"can it write PHP\" is measuring the wrong organ. It is measured by **recall**: given a task brief, does it surface the experience that applies.",
+  "type": "propose"
+}

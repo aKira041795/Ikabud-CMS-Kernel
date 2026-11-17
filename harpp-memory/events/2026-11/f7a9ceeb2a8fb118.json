@@ -1,0 +1,15 @@
+{
+  "digest": "f7a9ceeb2a8fb118b1a6f29044918e14ec204135f6517f17f1d5899bae4e7a50",
+  "event_id": "f7a9ceeb2a8fb118",
+  "evidence": [
+    "docs/pal/ark-workbench-reference-guide.md:240"
+  ],
+  "lesson_id": "L-1d86cc66e6",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.918771Z",
+  "schema_version": 1,
+  "scope": "pal",
+  "text": "Skip-to-content link as first focusable element - Landmark regions: `<nav>` for sidebar, `<main>` for content - Mobile drawer: focus trap when open, restores focus on close - Bottom nav: touch targets \u2265 44px",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "fb6ce4654170438d5c05c73cfa7995f4c1187ac6f51b494306558533663cffff",
+  "event_id": "fb6ce4654170438d",
+  "evidence": [
+    "docs/ai/chatgpt-advisor-mode.md:161"
+  ],
+  "lesson_id": "L-121fa175b0",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.131289Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "The **conversation's `harness_session_id`** is the routing key (`chatgpt-advisor`), not the conversation title. The marker travels on every polled message, so renaming a thread cannot change which lane answers it, and a marked thread is never queued as development work. Threads created before the toggle existed are still recognised by their `ChatGPT Advisor` title.",
+  "type": "propose"
+}

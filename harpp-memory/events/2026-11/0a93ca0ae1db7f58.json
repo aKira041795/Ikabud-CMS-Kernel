@@ -1,0 +1,15 @@
+{
+  "digest": "0a93ca0ae1db7f583bedae2f2ef9b0ec62e592b548fa4692159e65d150e20362",
+  "event_id": "0a93ca0ae1db7f58",
+  "evidence": [
+    "docs/evaluations/ikabud-kernel-action-plan-2026-04-10.md:269"
+  ],
+  "lesson_id": "L-cab6705983",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.471151Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "document the current CSP compatibility posture and exact prerequisites for nonce migration - add explicit regression tests around: - security headers - auth cookie discovery - cross-tenant JWT rejection - route ambiguity rejection - module manifest validation - define which kernel extension points are stable and which remain internal",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "68f5e87063b25e28a06c3c88b0f0f30b90178ea1ca27d9761b2221d28d6c6559",
+  "event_id": "68f5e87063b25e28",
+  "evidence": [
+    "docs/reviews/cms-page-builder-review-2026-10-10.md:381"
+  ],
+  "lesson_id": "L-e278293cad",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.212541Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "(`PageBuilder.tsx:1825` \u2192 `insertNodeWithGovernedFeedback` \u2192 `resolveGovernedParent` \u2192 `findValidParent` \u2192 `isValidInsertion = canAcceptChild && canBeChildOf`). Measured on the real payload:",
+  "type": "propose"
+}

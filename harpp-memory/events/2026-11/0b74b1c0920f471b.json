@@ -1,0 +1,15 @@
+{
+  "digest": "0b74b1c0920f471b93972b03ab8683296636b7e3a7fe256734a96f9a1b4a5023",
+  "event_id": "0b74b1c0920f471b",
+  "evidence": [
+    "docs/reviews/baronledger-db-audit-2026-10-10/README.md:53"
+  ],
+  "lesson_id": "L-c1a10775ec",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.175544Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "`118,902` of the rows are `finding_type = 'variance'` with `aggregate_key = 'variance-<entity_id>'`. The key is composed from **the individual finding's row id**, which is unique by construction \u2014 so the aggregation can never fire.",
+  "type": "propose"
+}

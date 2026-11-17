@@ -1,0 +1,15 @@
+{
+  "digest": "36645bacc9238c25b3b70f0f6efc4397986265fcd429fa412bc15617553f2956",
+  "event_id": "36645bacc9238c25",
+  "evidence": [
+    "docs/cms/render-resolution-flow-spec-v1.md:208"
+  ],
+  "lesson_id": "L-7f70b4c043",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.273915Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "`profile_hint` is a v1 bridge for narrow contract families, not a universal truth source - explicit canonical-family resolution is stronger than `profile_hint` - if a trusted profile cannot be resolved deterministically, emit no profile id - physical theme override paths must not change matched contract ids or schema stack resolution",
+  "type": "propose"
+}

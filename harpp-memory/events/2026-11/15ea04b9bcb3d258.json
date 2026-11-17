@@ -1,0 +1,15 @@
+{
+  "digest": "15ea04b9bcb3d2580fdc9fdbfec6efa967a593fac3e0f60a5ef4c3d48c052eb9",
+  "event_id": "15ea04b9bcb3d258",
+  "evidence": [
+    "docs/cms/capability-driven-theme-design.md:641"
+  ],
+  "lesson_id": "L-827c2f9acd",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.203690Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "Variants control **presentation** only (layout density, visual style) - Variants must never alter the capability data contract or block gate conditions - A missing variant template file is a hard error, not a silent fallback - Theme packages may supply defaults; the active theme customizer owns the final variant selection; entity-level freeform overrides are not supported",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "87f7a92d202d67f9c72eb3e6028d8e3b0b82edb66d765ee739e5619852e3aae8",
+  "event_id": "87f7a92d202d67f9",
+  "evidence": [
+    "docs/reviews/tailwind-build-migration-2026-10-09.md:68"
+  ],
+  "lesson_id": "L-40b511bc45",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.540078Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "The brief's requested `form` and `headers` palettes do not exist. In the named login and registration templates, `form` is Alpine component state and `headers` is the Fetch API request option; neither is nested under Tailwind `theme.extend.colors`. The only runtime colour palette in both files is `cms`, whose values were migrated exactly.",
+  "type": "propose"
+}

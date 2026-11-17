@@ -1,0 +1,15 @@
+{
+  "digest": "80e5ec856354ed5b7336b577cfa46136187d8c5f659467dd52357ea2ee5e3bd8",
+  "event_id": "80e5ec856354ed5b",
+  "evidence": [
+    "docs/kernel/module-development-guide.md:861"
+  ],
+  "lesson_id": "L-9bf24e6ad0",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.730279Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "When a module has more than one DiSyL page, do not rely on ad hoc handler arrays as the long-term contract. Register a render-context contract once and normalize the final context before rendering so templates get a stable root shape even when handlers evolve.",
+  "type": "propose"
+}

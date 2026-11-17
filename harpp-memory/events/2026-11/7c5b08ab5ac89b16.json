@@ -1,0 +1,15 @@
+{
+  "digest": "7c5b08ab5ac89b16ac5aa7f77a229853b378bc5b3b93cc65caebec7e85c218be",
+  "event_id": "7c5b08ab5ac89b16",
+  "evidence": [
+    "docs/cms/cms-module.md:380"
+  ],
+  "lesson_id": "L-b49bef2d5c",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.228739Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "1. Expand cross-module capabilities for media, builder, settings, and public-read use cases 2. Normalize declared events vs runtime-emitted events so `module.json` is authoritative 3. Harden first-save behavior in builder flows where shell creation depends on client-side orchestration 4. Split customizer helper further to reduce file size and regression risk",
+  "type": "propose"
+}

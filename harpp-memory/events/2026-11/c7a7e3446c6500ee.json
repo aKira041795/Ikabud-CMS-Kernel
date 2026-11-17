@@ -1,0 +1,15 @@
+{
+  "digest": "c7a7e3446c6500eed99876a7810a13b7099ac8bf7ee02b388169e951dba2f729",
+  "event_id": "c7a7e3446c6500ee",
+  "evidence": [
+    "docs/pal/ark-workbench-reference-guide.md:806"
+  ],
+  "lesson_id": "L-34cc02f1f3",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.944298Z",
+  "schema_version": 1,
+  "scope": "pal",
+  "text": "1. **Do not expose** locked properties in Theme Studio forms. 2. **Reject** locked properties if submitted via API. 3. **Validate again** during profile activation. 4. **Normalize** during rendering as a final safety layer.",
+  "type": "propose"
+}

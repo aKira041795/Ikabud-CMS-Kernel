@@ -1,0 +1,15 @@
+{
+  "digest": "177dbd9be63f8aecb552e72c735d392f0ca3df7bb1effb19307fb5bddb7fca48",
+  "event_id": "177dbd9be63f8aec",
+  "evidence": [
+    "docs/reviews/cms-page-builder-review-2026-10-10.md:292"
+  ],
+  "lesson_id": "L-ec2719668a",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.209451Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "Its composed render only passed because the renderer loop ran first and `cmsRenderWidget_entity_list` happened to pull `helpers/00-bootstrap.php` in as a side effect \u2014 traced by bisecting the 60 renderers. A guard that passes because of an incidental include inside a loop is not a guard, so the render path is now asserted directly: it must render **from a cold load, before any renderer has run**.",
+  "type": "propose"
+}

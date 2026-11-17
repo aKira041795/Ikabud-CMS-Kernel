@@ -1,0 +1,15 @@
+{
+  "digest": "4328f8b7563c09f6fed75fb0360dea00cfd1e098c425420f1dae5953c1eb48ad",
+  "event_id": "4328f8b7563c09f6",
+  "evidence": [
+    "docs/ai/cms-assistant-mode.md:3"
+  ],
+  "lesson_id": "L-1684cf7c2d",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.131852Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "The **CMS Assistant** is the HARPP content-editing lane: a separate, always-on assistant that handles owner requests to **create or update CMS content and redesign builder pages** \u2014 always as **drafts** (never published).",
+  "type": "propose"
+}

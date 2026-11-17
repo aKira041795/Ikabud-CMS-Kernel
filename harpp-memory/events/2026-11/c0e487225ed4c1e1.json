@@ -1,0 +1,15 @@
+{
+  "digest": "c0e487225ed4c1e18a1d47b5f8ad56aab4dbff151d31646a85a31794b25e84f8",
+  "event_id": "c0e487225ed4c1e1",
+  "evidence": [
+    "docs/ai/harpp-cognitive-architecture.md:215"
+  ],
+  "lesson_id": "L-9d85e3c374",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.137369Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "Cost discipline is already live: `cost_usd`, `tokens`, `run_id` and component hashes exist on new rows, and waste is measured as *paid for nothing retained* (rolled back, or zero changed files) \u2014 which is the only definition that did not lie.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "0737b4d1e60fe781849289454d224ff00188f6dd2daf3998aec0123b8f2be39e",
+  "event_id": "0737b4d1e60fe781",
+  "evidence": [
+    "docs/evaluations/performance-optimization-summary-2026-04-16.md:87"
+  ],
+  "lesson_id": "L-327cdd0880",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.508527Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "A self-contained page cache reader that runs before `bootstrap.php` \u2014 before Composer autoloader, before the App singleton, before module-manager, before any DB connection.",
+  "type": "propose"
+}

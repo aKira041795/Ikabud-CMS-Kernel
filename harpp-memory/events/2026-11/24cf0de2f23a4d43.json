@@ -1,0 +1,15 @@
+{
+  "digest": "24cf0de2f23a4d43188cdaa4d3c0968b378526bc4ba78953315a0a220f8713ec",
+  "event_id": "24cf0de2f23a4d43",
+  "evidence": [
+    "docs/reviews/aiss-architecture-audit-2026-07-24.md:176"
+  ],
+  "lesson_id": "L-f0373a93a4",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.139164Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": ": Anonymous submissions consume storage and processing resources but the submitter can never access the result. The setting `public_results_allow_anonymous` is dead code \u2014 it enables the form but the results endpoint rejects the user.",
+  "type": "propose"
+}

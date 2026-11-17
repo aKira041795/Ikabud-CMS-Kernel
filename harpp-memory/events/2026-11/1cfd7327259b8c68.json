@@ -1,0 +1,15 @@
+{
+  "digest": "1cfd7327259b8c683c358d0533312a7e34c4d46e17276a9d02e20118a3bfbaa3",
+  "event_id": "1cfd7327259b8c68",
+  "evidence": [
+    "docs/daily-ledger/business-analysis-2026-10-11.md:33"
+  ],
+  "lesson_id": "L-9330829717",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.314977Z",
+  "schema_version": 1,
+  "scope": "daily-ledger",
+  "text": "| Exclusion kind | Rows | Units | |---|---|---| | Ending counted but **shift never finalized** | **2,112** | **16,348** | | Pending (no count entered yet) | 584 | 0 | | Derived / zero-forced ending | 1 | 0 |",
+  "type": "propose"
+}

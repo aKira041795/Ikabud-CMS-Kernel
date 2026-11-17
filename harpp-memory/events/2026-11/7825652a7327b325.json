@@ -1,0 +1,15 @@
+{
+  "digest": "7825652a7327b325e40fde1723c2c56a2635269f2227a72520da1480d65c8963",
+  "event_id": "7825652a7327b325",
+  "evidence": [
+    "docs/modules/healthcare-entity-view-adoption.md:42"
+  ],
+  "lesson_id": "L-aa63069f29",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.872751Z",
+  "schema_version": 1,
+  "scope": "healthcare",
+  "text": "1. Capability declaration in `module.json` (`exposes` + policy allow_callers). 2. Capability handler implementation in `helpers.php`. 3. DiSyL view config under `helpers/views/*.disyl`. 4. Handler bootstrap loading of view configs. 5. Integration test asserting list/detail rendering contract behavior.",
+  "type": "propose"
+}

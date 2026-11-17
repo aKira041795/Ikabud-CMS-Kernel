@@ -1,0 +1,15 @@
+{
+  "digest": "626980b535671578e3af6e92bc536101aebf371ed2185379bac3c83934551667",
+  "event_id": "626980b535671578",
+  "evidence": [
+    "docs/reviews/aiss-architecture-audit-2026-07-24.md:336"
+  ],
+  "lesson_id": "L-a3e14cddb4",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.144437Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "| Category | Pass | Fail | Notes | |----------|------|------|-------| | Standard integration tests (25) | 22 exit 0 | 2 exit 1, 1 exit 0 with HTML | See M1 for root cause of failures | | HTML-rendering tests (5) | 5 exit 0 | 0 | Tests render admin pages but still pass | | Python unit test | Not run | \u2014 | Requires sentence_transformers/torch |",
+  "type": "propose"
+}

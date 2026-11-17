@@ -1,0 +1,15 @@
+{
+  "digest": "de16e58d206240ada5ad544c7394a7bf2db4143964ca9b46254f1d3ea1f76be9",
+  "event_id": "de16e58d206240ad",
+  "evidence": [
+    "docs/reviews/sol-production-attribution-2026-10-11.md:443"
+  ],
+  "lesson_id": "L-d550f18a65",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.519113Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "weakest_claim: The 167.05% and 159.66% matched-window ratios are diagnostic rather than a final business ratio. They restrict sales to production-record days but do not trace opening inventory or individual production lots. They prove that date restriction alone is insufficient; they do not prove which specific sold units came from earlier production.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "319fcfeaa8d0c625408a9c7e25962c2e436e3164d370004c88ceb2df6897ab25",
+  "event_id": "319fcfeaa8d0c625",
+  "evidence": [
+    "docs/cms/capability-driven-theme-design.md:514"
+  ],
+  "lesson_id": "L-eb2b0a1709",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.199433Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "If you want a new entity behavior, card pattern, or view capability, improve the module. - Typical changes belong in module manifests, entity-context definitions/bindings, capability providers, preset defaults, canonical block templates, or builder/widget registrations. - Do not start by creating a new theme-owned entity template family.",
+  "type": "propose"
+}

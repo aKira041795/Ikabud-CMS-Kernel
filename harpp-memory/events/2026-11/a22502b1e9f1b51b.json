@@ -1,0 +1,15 @@
+{
+  "digest": "a22502b1e9f1b51b571ceb58c087eb827a5718b6673c2bc79bce6be286668426",
+  "event_id": "a22502b1e9f1b51b",
+  "evidence": [
+    "docs/reviews/baronledger-db-audit-2026-10-10/OPTIMIZE-RESULTS-2026-10-20.md:38"
+  ],
+  "lesson_id": "L-483b6469d6",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.168243Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Left alone that is ~2.4 M rows/year, or roughly 245 MB/year at the measured ~280 B/row including index \u2014 on a schema whose entire working set must compete for a 128 MB buffer pool shared across all tenants.",
+  "type": "propose"
+}

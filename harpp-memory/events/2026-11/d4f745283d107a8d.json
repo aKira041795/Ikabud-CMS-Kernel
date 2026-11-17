@@ -1,0 +1,15 @@
+{
+  "digest": "d4f745283d107a8d65344754da3d5958e0418b215f1350e240a0a86d17217b10",
+  "event_id": "d4f745283d107a8d",
+  "evidence": [
+    "docs/daily-ledger/business-analysis-2026-10-11.md:30"
+  ],
+  "lesson_id": "L-825a863d29",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.314179Z",
+  "schema_version": 1,
+  "scope": "daily-ledger",
+  "text": "The 16,348 provisional units are **entirely one kind** \u2014 measured by exclusion type:",
+  "type": "propose"
+}

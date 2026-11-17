@@ -1,0 +1,15 @@
+{
+  "digest": "061522704458ad41c1b5410ede59275c6d07be10fda77c3d83a4e4ee2c9a9ed0",
+  "event_id": "061522704458ad41",
+  "evidence": [
+    "tests/disyl_v45_async_test.php:168"
+  ],
+  "lesson_id": "L-5091b547bf",
+  "proposed_by": "harvest",
+  "reason": "gate",
+  "recorded_at": "2026-11-17T13:22:45.447614Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "await: missing let sync fallback renders body",
+  "type": "propose"
+}

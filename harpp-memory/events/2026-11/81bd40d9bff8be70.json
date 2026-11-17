@@ -1,0 +1,15 @@
+{
+  "digest": "81bd40d9bff8be70044ce71029cc3296823c3c5f17c77c2f13e2f844de529269",
+  "event_id": "81bd40d9bff8be70",
+  "evidence": [
+    "docs/kernel/tenancy-roadmap.md:133"
+  ],
+  "lesson_id": "L-753c6bdaf4",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.834035Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Invariants - Modules do not own host-level routing. - No module can override kernel routes.",
+  "type": "propose"
+}

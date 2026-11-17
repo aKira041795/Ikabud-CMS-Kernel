@@ -1,0 +1,15 @@
+{
+  "digest": "56e52cea4a2f82b1d23504ff9d39a33aabcf00da7fe0a878b219dc90049d8314",
+  "event_id": "56e52cea4a2f82b1",
+  "evidence": [
+    "docs/releases/release-notes-2026-10-09-kernel-request-cost.md:112"
+  ],
+  "lesson_id": "L-bb2ce90977",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.124564Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "`module_routes_discovery` (~130 ms) and `route_match` (~20 ms) are the largest remaining pre-handler segments. Measure before designing \u2014 five hypotheses in this release were wrong, and every one of them was plausible. - Nothing here has been measured on the client's host yet.",
+  "type": "propose"
+}

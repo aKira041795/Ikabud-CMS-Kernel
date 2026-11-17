@@ -1,0 +1,15 @@
+{
+  "digest": "b5699a64648ff441e9908cb6586aa9d661a45582c7bc5e695e6c2c52fc44e211",
+  "event_id": "b5699a64648ff441",
+  "evidence": [
+    "docs/workbench/ark-workbench-ui-testing-guide.md:752"
+  ],
+  "lesson_id": "L-dddd7635d1",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.605721Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "await dialog.expectVisible(); await dialog.expectTitle('Confirm action'); await dialog.expectVariant('alert'); await dialog.expectModal(); await dialog.confirm(); await dialog.cancel(); await dialog.expectClosed(); await dialog.expectFocusTrapped(); ```",
+  "type": "propose"
+}

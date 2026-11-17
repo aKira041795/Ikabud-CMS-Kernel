@@ -1,0 +1,15 @@
+{
+  "digest": "9de9d217733d012157a059c1fa26364c9d59a41a44df13766aef8997a332323c",
+  "event_id": "9de9d217733d0121",
+  "evidence": [
+    "docs/kernel/module-development-guide.md:1420"
+  ],
+  "lesson_id": "L-cae2b17f92",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.740774Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Do not remove the `.cms-owned` file manually \u2014 deleting it would cause the installer to treat the module as a kernel module and block re-installation by other tenants.",
+  "type": "propose"
+}

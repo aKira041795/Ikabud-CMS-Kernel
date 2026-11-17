@@ -1,0 +1,15 @@
+{
+  "digest": "4b2f2338a50ba3b641ad93222c93387d0267aea1737dbf236658ca27be4308eb",
+  "event_id": "4b2f2338a50ba3b6",
+  "evidence": [
+    "docs/disyl/inline-editing-rfc.md:307"
+  ],
+  "lesson_id": "L-60f4ab4116",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.357575Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Allowed value definitions - For enum fields, the view contract declares `allowed_values` - For text fields, the capability handler may impose length/pattern constraints - Never allow arbitrary SQL or expression injection through field values",
+  "type": "propose"
+}

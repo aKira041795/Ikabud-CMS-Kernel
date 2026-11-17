@@ -1,0 +1,15 @@
+{
+  "digest": "27cc94402433bf1ac9f800fb9f43962024d6b573cc39dd098042768c93008436",
+  "event_id": "27cc94402433bf1a",
+  "evidence": [
+    "docs/daily-ledger/HANDOFF-2026-10-11.md:76"
+  ],
+  "lesson_id": "L-4984b42bcd",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.284478Z",
+  "schema_version": 1,
+  "scope": "daily-ledger",
+  "text": "`tools/acceptance-truthful-production-stats.php` \u2014 written and measured **6 RED** on the unchanged tree, now **0 RED**. Sol's design report is in `docs/reviews/sol-production-attribution-2026-10-11.md`; the lane that produced it is `tools/lane-sol-p1-design-review.sh`.",
+  "type": "propose"
+}

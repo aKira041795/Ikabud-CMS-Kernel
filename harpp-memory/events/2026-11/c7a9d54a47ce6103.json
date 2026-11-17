@@ -1,0 +1,15 @@
+{
+  "digest": "c7a9d54a47ce61036dce4a96a5ab73b3bf0f86ceaa299ae85f5fbfc0a36dc6ef",
+  "event_id": "c7a9d54a47ce6103",
+  "evidence": [
+    "docs/cms/entity-view-block-schema.md:824"
+  ],
+  "lesson_id": "L-1bc633948f",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.265801Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "external system adapters (e.g. `WordPressCapabilityAdapter`) are responsible for normalizing raw source data to these contracts before calling `cmsEntityAttachCapability()` or injecting `capability_data` into the render context. The CMS rendering layer never normalizes \u2014 it only validates at the template block gate level.",
+  "type": "propose"
+}

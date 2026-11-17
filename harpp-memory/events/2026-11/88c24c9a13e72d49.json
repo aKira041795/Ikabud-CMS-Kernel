@@ -1,0 +1,15 @@
+{
+  "digest": "88c24c9a13e72d492b27ffc1d69437b5cf69b9f279a451390df9430c762b0b62",
+  "event_id": "88c24c9a13e72d49",
+  "evidence": [
+    "docs/kernel/contributor-workflows.md:126"
+  ],
+  "lesson_id": "L-9f24052a79",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.603973Z",
+  "schema_version": 1,
+  "scope": "workflow",
+  "text": "prefer seam extraction over rewrite - keep route paths and public helper names stable during structural work - do not weaken fail-closed tenant DB behavior - do not change CSP policy casually; follow the documented compatibility constraints - inspect logs after failures before assuming the bug is in the latest change",
+  "type": "propose"
+}

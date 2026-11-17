@@ -1,0 +1,15 @@
+{
+  "digest": "1084809b61b712318e53cb2d538b968705069abafd7f49ea4bfbaf90cab4388c",
+  "event_id": "1084809b61b71231",
+  "evidence": [
+    "docs/bakeshop/bakeshop-module.md:77"
+  ],
+  "lesson_id": "L-c1f70e6330",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.188398Z",
+  "schema_version": 1,
+  "scope": "bakeshop",
+  "text": "there is **no public bootstrap-password setup page**. The placeholder password hash (`!bakeshop-bootstrap-password-reset-required!`) cannot match any input \u2014 the only way to obtain a usable first admin is the trusted provisioning path (CLI or admin recovery).",
+  "type": "propose"
+}

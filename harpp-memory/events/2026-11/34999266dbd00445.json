@@ -1,0 +1,15 @@
+{
+  "digest": "34999266dbd004454642e3f0074086062e1c56fc636f8dad8c2ffbbe31dd6a60",
+  "event_id": "34999266dbd00445",
+  "evidence": [
+    "docs/daily-ledger/VIEWER-SURFACE-ASSESSMENT-PLAN-2026-10-12.md:201"
+  ],
+  "lesson_id": "L-a8705e2cf8",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.307196Z",
+  "schema_version": 1,
+  "scope": "daily-ledger",
+  "text": "(F12, D6) \u2014 stop requiring it for personal accounts; do not let it replace the session identity. **Do not break the shared-cashier name-capture workflow.**",
+  "type": "propose"
+}

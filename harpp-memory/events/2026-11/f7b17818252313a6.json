@@ -1,0 +1,15 @@
+{
+  "digest": "f7b17818252313a64c5f7cae6efaa8d3b50d4e054b94decc65f521f8984e59b0",
+  "event_id": "f7b17818252313a6",
+  "evidence": [
+    "docs/modules/backup-and-reset-standard.md:21"
+  ],
+  "lesson_id": "L-8be5c203fa",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.866420Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Both autoload via the `Ikabud\\Kernel\\Services\\` PSR mapping in `bootstrap.php`.",
+  "type": "propose"
+}

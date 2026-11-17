@@ -1,0 +1,15 @@
+{
+  "digest": "ac3fb09f35da411c500bdd4177e8f85e2bfbe3d062543ab0b3a7c6b6e5e9f0de",
+  "event_id": "ac3fb09f35da411c",
+  "evidence": [
+    "docs/engineering/lane-harness-issue.md:408"
+  ],
+  "lesson_id": "L-f6850c6d9f",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.431064Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "\u2014 that was exactly the gap: the criterion DID fail on HEAD and still could not pass on the new code, because it encoded the old interaction model. Assert OUTCOMES (a row exists, a message persists), never MECHANISMS (one click suffices), whenever the design changes the mechanism.",
+  "type": "propose"
+}

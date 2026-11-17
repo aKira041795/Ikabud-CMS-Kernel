@@ -1,0 +1,15 @@
+{
+  "digest": "21680892edaef591967824a58c665f5d16b19e280ec8567e0f16ef64e6b17aee",
+  "event_id": "21680892edaef591",
+  "evidence": [
+    "docs/evaluations/daily-ledger-load-and-concurrency-2026-09-16.md:240"
+  ],
+  "lesson_id": "L-f83dff0995",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.450602Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "Measured: the page already contains **178** `beg_bal` inputs; the HTMX call re-fetches **174** of them (588,120 bytes) to replace identical markup.",
+  "type": "propose"
+}

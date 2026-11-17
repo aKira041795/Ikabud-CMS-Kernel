@@ -1,0 +1,15 @@
+{
+  "digest": "bcce9a0ddab120e3245b1726d89bcfbbd30fc9fe8bbba31e8e0f8383090fda81",
+  "event_id": "bcce9a0ddab120e3",
+  "evidence": [
+    ".github/instructions/ai-development-execution-handoff.instructions.md:672"
+  ],
+  "lesson_id": "L-a511b4993d",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.947998Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "Measured 2026-10-10: the agent decided a follow-up, wrote \"**Next, decided:** \u2026\", implied a condition (\"unless the numbers turn out to be worth keeping\"), and ended the turn with that work untouched. The owner had to prompt for it. The decision was correct and the stopping undid it.",
+  "type": "propose"
+}

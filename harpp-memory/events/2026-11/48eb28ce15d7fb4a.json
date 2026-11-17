@@ -1,0 +1,15 @@
+{
+  "digest": "48eb28ce15d7fb4aaf24f482dba158de06b5087398f69d8ac04cb54a230aa24e",
+  "event_id": "48eb28ce15d7fb4a",
+  "evidence": [
+    "docs/kernel/ARCHITECTURE.md:395"
+  ],
+  "lesson_id": "L-28129b0e5b",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.545090Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "(`kernel/Database/KernelPDOStatement.php`) \u2014 a `PDOStatement` subclass registered via `PDO::ATTR_STATEMENT_CLASS` on every `KernelPDO` instance so prepared-statement executions emit the after-event automatically. All hook/event calls are wrapped in try/catch; failures never abort a DB operation.",
+  "type": "propose"
+}

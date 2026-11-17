@@ -1,0 +1,15 @@
+{
+  "digest": "e924cffe3840d73b2f5387fee29c238b1d025e288df6d4946d28fbe67dd2c649",
+  "event_id": "e924cffe3840d73b",
+  "evidence": [
+    "docs/wms/wms-module.md:193"
+  ],
+  "lesson_id": "L-bb16ceb714",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.564345Z",
+  "schema_version": 1,
+  "scope": "wms",
+  "text": "Every stock change is recorded here before `wms_stocks` is updated. Records are **never deleted or updated** \u2014 they are the single source of truth.",
+  "type": "propose"
+}

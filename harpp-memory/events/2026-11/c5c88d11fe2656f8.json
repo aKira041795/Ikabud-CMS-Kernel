@@ -1,0 +1,15 @@
+{
+  "digest": "c5c88d11fe2656f8d23209fef5e5bdf342e210abbca4bfbdf0efc200ffc2ad51",
+  "event_id": "c5c88d11fe2656f8",
+  "evidence": [
+    "docs/architecture/decisions/ADR-003-reads-tables-alongside-capabilities.md:14"
+  ],
+  "lesson_id": "L-f4747376d7",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.161763Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "1. **Reads, never writes.** A module declaring `reads_tables` may SELECT from those tables. INSERT/UPDATE/DELETE are denied by ModuleDB enforcement.",
+  "type": "propose"
+}

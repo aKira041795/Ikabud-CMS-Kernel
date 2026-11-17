@@ -1,0 +1,15 @@
+{
+  "digest": "43ca30af32f80b0f95766fe73bbadee0d11f1dcc418214b0db20f2cdb7a21807",
+  "event_id": "43ca30af32f80b0f",
+  "evidence": [
+    "docs/ai/ai-module.md:608"
+  ],
+  "lesson_id": "L-2267d805ff",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.127034Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "Rules: - Only suggest capabilities that are in the provided available_capabilities list - Default is_enabled to true only when the event clearly benefits the user - Keep templates short, include reference IDs for traceability - Return valid JSON matching the output schema exactly - Do not hallucinate capability IDs not in the list ```",
+  "type": "propose"
+}

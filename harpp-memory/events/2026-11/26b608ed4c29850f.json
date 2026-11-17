@@ -1,0 +1,15 @@
+{
+  "digest": "26b608ed4c29850f19bc94bf1429d141dbb69cf9f5a0c164394d18fbe385b641",
+  "event_id": "26b608ed4c29850f",
+  "evidence": [
+    ".github/instructions/ai-development-execution-handoff.instructions.md:718"
+  ],
+  "lesson_id": "L-0388732499",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.949777Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "It never merges, pushes, or runs the release gate. The result is recorded with `tools/autonomy-ledger.py`, which reports the autonomy rate. A task counts as autonomous only when it is `routine`, has zero owner interventions, `acceptance = PASS`, `gate = PASS`, `merged = true`, and was not rolled back. `gate = SKIPPED` deliberately does not count.",
+  "type": "propose"
+}

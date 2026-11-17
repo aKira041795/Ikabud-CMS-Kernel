@@ -1,0 +1,15 @@
+{
+  "digest": "f8d65eae3036517dcc5ee691ba0c2213912787f8f920f34ad89de7d06ea1dbc6",
+  "event_id": "f8d65eae3036517d",
+  "evidence": [
+    "docs/architecture/evidence-adapter-pattern.md:37"
+  ],
+  "lesson_id": "L-e02e2f70a1",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.169087Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Every AISS capability call must be wrapped in try/catch. AISS unavailability must not block the parent workflow:",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "c393c7ad40e978d5468abc5edeced63d054e1a6cca793f46fa4f3b2028d9ae2d",
+  "event_id": "c393c7ad40e978d5",
+  "evidence": [
+    "docs/kernel/kernel-6.2-proof-program-promotion-report.md:99"
+  ],
+  "lesson_id": "L-ff5b4aee50",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.642958Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Guardrail 8 \u2014 performance gate - **Objective:** add an evidence-backed aggregate performance regression gate without changing default load-test output. - **Status:** **PROMOTED** - **Key evidence:** `tests/kernel_load_test.php`, `tools/perf-gate.php`, `tests/perf_gate_test.php`, `storage/perf-baseline.json` - **Notes:** promotion claim is aggregate load delta only; it does not assert per-request latency guarantees.",
+  "type": "propose"
+}

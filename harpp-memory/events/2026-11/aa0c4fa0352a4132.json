@@ -1,0 +1,15 @@
+{
+  "digest": "aa0c4fa0352a4132087ff9ac5813643a5f5ec3555f407dd506378f6c13c838cf",
+  "event_id": "aa0c4fa0352a4132",
+  "evidence": [
+    "docs/kernel/workflow-system.md:246"
+  ],
+  "lesson_id": "L-5cf9009083",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.857988Z",
+  "schema_version": 1,
+  "scope": "workflow",
+  "text": "transitions: - from: pending action: approve to: approved roles: [administrator, superadmin] - from: pending action: reject to: rejected roles: [administrator, superadmin] - from: approved action: deliver to: delivered roles: [administrator, superadmin] - from: failed action: retry to: pending roles: [administrator]",
+  "type": "propose"
+}

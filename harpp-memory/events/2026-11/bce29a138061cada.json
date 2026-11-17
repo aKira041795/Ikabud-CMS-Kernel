@@ -1,0 +1,15 @@
+{
+  "digest": "bce29a138061cada04a17fefb983e797b505e3d21cf477dd3bfb2acc0ed17b84",
+  "event_id": "bce29a138061cada",
+  "evidence": [
+    "docs/TERMINOLOGY.md:17"
+  ],
+  "lesson_id": "L-fc287ed5ad",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.118321Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "**Do not use \"Hyperkernel\" or \"hyper-kernel\" in current product, technical, contributor, or marketing documentation.**",
+  "type": "propose"
+}

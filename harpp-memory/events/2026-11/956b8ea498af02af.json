@@ -1,0 +1,15 @@
+{
+  "digest": "956b8ea498af02afd69e6cc310174f91e165d7f4182c4d8136af59665edc45f6",
+  "event_id": "956b8ea498af02af",
+  "evidence": [
+    ".github/instructions/ui-ux-conventions.instructions.md:71"
+  ],
+  "lesson_id": "L-fa3abcc61e",
+  "proposed_by": "harvest",
+  "reason": "ui-ux",
+  "recorded_at": "2026-11-17T13:22:44.989535Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Measured win Widening a modal from 768px \u2192 1024px removed a horizontal scrollbar **and** dropped row height 103px \u2192 83px, because labels stopped wrapping. Widening is usually the cheaper density fix.",
+  "type": "propose"
+}

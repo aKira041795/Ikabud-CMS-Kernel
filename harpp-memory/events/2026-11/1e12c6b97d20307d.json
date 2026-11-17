@@ -1,0 +1,15 @@
+{
+  "digest": "1e12c6b97d20307dbb081f094f9c60648d49631b11a539973192f44e32e379d2",
+  "event_id": "1e12c6b97d20307d",
+  "evidence": [
+    "docs/disyl/inline-editing-rfc.md:288"
+  ],
+  "lesson_id": "L-f74aa8282c",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.356120Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Validation - `allowed_values` provides client-side pre-validation (UX only \u2014 never trust the client) - The capability handler **must** re-validate all inputs server-side - Field-level validation rules belong in the capability handler, not the view contract",
+  "type": "propose"
+}

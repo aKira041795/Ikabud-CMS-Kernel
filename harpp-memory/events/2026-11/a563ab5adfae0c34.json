@@ -1,0 +1,15 @@
+{
+  "digest": "a563ab5adfae0c34f57eaa095932d8191b2c3dfac8b64516feb155d1dff25bf0",
+  "event_id": "a563ab5adfae0c34",
+  "evidence": [
+    "docs/kernel/caching-strategy.md:163"
+  ],
+  "lesson_id": "L-28a21c3da5",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.566646Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "if the fast path ever gains a bootstrap phase able to load helpers before it checks, the literal-path constraint disappears and the two authorities could merge.",
+  "type": "propose"
+}

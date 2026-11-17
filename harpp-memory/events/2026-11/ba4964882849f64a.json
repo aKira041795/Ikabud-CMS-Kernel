@@ -1,0 +1,15 @@
+{
+  "digest": "ba4964882849f64a2770ec5a366c0993fe7dc53af92ad31074e0014dfb3a55e2",
+  "event_id": "ba4964882849f64a",
+  "evidence": [
+    "docs/ehr/implementation-plan.md:2327"
+  ],
+  "lesson_id": "L-1d952deb39",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.379175Z",
+  "schema_version": 1,
+  "scope": "ehr",
+  "text": "[ ] **Modals don't block interaction.** If a modal is open (e.g., \"Close Visit\" checklist), the background page is dimmed but visible (do not scroll-lock unless on mobile).",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "e6a99ec47fe3034ada6e913448ed49f38c905e942bf267a3716f9d524e97afd8",
+  "event_id": "e6a99ec47fe3034a",
+  "evidence": [
+    "docs/reviews/perf-metrics-2026-10-10/sol-fix-verification.md:64"
+  ],
+  "lesson_id": "L-038f8e6e03",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.367737Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "I made `probe-fallback-sweep.php` reporting `fallback 0` the primary acceptance criterion. That measures **which pipeline ran**, not **whether the output is right**. Sol satisfied the criterion exactly as written, and the criterion could not detect the regression. The missing criterion was output equality against the interpreted path \u2014 a differential over the real corpus.",
+  "type": "propose"
+}

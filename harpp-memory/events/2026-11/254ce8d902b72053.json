@@ -1,0 +1,15 @@
+{
+  "digest": "254ce8d902b7205364cee93d3bcf4d81380ffd23474641580baafecc9bb35459",
+  "event_id": "254ce8d902b72053",
+  "evidence": [
+    "docs/ai/harpp-memory.md:12"
+  ],
+  "lesson_id": "L-4bbb8463ee",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.143023Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "The chair was consulted (`/chair-consult`, session `neural-experience-2026-11-17`) and returned the ruling this design follows: **build the memory system, not the neural metaphor.** Immutable, individually addressable records tracked in git; a disposable SQLite index; a bounded working set that enters the prompt; memories advisory, never authoritative.",
+  "type": "propose"
+}

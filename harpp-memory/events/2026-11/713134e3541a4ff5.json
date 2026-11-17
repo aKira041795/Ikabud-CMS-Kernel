@@ -1,0 +1,15 @@
+{
+  "digest": "713134e3541a4ff5fcac17d88197bb5a246afcfcb59c5fe0405cb97a996713bc",
+  "event_id": "713134e3541a4ff5",
+  "evidence": [
+    "docs/ecommerce/multistore-roadmap.md:187"
+  ],
+  "lesson_id": "L-3323ab9569",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.371840Z",
+  "schema_version": 1,
+  "scope": "ecommerce",
+  "text": "1. Define a permissions map in `ecStoreAdminContext()` in `modules/ecommerce/handlers/00-bootstrap.php` 2. Pass permissions to the template context 3. Render store-admin navigation conditionally in `templates/modules/ecommerce/layouts/store-admin.disyl` 4. Keep supervisor write restrictions enforced on the server side 5. Add a persistent read-only banner for supervisors",
+  "type": "propose"
+}

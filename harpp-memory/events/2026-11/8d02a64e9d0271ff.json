@@ -1,0 +1,15 @@
+{
+  "digest": "8d02a64e9d0271ff6738b526ee9659ea22410d904147847bf4f52b258efbd64d",
+  "event_id": "8d02a64e9d0271ff",
+  "evidence": [
+    "docs/daily-ledger/VIEWER-SURFACE-ASSESSMENT-PLAN-2026-10-12.md:381"
+  ],
+  "lesson_id": "L-2940a421ff",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.310035Z",
+  "schema_version": 1,
+  "scope": "daily-ledger",
+  "text": "And: **do not treat missing records as zero**, and do not imply the other 20 branches failed to operate \u2014 they may be inactive, closed, genuinely zero, or unreported. Verdict states must distinguish **Complete / Attention required / Incomplete / Unknown-not-assessed**, with no green overall verdict while coverage is unestablished.",
+  "type": "propose"
+}

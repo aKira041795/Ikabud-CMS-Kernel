@@ -1,0 +1,15 @@
+{
+  "digest": "08e4f87480ee88350dc580de0d21dc10e0a09594ed4118a28b5a45a2aab34108",
+  "event_id": "08e4f87480ee8835",
+  "evidence": [
+    "docs/kernel/module-development-guide.md:1472"
+  ],
+  "lesson_id": "L-c99732d77c",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.749420Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "The kernel provides **ultra-early fast-path handlers** that serve specific routes BEFORE booting `bootstrap.php`, the module manager, or opening a DB connection. These run in ~1\u20135ms instead of the full ~450ms bootstrap.",
+  "type": "propose"
+}

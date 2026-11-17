@@ -1,0 +1,15 @@
+{
+  "digest": "087727c372a4f6586712013846efc01a19f682f367914fb8fc8dcb10747b8332",
+  "event_id": "087727c372a4f658",
+  "evidence": [
+    "docs/reviews/sol-production-attribution-2026-10-11.md:70"
+  ],
+  "lesson_id": "L-6adce502e6",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.502143Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Source resolution does exist elsewhere: `handlers-deliveries.php::dl_resolveProductSupplySource()` uses active branch-product rules, then `default_supply_mode` and `assigned_commissary_id`; same-location eligibility also checks `is_commissary`. That does not falsify C1 because the reporting aggregation never calls or reproduces that logic.",
+  "type": "propose"
+}

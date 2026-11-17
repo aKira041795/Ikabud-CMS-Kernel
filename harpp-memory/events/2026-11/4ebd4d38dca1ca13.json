@@ -1,0 +1,15 @@
+{
+  "digest": "4ebd4d38dca1ca13fd501b9c93fabd3eb5491284e868e0e3ae8c35df4e086847",
+  "event_id": "4ebd4d38dca1ca13",
+  "evidence": [
+    "docs/reviews/mobile-offline-db-readiness-review-2026-07-10.md:156"
+  ],
+  "lesson_id": "L-4c8eddddb8",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.342295Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "GAP-2: `requireAuth()` redirects, never returns 401 JSON (\ud83d\udd34 CRITICAL) ```php // App.php:1455 public function requireAuth(): array { $user = $this->user(); if (!$user) { $this->redirect('/login'); // \u2190 Always redirects! } return $user; } ```",
+  "type": "propose"
+}

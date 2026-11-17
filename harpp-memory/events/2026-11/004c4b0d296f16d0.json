@@ -1,0 +1,15 @@
+{
+  "digest": "004c4b0d296f16d06105b5b5a2b3abd7d5c21eb6814e040e8a4c5dd9d6f39707",
+  "event_id": "004c4b0d296f16d0",
+  "evidence": [
+    "docs/kernel/module-development-guide.md:673"
+  ],
+  "lesson_id": "L-e7e1caacad",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.724870Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "The kernel-level source of truth is `kernel_password_reset_policy()` in [bootstrap.php](../../bootstrap.php).",
+  "type": "propose"
+}

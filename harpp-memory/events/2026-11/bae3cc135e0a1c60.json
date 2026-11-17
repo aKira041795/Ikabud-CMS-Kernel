@@ -1,0 +1,15 @@
+{
+  "digest": "bae3cc135e0a1c60376994aec4f9d57459bd3bf9c9e3d932554fc05c7e4fd329",
+  "event_id": "bae3cc135e0a1c60",
+  "evidence": [
+    "docs/reviews/perf-metrics-2026-10-10/sol-fix-verification.md:1"
+  ],
+  "lesson_id": "L-78634a528e",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.364066Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Verification of Sol's DiSyL fix \u2014 REJECTED, and the brief was at fault too",
+  "type": "propose"
+}

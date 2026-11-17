@@ -1,0 +1,15 @@
+{
+  "digest": "380ac3ef27176562b5867f59aeeeaeb340806e3b54c0b9d47fae3732b5b8fb75",
+  "event_id": "380ac3ef27176562",
+  "evidence": [
+    "docs/releases/release-notes-2026-10-09-kernel-request-cost.md:45"
+  ],
+  "lesson_id": "L-7035928c46",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.120154Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "`loadModuleRoutes()` walked every previously registered pattern of a method for every pattern of every module. Measured: 1,968 patterns \u2192 **927,972 comparisons**, 0.532 \u00b5s each, recomputed identically on every request.",
+  "type": "propose"
+}

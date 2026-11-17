@@ -1,0 +1,15 @@
+{
+  "digest": "a318c2d793c1aa2a9a2be2be58077eefcbff1f6f6f2a86e9f39bcf17d9947b00",
+  "event_id": "a318c2d793c1aa2a",
+  "evidence": [
+    "docs/daily-ledger/paperless-dr-rule-2026-11-14.md:92"
+  ],
+  "lesson_id": "L-adc8495a3d",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.321299Z",
+  "schema_version": 1,
+  "scope": "daily-ledger",
+  "text": "If a branch genuinely alternates which products it makes by day or schedule, a per-product flag is the wrong shape and needs a schedule source instead. - If the measured rate of paperless stock-in does **not** fall once admins trim their product lists, the rule is not the binding constraint and the next door is the real one.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "d87f304a9b486ce624248d29a441369678097b53b39dd4b245ce30e44c26cd4f",
+  "event_id": "d87f304a9b486ce6",
+  "evidence": [
+    "docs/pal/pal-ark-workbench-architecture-plan.md:537"
+  ],
+  "lesson_id": "L-beaffe453c",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.985151Z",
+  "schema_version": 1,
+  "scope": "pal",
+  "text": "Currency symbol, decimal places, and locale formatting are application/locale data \u2014 not visual policy. A theme token must not define the currency symbol for a transaction.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "60f6994d2aa8a35e2b8cb8247d8ccb805b330c5add0c6dacfc025e4c441e06f9",
+  "event_id": "60f6994d2aa8a35e",
+  "evidence": [
+    "docs/cms/cms-modularization-execution-plan.md:138"
+  ],
+  "lesson_id": "L-6d2309de64",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.222257Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "Recommended Commit Strategy - One phase per PR (preferred). - Never combine identity/media extraction with unrelated phases. - Require migration replay evidence for every ownership move.",
+  "type": "propose"
+}

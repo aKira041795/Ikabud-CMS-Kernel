@@ -1,0 +1,15 @@
+{
+  "digest": "fd3f09e9a1255da6b1960b7f14415e921fdd802ea7a24524843090660dfa5f90",
+  "event_id": "fd3f09e9a1255da6",
+  "evidence": [
+    "docs/workbench/scenario-and-test-data-engine.md:40"
+  ],
+  "lesson_id": "L-facf80ba10",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.655247Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Interim diagnostic matches are labeled `provisionally-supported`. The final Workbench Reporter reevaluates every direction against its correlated browser evidence and writes `scenario-guidance.json`; a provisional page match can never overrule a final HTTP failure.",
+  "type": "propose"
+}

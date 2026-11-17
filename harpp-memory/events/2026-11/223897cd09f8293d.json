@@ -1,0 +1,15 @@
+{
+  "digest": "223897cd09f8293d40cf286bb7a3467b05e4e376b965b5f3db0cfabd0e709cee",
+  "event_id": "223897cd09f8293d",
+  "evidence": [
+    "docs/reviews/perf-metrics-2026-10-10.md:935"
+  ],
+  "lesson_id": "L-efdfa505f1",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.428200Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Every acceptance set for a compiler change must now include `probe-output-diff.php` against `output-before.txt`, with **each changed template listed and justified individually**; an unexplained diff is a rejection. `output-before.txt` must not be regenerated after a fix \u2014 it is the reference arm.",
+  "type": "propose"
+}

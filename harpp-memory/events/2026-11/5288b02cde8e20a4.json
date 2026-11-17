@@ -1,0 +1,15 @@
+{
+  "digest": "5288b02cde8e20a4c180053cb383b6cb6ca22a4addf38d0b4f36516858a53940",
+  "event_id": "5288b02cde8e20a4",
+  "evidence": [
+    "docs/daily-ledger/truthful-production-statistics-2026-10-11.md:85"
+  ],
+  "lesson_id": "L-1df5ec8988",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.337155Z",
+  "schema_version": 1,
+  "scope": "daily-ledger",
+  "text": "The figures are drawn from one measured series with an exact per-row identity, over days that actually have data, with the coverage stated. They are near-true by construction and reconcilable by hand. The alternative \u2014 a ratio computed against an empty table \u2014 is not near-true, it is meaningless, and it would be believed because a percentage looks like a measurement.",
+  "type": "propose"
+}

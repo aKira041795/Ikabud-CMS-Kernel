@@ -1,0 +1,15 @@
+{
+  "digest": "369817b7734bf6c7902c6026d92cb320fdc7a9bb3f56a1af80d0361f25a576fe",
+  "event_id": "369817b7734bf6c7",
+  "evidence": [
+    "docs/archive/disyl-plans/disyl-4.4-plan.md:112"
+  ],
+  "lesson_id": "L-0cfebff540",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.182070Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "All tests pass. - Pen-test scenario: tenant-supplied template attempting raw HTML, network, db write, AI, filesystem traversal \u2014 all denied with audit rows. - No regression on prior suites. - Sandbox check overhead < 5% on a 100-block render benchmark.",
+  "type": "propose"
+}

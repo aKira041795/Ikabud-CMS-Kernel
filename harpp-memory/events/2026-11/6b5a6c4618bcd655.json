@@ -1,0 +1,15 @@
+{
+  "digest": "6b5a6c4618bcd6552a3aaea6340f496a3d566684da7a2999ff80abf6669e5bdc",
+  "event_id": "6b5a6c4618bcd655",
+  "evidence": [
+    "docs/engineering/commissary-coherence-audit-2026-10-08.md:123"
+  ],
+  "lesson_id": "L-0fdbd14a09",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.399517Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Note `handlers.php:19302-19304`: *\"An absent row is an unrecorded zero. Keep the preceding ending in its own data attribute; rendering must never apply or persist the carry.\"* That is a deliberate separation of *suggestion* from *recorded* \u2014 it must not be collapsed.",
+  "type": "propose"
+}

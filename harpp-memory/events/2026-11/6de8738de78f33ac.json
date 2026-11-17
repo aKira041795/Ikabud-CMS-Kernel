@@ -1,0 +1,15 @@
+{
+  "digest": "6de8738de78f33ac73c5ca2df6aede5514432ccb4a05b214a650f29bb571e30b",
+  "event_id": "6de8738de78f33ac",
+  "evidence": [
+    "docs/daily-ledger/sweep-baseline.md:31"
+  ],
+  "lesson_id": "L-167fcbf7c8",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.326637Z",
+  "schema_version": 1,
+  "scope": "daily-ledger",
+  "text": "(The brief said \"46 suites\"; 37 + 9 + 1 was already 47, and this lane added one behavioural guard suite, so the measured total is 48.)",
+  "type": "propose"
+}

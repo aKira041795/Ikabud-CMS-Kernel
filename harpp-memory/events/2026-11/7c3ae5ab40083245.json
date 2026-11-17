@@ -1,0 +1,15 @@
+{
+  "digest": "7c3ae5ab40083245e2ac48aa7711337a3b5e89e6e0aa805e6d625091d1592aa2",
+  "event_id": "7c3ae5ab40083245",
+  "evidence": [
+    "docs/engineering/lane-harness-issue.md:402"
+  ],
+  "lesson_id": "L-2d85adee15",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.430076Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Restating this as a lesson has a measured record today of **three restatements, zero prevented**. So do not add another rule. Build the check:",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "e3064720283388c3e079f749767be4fa1c2db5d36974bdd7f8e89015b960a95e",
+  "event_id": "e3064720283388c3",
+  "evidence": [
+    "docs/pal/pal-ark-workbench-architecture-plan.md:127"
+  ],
+  "lesson_id": "L-b80291f7da",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.973788Z",
+  "schema_version": 1,
+  "scope": "pal",
+  "text": "This requires minimal kernel-level platform contracts (see \u00a712.3): an `ApplicationProfileProvider` interface, an `ApplicationProfileRegistry`, and an `ApplicationProfileResolver`. These are generic \u2014 the kernel must not know PAL or Workbench details.",
+  "type": "propose"
+}

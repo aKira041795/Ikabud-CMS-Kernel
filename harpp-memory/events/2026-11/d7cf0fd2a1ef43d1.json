@@ -1,0 +1,15 @@
+{
+  "digest": "d7cf0fd2a1ef43d13fd89c4ee0c066e7d246a5b260577afe81a16d282c3b8b20",
+  "event_id": "d7cf0fd2a1ef43d1",
+  "evidence": [
+    "docs/reviews/mobile-api-platform-implementation-plan-2026-07-10.md:424"
+  ],
+  "lesson_id": "L-45539107b8",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.299548Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "/** * Paginated success. */ public static function paginated(array $items, Paginator $paginator): never { self::success($items, 200, [ 'pagination' => $paginator->meta(), 'links' => $paginator->links(), ]); }",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "28adeac4c8d73cd6477bde462acfd5297677fdec3625e9f3990b071445d72cf7",
+  "event_id": "28adeac4c8d73cd6",
+  "evidence": [
+    "docs/kernel/ikabud-roadmap.md:19"
+  ],
+  "lesson_id": "L-8830a23810",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.632048Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "kernel-owned routing and bootstrapping - module-scoped access via `ModuleContext` - capability-based integration - event and trigger wiring - table ownership enforcement - runtime hardening and boundary checks",
+  "type": "propose"
+}

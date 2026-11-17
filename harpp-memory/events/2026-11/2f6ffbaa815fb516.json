@@ -1,0 +1,15 @@
+{
+  "digest": "2f6ffbaa815fb5164fc2eb99e5bc1b5b5b10f83bbff985e10ee1308129221cd4",
+  "event_id": "2f6ffbaa815fb516",
+  "evidence": [
+    "docs/pal/pal-ark-workbench-architecture-plan.md:1273"
+  ],
+  "lesson_id": "L-3bcce323e2",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.024630Z",
+  "schema_version": 1,
+  "scope": "pal",
+  "text": "> Density, table density, and sidebar state are per-user preferences. Theme Studio defines the tenant default. Individual user overrides are stored separately in `user_preferences` and never overwritten by tenant-wide theme changes.",
+  "type": "propose"
+}

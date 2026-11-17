@@ -1,0 +1,15 @@
+{
+  "digest": "a8b84366cb47b14367b57a021873441f855ecd5b107af201e11219f746dd933c",
+  "event_id": "a8b84366cb47b143",
+  "evidence": [
+    "docs/workflows/workflow-kernel-review.md:255"
+  ],
+  "lesson_id": "L-98a1c30965",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.667867Z",
+  "schema_version": 1,
+  "scope": "workflow",
+  "text": "The remaining work is not about rebuilding workflow. It is about tightening the ownership boundary, simplifying the compatibility shell, and documenting the end-state operating model clearly enough that future changes do not reintroduce module-owned behavior.",
+  "type": "propose"
+}

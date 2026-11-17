@@ -1,0 +1,15 @@
+{
+  "digest": "c0c54f8f8d8d93e1a9b1cf3792547a75ae885245e7591a0f6ecb16e984ca443e",
+  "event_id": "c0c54f8f8d8d93e1",
+  "evidence": [
+    "docs/project-audit-ledger/implementation-plan.md:1493"
+  ],
+  "lesson_id": "L-7ac2845619",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.058493Z",
+  "schema_version": 1,
+  "scope": "project-audit-ledger",
+  "text": "``` DRAFT \u2500\u2500submit\u2500\u2500\u25ba REQUESTED \u2500\u2500approve\u2500\u2500\u25ba APPROVED \u2500\u2500\u25ba PARTIALLY_ISSUED \u2500\u2500\u25ba FULLY_ISSUED \u2502 \u2502 \u2502 reject \u2502 \u25bc \u25bc REJECTED CANCELLED ```",
+  "type": "propose"
+}

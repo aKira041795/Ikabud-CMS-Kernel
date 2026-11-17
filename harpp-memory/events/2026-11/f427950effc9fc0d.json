@@ -1,0 +1,15 @@
+{
+  "digest": "f427950effc9fc0dd4ae83d634d1abc94dacab4516fdf1d2a574bf2dd027e6dd",
+  "event_id": "f427950effc9fc0d",
+  "evidence": [
+    "docs/ai/harpp-cognitive-architecture.md:71"
+  ],
+  "lesson_id": "L-e386710a05",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.133409Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "``` proposed \u2192 active \u2192 confirmed \u2192 compiled(gate) \u2192 retired \u2198 contradicted \u2192 review \u2192 rejected ```",
+  "type": "propose"
+}

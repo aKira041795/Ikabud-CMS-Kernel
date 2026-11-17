@@ -1,0 +1,15 @@
+{
+  "digest": "ac33b895b671a0b2a773b99ba802de762364cfb4db187896795ccbd1ec6df38a",
+  "event_id": "ac33b895b671a0b2",
+  "evidence": [
+    "docs/releases/release-notes-2026-04-01-kernel-hardening.md:97"
+  ],
+  "lesson_id": "L-090c8003e0",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.094671Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "These numbers are environment-specific and serve as a same-machine regression baseline, not as a universal SLA.",
+  "type": "propose"
+}

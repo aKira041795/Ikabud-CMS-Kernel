@@ -1,0 +1,15 @@
+{
+  "digest": "b92763d94b639f04460107eb80adb7dc0de8028b6f1c460ce39fc03f335130b2",
+  "event_id": "b92763d94b639f04",
+  "evidence": [
+    "docs/reviews/perf-metrics-2026-10-10/sol-fix-verification.md:100"
+  ],
+  "lesson_id": "L-a1c9ae131a",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.377738Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Minimal reproduction Sol measured: `<style>@media(x){#x{a:b}}</style>TAIL` \u2014 37 source bytes producing 16 output bytes before, 37 after.",
+  "type": "propose"
+}

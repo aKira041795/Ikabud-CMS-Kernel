@@ -1,0 +1,15 @@
+{
+  "digest": "5d01377ce252b4acc1b74ca49c3141cb2bf769714fac0c0c0989449d6a8f857e",
+  "event_id": "5d01377ce252b4ac",
+  "evidence": [
+    "docs/daily-ledger/HANDOFF-2026-10-11.md:96"
+  ],
+  "lesson_id": "L-030a838378",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.287965Z",
+  "schema_version": 1,
+  "scope": "daily-ledger",
+  "text": "the helper reads `dl_commissary_product_ledger WHERE commissary_branch_id IN (\u2026)` for production and `dl_daily_ledger WHERE branch_id IN (\u2026)` for sales, then **merges only by product ID**. It never resolves `supply_source_type`, `default_supply_mode`, delivery origin or DR provenance \u2014 `supply_source_type` appears **0 times** in `helpers/reporting.php`.",
+  "type": "propose"
+}

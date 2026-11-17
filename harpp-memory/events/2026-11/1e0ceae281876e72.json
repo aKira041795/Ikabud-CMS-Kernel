@@ -1,0 +1,15 @@
+{
+  "digest": "1e0ceae281876e72dc34b5f987106fd8bdd0abd9789c086e8020ba0e0741563d",
+  "event_id": "1e0ceae281876e72",
+  "evidence": [
+    "docs/cms/cms-theme-design-architecture.md:52"
+  ],
+  "lesson_id": "L-ea9ae4b041",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.244407Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "This remains the public alias used by DiSyL templates. At runtime, the helper/template layer now resolves that alias against the current request's active theme directly, so normal public renders do not depend on mutating the filesystem symlink. The symlink is still maintained for compatibility and explicit activation flows, and those mutations remain lock-guarded.",
+  "type": "propose"
+}

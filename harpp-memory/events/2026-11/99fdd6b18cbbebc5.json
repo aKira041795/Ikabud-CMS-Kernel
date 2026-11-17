@@ -1,0 +1,15 @@
+{
+  "digest": "99fdd6b18cbbebc57b19f66d9445ea4c143627b3be6c529a18cf8fbd0b26aa9c",
+  "event_id": "99fdd6b18cbbebc5",
+  "evidence": [
+    ".github/instructions/ui-ux-conventions.instructions.md:177"
+  ],
+  "lesson_id": "L-3276254a12",
+  "proposed_by": "harvest",
+  "reason": "ui-ux",
+  "recorded_at": "2026-11-17T13:22:45.011754Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "1. Measured: alignment distinct-value counts as above. 2. Measured: no horizontal overflow. 3. Counted: fields before == fields after. 4. Verified in a real browser at real data volume \u2014 not a stub fixture of 3 rows. 5. Verified in the role that actually uses the screen, not only as admin.",
+  "type": "propose"
+}

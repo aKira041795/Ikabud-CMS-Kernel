@@ -1,0 +1,15 @@
+{
+  "digest": "4326946977d9211a5f021259dce5ea588950216c8bad2d47f9157b95bd4ac4bc",
+  "event_id": "4326946977d9211a",
+  "evidence": [
+    "docs/reviews/sol-production-attribution-2026-10-11.md:375"
+  ],
+  "lesson_id": "L-7be70a9178",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.509490Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "direct_purchase_or_manual: behavior: | Do not compute production yield without producer-output evidence. Show received/sold/waste metrics and an explicit non-production source state.",
+  "type": "propose"
+}

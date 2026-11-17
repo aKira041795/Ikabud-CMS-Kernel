@@ -1,0 +1,15 @@
+{
+  "digest": "7ef623c791d800fb951423455b29151f7ec5ac4febcce8aceb119f5a82bba623",
+  "event_id": "7ef623c791d800fb",
+  "evidence": [
+    "docs/workbench/ai-pattern-intelligence-roadmap.md:439"
+  ],
+  "lesson_id": "L-c147e21b29",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.589207Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "Exit gate: all golden responses validate, and intentionally unsupported responses are rejected.",
+  "type": "propose"
+}

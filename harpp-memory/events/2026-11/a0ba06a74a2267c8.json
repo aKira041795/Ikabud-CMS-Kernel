@@ -1,0 +1,15 @@
+{
+  "digest": "a0ba06a74a2267c86099f735cf6e955855ac1c65a7fee5e574696e44d076f25b",
+  "event_id": "a0ba06a74a2267c8",
+  "evidence": [
+    "docs/agent/DECISIONS.md:180"
+  ],
+  "lesson_id": "L-b8c5cfb3f5",
+  "proposed_by": "harvest",
+  "reason": "decision",
+  "recorded_at": "2026-11-17T13:22:43.123058Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": ": - Tracked markdown/instruction file \u2014 rejected by the owner (bloat, unreadable at scale). - One append-only JSONL in git \u2014 rejected: unreadable when large, shared-file conflicts, and one corrupt line breaks replay of everything after it. - MySQL / PostgreSQL / vector DB \u2014 rejected: no demonstrated problem that git + SQLite does not solve for a single-machine, single-owner harness.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "60bef23d31d1e2252d9d7049f4a68616eaf12b3d8464affd9ebd755e9b2a46ee",
+  "event_id": "60bef23d31d1e225",
+  "evidence": [
+    "docs/reviews/cms-public-output-gaps-2026-10-20.md:82"
+  ],
+  "lesson_id": "L-5feabf6ae7",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.230215Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "prepare tests, contracts, and documentation before dispatch. Do not create or edit repository files while a lane is running; the lane policy cannot distinguish a caller's write from the model's.",
+  "type": "propose"
+}

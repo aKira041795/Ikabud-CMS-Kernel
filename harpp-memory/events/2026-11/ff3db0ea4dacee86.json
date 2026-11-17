@@ -1,0 +1,15 @@
+{
+  "digest": "ff3db0ea4dacee86b3f0ca0ad2d7bf6f138367e6d93196a722d64c19f5f89352",
+  "event_id": "ff3db0ea4dacee86",
+  "evidence": [
+    "docs/themes/ark-authority-layer-plan.md:589"
+  ],
+  "lesson_id": "L-26cf3032f1",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.550079Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "The builder never invents its own block model. The builder never invents its own control schema. The builder never outputs its own HTML directly.",
+  "type": "propose"
+}

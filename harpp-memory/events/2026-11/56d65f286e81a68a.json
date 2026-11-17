@@ -1,0 +1,15 @@
+{
+  "digest": "56d65f286e81a68a383d5ac9e59b0546a948c66012f7246ad469b0a881855462",
+  "event_id": "56d65f286e81a68a",
+  "evidence": [
+    "docs/themes/ark-renderer-contract.md:140"
+  ],
+  "lesson_id": "L-8a6f5d2c20",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.555016Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Prefer one renderer target per entry. - Keep `context_keys` narrow and explicit. - Add or update the template `Context:` header whenever registry keys change. - Treat renderer changes as contract changes: update docs and tests in the same patch.",
+  "type": "propose"
+}

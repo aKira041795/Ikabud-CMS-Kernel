@@ -1,0 +1,15 @@
+{
+  "digest": "bc85cb2c00a76ad0ee7fa77265248a9fab72ebb317d844082a91be4856ae86c3",
+  "event_id": "bc85cb2c00a76ad0",
+  "evidence": [
+    "docs/daily-ledger/VIEWER-SURFACE-ASSESSMENT-PLAN-2026-10-12.md:125"
+  ],
+  "lesson_id": "L-82d62af0c8",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.304356Z",
+  "schema_version": 1,
+  "scope": "daily-ledger",
+  "text": "Minimum fix: not `required` for personal accounts, and never let the typed value replace the authenticated session identity. *Risk:* shared cashier accounts legitimately use this field (the name of the current holder) \u2014 the change must not break that workflow.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "52df209db7e763e95598a4a1b116ed9c68090f8df2b51d45f4dcc2a706118a67",
+  "event_id": "52df209db7e763e9",
+  "evidence": [
+    "docs/workbench/ai-pattern-intelligence-roadmap.md:209"
+  ],
+  "lesson_id": "L-05816a52dc",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.577742Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "Every non-trivial claim must cite evidence or retrieved source identifiers. Unsupported claims are rejected during schema validation.",
+  "type": "propose"
+}

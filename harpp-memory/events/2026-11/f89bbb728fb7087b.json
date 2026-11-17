@@ -1,0 +1,15 @@
+{
+  "digest": "f89bbb728fb7087b31cdfda1ee7b4031b71909413f0ed55bd549a70d32c94a42",
+  "event_id": "f89bbb728fb7087b",
+  "evidence": [
+    "docs/architecture/decisions/ADR-002-cms-is-module-not-kernel.md:29"
+  ],
+  "lesson_id": "L-b3acf91b49",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.161203Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "Negative - Some legacy CMS assumptions (post as center of everything) must be explicitly rejected in documentation and module design - The CMS module has grown large (~40 owned tables, complex builder UI) \u2014 it tests the limits of the module-as-participant model - Cross-module ownership questions arise (e.g., ecommerce co-owns `cms_content_types`)",
+  "type": "propose"
+}

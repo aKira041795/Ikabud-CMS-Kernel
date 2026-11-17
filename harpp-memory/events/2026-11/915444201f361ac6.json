@@ -1,0 +1,15 @@
+{
+  "digest": "915444201f361ac68f41fdb1ff35ddf11f8f9f6f223b33b39378b214304fe322",
+  "event_id": "915444201f361ac6",
+  "evidence": [
+    "docs/reviews/perf-page-accuracy-2026-10-20/brief.md:5"
+  ],
+  "lesson_id": "L-3922ef35e4",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.464615Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "`/superadmin/perf` is a diagnostic page that reports the current request's performance. It is **misleading in five specific ways**, all confirmed by reading the code, not inferred. The job is to make each number mean what a reader will assume it means. This is an **instrumentation accuracy** task \u2014 do not optimise the application, only the measuring device.",
+  "type": "propose"
+}

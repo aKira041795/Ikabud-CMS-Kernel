@@ -1,0 +1,15 @@
+{
+  "digest": "29bb54d9e05242d727882e6c2fc52824660131c43496ac6ce086d9ddebe45bd5",
+  "event_id": "29bb54d9e05242d7",
+  "evidence": [
+    "docs/kernel/kernel-os-6.3-platform-truth-plan-2026-10-12.md:6"
+  ],
+  "lesson_id": "L-47352aec52",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.647558Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "make tenant settings and capability execution contracts *inspectable, enforceably consistent, and regression-protected* \u2014 without altering valid production behavior.",
+  "type": "propose"
+}

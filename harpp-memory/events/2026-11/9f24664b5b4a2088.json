@@ -1,0 +1,15 @@
+{
+  "digest": "9f24664b5b4a2088a789a3762919322875118f0539faadc6931e5292826d5414",
+  "event_id": "9f24664b5b4a2088",
+  "evidence": [
+    "docs/ehr/implementation-plan.md:2317"
+  ],
+  "lesson_id": "L-6fc0c67f25",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.378195Z",
+  "schema_version": 1,
+  "scope": "ehr",
+  "text": "[ ] **Active visit is always visible.** On Clinical pages, a visit-progress strip shows what's done (\u2713), what's draft (\u25d2), what's pending (\u2022). Clinician never has to guess where they are in a visit.",
+  "type": "propose"
+}

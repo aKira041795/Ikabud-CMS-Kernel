@@ -1,0 +1,15 @@
+{
+  "digest": "69a026dc4b9e59cb1f3738647c0cd3d9409a8d9a492c3d5a49e8d7eb386424aa",
+  "event_id": "69a026dc4b9e59cb",
+  "evidence": [
+    "docs/cms/cms-theme-design-architecture.md:272"
+  ],
+  "lesson_id": "L-1c14b7cf58",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.245502Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "Theme lifecycle operations write structured installer audit entries to application logs, including success and rejected operations:",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "560123eb462cc4df54720c503141a2e093b84429a5f1f0e090b2180b4c56a6f3",
+  "event_id": "560123eb462cc4df",
+  "evidence": [
+    "docs/workbench/ai-pattern-intelligence-roadmap.md:524"
+  ],
+  "lesson_id": "L-a4fbd5546f",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.594328Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "Exit gate: promoted configuration meets published evaluation thresholds with no safety regression.",
+  "type": "propose"
+}

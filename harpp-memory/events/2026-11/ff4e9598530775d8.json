@@ -1,0 +1,15 @@
+{
+  "digest": "ff4e9598530775d875297efb4e913eee399afc5e305b7a40fab9beb852a79866",
+  "event_id": "ff4e9598530775d8",
+  "evidence": [
+    "docs/evaluations/kernel-disyl-architecture-evaluation-2026-04-15.md:263"
+  ],
+  "lesson_id": "L-ba3aae862f",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.498426Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "| # | Gap | Severity | Detail | |---|-----|----------|--------| | K45 | Interface is architecturally orphaned | High | Nothing in Bus or Registry validates or consumes this interface. Providers are registered as raw callables. The contract exists but is never enforced. |",
+  "type": "propose"
+}

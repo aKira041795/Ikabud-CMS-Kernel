@@ -1,0 +1,15 @@
+{
+  "digest": "5b40f9c1b567c201f0efc6c062a6c25a163ab9364f7bb536976a9745689745c0",
+  "event_id": "5b40f9c1b567c201",
+  "evidence": [
+    "docs/daily-ledger/HANDOFF-2026-10-11.md:134"
+  ],
+  "lesson_id": "L-c0b1d52d53",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.289446Z",
+  "schema_version": 1,
+  "scope": "daily-ledger",
+  "text": "the view must not render a sell-through above 100% as performance; branch 8 must not show zero production while showing 95,704 sold; `production_days` must be stated next to any ratio; a structural zero must render a named state. Then extend `tools/acceptance-production-efficiency.php`.",
+  "type": "propose"
+}

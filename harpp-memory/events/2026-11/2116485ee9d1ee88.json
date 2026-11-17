@@ -1,0 +1,15 @@
+{
+  "digest": "2116485ee9d1ee887fb3d1c495e0636eadadf327b214fd238216aba7de9806de",
+  "event_id": "2116485ee9d1ee88",
+  "evidence": [
+    "docs/dc-cafe/pos-inventory-alignment-review.md:203"
+  ],
+  "lesson_id": "L-d00464ccc9",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.344571Z",
+  "schema_version": 1,
+  "scope": "dc-cafe",
+  "text": "Stock is posted at docket time (`movement_type='purchase'`, `reference_type='delivery'`), so the existing deduction guards keep working unchanged and the cashier can sell what physically arrived. Phase 2 only *reconciles* \u2014 it never blocks selling.",
+  "type": "propose"
+}

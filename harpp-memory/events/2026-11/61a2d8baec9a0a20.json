@@ -1,0 +1,15 @@
+{
+  "digest": "61a2d8baec9a0a200796f406d506258f8b879241dc2e4ed495d7b540986363dc",
+  "event_id": "61a2d8baec9a0a20",
+  "evidence": [
+    "docs/disyl/entity-rendering-trait-improvements.md:156"
+  ],
+  "lesson_id": "L-26d9a93c2e",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.348104Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "Problems with the subclass approach: - A module should not extend `TemplateEngine` (the entire compiler + renderer) just to tweak table rows - Two modules can't use different subclasses in the same request - Long-running PHP workers face lifecycle ambiguity - Once overridden, those methods can never be safely refactored",
+  "type": "propose"
+}

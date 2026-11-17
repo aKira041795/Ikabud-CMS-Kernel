@@ -1,0 +1,15 @@
+{
+  "digest": "ff6f0c008a69d1fe3577e52b0bc707aff52fee0ab5e3347bc1930d54750a7aa2",
+  "event_id": "ff6f0c008a69d1fe",
+  "evidence": [
+    "docs/reviews/mobile-api-platform-implementation-plan-2026-07-10.md:435"
+  ],
+  "lesson_id": "L-27a379c707",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.315485Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "private static function emit(array $body, int $status): never { \\app()->json($body, $status); } } ```",
+  "type": "propose"
+}

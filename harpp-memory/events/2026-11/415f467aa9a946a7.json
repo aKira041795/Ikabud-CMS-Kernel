@@ -1,0 +1,15 @@
+{
+  "digest": "415f467aa9a946a7a04f828e7d3e68f658d4abf2f6caa568ba508d8d7f9daeb9",
+  "event_id": "415f467aa9a946a7",
+  "evidence": [
+    "docs/kernel/module-development-guide.md:1562"
+  ],
+  "lesson_id": "L-bd1c2fffc2",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.767567Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "// \u274c BAD: Static flag that can't be reset in tests function mySetting(string $key): ?string { static $loaded = false; // once true, never reloads even if DB changes static $cache = []; if (!$loaded) { /* load */ $loaded = true; } } ```",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "cc26bdfa7c6cd24c1f8037c13c86e4212f2933fb45518c849b01c5845b0b15fc",
+  "event_id": "cc26bdfa7c6cd24c",
+  "evidence": [
+    "docs/themes/ark-authority-layer-plan.md:58"
+  ],
+  "lesson_id": "L-0d2c78b4ab",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.548316Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Based on the current codebase state, including the ARK theme contracts, kernel validator, Theme Studio, CMS builder, and targeted regression tests.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "ef91fa2f3d64139f03a41c7658ff2e06d5820ee9a5cca1f86d78f506f94443ed",
+  "event_id": "ef91fa2f3d64139f",
+  "evidence": [
+    ".github/instructions/ai-development-execution-handoff.instructions.md:905"
+  ],
+  "lesson_id": "L-1f5ad2c1df",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.958012Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "SOL (openai-codex/gpt-5.6-sol) Code review of a diff or contract Surgical edits where the design is settled Judgement where reasoning is the work Never a second high-volume implementation lane Gated on model_is_available; skip when inside cooldown",
+  "type": "propose"
+}

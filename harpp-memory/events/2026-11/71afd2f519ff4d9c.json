@@ -1,0 +1,15 @@
+{
+  "digest": "71afd2f519ff4d9c4b63ce3c2f943d2f0de354e3dd3d225eb520a697400a57ea",
+  "event_id": "71afd2f519ff4d9c",
+  "evidence": [
+    "docs/reviews/cms-page-builder-review-2026-10-10.md:629"
+  ],
+  "lesson_id": "L-7b744d9f25",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.223850Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "Owner directive driving this section: *\"if it's a patch, then it's a wrong fix. Fix ARK. our flow when there are issues: fix at the root cause. if ARK is the issue, improve it.\"*",
+  "type": "propose"
+}

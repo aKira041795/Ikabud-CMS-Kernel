@@ -1,0 +1,15 @@
+{
+  "digest": "8dfd8aa05552969004561ce91bf50b601ef05db5ff0932771e1564660fa8ad60",
+  "event_id": "8dfd8aa055529690",
+  "evidence": [
+    "docs/cms/cms-module-boundary-map.md:45"
+  ],
+  "lesson_id": "L-a1bf4d8b86",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.227233Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "Tenant and Auth Rules - If an adjacent module is auth-owned, auth_owned must include id_column and role_column. - Tenant provisioning must not introduce transitive dependency bloat through broad capability dependencies. - Avoid capabilities.depends on kernel.auth.authenticate@1; use kernel auth APIs directly unless a real inter-module contract is required.",
+  "type": "propose"
+}

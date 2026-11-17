@@ -1,0 +1,15 @@
+{
+  "digest": "8868be049273ce3aef274d02cd903d726c2815d899d73456b9ba12c801875a8b",
+  "event_id": "8868be049273ce3a",
+  "evidence": [
+    "docs/cms/render-resolution-flow-spec-v1.md:72"
+  ],
+  "lesson_id": "L-a8b8912772",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.272338Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "use the canonical template family key when a helper has already resolved one - otherwise use the requested template key - do not switch to a theme override path for contract or profile resolution once a stable logical key is known",
+  "type": "propose"
+}

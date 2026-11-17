@@ -1,0 +1,15 @@
+{
+  "digest": "650633a25e9b2b04a73cbef8f0a2d9d24622a19484fc12d43b43622acd67c43a",
+  "event_id": "650633a25e9b2b04",
+  "evidence": [
+    "docs/kernel/6.3-settings-contract-spec-2026-10-12.md:32"
+  ],
+  "lesson_id": "L-829f20c235",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.532753Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "a blanket exemption is **REJECTED** \u2014 a prefix is a naming convention, not proof of ownership. Two explicit categories instead: **declared configurable settings** (public contract) and **internal module metadata** (explicitly classified, owned, excluded from public validation). Unknown stored keys are inventoried and classified before anyone rejects them.",
+  "type": "propose"
+}

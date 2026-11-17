@@ -1,0 +1,15 @@
+{
+  "digest": "c6a233bff9ea533f0609def9cb0782f102e1105427d6ffb8047f567bddc8a359",
+  "event_id": "c6a233bff9ea533f",
+  "evidence": [
+    "docs/cms/cms-performance-and-scalability.md:148"
+  ],
+  "lesson_id": "L-b0314f0068",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.240067Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "**Ikabud**: Per-request cost is constant (same bootstrap, same module count). Only the connection pool warms up. - **WordPress/Laravel**: Per-request cost grows with data volume in shared tables and active plugin/provider count. - **Craft CMS**: Twig re-parses per site; warmup cost increases with site count.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "451b83212f8fce86a63eec20e5eee9c584de7ec076504b4250d8022217589ffc",
+  "event_id": "451b83212f8fce86",
+  "evidence": [
+    "docs/engineering/lane-harness-issue.md:486"
+  ],
+  "lesson_id": "L-d43d6c0c8f",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.434610Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Also checked while reviewing: a .ai/runs marker named `inj$(touch lane-injected)\u2026.landed.json` exists from an earlier injection test, and **no `lane-injected` file was ever created** \u2014 the lane name is used literally and is never evaluated. That is the one failure mode where a harness this size would be dangerous rather than merely unhelpful.",
+  "type": "propose"
+}

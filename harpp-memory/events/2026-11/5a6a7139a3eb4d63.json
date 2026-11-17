@@ -1,0 +1,15 @@
+{
+  "digest": "5a6a7139a3eb4d630898d1bbe3619cba2f64b1f14541f208908f483575f0ff63",
+  "event_id": "5a6a7139a3eb4d63",
+  "evidence": [
+    ".github/instructions/ui-ux-conventions.instructions.md:155"
+  ],
+  "lesson_id": "L-16146b03c2",
+  "proposed_by": "harvest",
+  "reason": "ui-ux",
+  "recorded_at": "2026-11-17T13:22:45.007452Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "The branch/consignee selected decides its commissary; the value is looked up server-side and never taken from the client. A destination that is not assigned to the chosen source is an invalid state and must be refused, not rendered.",
+  "type": "propose"
+}

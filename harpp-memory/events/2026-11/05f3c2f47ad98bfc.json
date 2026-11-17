@@ -1,0 +1,15 @@
+{
+  "digest": "05f3c2f47ad98bfc451a50606a945ed884a8ddadb5b93bab02ba39ff644482f9",
+  "event_id": "05f3c2f47ad98bfc",
+  "evidence": [
+    "docs/reviews/perf-metrics-2026-10-10.md:1177"
+  ],
+  "lesson_id": "L-cd0334ca7c",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.442275Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "`storage/cache/` is written by the FPM user, so the CLI user cannot delete from it: an attempted removal of two stale `compiled.bak.*` directories returned `Permission denied` on every file. Any cache prune must therefore run as the web user or through an application endpoint. Do not reach for `sudo`; that is an operational decision for the owner.",
+  "type": "propose"
+}

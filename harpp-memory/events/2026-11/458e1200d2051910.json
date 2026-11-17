@@ -1,0 +1,15 @@
+{
+  "digest": "458e1200d205191052b55c4641d88a7b916af0e8320cc07deb7acc24abcdf7f5",
+  "event_id": "458e1200d2051910",
+  "evidence": [
+    "docs/architecture/product-suite-extension-architecture-plan.md:203"
+  ],
+  "lesson_id": "L-820524178e",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.176225Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Acceptance: 1. Invalid extension packages are rejected before activation. 2. Product admin can only install compatible suite extensions.",
+  "type": "propose"
+}

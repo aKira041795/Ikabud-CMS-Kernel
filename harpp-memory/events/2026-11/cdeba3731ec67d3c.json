@@ -1,0 +1,15 @@
+{
+  "digest": "cdeba3731ec67d3cb97757a92c15143109629c96e773ec3bab8fa3a8264a150d",
+  "event_id": "cdeba3731ec67d3c",
+  "evidence": [
+    "docs/releases/release-notes-2026-06-07-kernel-5.0-nexus.md:117"
+  ],
+  "lesson_id": "L-268f9c19d4",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.102042Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "| Metric | Value | |---|---| | Tests | 308 regression + 25 CMS POC + 20 ServiceProxy + 17 polyglot E2E + 15 CMS weather = 385 total | | Linter | 0 errors, 398 templates scanned | | Load test | 22ms for 100 iterations across 6 critical paths | | Template adoption | CMS dashboard, content list, guidance dashboard, weather dashboard | | error.log | Clean |",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "97c947d7bc26ea18a52847cda1423ee911bf7ef95e4b3372c15991813a868bf2",
+  "event_id": "97c947d7bc26ea18",
+  "evidence": [
+    "docs/cms/cms-performance-and-scalability.md:45"
+  ],
+  "lesson_id": "L-9912385b4e",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.232349Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "*Laravel Octane uses Swoole/RoadRunner for persistent processes \u2014 comparable speed but fundamentally different architecture (long-running process vs per-request bootstrap).*",
+  "type": "propose"
+}

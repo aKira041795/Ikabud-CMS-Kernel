@@ -1,0 +1,15 @@
+{
+  "digest": "070f7049be855ed8650a66b53fa6905c37f14ce216b2083fd849efa73cb62d0c",
+  "event_id": "070f7049be855ed8",
+  "evidence": [
+    "docs/kernel/kernel-stable-contracts.md:69"
+  ],
+  "lesson_id": "L-e5a90fc826",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.661079Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Kernel services that read or write kernel-owned tables during an active module request must wrap those queries in kernel DB escalation (`KernelPDO::kernelEscalationEnter()` / `kernelEscalationLeave()`). Do not query kernel-owned tables via `app()->db()` without escalation while `_activeModuleContext` is set, or the ModuleDB ownership gate will deny the access.",
+  "type": "propose"
+}

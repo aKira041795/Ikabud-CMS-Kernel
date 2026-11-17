@@ -1,0 +1,15 @@
+{
+  "digest": "ab451918b4b552f12f3d42d8a651d729b969d30900b98a603e6288d0aaba2ccf",
+  "event_id": "ab451918b4b552f1",
+  "evidence": [
+    "docs/ai/harpp-memory.md:89"
+  ],
+  "lesson_id": "L-066a1e7fb9",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.147725Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "A deterministic pass picks paragraphs that assert something durable \u2014 \"measured\", \"rejected\", \"must never\", \"owner direction\", \"trap\", \"root cause\" \u2014 and records `path:line` as evidence. Only those candidates are offered to a local model, so a 20 MB corpus never becomes a 20 MB prompt.",
+  "type": "propose"
+}

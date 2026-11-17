@@ -1,0 +1,15 @@
+{
+  "digest": "c0d27b7fcd2a1cdf5c55bb87d5d378cfd0eebff852fc7223e1682b6627cc30ad",
+  "event_id": "c0d27b7fcd2a1cdf",
+  "evidence": [
+    "docs/reviews/windows-desktop-client-feasibility-2026-10-07.md:347"
+  ],
+  "lesson_id": "L-1a8acccee9",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.546371Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Heed this qualification: **\"installer file exists\" is not evidence a customer can use it.** Only a subsequent acceptance test \u2014 on a clean Windows environment \u2014 that installs, starts, reports its identity/version, and uninstalls, turns a packaging milestone into a validated distributable. **Do not let the first green runner be reported as \"we have a Windows app.\"**",
+  "type": "propose"
+}

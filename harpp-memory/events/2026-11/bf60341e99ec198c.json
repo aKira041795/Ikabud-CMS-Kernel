@@ -1,0 +1,15 @@
+{
+  "digest": "bf60341e99ec198cee4b9dcde80d3f6793c73497a2e17ef00766e8724ef7911e",
+  "event_id": "bf60341e99ec198c",
+  "evidence": [
+    "docs/pal/pal-ark-workbench-architecture-plan.md:1574"
+  ],
+  "lesson_id": "L-92f062985a",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.033435Z",
+  "schema_version": 1,
+  "scope": "pal",
+  "text": "[ ] Browser-level conformance tests (Section 11) - [ ] Automated accessibility checks in CI - [ ] Design policy validation in CI - [ ] Visual regression testing (Percy/Chromatic or manual screenshot diff) - [ ] PWA readiness audit",
+  "type": "propose"
+}

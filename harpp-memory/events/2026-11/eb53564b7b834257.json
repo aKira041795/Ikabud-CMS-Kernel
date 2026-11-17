@@ -1,0 +1,15 @@
+{
+  "digest": "eb53564b7b834257b537abae4977ee2d11238e24ad2a09b0165368cf768351fe",
+  "event_id": "eb53564b7b834257",
+  "evidence": [
+    "docs/kernel/comprehension-engine.md:143"
+  ],
+  "lesson_id": "L-9198085b02",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.595425Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "If PAL calls `entity.list.employee@1` (provided by attendance-wage) and it fails, the engine flags attendance-wage as the likely root cause, not PAL.",
+  "type": "propose"
+}

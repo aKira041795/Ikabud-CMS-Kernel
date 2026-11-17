@@ -1,0 +1,15 @@
+{
+  "digest": "a5b78a22c24c4ce9b5abc513dddd2fba7f6370366862ee92a114e68d86f545c0",
+  "event_id": "a5b78a22c24c4ce9",
+  "evidence": [
+    "docs/reviews/perf-metrics-2026-10-10/sol-fix-verification.md:92"
+  ],
+  "lesson_id": "L-ae2d3ffa27",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.374335Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Sol's second pass found the **actual** root cause, which was more precise than my own reading. I had said \"the nested `{` after `@media(min-width:700px)` appears to swallow the rest of the document\". The real mechanism:",
+  "type": "propose"
+}

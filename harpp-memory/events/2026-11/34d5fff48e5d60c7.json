@@ -1,0 +1,15 @@
+{
+  "digest": "34d5fff48e5d60c7656f0303e4ed4092f9420a9669ab26b6fbf8c53c4c745875",
+  "event_id": "34d5fff48e5d60c7",
+  "evidence": [
+    "docs/reviews/perf-metrics-2026-10-10/sol-brief-disyl-fallback.md:91"
+  ],
+  "lesson_id": "L-eb732a3ae9",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.357521Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Establish the real trigger before changing the compiler. A fix aimed at a plausible mechanism rather than the measured one is how a wrong fix ships.",
+  "type": "propose"
+}

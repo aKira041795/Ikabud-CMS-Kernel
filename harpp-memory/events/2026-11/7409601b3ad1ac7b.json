@@ -1,0 +1,15 @@
+{
+  "digest": "7409601b3ad1ac7b307edda0a4bb8ec25361645de476cb244d09f72e47e29be1",
+  "event_id": "7409601b3ad1ac7b",
+  "evidence": [
+    "docs/engineering/harness-operating-modes.md:115"
+  ],
+  "lesson_id": "L-b52784a31a",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.408212Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Measured on the current box (`qwen2.5-coder:3b`, unique prompts so the cache cannot flatter it):",
+  "type": "propose"
+}

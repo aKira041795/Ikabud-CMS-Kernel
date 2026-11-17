@@ -1,0 +1,15 @@
+{
+  "digest": "6ffd9161e48f24b926ad4153faa39ab5c9878759610530a23f01579b6678e693",
+  "event_id": "6ffd9161e48f24b9",
+  "evidence": [
+    "docs/pal/pal-ark-workbench-architecture-plan.md:1617"
+  ],
+  "lesson_id": "L-139ff92eaf",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.041077Z",
+  "schema_version": 1,
+  "scope": "pal",
+  "text": "(existing conventions: bootstrap app, clear logs, assert on concrete behavior):",
+  "type": "propose"
+}

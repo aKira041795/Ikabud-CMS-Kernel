@@ -1,0 +1,15 @@
+{
+  "digest": "3ae6cbf02f07ce229a156b7ec35faf311a0e24af7d0120543e7930d3c864cfd5",
+  "event_id": "3ae6cbf02f07ce22",
+  "evidence": [
+    "docs/engineering/lane-harness-issue.md:438"
+  ],
+  "lesson_id": "L-9b6087be2e",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.432435Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Both counts above are **measured**, not expected: re-run on 2026-10-04, `19 passed, 0 failed` and `18 passed, 0 failed`. The selftest dispatches every fixture lane THROUGH the gate, so the gate is exercised on every selftest run rather than only when a lane is dispatched by hand \u2014 and S10/S10b now exercise the tooling advisory in both of its directions while they are at it.",
+  "type": "propose"
+}

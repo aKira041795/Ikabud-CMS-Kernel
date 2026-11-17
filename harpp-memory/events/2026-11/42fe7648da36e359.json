@@ -1,0 +1,15 @@
+{
+  "digest": "42fe7648da36e35970675558a3e20a209e01228cea23b8b95fe13f76650569f3",
+  "event_id": "42fe7648da36e359",
+  "evidence": [
+    "docs/kernel/module-development-guide.md:69"
+  ],
+  "lesson_id": "L-91c8d6813d",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.690957Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Write the service unit test **alongside** the service (pure-logic `TestHarness` mode \u2014 no bootstrap). Do not defer it. See the [testing conventions](../../.github/instructions/testing-conventions.instructions.md).",
+  "type": "propose"
+}

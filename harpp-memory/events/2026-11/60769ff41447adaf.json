@@ -1,0 +1,15 @@
+{
+  "digest": "60769ff41447adaf8af49508483d228a7e68b658958fb014eb8566f24d4f67e3",
+  "event_id": "60769ff41447adaf",
+  "evidence": [
+    "docs/entity-views/component-catalog.md:228"
+  ],
+  "lesson_id": "L-e98adcd50b",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.443155Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Currently all 22 components are kernel-defined. The `registerComponent()` API exists for modules to add domain-specific components in their `helpers.php` bootstrap phase.",
+  "type": "propose"
+}

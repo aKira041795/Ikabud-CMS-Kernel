@@ -1,0 +1,15 @@
+{
+  "digest": "b011684d9c5ff2d427face98c7bcf74c6c95fa7955a96c3a1e5576f7d977580f",
+  "event_id": "b011684d9c5ff2d4",
+  "evidence": [
+    "docs/kernel/module-development-guide.md:1360"
+  ],
+  "lesson_id": "L-3e9b0a3b51",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.735246Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "State is stored as `_module_enabled` key in `tenant_module_settings` (internal, private). - Falls back to the global `storage/modules.json` `enabled` field if no tenant-specific override exists. - **Never write enable/disable state directly to `storage/modules.json`** in a tenant context \u2014 use `enableModule()` / `disableModule()` which route correctly.",
+  "type": "propose"
+}

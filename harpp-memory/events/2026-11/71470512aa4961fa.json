@@ -1,0 +1,15 @@
+{
+  "digest": "71470512aa4961fa68efa149a2e27d2a2044123326f4cadc066d71c26d938486",
+  "event_id": "71470512aa4961fa",
+  "evidence": [
+    "docs/workbench/ai-pattern-intelligence-roadmap.md:370"
+  ],
+  "lesson_id": "L-1e4930b4fa",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.581616Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "confirmed defect; - false positive; - test defect; - environment failure; - missing prerequisite; - expected behavior; - verified UX improvement; - verified regression; - correct AI abstention; - incorrect AI prediction.",
+  "type": "propose"
+}

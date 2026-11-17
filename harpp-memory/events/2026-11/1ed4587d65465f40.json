@@ -1,0 +1,15 @@
+{
+  "digest": "1ed4587d65465f40252916cf1a6aa817a050c36f9387280410a0c45f225ce8e0",
+  "event_id": "1ed4587d65465f40",
+  "evidence": [
+    "docs/ai/harpp-cognitive-architecture.md:159"
+  ],
+  "lesson_id": "L-2d4d069671",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.133999Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "The one thing that must never become automatic is **deciding which lessons are true** \u2014 that is the difference between a system that learns and one that drifts.",
+  "type": "propose"
+}

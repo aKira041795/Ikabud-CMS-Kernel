@@ -1,0 +1,15 @@
+{
+  "digest": "ec8da3a2dc1840b728776674dd3cf8c7bfbb0fca44e3d98c5654cc6712b9fb2c",
+  "event_id": "ec8da3a2dc1840b7",
+  "evidence": [
+    "docs/reviews/perf-state-2026-10-10.md:62"
+  ],
+  "lesson_id": "L-abda62ecf5",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.491633Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Distinct branches do not contend; throughput is flat as branch count rises. One branch serializes at ~3 req/s (`dl_lockDayStatusRow` + `dl_recomputeVariancesForDay`) but never fails.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "c2f83cd6888998a66b8a8b02900d8e65b2a0a371add0fe4c081982320d58c1c9",
+  "event_id": "c2f83cd6888998a6",
+  "evidence": [
+    "docs/architecture/route-ambiguity-detection-adr.md:62"
+  ],
+  "lesson_id": "L-60adc22ec7",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.177949Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "The one class that would be a genuine ambiguity is two patterns of *identical shape* with different parameter names (`/foo/{id}` vs `/foo/{slug}`): both match the same URIs, and the winner would fall to `strcmp` on the pattern string rather than to specificity. Measured over the corpus: **zero instances**.",
+  "type": "propose"
+}

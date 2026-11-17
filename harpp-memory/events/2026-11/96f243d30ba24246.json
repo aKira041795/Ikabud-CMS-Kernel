@@ -1,0 +1,15 @@
+{
+  "digest": "96f243d30ba242463a84b1d59ee22531558c282ead2d5b4338054cfaa4684110",
+  "event_id": "96f243d30ba24246",
+  "evidence": [
+    "docs/kernel/module-quickstart.md:15"
+  ],
+  "lesson_id": "L-0256f87cbf",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.782849Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "PHP 8.2+ with PDO/MySQL - Ikabud Kernel booted (`bootstrap.php` loads, `app()` works) - MySQL database accessible - Composer dependencies installed (`composer install`)",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "6da69394c7d32fe59076c7d15de7adb852031cc91ec25f9e87eeb9ea3af9e172",
+  "event_id": "6da69394c7d32fe5",
+  "evidence": [
+    "docs/kernel/module-development-guide.md:685"
+  ],
+  "lesson_id": "L-848a9a8e5b",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.727664Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Token format: 32 random bytes encoded as 64 lowercase hex characters. - Expiry: 30 minutes. - One-time use: once a reset succeeds, the token must never work again. - Multiple requests: latest request wins. When a new reset is issued, every older unused token for that account is immediately invalidated.",
+  "type": "propose"
+}

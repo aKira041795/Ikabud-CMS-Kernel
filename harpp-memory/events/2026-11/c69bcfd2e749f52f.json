@@ -1,0 +1,15 @@
+{
+  "digest": "c69bcfd2e749f52ff1790b47dd0af23cf187c82116f8fa98cd00fe93ec728b5e",
+  "event_id": "c69bcfd2e749f52f",
+  "evidence": [
+    "docs/proposal/dost-kernel-app-os-proposal-v2.md:86"
+  ],
+  "lesson_id": "L-1c1f1c0bd7",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.090120Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "A transaction and product catalog engine that handles digital storefronts, order management, and payment processing. It runs fully alongside the CMS without cross-contamination \u2014 a payment failure can never cascade into a content publishing failure, and vice versa.",
+  "type": "propose"
+}

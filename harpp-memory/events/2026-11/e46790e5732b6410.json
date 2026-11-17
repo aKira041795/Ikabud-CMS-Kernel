@@ -1,0 +1,15 @@
+{
+  "digest": "e46790e5732b64101c67080fe8fdfab24d0beba56fc4998e5fcd94c9a7af0f02",
+  "event_id": "e46790e5732b6410",
+  "evidence": [
+    "docs/cms/cms-akira-capability-namespace-and-adapter-plan.md:34"
+  ],
+  "lesson_id": "L-f95fa5d3ce",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.209539Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "Provider boundary alignment Akira adapters must route through provider boundaries and must not bypass module contracts: - MediaGateway - EditorProvider - PresentationProvider - ThemeProvider - NavigationProvider - SeoProvider - SearchIndexer - WorkflowProvider - IdentityResolver",
+  "type": "propose"
+}

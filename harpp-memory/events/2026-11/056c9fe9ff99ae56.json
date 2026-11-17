@@ -1,0 +1,15 @@
+{
+  "digest": "056c9fe9ff99ae56dad1572143e7d9fc86f333dbe2aa500c4761dbd74132691c",
+  "event_id": "056c9fe9ff99ae56",
+  "evidence": [
+    "docs/cms/disyl-implementation-spec.md:840"
+  ],
+  "lesson_id": "L-bfa141fde7",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.255552Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "Never enable shared output cache alongside handler-level page caches for the same route * Use shared output cache only for partial/fragment renders that are not cached at the handler level * Monitor `disyl.cache.metrics` for unexpected `output_hits` on full-page routes",
+  "type": "propose"
+}

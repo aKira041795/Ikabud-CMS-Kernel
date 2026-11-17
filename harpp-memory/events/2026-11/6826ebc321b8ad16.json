@@ -1,0 +1,15 @@
+{
+  "digest": "6826ebc321b8ad163290a27aada5f051f23834b66ccdf3160a6d6c3a6c7e3bee",
+  "event_id": "6826ebc321b8ad16",
+  "evidence": [
+    "docs/architecture/chatgpt-advisor-mode-contract.md:99"
+  ],
+  "lesson_id": "L-d0694c4bbf",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.155051Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Unit/integration tests for: channel\u2192contract\u2192provider routing isolation, quota-ledger separation, read-only boundary enforcement (advisor cannot mutate), idempotency. - A test asserting `openai-codex/*` is never selected for Advisor-channel input. - Log checks: `storage/logs/app.log`, `storage/logs/error.log`, `.ai/harpp-wake.log`, ideation ledger. `php -l` / `node --check` on touched files.",
+  "type": "propose"
+}

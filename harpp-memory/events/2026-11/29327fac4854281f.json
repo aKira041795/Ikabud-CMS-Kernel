@@ -1,0 +1,15 @@
+{
+  "digest": "29327fac4854281ff85ffe97c63f126d99ae1724a8f5a7145f1a58095c8752d2",
+  "event_id": "29327fac4854281f",
+  "evidence": [
+    "docs/architecture/service-proxy-v2-and-capability-authorization.md:70"
+  ],
+  "lesson_id": "L-d7a88fa565",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.178640Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Additional rules: - timestamp skew must be `<= 300s` - `kid` must resolve in the key ring - duplicate nonce replay is rejected - key-rotation overlap is supported - storage or key lookup failure is **fail-closed**",
+  "type": "propose"
+}

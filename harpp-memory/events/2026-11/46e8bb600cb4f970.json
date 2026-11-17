@@ -1,0 +1,15 @@
+{
+  "digest": "46e8bb600cb4f9703acd8accc07a62a77ab22792ba82679575d1f5ce0e2a8f70",
+  "event_id": "46e8bb600cb4f970",
+  "evidence": [
+    "docs/reviews/mobile-api-platform-implementation-plan-2026-07-10.md:386"
+  ],
+  "lesson_id": "L-3bc8901437",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.284445Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "class ApiResponse { /** * Success: always includes \"data\" (nullable) and \"meta\" (always present). */ public static function success(mixed $data = null, int $status = 200, array $meta = []): never { self::emit([ 'ok' => true, 'data' => $data, 'meta' => $meta, ], $status); }",
+  "type": "propose"
+}

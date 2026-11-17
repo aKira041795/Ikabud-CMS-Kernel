@@ -1,0 +1,15 @@
+{
+  "digest": "a3516d25daca4ddb019bd276d6b369edc5e6362d820614f0f34bfa2b55e2c966",
+  "event_id": "a3516d25daca4ddb",
+  "evidence": [
+    "docs/workbench/ark-workbench-ui-testing-guide.md:374"
+  ],
+  "lesson_id": "L-0b603df925",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.602975Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "```php // Example: Status tone mapping $status = new PalStatusPresenter(); $this->assertEquals('success', $status->tone('approved')); $this->assertEquals('warning', $status->tone('pending')); $this->assertEquals('danger', $status->tone('rejected')); ```",
+  "type": "propose"
+}

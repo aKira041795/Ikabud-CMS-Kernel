@@ -1,0 +1,15 @@
+{
+  "digest": "c173ef732852e0c22a0fc549d4b423a4994e4106d847e2d286f3f6796fc7f191",
+  "event_id": "c173ef732852e0c2",
+  "evidence": [
+    ".github/instructions/ai-development-execution-handoff.instructions.md:372"
+  ],
+  "lesson_id": "L-f5f0827f16",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.941928Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "Broad regression and cross-browser testing belongs near `/review` or `/release-gate`.",
+  "type": "propose"
+}

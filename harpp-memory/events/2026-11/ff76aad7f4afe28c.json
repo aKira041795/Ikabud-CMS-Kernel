@@ -1,0 +1,15 @@
+{
+  "digest": "ff76aad7f4afe28c1b19f83408bc628c313276ed7cbb13470ad083d6bf8d8ec8",
+  "event_id": "ff76aad7f4afe28c",
+  "evidence": [
+    "docs/kernel/script-block-interpolation.md:11"
+  ],
+  "lesson_id": "L-89af86726c",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.824288Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "This was re-enabled in commit `2307aae` after a period where script bodies were raw passthrough (to fix a JavaScript strict-mode regression).",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "c0c0286e039037088c070a3da7ce766ae3679159c834b52d2e9c56aa77a4b42e",
+  "event_id": "c0c0286e03903708",
+  "evidence": [
+    "docs/kernel/module-development-guide.md:166"
+  ],
+  "lesson_id": "L-c35feccb2d",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.708258Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "When set, the Capability Bus rejects calls from callers that have not declared an integration for that capability from that provider. Modules that do not set `require_integration` remain backward compatible.",
+  "type": "propose"
+}

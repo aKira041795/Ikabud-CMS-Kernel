@@ -1,0 +1,15 @@
+{
+  "digest": "cd630b67f2c2cbb198453f5ea02287511f7dd73a13ee4907a16baeeef56f1654",
+  "event_id": "cd630b67f2c2cbb1",
+  "evidence": [
+    "docs/daily-ledger/HANDOFF-2026-10-11.md:345"
+  ],
+  "lesson_id": "L-a2380f286e",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.297305Z",
+  "schema_version": 1,
+  "scope": "daily-ledger",
+  "text": "| Cell state | Count | Share | |---|---:|---:| | sold | 956 | 30.1% | | zero-sale, product **was** stocked (genuine measured zero) | 637 | 20.1% | | zero-sale, product **could not be bought** (beg 0, nothing received) | **1,578** | **49.8%** |",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "ec08c97cfa84e96dfe8591ee8d88ec0ca82f453770d4f93b4dda4cc22ef9ea35",
+  "event_id": "ec08c97cfa84e96d",
+  "evidence": [
+    "docs/architecture/harpp-cms-modsecurity-allowlist.md:80"
+  ],
+  "lesson_id": "L-53754531d1",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.172178Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "Skipping CSRF for Bearer requests is safe: a Bearer token is placed in the header explicitly by the client and browsers never attach it cross-origin, so CSRF does not apply. CSRF is skipped only when the request is **actually authenticated** as a service user (`cmsIsServiceTokenRequest()`), never merely because a `Bearer` header is present.",
+  "type": "propose"
+}

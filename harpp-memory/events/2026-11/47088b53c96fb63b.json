@@ -1,0 +1,15 @@
+{
+  "digest": "47088b53c96fb63b9c9b1ae158486f4785b0de593849c30fd469d5b87e9c05e1",
+  "event_id": "47088b53c96fb63b",
+  "evidence": [
+    "docs/kernel/ikabud-roadmap.md:184"
+  ],
+  "lesson_id": "L-76ae55846a",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.634072Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "workflows can be defined consistently across modules - workflow runs are auditable and replayable where appropriate - workflow failures do not silently disappear inside module code",
+  "type": "propose"
+}

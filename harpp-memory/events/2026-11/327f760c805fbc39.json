@@ -1,0 +1,15 @@
+{
+  "digest": "327f760c805fbc391b319f7e86d47c34119bb25feeb90c69544909a8c5dc91e7",
+  "event_id": "327f760c805fbc39",
+  "evidence": [
+    "docs/ai/ai-module.md:856"
+  ],
+  "lesson_id": "L-214e2b28ac",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.127666Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "> **Implementation note**: Phase 6 is explicitly deferred until Phase A\u2013D are stable. Do not add workflow complexity to early phases.",
+  "type": "propose"
+}

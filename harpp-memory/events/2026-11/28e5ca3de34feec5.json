@@ -1,0 +1,15 @@
+{
+  "digest": "28e5ca3de34feec55d347811d1bab53829a64935337a948abaf6df8236e836fd",
+  "event_id": "28e5ca3de34feec5",
+  "evidence": [
+    "docs/cms/cms-theme-design-architecture.md:328"
+  ],
+  "lesson_id": "L-75cdebdba1",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.246378Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "The `cz-mobile-header` and `cz-header-dropdown` inline `<style>` blocks are injected by the rendered header region automatically (canvas-nav hide/show, dropdown positioning). Themes do not need to duplicate them.",
+  "type": "propose"
+}

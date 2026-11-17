@@ -1,0 +1,15 @@
+{
+  "digest": "326cca6b87ca9d766b16e03e08b6561154a78802f09daedd9eef9c985bc78fed",
+  "event_id": "326cca6b87ca9d76",
+  "evidence": [
+    "docs/kernel/kernel-stable-contracts.md:43"
+  ],
+  "lesson_id": "L-fd5f7a2dab",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.655755Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "do not change the meaning of an existing version in place - add a new version when payload semantics change materially - keep provider behavior compatible within a version",
+  "type": "propose"
+}

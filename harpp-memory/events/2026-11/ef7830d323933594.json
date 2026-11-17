@@ -1,0 +1,15 @@
+{
+  "digest": "ef7830d3239335947bc0ee2d5b1f8f14746b6e6f5f66303b624f97fdeb1d6336",
+  "event_id": "ef7830d323933594",
+  "evidence": [
+    "docs/ecommerce/ecommerce-phase-5-6-closeout-checklist.md:91"
+  ],
+  "lesson_id": "L-9afcf2c182",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.367103Z",
+  "schema_version": 1,
+  "scope": "ecommerce",
+  "text": "[x] Phase 5 exit criteria are satisfied and regression-tested. - [x] Phase 6 cleanup and visual verification are complete. - [x] Logs remain clean after the final verification pass. - [x] No remaining checklist item requires interpretation before implementation.",
+  "type": "propose"
+}

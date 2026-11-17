@@ -1,0 +1,15 @@
+{
+  "digest": "3640df18ec288bbbcd5052de5a30df9693a47901fa63b4a2f92a187de64253cd",
+  "event_id": "3640df18ec288bbb",
+  "evidence": [
+    ".github/instructions/ai-development-execution-handoff.instructions.md:244"
+  ],
+  "lesson_id": "L-43cae56b71",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.931506Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "Assert **OUTCOMES** (a row exists, a message persists), never **MECHANISMS** (one click suffices), whenever the design changes the mechanism. Four false reds on 2026-10-03 shared this single cause, and restating the lesson was measured at three restatements and zero prevented \u2014 which is why it is a gate and not a rule.",
+  "type": "propose"
+}

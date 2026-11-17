@@ -1,0 +1,15 @@
+{
+  "digest": "150b28abb102dcb31c322c475ed2e525c9ff8386f5db4bcb67cf84249d6be6f3",
+  "event_id": "150b28abb102dcb3",
+  "evidence": [
+    "docs/pal/pal-ark-workbench-architecture-plan.md:357"
+  ],
+  "lesson_id": "L-1793fe8e5c",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.977121Z",
+  "schema_version": 1,
+  "scope": "pal",
+  "text": "| Component | Source in PAL | Purpose | |---|---|---| | `workbench:dialog` | PAL modal patterns | Accessible modal with focus trap | | `workbench:activity_timeline` | Audit trail patterns | Chronological event feed | | `workbench:approval_panel` | Approval queue | Request summary, impact, documents, decide |",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "4d2acfbb5591857f15211c0ac87e1a4e64c789dd2cbe543f9559988cecb69991",
+  "event_id": "4d2acfbb5591857f",
+  "evidence": [
+    "docs/engineering/harness-operating-modes.md:82"
+  ],
+  "lesson_id": "L-c5bb5cb5d2",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.404026Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "A 3B/7B reading a plan and listing objections is cheap and occasionally useful. It cannot approve anything, because measured behaviour shows it invents plausible mechanisms confidently (it blamed CSS for a render-cache bug, and invented a sidebar cache that did not exist). Treat its output as a prompt for your own thinking, never as a verdict.",
+  "type": "propose"
+}

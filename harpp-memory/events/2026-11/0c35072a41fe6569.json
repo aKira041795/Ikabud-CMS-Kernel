@@ -1,0 +1,15 @@
+{
+  "digest": "0c35072a41fe6569039ff963d94c75dc557ecc46c11ec03fc77612fa728bf99a",
+  "event_id": "0c35072a41fe6569",
+  "evidence": [
+    "docs/reviews/cms-page-builder-review-2026-10-10.md:627"
+  ],
+  "lesson_id": "L-4208361691",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.220120Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "Addendum \u2014 ARK composition presentation and two root causes found while verifying it",
+  "type": "propose"
+}

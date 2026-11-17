@@ -1,0 +1,15 @@
+{
+  "digest": "52d944d8f7834c3131bf621c886ac9f29d3d9965bfec6f953d198ef85870ae8d",
+  "event_id": "52d944d8f7834c31",
+  "evidence": [
+    "docs/reviews/mobile-api-platform-implementation-plan-2026-07-10.md:612"
+  ],
+  "lesson_id": "L-925bb3c062",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.319633Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "protected function validateMax(string $field, mixed $value, array $params): ?string { $max = (int)($params[0] ?? 0); if (is_string($value) && mb_strlen($value) > $max) { return \"The {$field} must not exceed {$max} characters.\"; } if (is_numeric($value) && (float)$value > $max) { return \"The {$field} must not exceed {$max}.\"; } return null; }",
+  "type": "propose"
+}

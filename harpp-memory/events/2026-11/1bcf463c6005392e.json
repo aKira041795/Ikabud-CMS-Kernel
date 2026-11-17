@@ -1,0 +1,15 @@
+{
+  "digest": "1bcf463c6005392e711e85e493d5d750aee1bfe6c26ab435f78f26dafd0d0eb9",
+  "event_id": "1bcf463c6005392e",
+  "evidence": [
+    "docs/workbench/deepseek-v4-ark-workbench-improvement-instructions.md:70"
+  ],
+  "lesson_id": "L-0af6322700",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.620045Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Do not turn missing data into a product failure unless the module contract declares that data must be present.",
+  "type": "propose"
+}

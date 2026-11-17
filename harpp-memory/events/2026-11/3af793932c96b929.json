@@ -1,0 +1,15 @@
+{
+  "digest": "3af793932c96b929bdc4ed08341d6b7d6ed6630c1dbe084792ed8f55f880f970",
+  "event_id": "3af793932c96b929",
+  "evidence": [
+    "docs/workbench/system-analyst-pipeline.md:42"
+  ],
+  "lesson_id": "L-bf1f48faf9",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.658013Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Baselines are stored at `test_results/ux-baselines/{module-id}.json`. A regression contains the previous and current penalty for every worsened category.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "4dccc18b4b9fccbd3194e2d479e587d22206bec5026c24f7e8f048e583036d55",
+  "event_id": "4dccc18b4b9fccbd",
+  "evidence": [
+    "docs/evaluations/ikabud-kernel-security-architecture-evaluation-2026-04-10.md:503"
+  ],
+  "lesson_id": "L-d9dc83a321",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.481439Z",
+  "schema_version": 1,
+  "scope": "security",
+  "text": "The `applyPHPSettings()` method sets `session.cookie_httponly`, `session.cookie_secure`, and `session.cookie_samesite` via `ini_set()`. This method is defined but never invoked. Session cookie security relies on the `session_set_cookie_params()` call in `public/index.php`, which does work correctly.",
+  "type": "propose"
+}

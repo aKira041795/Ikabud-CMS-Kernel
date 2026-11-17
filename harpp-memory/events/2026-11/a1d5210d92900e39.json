@@ -1,0 +1,15 @@
+{
+  "digest": "a1d5210d92900e39288c2e492227bfa3bb976c2a86ad3709b1f7028fadd68c68",
+  "event_id": "a1d5210d92900e39",
+  "evidence": [
+    "docs/cms/cms-module.md:225"
+  ],
+  "lesson_id": "L-632d5486c7",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.228028Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "Do not assume that a route-backed feature is automatically callable via a capability.",
+  "type": "propose"
+}

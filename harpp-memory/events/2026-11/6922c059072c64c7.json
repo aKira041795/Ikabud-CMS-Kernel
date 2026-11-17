@@ -1,0 +1,15 @@
+{
+  "digest": "6922c059072c64c780215b1b42b26d6cde1e1606d420d087fdfab124e0ea89d7",
+  "event_id": "6922c059072c64c7",
+  "evidence": [
+    "docs/kernel/ARCHITECTURE.md:237"
+  ],
+  "lesson_id": "L-dbc4c5b355",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.542854Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "WordPress-style filter/action system for synchronous extension points. - **Null Semantics:** `applyFilters()` ignores hooks returning `null` (keeps original value) unless invoked via `filterNullable()`. - **Lazy Sorting:** Handled transparently by the engine for high-performance bootstrap phases.",
+  "type": "propose"
+}

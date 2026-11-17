@@ -1,0 +1,15 @@
+{
+  "digest": "f92fab161efdab29fca89e9ba480de0f45d9b56244ebff6e12524673149487ea",
+  "event_id": "f92fab161efdab29",
+  "evidence": [
+    "docs/reviews/application-kernel-os-review-2026.md:79"
+  ],
+  "lesson_id": "L-8b91ce495f",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.148704Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "2. Better long-term maintainability - Explicit contracts and data boundaries reduce hidden coupling and regressions in large projects.",
+  "type": "propose"
+}

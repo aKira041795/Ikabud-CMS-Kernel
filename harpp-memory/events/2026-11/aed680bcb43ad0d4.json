@@ -1,0 +1,15 @@
+{
+  "digest": "aed680bcb43ad0d4517c278ffc05f615f708bea9536314cdab10a48fa18edf35",
+  "event_id": "aed680bcb43ad0d4",
+  "evidence": [
+    "docs/kernel/module-development-guide.md:230"
+  ],
+  "lesson_id": "L-97c0dfd5bb",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.712985Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "``` Kernel (always running) Modules (plug-in, auto-discovered) \u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510 \u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510 \u2502 bootstrap.php \u2502 \u2502 modules/my-module/ \u2502 \u2502 public/index.php \u2502\u25c4\u2500\u2500loads\u2500\u2500\u2500\u2502 module.json \u2502 \u2502 kernel/App.php \u2502 \u2502 routes.php \u2502 \u2502 kernel/DiSyL/ \u2502 \u2502 handlers.php \u2502 \u2502 templates/layouts/ \u2502 \u2502 templates/ (optional) \u2502 \u2502 src/helpers/ \u2502 \u2502 database/ (optional) \u2502 \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518 \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518 ```",
+  "type": "propose"
+}

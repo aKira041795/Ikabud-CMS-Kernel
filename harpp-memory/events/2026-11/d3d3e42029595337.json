@@ -1,0 +1,15 @@
+{
+  "digest": "d3d3e42029595337e2a9d24a99f0ca8a1a7a88774ab411e268ea7e5142a6222d",
+  "event_id": "d3d3e42029595337",
+  "evidence": [
+    "docs/architecture/decisions/ADR-007-protocol-first-host-portability.md:55"
+  ],
+  "lesson_id": "L-85666cba26",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.167956Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "1. **The capability protocol is already language-neutral.** A provider in any language can implement a bounded capability today. 2. **The host's authority is not yet portable as evidence.** The mechanisms exist, but their observable equivalence across runtimes has never been tested. `kernel-stable-contracts.md` states *what* is stable; it does not state *how* another implementation reproduces it.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "7119eb235141c64b3e0670aeeff9d7fe7fb6bcddd6d7e753d0a95e0136f33662",
+  "event_id": "7119eb235141c64b",
+  "evidence": [
+    "docs/evaluations/stress-and-load-test-findings-2026-04-16.md:785"
+  ],
+  "lesson_id": "L-8f51f79e34",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.524723Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "On a fast-path cache hit: **no bootstrap.php, no autoload, no App, no DB, no module-manager, no event bus**.",
+  "type": "propose"
+}

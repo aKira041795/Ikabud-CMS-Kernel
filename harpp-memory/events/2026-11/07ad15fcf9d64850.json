@@ -1,0 +1,15 @@
+{
+  "digest": "07ad15fcf9d64850999ce03054a17f353be129bcce7090a77ef08c91c6bafd42",
+  "event_id": "07ad15fcf9d64850",
+  "evidence": [
+    "docs/page-builder/page-builder-visual-blueprint.md:37"
+  ],
+  "lesson_id": "L-1d4ab0575a",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.899916Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Canvas is the primary workspace. - Left panel is for insertion and navigation. - Right panel edits the selected object. - Top bar contains global controls only. - Navigator is secondary, never the main editing surface.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "38c6d57e7b7fcb285546060a224ff57a10f38274158903eaa5e739ccbfd191d3",
+  "event_id": "38c6d57e7b7fcb28",
+  "evidence": [
+    "docs/pal/ark-workbench-reference-guide.md:175"
+  ],
+  "lesson_id": "L-d9100bd00e",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.915553Z",
+  "schema_version": 1,
+  "scope": "pal",
+  "text": "| Component | Purpose | JS Required | |---|---|---| | `workbench:dialog` | Accessible modal with focus trap | `workbench-dialog.js` | | `workbench:activity_timeline` | Chronological event feed | \u2014 | | `workbench:approval_panel` | Request summary, impact, documents, decide | \u2014 |",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "9b3b2e0069ec41ad1cb6d5dff7dc6d9170366455361f69b526e03e7d45bc556c",
+  "event_id": "9b3b2e0069ec41ad",
+  "evidence": [
+    "docs/kernel/theme-owned-customizer-architecture.md:71"
+  ],
+  "lesson_id": "L-243f9e6945",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.850141Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "The CMS module must never contain knowledge like \"ARK header defaults\", \"ARK token definitions\", or \"ARK sidebar variants\".",
+  "type": "propose"
+}

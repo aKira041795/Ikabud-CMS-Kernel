@@ -1,0 +1,15 @@
+{
+  "digest": "9f6054d6cff8847f912cf368d2cf44657ba01c6bfc741eb6969fcbecd4ba110d",
+  "event_id": "9f6054d6cff8847f",
+  "evidence": [
+    "docs/reviews/perf-metrics-2026-10-10/sol-brief-disyl-fallback.md:132"
+  ],
+  "lesson_id": "L-4f45d8216a",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.362401Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "If you cannot establish the trigger, say so and report BLOCKED with what you ruled out. A precise BLOCKED is worth more than a plausible fix \u2014 several wrong conclusions in this repo's history came from trusting a mechanism that felt right instead of one that was measured.",
+  "type": "propose"
+}

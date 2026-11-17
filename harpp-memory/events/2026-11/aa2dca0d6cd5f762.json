@@ -1,0 +1,15 @@
+{
+  "digest": "aa2dca0d6cd5f762abae0d33081aeb1df73ffa5ff1b2ed38b180f1015c6bccd5",
+  "event_id": "aa2dca0d6cd5f762",
+  "evidence": [
+    "docs/reviews/perf-metrics-2026-10-10.md:1221"
+  ],
+  "lesson_id": "L-1cabbf75a0",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.446601Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "A tiny entry file that costs 461x the median per KB is a **dependency tree**, not a file. Measured (`probe-module-tree.php`): `cms/helpers.php` (1857 B) pulls **38 files / 1224 KB**; `ecommerce` (3.6 KB) pulls **47 files / 932 KB**. `cms` + `ecommerce` account for **43% of the whole measured registration load from 5.4 KB of entry files**.",
+  "type": "propose"
+}

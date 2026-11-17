@@ -1,0 +1,15 @@
+{
+  "digest": "7b518011451094791fd60e5067e48d113b73a09b4ddb5b60ee2ef82ae001d9e8",
+  "event_id": "7b51801145109479",
+  "evidence": [
+    ".github/instructions/ai-development-execution-handoff.instructions.md:232"
+  ],
+  "lesson_id": "L-1cf4d11759",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.929430Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "Do not repeatedly ask the user to authorize normal edit-test-fix cycles that are already within the approved task scope.",
+  "type": "propose"
+}

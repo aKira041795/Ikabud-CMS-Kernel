@@ -1,0 +1,15 @@
+{
+  "digest": "2406be1404734fea7c1a3ed12b0513205f96e7a9ba01fd6d76d3408975f00423",
+  "event_id": "2406be1404734fea",
+  "evidence": [
+    "docs/pal/pal-ark-workbench-architecture-plan.md:1358"
+  ],
+  "lesson_id": "L-fc4a4e9224",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.027210Z",
+  "schema_version": 1,
+  "scope": "pal",
+  "text": "The policy validates **semantic tones**, not domain statuses. Workbench must never know domain keys like `draft`, `pending`, `approved`, `rejected`, or `overdue`. Those belong to PAL or another domain module. PAL maps `pending \u2192 warning`, Guidance maps `escalated \u2192 danger`. Workbench validates that `danger` always uses a red-family color with confirmation and a text label.",
+  "type": "propose"
+}

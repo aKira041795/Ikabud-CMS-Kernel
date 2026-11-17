@@ -1,0 +1,15 @@
+{
+  "digest": "5ebdb8bf5c4f646eb40f91c6d8665811eba05fdeb679c84be35abc023c95a8a7",
+  "event_id": "5ebdb8bf5c4f646e",
+  "evidence": [
+    "docs/daily-ledger/three-owner-concerns-2026-11-17.md:167"
+  ],
+  "lesson_id": "L-fe895b7ded",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.334125Z",
+  "schema_version": 1,
+  "scope": "daily-ledger",
+  "text": "the two notifications (production dashboard + commi dashboard). One durable notification record with a branch/audience scope is enough for both surfaces \u2014 building two is the trap here.",
+  "type": "propose"
+}

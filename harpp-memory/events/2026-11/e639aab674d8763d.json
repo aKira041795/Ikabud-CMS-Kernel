@@ -1,0 +1,15 @@
+{
+  "digest": "e639aab674d8763d3136631427e7133cd0e1b520982f523f0ad4d3953546e4e6",
+  "event_id": "e639aab674d8763d",
+  "evidence": [
+    "docs/cms/cms-akira-capability-namespace-and-adapter-plan.md:21"
+  ],
+  "lesson_id": "L-c361e317dc",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.208202Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "Compatibility contract - `cms.content.*@1` remains backward compatible and must not break. - Adapter mapping is required before any ownership shift. - Non-additive schema changes require new version tags (`@2+`) plus adapters.",
+  "type": "propose"
+}

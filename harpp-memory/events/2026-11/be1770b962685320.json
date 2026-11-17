@@ -1,0 +1,15 @@
+{
+  "digest": "be1770b962685320a65832ca8d0dc05433d3e59fbda00893e6533d9dd6dc839c",
+  "event_id": "be1770b962685320",
+  "evidence": [
+    "docs/kernel/authority-and-governance.md:81"
+  ],
+  "lesson_id": "L-62e2a475c6",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.558146Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "The authority/governance kernel files were copied from `/var/www/html/ikabudsix`. That repository and this repository have separate histories with no merge base; they must not be merged, rebased, or cherry-picked across one another.",
+  "type": "propose"
+}

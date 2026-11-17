@@ -1,0 +1,15 @@
+{
+  "digest": "5e693eb7a8b6b82c5e8051cc33041435764979c5666e0dae8d6b3518432dbc2e",
+  "event_id": "5e693eb7a8b6b82c",
+  "evidence": [
+    "docs/reviews/perf-page-accuracy-2026-10-20/brief.md:23"
+  ],
+  "lesson_id": "L-1e37288a83",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.466842Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "compute and display **request work = total \u2212 probe self** as its own labelled row, and change the total row's label so it cannot be read as the request cost (e.g. \"Total wall time (includes probe overhead)\"). Never emit an unqualified total that includes the probe.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "6ef96c2c40ef22c8ac1e7745662c8e562c3e9fc752eaea705b9894adbe5890b2",
+  "event_id": "6ef96c2c40ef22c8",
+  "evidence": [
+    "docs/kernel/contributor-workflows.md:107"
+  ],
+  "lesson_id": "L-5f25fc5ae8",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.599765Z",
+  "schema_version": 1,
+  "scope": "workflow",
+  "text": "1. identify the exact runtime seam first 2. add or confirm focused regression coverage 3. extract one responsibility at a time 4. re-run the focused suite before moving the next slice",
+  "type": "propose"
+}

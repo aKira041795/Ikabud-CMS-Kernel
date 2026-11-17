@@ -1,0 +1,15 @@
+{
+  "digest": "03accfc6dc6796e59e5a702d8a161df9de560bdcf074b3609806e080bac10915",
+  "event_id": "03accfc6dc6796e5",
+  "evidence": [
+    "docs/reviews/perf-metrics-2026-10-10.md:1312"
+  ],
+  "lesson_id": "L-da5f16a5f2",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.462259Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "\u2014 they come from the environment. Do not paste a production password anywhere it can be recorded; the output is numbers, which is all that is needed. If a phase is missing from the host the script names it, which doubles as a deploy-inclusion check: `boot_requires` / `route_match_sort` present means the 2026-10-10 instrumentation shipped.",
+  "type": "propose"
+}

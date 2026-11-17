@@ -1,0 +1,15 @@
+{
+  "digest": "9873ce9b2851489308e394afc5469fe16e602263aa4c9959f023d5ab5cf24bfa",
+  "event_id": "9873ce9b28514893",
+  "evidence": [
+    "docs/cms/cms-implementation-guide.md:89"
+  ],
+  "lesson_id": "L-92e659c423",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.215850Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "1. Do not depend on mutating `templates/_cms_active_theme` during normal public renders. 2. Resolve `_cms_active_theme` from request context so route-scoped or tenant-scoped theme selection cannot fight over one global symlink target. 3. Keep compatibility-symlink mutation on explicit activation/reset paths only.",
+  "type": "propose"
+}

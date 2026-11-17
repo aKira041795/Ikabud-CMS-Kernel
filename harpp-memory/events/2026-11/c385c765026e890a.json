@@ -1,0 +1,15 @@
+{
+  "digest": "c385c765026e890aa305eef6f4b4b6f2f7fff842cff9777836e89ac1624bdf85",
+  "event_id": "c385c765026e890a",
+  "evidence": [
+    "docs/reviews/cms-user-review-2026.md:156"
+  ],
+  "lesson_id": "L-56b1e0db03",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.240498Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "1. Finish upload/install hardening. - Action: strict ZIP entry validation, path traversal blocks, symlink policy enforcement, manifest schema validation. - Success metric: 100% of malformed test archives rejected in CI security suite.",
+  "type": "propose"
+}

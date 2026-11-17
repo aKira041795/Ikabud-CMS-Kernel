@@ -1,0 +1,15 @@
+{
+  "digest": "924dffafae88f436e1e1eb08901f69185e41881d1f5c99d91cfae553ea396c92",
+  "event_id": "924dffafae88f436",
+  "evidence": [
+    "docs/reviews/perf-metrics-2026-10-10.md:508"
+  ],
+  "lesson_id": "L-b040bc3bac",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.412424Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "So the big win was already taken on both; ark retains ~5.6 KB compiled per request. The residual cost has not been measured and will not be extrapolated from bytes.",
+  "type": "propose"
+}

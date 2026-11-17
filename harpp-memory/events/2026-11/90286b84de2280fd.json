@@ -1,0 +1,15 @@
+{
+  "digest": "90286b84de2280fd80a0f0838f77957e4ff91f7709b6a4258db0af6a3b2c34df",
+  "event_id": "90286b84de2280fd",
+  "evidence": [
+    "docs/reviews/cms-user-review-2026.md:216"
+  ],
+  "lesson_id": "L-7b5107f129",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.243728Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "Current experience: - Strong: modular contracts, caching controls, permission depth. - Friction: occasional context/bootstrap and schema mismatch issues during scripted operations.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "d43366df96fa11023668b5b556d00de164d2e91e63eced1eaca73ddd693dfc33",
+  "event_id": "d43366df96fa1102",
+  "evidence": [
+    "docs/bakeshop/bakeshop-module.md:195"
+  ],
+  "lesson_id": "L-19fdea5713",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.193657Z",
+  "schema_version": 1,
+  "scope": "bakeshop",
+  "text": "The pushed password is **immediately usable** through `bakeshop_cap_kernel_auth_authenticate_1()` \u2014 no additional reset step is required. The previous password is rejected on the next authentication attempt.",
+  "type": "propose"
+}

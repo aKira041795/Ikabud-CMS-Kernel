@@ -1,0 +1,15 @@
+{
+  "digest": "850677d60a99586a5a89b8047db5b96366f516f13d1cec2c6525e08760e4bdd0",
+  "event_id": "850677d60a99586a",
+  "evidence": [
+    "docs/kernel/script-block-interpolation.md:65"
+  ],
+  "lesson_id": "L-40de55d5f4",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.827798Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "a colon preceded by whitespace is also rejected (`(?!\\s*:)`), but a key written as `{a : 1}` with the space *before* the colon is still matched, as it was before this change. Fixing that needs a real JS-aware scanner rather than a regex, and is out of scope here.",
+  "type": "propose"
+}

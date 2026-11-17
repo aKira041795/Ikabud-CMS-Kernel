@@ -1,0 +1,15 @@
+{
+  "digest": "90cb0b2a9eb8649282489a4db7008ceaf6c11a478d1444f9b46161db6fb1afb3",
+  "event_id": "90cb0b2a9eb86492",
+  "evidence": [
+    "docs/kernel/workflow-system.md:234"
+  ],
+  "lesson_id": "L-a96f7ae40b",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.855553Z",
+  "schema_version": 1,
+  "scope": "workflow",
+  "text": "states: - key: pending label: Pending Review - key: approved label: Approved - key: rejected label: Rejected - key: delivered label: Delivered - key: failed label: Failed",
+  "type": "propose"
+}

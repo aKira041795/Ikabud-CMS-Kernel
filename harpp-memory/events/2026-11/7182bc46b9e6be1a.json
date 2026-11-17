@@ -1,0 +1,15 @@
+{
+  "digest": "7182bc46b9e6be1a272213f78aa55523eca0e058b3c01bbd113cec76004b80f9",
+  "event_id": "7182bc46b9e6be1a",
+  "evidence": [
+    "docs/ehr/system-design-and-architecture-plan.md:450"
+  ],
+  "lesson_id": "L-c42af90155",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.384840Z",
+  "schema_version": 1,
+  "scope": "ehr",
+  "text": "Icon + one-line \"what is this\" + one-line \"what to do\" + primary CTA. - Never an empty table with column headers and nothing else.",
+  "type": "propose"
+}

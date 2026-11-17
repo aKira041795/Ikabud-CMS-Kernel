@@ -1,0 +1,15 @@
+{
+  "digest": "ca2bc5563ce300acbb1fd3e7f6963cacda061a43f15b6ef59d72d82252031370",
+  "event_id": "ca2bc5563ce300ac",
+  "evidence": [
+    "docs/engineering/harness-operating-modes.md:7"
+  ],
+  "lesson_id": "L-f7cc785a6d",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.401819Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "The reason this document exists: **cost is not the reason to run models locally.** Cloud models are cheaper and faster. The reason is availability \u2014 when the link drops, cloud lanes stop and the session dies. On this repository's current hardware the offline mode is real but narrow, and the narrowness is a measured property, not an opinion.",
+  "type": "propose"
+}

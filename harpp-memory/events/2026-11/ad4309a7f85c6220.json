@@ -1,0 +1,15 @@
+{
+  "digest": "ad4309a7f85c6220d2db80b32c1f402da5e6920688b38f367bb2e984ed3e0342",
+  "event_id": "ad4309a7f85c6220",
+  "evidence": [
+    "docs/ai/harpp-cognitive-architecture.md:198"
+  ],
+  "lesson_id": "L-2653eb29ed",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.136024Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "The first index had neither stemming nor ranking, so a lesson containing `reversed` stayed invisible to the query `reversing`, and results arrived in insertion order rather than by relevance. Fixed with `tokenize='porter unicode61'` and `ORDER BY bm25(...)`, pinned by a regression test. Storing experience is not the objective; handing it back when it is relevant is.",
+  "type": "propose"
+}

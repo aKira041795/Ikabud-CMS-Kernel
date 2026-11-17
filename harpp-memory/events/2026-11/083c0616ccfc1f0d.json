@@ -1,0 +1,15 @@
+{
+  "digest": "083c0616ccfc1f0d0733955967676ce9da0f06782b5be97c113f732e24fed6ad",
+  "event_id": "083c0616ccfc1f0d",
+  "evidence": [
+    "docs/cms/render-schema-context-profiles-plan.md:509"
+  ],
+  "lesson_id": "L-3ce2c14838",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.280311Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "render contract regression tests - CMS theme/public context tests - ecommerce public render tests - DiSyL lint tests",
+  "type": "propose"
+}

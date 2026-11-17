@@ -1,0 +1,15 @@
+{
+  "digest": "6582d744f1c3281a5d5bd69516186c947a6d9b3e93e7c7e6cc487d8cfff3fdee",
+  "event_id": "6582d744f1c3281a",
+  "evidence": [
+    "docs/ehr/implementation-plan.md:2367"
+  ],
+  "lesson_id": "L-f63af4d1c6",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.380434Z",
+  "schema_version": 1,
+  "scope": "ehr",
+  "text": "[ ] No regression in existing workflows (old links still work, old data is not lost).",
+  "type": "propose"
+}

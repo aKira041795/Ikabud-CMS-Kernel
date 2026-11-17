@@ -1,0 +1,15 @@
+{
+  "digest": "8f7ace840ca526a4f0a6f642fd00f4fda76d5d0ba504923ffacde4576d0151dc",
+  "event_id": "8f7ace840ca526a4",
+  "evidence": [
+    "docs/cms/cms-extension-points.md:246"
+  ],
+  "lesson_id": "L-9985db6fac",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.213736Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "Return the same value type you receive - Keep hook handlers deterministic and side-effect-light - Prefer hook registration in your module bootstrap/helper load path - Treat hook payloads as public contracts once released - Use capabilities, not hooks, when you need synchronous business operations with explicit request/response semantics",
+  "type": "propose"
+}

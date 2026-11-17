@@ -1,0 +1,15 @@
+{
+  "digest": "8702f582b29049cb4ef8d0a0c57ab7cb46e7340ac83f0f2b64c9fa694278021b",
+  "event_id": "8702f582b29049cb",
+  "evidence": [
+    "tests/disyl_v46_fed_ai_test.php:110"
+  ],
+  "lesson_id": "L-ad492f251f",
+  "proposed_by": "harvest",
+  "reason": "gate",
+  "recorded_at": "2026-11-17T13:22:45.454663Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "federation: all-or-nothing aborts on failure",
+  "type": "propose"
+}

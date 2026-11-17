@@ -1,0 +1,15 @@
+{
+  "digest": "7a572b9153680e32cc977117af0f3684563e01c8af901782302670fe338d9b1b",
+  "event_id": "7a572b9153680e32",
+  "evidence": [
+    "docs/kernel/disyl-4.8-plan.md:31"
+  ],
+  "lesson_id": "L-0d0e45e132",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.608601Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "1. Parser support for typed assignment grammar. 2. Compiler support for typed assignment nodes. 3. Interpreted mode support and error reporting parity. 4. Docs updates (`disyl-language-reference.md`, grammar docs, instructions). 5. Regression tests for both typed + untyped assignment forms.",
+  "type": "propose"
+}

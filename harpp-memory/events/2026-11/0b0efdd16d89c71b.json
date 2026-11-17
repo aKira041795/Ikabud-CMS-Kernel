@@ -1,0 +1,15 @@
+{
+  "digest": "0b0efdd16d89c71b355e9852351edbb2628cfbc612444c3a4ce4f29dfc440172",
+  "event_id": "0b0efdd16d89c71b",
+  "evidence": [
+    "docs/reviews/perf-metrics-2026-10-10.md:619"
+  ],
+  "lesson_id": "L-df64cc020f",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.415781Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Measured on `pages/_perf-probe.disyl`: **3.16 ms cold, 0.33 ms warm.** The earlier 72 ms number could not separate those, which is exactly why the instrument was needed.",
+  "type": "propose"
+}

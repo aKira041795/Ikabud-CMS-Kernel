@@ -1,0 +1,15 @@
+{
+  "digest": "60bd9065db900addd63c768cdee9d5dd35cbc5e70b389639c5f3d61c16adada4",
+  "event_id": "60bd9065db900add",
+  "evidence": [
+    ".github/instructions/module-creation-conventions.instructions.md:33"
+  ],
+  "lesson_id": "L-1f158fc328",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.966566Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "JWT Auth - Login: generate JWT via `app()->jwt()->generate()`, set cookie. DO NOT use `$ctx->setUser()`. - Payload MUST include `user_id` and `store_id` \u2014 handlers access these keys. - Logout: clear cookie. DO NOT use `$ctx->logout()`.",
+  "type": "propose"
+}

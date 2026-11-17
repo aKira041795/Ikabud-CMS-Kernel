@@ -1,0 +1,15 @@
+{
+  "digest": "23c3e6e5d243c4a770a7f5623e6ba83176d2de40c969c774a7f15fea27a5cb7e",
+  "event_id": "23c3e6e5d243c4a7",
+  "evidence": [
+    "docs/reviews/aiss-architecture-audit-2026-07-24.md:141"
+  ],
+  "lesson_id": "L-1cfe61d96b",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.134212Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": ": Three assertions in the existing test suite fail. Root causes: 1. `internet_check_enabled` default is `'1'` in settings but the test expects `'0'` (disabled by default) 2. `semantic_match_enabled` default is `'1'` in settings but the test expects `'0'` (disabled by default) 3. An 8th capability handler was added (`academic_similarity.internet.discover@1` likely) but the test still expects 7",
+  "type": "propose"
+}

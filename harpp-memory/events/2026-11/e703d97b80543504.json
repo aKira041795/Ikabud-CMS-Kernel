@@ -1,0 +1,15 @@
+{
+  "digest": "e703d97b80543504214d411e13b3b615f0de18d06e6c34a86ab0804eb7e8629a",
+  "event_id": "e703d97b80543504",
+  "evidence": [
+    "docs/kernel/api-reference.md:243"
+  ],
+  "lesson_id": "L-1dd56051df",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.550775Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": ": If `version` is provided and doesn't match the server's current version, the update is rejected with `422` and error `\"Version conflict: row was modified by another user. Reload and retry.\"` The response always includes the new `version` for the next update.",
+  "type": "propose"
+}

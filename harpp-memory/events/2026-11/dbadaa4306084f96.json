@@ -1,0 +1,15 @@
+{
+  "digest": "dbadaa4306084f96245ddbc10f5c33509cff47339dbcde59e33fd65e3ad20541",
+  "event_id": "dbadaa4306084f96",
+  "evidence": [
+    "docs/workbench/durable-run-cockpit.md:13"
+  ],
+  "lesson_id": "L-b2c57d1206",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.639668Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Run artifacts and indexes are written to a unique temporary file in the destination directory before rename. A failed write or rename raises an error; it is never reported as a persisted run. The lock file is durable coordination state and must not be deleted while Workbench writers are active.",
+  "type": "propose"
+}

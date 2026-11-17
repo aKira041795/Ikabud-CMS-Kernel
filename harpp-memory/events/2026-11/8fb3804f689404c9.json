@@ -1,0 +1,15 @@
+{
+  "digest": "8fb3804f689404c9a34f25f8ed8b090ee2527122f8f71063aa278dc9ab497517",
+  "event_id": "8fb3804f689404c9",
+  "evidence": [
+    "tests/disyl_v46_fed_ai_test.php:136"
+  ],
+  "lesson_id": "L-801d126e38",
+  "proposed_by": "harvest",
+  "reason": "gate",
+  "recorded_at": "2026-11-17T13:22:45.458165Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "ai: ai_generate emits provider text inline",
+  "type": "propose"
+}

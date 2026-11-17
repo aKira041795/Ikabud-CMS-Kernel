@@ -1,0 +1,15 @@
+{
+  "digest": "28c4d9e530270283c56412cf2684aff9e6d89a3edad0ab47d0edb69d4d948c7b",
+  "event_id": "28c4d9e530270283",
+  "evidence": [
+    "docs/ai/harpp-memory.md:44"
+  ],
+  "lesson_id": "L-c61625bdca",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.145736Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "(the same observation stores once \u2014 the event id is derived from its content). Approvals, retirements, confirmations and contradictions are *decisions and outcomes*: each occurrence is a distinct event. Collapsing them by content made a retired lesson impossible to re-activate, measured 2026-11-17.",
+  "type": "propose"
+}

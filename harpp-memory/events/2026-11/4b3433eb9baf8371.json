@@ -1,0 +1,15 @@
+{
+  "digest": "4b3433eb9baf8371b584730e99f6acee9c1aa87837c390a7a721f3a7fda2d29b",
+  "event_id": "4b3433eb9baf8371",
+  "evidence": [
+    "docs/page-builder/page-builder-schema-api.md:244"
+  ],
+  "lesson_id": "L-9cc4b7a978",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.889472Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "hooks may extend builder behavior but must not mutate document storage rules - hooks may not bypass server-side validation - hooks should fail safely and log meaningful errors",
+  "type": "propose"
+}

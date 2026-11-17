@@ -1,0 +1,15 @@
+{
+  "digest": "36fb35a2ebad47e90721fd5c476af37844b4e5ab81eb263127f75ce53fbb262d",
+  "event_id": "36fb35a2ebad47e9",
+  "evidence": [
+    "docs/reviews/perf-state-2026-10-10.md:3"
+  ],
+  "lesson_id": "L-56fd7a3f47",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.488817Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Everything here is measured, not estimated. Vintage is marked per section because this host drifts.",
+  "type": "propose"
+}

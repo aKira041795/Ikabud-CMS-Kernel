@@ -1,0 +1,15 @@
+{
+  "digest": "1d2d09d17d6ac061e6f0fcd5389b1907d65170f01bf1c5830b8aa772a2691e6f",
+  "event_id": "1d2d09d17d6ac061",
+  "evidence": [
+    "docs/kernel/caching-strategy.md:158"
+  ],
+  "lesson_id": "L-c8ea6a97a1",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.564550Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Generations are compared by **equality of an opaque token**, never by ordering. A bump writes a unique token via temp-file + `rename()`; a `+1` counter would be an unlocked read-modify-write and can lose a bump, which - the signals being compared by equality - means a purge that does not purge.",
+  "type": "propose"
+}

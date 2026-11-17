@@ -1,0 +1,15 @@
+{
+  "digest": "90e10db2df482bb25cd248a4a1a9b8ad2ac9153a3c1ffe947cf342fcd937e35b",
+  "event_id": "90e10db2df482bb2",
+  "evidence": [
+    "docs/cms/context-profiles-spec-v1.md:316"
+  ],
+  "lesson_id": "L-f768ca42a3",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.247552Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "Physical theme override paths must not change the resolved profile or schema stack once a stable logical contract template key exists.",
+  "type": "propose"
+}

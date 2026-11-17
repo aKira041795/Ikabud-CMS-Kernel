@@ -1,0 +1,15 @@
+{
+  "digest": "b865245bba7f5610a787ed4ce2bee0fe3c5944709bf7587110a0bf7dd3090bb1",
+  "event_id": "b865245bba7f5610",
+  "evidence": [
+    "docs/reviews/baronledger-db-audit-2026-10-10/README.md:90"
+  ],
+  "lesson_id": "L-d019ad40e2",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.178519Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "At ~3.6 MB/day that is **\u22481.3 GB/year** on a database that should be a few MB. **No, this is not normal** \u2014 it is an unbounded accumulation of rows whose subject no longer exists, and the aggregation the schema was built for never engages.",
+  "type": "propose"
+}

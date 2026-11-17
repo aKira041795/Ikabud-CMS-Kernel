@@ -1,0 +1,15 @@
+{
+  "digest": "0f7a3df806d30d740e81916d45c260c3484c1a865268c10d2600f228fe64c271",
+  "event_id": "0f7a3df806d30d74",
+  "evidence": [
+    "docs/engineering/lane-harness-issue.md:163"
+  ],
+  "lesson_id": "L-13aee0ed7f",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.422230Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "`tools/lane.sh selftest` now exists. Each case has a must-allow AND a must-refuse direction, because a guard that never refuses is unproven and a **wrong** guard is worse than none \u2014 it is trusted.",
+  "type": "propose"
+}

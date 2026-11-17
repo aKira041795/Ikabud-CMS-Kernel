@@ -1,0 +1,15 @@
+{
+  "digest": "f3a4a92ea61a854248280f5dabff5e3348844310ba8dacd7e12915de261c006f",
+  "event_id": "f3a4a92ea61a8542",
+  "evidence": [
+    "docs/reviews/cms-page-builder-review-2026-10-10.md:116"
+  ],
+  "lesson_id": "L-223fc170e3",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.196715Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "Verified inert elsewhere: `--ikb-content-max-width` is declared by ARK only, so for every other theme the new rule resolves to `none`; `native-default` never set `max-width` on a section and does not declare `--ikb-fullbleed-*`, so it keeps the legacy escape \u2014 its behaviour is unchanged.",
+  "type": "propose"
+}

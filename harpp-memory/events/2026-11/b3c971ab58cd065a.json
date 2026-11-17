@@ -1,0 +1,15 @@
+{
+  "digest": "b3c971ab58cd065a2257d6259dd1e5c224a92909a18e800bf669b316cf560c4c",
+  "event_id": "b3c971ab58cd065a",
+  "evidence": [
+    "docs/proposal/attendance-wage-module-plan.md:475"
+  ],
+  "lesson_id": "L-760020268c",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.083122Z",
+  "schema_version": 1,
+  "scope": "attendance-wage",
+  "text": "```php // In handlers/00-bootstrap.php function attendanceWageGuard(string $capability): void { $userId = app()->auth()->userId(); if (!app()->capabilities()->userHas($userId, $capability)) { app()->abort(403, 'Insufficient permissions'); } }",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "c7746715dff6f224e23f18f765c7ae955ff4be97b608d9f88c529d9b65069b1b",
+  "event_id": "c7746715dff6f224",
+  "evidence": [
+    "docs/ai/harpp-capabilities.md:40"
+  ],
+  "lesson_id": "L-a0a01ae5f6",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.132897Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "Roles & access - Roles: `owner`, `admin`, `member`. - Members have restricted participation/review transitions and require an eligible policy snapshot to decide; management operations are owner/admin. - Password surface: login, JWT cookie auth, user administration, soft delete, forced bootstrap-password replacement, forgot-password tokens, reset.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "63c37f6e63f9cae47560fb351807bee5d3f708be5f31ec4019a939b861cba8e9",
+  "event_id": "63c37f6e63f9cae4",
+  "evidence": [
+    "docs/kernel/choosing-the-right-primitive.md:52"
+  ],
+  "lesson_id": "L-46e5ac959a",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.568855Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Do not use a capability when no return value is needed \u2014 prefer an event. - Do not call a capability for purely-informational broadcasts.",
+  "type": "propose"
+}

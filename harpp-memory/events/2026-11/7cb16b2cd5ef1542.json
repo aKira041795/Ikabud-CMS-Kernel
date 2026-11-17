@@ -1,0 +1,15 @@
+{
+  "digest": "7cb16b2cd5ef15425a94dce37b141f4df41ca6c96f43e8b29c141430907f6e3e",
+  "event_id": "7cb16b2cd5ef1542",
+  "evidence": [
+    "docs/kernel/security-checklist.md:28"
+  ],
+  "lesson_id": "L-8db078bd4a",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.830577Z",
+  "schema_version": 1,
+  "scope": "security",
+  "text": "Allow theme/module installation only for trusted admins. - Keep CSRF protection enabled on all admin upload and module-management routes. - Retain ZIP validation, upload-origin checks, and archive size limits. - Keep media upload limits conservative and review allowed MIME types periodically. - Do not install third-party modules or themes without reviewing their manifests and code.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "629be47e77b5f9186b1d22a0f27a4fa4d522d43a89475b84d40068f6b62f9dbd",
+  "event_id": "629be47e77b5f918",
+  "evidence": [
+    ".github/instructions/testing-conventions.instructions.md:51"
+  ],
+  "lesson_id": "L-71676e0176",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.975296Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Test Style - Prefer plain PHP integration-style tests under `tests/` that bootstrap the app directly - Avoid mocks where possible \u2014 test concrete behavior",
+  "type": "propose"
+}

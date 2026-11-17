@@ -1,0 +1,15 @@
+{
+  "digest": "24ed51b66b6a3b918ae00a77dbc43a78c375748a7f8b7dd5ff96745d369c4bf9",
+  "event_id": "24ed51b66b6a3b91",
+  "evidence": [
+    "docs/pal/pal-ark-workbench-architecture-plan.md:32"
+  ],
+  "lesson_id": "L-db2b4d0471",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.969304Z",
+  "schema_version": 1,
+  "scope": "pal",
+  "text": "Do not redesign PAL. Its current UI becomes the working reference from which we extract a reusable **ARK Workbench** application profile.",
+  "type": "propose"
+}

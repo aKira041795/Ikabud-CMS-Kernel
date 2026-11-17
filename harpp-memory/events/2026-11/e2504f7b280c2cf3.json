@@ -1,0 +1,15 @@
+{
+  "digest": "e2504f7b280c2cf3b14dbd204eed08506a0de2a3d2959e9b858fbe590e0d991b",
+  "event_id": "e2504f7b280c2cf3",
+  "evidence": [
+    "tests/disyl_v43_cache_exp_test.php:155"
+  ],
+  "lesson_id": "L-cb9062b0ad",
+  "proposed_by": "harvest",
+  "reason": "gate",
+  "recorded_at": "2026-11-17T13:22:45.429054Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "engine: same subject = same variant (sticky across renders)",
+  "type": "propose"
+}

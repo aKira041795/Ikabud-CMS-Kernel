@@ -1,0 +1,15 @@
+{
+  "digest": "58a3b2f903df5d89e190bc2ec8cb99f6f123793bbe636032c297221ed23b0da1",
+  "event_id": "58a3b2f903df5d89",
+  "evidence": [
+    "tests/disyl_v42_types_test.php:234"
+  ],
+  "lesson_id": "L-d44fd8de29",
+  "proposed_by": "harvest",
+  "reason": "gate",
+  "recorded_at": "2026-11-17T13:22:45.412367Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "engine: types block stripped from output",
+  "type": "propose"
+}

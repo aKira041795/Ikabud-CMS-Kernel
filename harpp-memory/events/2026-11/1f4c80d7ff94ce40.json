@@ -1,0 +1,15 @@
+{
+  "digest": "1f4c80d7ff94ce40f1caba9e9fd9da4e913e34f0f5b2916b5c7efe830b16eb88",
+  "event_id": "1f4c80d7ff94ce40",
+  "evidence": [
+    "docs/reviews/cms-page-builder-review-2026-10-10.md:229"
+  ],
+  "lesson_id": "L-15bc169d2d",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.205183Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "`NodeStyle` is not per-widget shaped; responsive variants are nested uniform sub-objects; and `cmsRenderWidget_*` already maps style keys to `--b-*` custom properties generically. The chair's falsifier \u2014 \"if styles are stored in incompatible widget-specific property shapes \u2026 do not build a large cross-widget translator\" \u2014 does not fire, so the feature is cheap.",
+  "type": "propose"
+}

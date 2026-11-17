@@ -1,0 +1,15 @@
+{
+  "digest": "b5166b0a816c70ea5e1945518ba5f48c2991deeb46e62a79d4c444ee6047bf9e",
+  "event_id": "b5166b0a816c70ea",
+  "evidence": [
+    "docs/evaluations/ikabud-kernel-technical-evaluation-2026-04-10.md:31"
+  ],
+  "lesson_id": "L-ef1276448d",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.485675Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "`bootstrap.php` - `public/index.php` - `kernel/App.php` - `kernel/JWT.php` - `kernel/TenantResolver.php` - `kernel/Http/SecurityHeaders.php` - `src/helpers/module-manager.php` - `src/helpers/security.php` - representative module manifests such as `modules/cms/module.json` - project documentation in `README.md` and `docs/kernel/ARCHITECTURE.md` - representative tests including tenancy and infrastructure regressions",
+  "type": "propose"
+}

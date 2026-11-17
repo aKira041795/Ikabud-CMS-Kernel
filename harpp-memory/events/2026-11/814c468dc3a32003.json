@@ -1,0 +1,15 @@
+{
+  "digest": "814c468dc3a3200312d7a3bae9a3c2638a296fd95e01eb722fab314f3fa788c7",
+  "event_id": "814c468dc3a32003",
+  "evidence": [
+    "docs/pal/pal-ark-workbench-architecture-plan.md:1654"
+  ],
+  "lesson_id": "L-fa37be1242",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.043064Z",
+  "schema_version": 1,
+  "scope": "pal",
+  "text": "tests/browser/workbench/ \u251c\u2500\u2500 dialog-focus-trap.spec.ts \u251c\u2500\u2500 combobox-keyboard.spec.ts \u251c\u2500\u2500 responsive-table.spec.ts \u251c\u2500\u2500 mobile-drawer.spec.ts \u251c\u2500\u2500 bottom-navigation.spec.ts \u2514\u2500\u2500 screenshot-baselines/ ```",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "c5b408adb5b0f4ed79ae9cdfe45743dd9a008433a40112ce963d11ffba1deb31",
+  "event_id": "c5b408adb5b0f4ed",
+  "evidence": [
+    "docs/engineering/lane-harness-issue.md:629"
+  ],
+  "lesson_id": "L-74ed743fcd",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.440779Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "HARPP is chat + deploy + workspaces. The decisions surface is gone. Owner direction: *\"let's discard the decisions lane. harpp becomes better without it. as an away tool, linked to my workstation, all i want is a chat lane, aside from the deploy and workspaces\"* \u2014 and *\"no email, it will flood my inbox. we stay in chat\"*.",
+  "type": "propose"
+}

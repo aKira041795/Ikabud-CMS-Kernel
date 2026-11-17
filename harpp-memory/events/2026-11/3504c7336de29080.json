@@ -1,0 +1,15 @@
+{
+  "digest": "3504c7336de29080ab63f4ef7169a6076e52df4973589be2abb5dddfc347e4c1",
+  "event_id": "3504c7336de29080",
+  "evidence": [
+    "docs/archive/disyl-plans/disyl-4.5-plan.md:94"
+  ],
+  "lesson_id": "L-f824ae5170",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.182859Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Bucketing for experiments (4.3) and AI seeds (4.6) must remain deterministic across SSR. Fibers do not break determinism because the scheduler always returns results in source order regardless of resolution order.",
+  "type": "propose"
+}

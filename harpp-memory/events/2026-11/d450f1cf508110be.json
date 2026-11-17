@@ -1,0 +1,15 @@
+{
+  "digest": "d450f1cf508110bed33b5b734ba5693e5775e735da533e0d6e926ebdaa16d9a4",
+  "event_id": "d450f1cf508110be",
+  "evidence": [
+    "docs/engineering/lane-harness-issue.md:56"
+  ],
+  "lesson_id": "L-d2ccddccf8",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.418525Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Recording must be **guaranteed**; notification may be **best-effort**. These were conflated, which is why #6 and #7 happened. Concretely: a command notifies its caller **only when it FINISHES**, so a monitor that loops forever **can never notify**. Notification therefore has to be either a desktop notification (fires from the recording process) or a **bounded, re-armable poll** whose completion is the wake-up.",
+  "type": "propose"
+}

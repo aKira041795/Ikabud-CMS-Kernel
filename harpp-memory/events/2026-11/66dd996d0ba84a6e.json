@@ -1,0 +1,15 @@
+{
+  "digest": "66dd996d0ba84a6e6245fc284db4dfa51f4ea8ea16bc0bdd819b1612b53d1990",
+  "event_id": "66dd996d0ba84a6e",
+  "evidence": [
+    "docs/cms/cms-modularization-execution-plan.md:149"
+  ],
+  "lesson_id": "L-a98c3ec501",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.225466Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "Akira Bootstrap Reference - `docs/cms/cms-akira-capability-namespace-and-adapter-plan.md` defines transition namespace policy (`cms.*` + `akira.*`) and adapter direction for bootstrap and Phase B.",
+  "type": "propose"
+}

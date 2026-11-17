@@ -1,0 +1,15 @@
+{
+  "digest": "e51028a67afed1c844d54421867e14f6913e9cafd8c5cabf3195d6ce95b1308c",
+  "event_id": "e51028a67afed1c8",
+  "evidence": [
+    "docs/daily-ledger/HANDOFF-2026-10-11.md:164"
+  ],
+  "lesson_id": "L-a000d162bc",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.291181Z",
+  "schema_version": 1,
+  "scope": "daily-ledger",
+  "text": "`NOT (dl_provisionalSqlExpr(...))` is NULL when `end_source` is NULL, so `WHERE` drops the row: measured, it matched **0 of 14,401 rows where 11,704 were official** and emptied the Products page. Use `COALESCE(expr, 0) = 0`.",
+  "type": "propose"
+}

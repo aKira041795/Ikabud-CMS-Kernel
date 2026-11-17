@@ -1,0 +1,15 @@
+{
+  "digest": "7a9bcb8a636b0acb4254f46089fdc37b4fd7663f8b455e47be712ee889cd2c22",
+  "event_id": "7a9bcb8a636b0acb",
+  "evidence": [
+    "docs/ecommerce/ecommerce-freemium-licensing-spec.md:249"
+  ],
+  "lesson_id": "L-df63d160a4",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.365298Z",
+  "schema_version": 1,
+  "scope": "ecommerce",
+  "text": "The private key **must never** be committed to version control or shared outside the issuing ecommerce store. Customer licenses expire based on `exp` in the JWT; the module author controls duration via the `_license_duration_days` product meta on the issuing store.",
+  "type": "propose"
+}

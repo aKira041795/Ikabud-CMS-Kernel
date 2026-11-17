@@ -1,0 +1,15 @@
+{
+  "digest": "6bbc04bbddf535426b81411ccc7129d7f4638e328d3e1d6e1d9cfd3398411235",
+  "event_id": "6bbc04bbddf53542",
+  "evidence": [
+    "docs/kernel/installation.md:234"
+  ],
+  "lesson_id": "L-9eb4d1d125",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.639791Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Connect to the application database and apply `database/migrations/001_full_schema.sql` - Bootstrap the kernel and apply pending kernel + module migrations - Apply control-plane migrations to `CONTROL_DB_*` when multi-tenant mode is enabled - Create the initial admin user - Write or refresh `.env` (using the entered site address as `APP_URL`) and generate the `.installed` marker file",
+  "type": "propose"
+}

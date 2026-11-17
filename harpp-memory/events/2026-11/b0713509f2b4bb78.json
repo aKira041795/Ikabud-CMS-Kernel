@@ -1,0 +1,15 @@
+{
+  "digest": "b0713509f2b4bb78f6e05c482820ad0b91a139ef6e9c49cc4d8b5201c088e86e",
+  "event_id": "b0713509f2b4bb78",
+  "evidence": [
+    "docs/reviews/perf-metrics-2026-10-10.md:100"
+  ],
+  "lesson_id": "L-449fd19bcd",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.383027Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Boot had been a single opaque mark since it was added. The cause was mechanical: `kernelPerfMarkRequestPhase()` is not defined until `perf-attribution.php` is required at `public/index.php:155`, so no mark could be placed in the region boot covers. The request **origin was never wrong** \u2014 `public/index.php:6` already sets it before `bootstrap.php`.",
+  "type": "propose"
+}

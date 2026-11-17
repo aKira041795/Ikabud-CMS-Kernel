@@ -1,0 +1,15 @@
+{
+  "digest": "1b47eb4a8c8c2d782fbb81cc56bea63ca138023fa880b78f4d0226d0f23db078",
+  "event_id": "1b47eb4a8c8c2d78",
+  "evidence": [
+    "docs/reviews/perf-metrics-2026-10-10/sol-brief-disyl-fallback-round2.md:68"
+  ],
+  "lesson_id": "L-db226e5428",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.349681Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Engine-level fix only. **No `.disyl` template edits.** - Do NOT commit and do NOT push; leave changes in the working tree. - Your existing changes are still in the working tree uncommitted \u2014 build on them, do not revert them. - Check BOTH `storage/logs/app.log` and `storage/logs/error.log`.",
+  "type": "propose"
+}

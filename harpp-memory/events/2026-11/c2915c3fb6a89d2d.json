@@ -1,0 +1,15 @@
+{
+  "digest": "c2915c3fb6a89d2d6face1794d72d49000b470b951652b3de3da314dc2d8b251",
+  "event_id": "c2915c3fb6a89d2d",
+  "evidence": [
+    "docs/project-audit-ledger/implementation-plan.md:1995"
+  ],
+  "lesson_id": "L-e39ddcc66d",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.077578Z",
+  "schema_version": 1,
+  "scope": "project-audit-ledger",
+  "text": ": 8 domain events declared in `module.json` were never fired. 1 handler had no route (dead code). 1 duplicate table entry in `module.json`. 1 duplicate route.",
+  "type": "propose"
+}

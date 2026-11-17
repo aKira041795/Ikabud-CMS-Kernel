@@ -1,0 +1,15 @@
+{
+  "digest": "30edcdcdbaf572e049333ef8c8735918b071dfcdc77d877b85c58716c9ddbb4a",
+  "event_id": "30edcdcdbaf572e0",
+  "evidence": [
+    "docs/evaluations/ikabud-kernel-action-plan-2026-04-10.md:129"
+  ],
+  "lesson_id": "L-04a548ee66",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.461590Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "document current CSP tradeoffs explicitly - define preconditions for moving from `'unsafe-inline'` to nonced scripts - do not begin nonce rollout until template coverage is measurable and testable",
+  "type": "propose"
+}

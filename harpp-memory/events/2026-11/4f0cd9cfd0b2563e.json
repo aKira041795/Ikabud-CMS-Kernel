@@ -1,0 +1,15 @@
+{
+  "digest": "4f0cd9cfd0b2563e13ffd1e3e58d73143fcb2ba3156dabda03b424e69f3e0d24",
+  "event_id": "4f0cd9cfd0b2563e",
+  "evidence": [
+    "tests/kernel_concurrency_gate_test.php:64"
+  ],
+  "lesson_id": "L-221a82817c",
+  "proposed_by": "harvest",
+  "reason": "gate",
+  "recorded_at": "2026-11-17T13:22:45.462808Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "unreachable URL is not measured with exit 2",
+  "type": "propose"
+}

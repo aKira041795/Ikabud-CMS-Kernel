@@ -1,0 +1,15 @@
+{
+  "digest": "cb12d6762d63954a809fd1d0496aeba507e17eb2435511842297665edb22a8ad",
+  "event_id": "cb12d6762d63954a",
+  "evidence": [
+    "docs/kernel/module-manifest-schema.md:65"
+  ],
+  "lesson_id": "L-0ef50c6da9",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.779041Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Non-empty inline arrays are invalid. Route maps belong in the PHP route file. Absolute paths, backslashes, drive-prefixed paths, and `..` traversal are invalid. Runtime route loading consumes this declaration directly; `false` and `[]` do not fall back to a conventional `routes.php` file. The previous guard incorrectly converted `true` to `1` and `[]` to `Array`; schema v1 validates their actual JSON types.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "74030c85295c1dfcee5fafc57f90c0ef00a394039fb4005c287690fe96b153de",
+  "event_id": "74030c85295c1dfc",
+  "evidence": [
+    "docs/engineering/autonomy-loop.md:144"
+  ],
+  "lesson_id": "L-70a6a28720",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.398564Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "It never merges, pushes, or runs the release gate. It produces a verified tree and a ledger record; landing stays a separate, risk-gated step. Until that step re-records the task with `gate=PASS` and `merged=true`, the autonomy rate reports `0%` \u2014 which is the honest state of a harness that can verify but has not yet been trusted to land.",
+  "type": "propose"
+}

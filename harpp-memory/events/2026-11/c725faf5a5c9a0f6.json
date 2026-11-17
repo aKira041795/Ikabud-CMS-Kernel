@@ -1,0 +1,15 @@
+{
+  "digest": "c725faf5a5c9a0f64b2c7c92fdd75d32183d51de4aac5ae969bd3db2951cf28d",
+  "event_id": "c725faf5a5c9a0f6",
+  "evidence": [
+    "docs/cms/render-schema-context-profiles-plan.md:125"
+  ],
+  "lesson_id": "L-b808936c9d",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.276974Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "1. DiSyL remains declarative. 2. Business rules stay in kernel/module code, not templates. 3. Templates must not rely on undeclared or accidental context keys. 4. Module code must not bypass kernel render preparation. 5. Public render behavior must stay deterministic across theme and route variations. 6. Debug tooling must be cheap in production and rich in development.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "2057316fe884f86587bfb5a28a7c910ffc7e2bb816ac998a5169027793179980",
+  "event_id": "2057316fe884f865",
+  "evidence": [
+    "docs/reviews/perf-metrics-2026-10-10.md:424"
+  ],
+  "lesson_id": "L-179e5f8474",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.403366Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "`disyl.strict.Blank compiled include rejected` (`kernel/DiSyL/Compiler/CompiledTemplate.php:239`) appears when the themed 404 renders. Route order cannot influence a template name, and the order is proven identical, so the handler and render path are unchanged \u2014 this is a DiSyL compiled-template concern for a separate look, not a regression here.",
+  "type": "propose"
+}

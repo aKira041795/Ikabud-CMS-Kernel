@@ -1,0 +1,15 @@
+{
+  "digest": "498754545b61e469b2c5d939ba510ab866fe01c9768f185566d70d364eb13bee",
+  "event_id": "498754545b61e469",
+  "evidence": [
+    ".github/instructions/ai-development-execution-handoff.instructions.md:912"
+  ],
+  "lesson_id": "L-689581ac77",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.960559Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "CHATGPT / CHAIR CONSULT Planning and decision gate Competing strategies and tradeoffs Contract and rollback-cost questions Advice only - never the evidence",
+  "type": "propose"
+}

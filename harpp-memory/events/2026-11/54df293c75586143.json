@@ -1,0 +1,15 @@
+{
+  "digest": "54df293c75586143fecd044e52b2e39989c3f04eac229204d3cfead7d96946db",
+  "event_id": "54df293c75586143",
+  "evidence": [
+    "tests/disyl_v44_sandbox_test.php:139"
+  ],
+  "lesson_id": "L-07b1f08d12",
+  "proposed_by": "harvest",
+  "reason": "gate",
+  "recorded_at": "2026-11-17T13:22:45.433179Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "engine: raw outside sandbox renders unescaped",
+  "type": "propose"
+}

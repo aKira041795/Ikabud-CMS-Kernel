@@ -1,0 +1,15 @@
+{
+  "digest": "daad61c6bbab57f5faa3e86657e8d4710dd93af772903f453df9856379797fe7",
+  "event_id": "daad61c6bbab57f5",
+  "evidence": [
+    "docs/evaluations/ikabud-kernel-action-plan-2026-04-10.md:308"
+  ],
+  "lesson_id": "L-2e743548c2",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.473432Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "1. Align PHP and license metadata. 2. Add contributor workflow documentation. 3. Document stable kernel extension contracts. 4. Extract request bootstrap helpers from `public/index.php`. 5. Extract core route registration from `public/index.php`. 6. Add dedicated tests around security headers and dispatch ordering if coverage is still indirect.",
+  "type": "propose"
+}

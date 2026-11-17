@@ -1,0 +1,15 @@
+{
+  "digest": "72c5a58f8e4e5089655134c0588f47f164bf391050555c2fc6631fa2faa21f16",
+  "event_id": "72c5a58f8e4e5089",
+  "evidence": [
+    "docs/architecture/harpp-ui-phase1-contract.md:17"
+  ],
+  "lesson_id": "L-d7ce540975",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.173345Z",
+  "schema_version": 1,
+  "scope": "harpp",
+  "text": "**Role:** `/architect` \u00b7 **Primary reasoning:** Codex - **Status:** `READY_FOR_IMPLEMENTATION` - **Origin:** Chaired multi-model debate (Claude Sonnet 4.5 = Proponent, GPT-5.4 = Skeptic). Verdict: **gated, target-IA-driven UI program \u2014 Phase 1 only.** Labels must not outrun proof: this is a bounded shell/IA + overview surface pass on the existing stack, NOT a rewrite.",
+  "type": "propose"
+}

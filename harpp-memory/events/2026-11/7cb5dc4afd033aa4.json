@@ -1,0 +1,15 @@
+{
+  "digest": "7cb5dc4afd033aa4eff148e32741fcc23deb974ee59d50e0b792a23f721e3898",
+  "event_id": "7cb5dc4afd033aa4",
+  "evidence": [
+    "docs/workbench/deepseek-v4-ark-workbench-improvement-instructions.md:170"
+  ],
+  "lesson_id": "L-3321f767db",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.631626Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "deterministic authority remains intact; - AI output is schema-valid, evidence-bounded, traceable, and safely redacted; - relevant success and failure paths have automated tests; - a real module proof has completed and its artifacts are fresh; - documentation states both what is now reliable and what remains unmeasured; - no unrelated files or generated artifacts are included in the change.",
+  "type": "propose"
+}

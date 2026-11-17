@@ -1,0 +1,15 @@
+{
+  "digest": "6eda2db8ebeeb219330c59bfdcc6da0b7d0b6fa5e27d45705e5fff8ca3c47522",
+  "event_id": "6eda2db8ebeeb219",
+  "evidence": [
+    "docs/page-builder/page-builder-roadmap.md:174"
+  ],
+  "lesson_id": "L-88efa3a3f0",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.882394Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "editors can assemble real landing pages visually - common operations do not require raw JSON or HTML editing - preview and published render stay aligned",
+  "type": "propose"
+}

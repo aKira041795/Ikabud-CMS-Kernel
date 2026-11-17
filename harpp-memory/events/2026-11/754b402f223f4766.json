@@ -1,0 +1,15 @@
+{
+  "digest": "754b402f223f47660a4823ea84a868594649e48e62f6fbe861b78f7884ddb12d",
+  "event_id": "754b402f223f4766",
+  "evidence": [
+    "docs/releases/release-notes-2026-10-09-kernel-request-cost.md:51"
+  ],
+  "lesson_id": "L-cb0c30fdc7",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.122408Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Measured over the corpus: 927,972 pairs \u2192 109 `mayConflict` \u2192 **0 reachable**. An adversarial search over 36 conflicting pattern shapes found no counterexample. Result: `route_merge` **184.9 \u2192 7.1 ms**, routing unchanged.",
+  "type": "propose"
+}

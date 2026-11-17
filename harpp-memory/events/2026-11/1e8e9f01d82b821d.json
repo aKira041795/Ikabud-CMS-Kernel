@@ -1,0 +1,15 @@
+{
+  "digest": "1e8e9f01d82b821dd27cd8453b2e97d2041043ff3e5edff8876b9fdf518161ef",
+  "event_id": "1e8e9f01d82b821d",
+  "evidence": [
+    "docs/ecommerce/ecommerce-customizer-entity-view-implementation-spec.md:125"
+  ],
+  "lesson_id": "L-f8c5c7da91",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.359231Z",
+  "schema_version": 1,
+  "scope": "ecommerce",
+  "text": "These should remain the primary regression harnesses as the POC hardens.",
+  "type": "propose"
+}

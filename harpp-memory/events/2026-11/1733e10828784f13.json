@@ -1,0 +1,15 @@
+{
+  "digest": "1733e10828784f13d0c3de9dd8253a84863bb2ad31e6d67cce4b43b33394ed42",
+  "event_id": "1733e10828784f13",
+  "evidence": [
+    "docs/reviews/perf-metrics-2026-10-10.md:941"
+  ],
+  "lesson_id": "L-e529b598cc",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.430558Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "4l. The interpreted path was three-quarters unmeasured \u2014 and the cost was in the untimed passes",
+  "type": "propose"
+}

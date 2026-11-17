@@ -1,0 +1,15 @@
+{
+  "digest": "c259c5096209db6ceee56933f6438c8374f42155ddb38bc6d7934adc2fb77283",
+  "event_id": "c259c5096209db6c",
+  "evidence": [
+    "docs/ehr/system-design-and-architecture-plan.md:265"
+  ],
+  "lesson_id": "L-0324939f46",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.383438Z",
+  "schema_version": 1,
+  "scope": "ehr",
+  "text": "7. Results - **Issue:** stand alone, not tied to the order or visit. - **Layout:** triage list \u2014 *Critical \u00b7 Abnormal \u00b7 Pending review \u00b7 Reviewed*. - **Primary:** Acknowledge / Add Note / Notify Patient. - **Secondary:** Trend, Print. - **Missing:** **critical results need a hard interrupt** \u2014 modal with \"I have reviewed this critical result\" and audit; never silent.",
+  "type": "propose"
+}

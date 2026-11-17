@@ -1,0 +1,15 @@
+{
+  "digest": "e9fe90eebbd6c68a840443ddba3d713d726000e4054cbe6665b4f92adf2ef874",
+  "event_id": "e9fe90eebbd6c68a",
+  "evidence": [
+    "docs/cms/capability-driven-theme-design.md:425"
+  ],
+  "lesson_id": "L-357e9cd6fb",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.196660Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "presets do not create entity types - presets configure existing entities by attaching capabilities and defaults - entity type bindings and context ownership still come from modules",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "0e6bac07544d66841f457a9691049b1efff31890d0e9133a7e6ac82aa6418791",
+  "event_id": "0e6bac07544d6684",
+  "evidence": [
+    "docs/reviews/cms-public-render-review-2026-10-09.md:35"
+  ],
+  "lesson_id": "L-6e43b03f49",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.231773Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "The measured count of 11 is consistent with these producers, but the exact live-page allocation cannot be reconstructed without its stored builder document and customizer rows; the code makes the count data-dependent (`modules/cms/helpers/80-customizer.php:2219-2248`, `modules/cms/helpers/50-builder.php:1618-1622`).",
+  "type": "propose"
+}

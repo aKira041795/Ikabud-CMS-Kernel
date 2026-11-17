@@ -1,0 +1,15 @@
+{
+  "digest": "f9871ddd53fb6308c70b6b9f751c2388a6ecc901bb657d5b3585e4e3412d5434",
+  "event_id": "f9871ddd53fb6308",
+  "evidence": [
+    "docs/ecommerce/ecommerce-customizer-entity-view-implementation-spec.md:473"
+  ],
+  "lesson_id": "L-420117943a",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.362323Z",
+  "schema_version": 1,
+  "scope": "ecommerce",
+  "text": "clear and inspect `storage/logs/app.log` - clear and inspect `storage/logs/error.log` - verify no new ModuleDB denial or customizer-cache regressions are introduced",
+  "type": "propose"
+}

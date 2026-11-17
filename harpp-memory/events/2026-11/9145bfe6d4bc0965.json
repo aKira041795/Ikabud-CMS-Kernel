@@ -1,0 +1,15 @@
+{
+  "digest": "9145bfe6d4bc0965a8f3e3debb7d280e0a4a54c4e52e1eb59f261247f01a28f2",
+  "event_id": "9145bfe6d4bc0965",
+  "evidence": [
+    "docs/reviews/cms-user-review-2026.md:113"
+  ],
+  "lesson_id": "L-a026a592d8",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.235141Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "Observed from logs: - undefined function failures when helper functions are invoked outside proper module bootstrap context - SQL/schema mismatch errors appear during ad hoc operations",
+  "type": "propose"
+}

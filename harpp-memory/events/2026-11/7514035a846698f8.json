@@ -1,0 +1,15 @@
+{
+  "digest": "7514035a846698f8a51945f61eb25bc294f401431341e83e7dff9183eac5613e",
+  "event_id": "7514035a846698f8",
+  "evidence": [
+    "docs/cms/render-schema-context-profiles-plan.md:395"
+  ],
+  "lesson_id": "L-66e71ca41b",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.278699Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "Do not add complex new control-flow or stateful runtime behavior to DiSyL until schema/profile enforcement is stable.",
+  "type": "propose"
+}

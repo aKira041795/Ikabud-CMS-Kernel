@@ -1,0 +1,15 @@
+{
+  "digest": "5b0d45a3a9ee3f718f0fc88986ca6c2ea95e4a721ddeb6d219dbef55e8e2520e",
+  "event_id": "5b0d45a3a9ee3f71",
+  "evidence": [
+    "docs/disyl/entity-rendering-trait-improvements.md:403"
+  ],
+  "lesson_id": "L-d989f8e3e2",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.352793Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "Verdict Correctly deferred. However, do not frame this as arbitrary `update_url` fields.",
+  "type": "propose"
+}

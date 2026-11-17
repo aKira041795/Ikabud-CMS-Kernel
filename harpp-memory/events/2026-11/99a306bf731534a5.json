@@ -1,0 +1,15 @@
+{
+  "digest": "99a306bf731534a597a9c33c224a36f104d268c8d774cad4621941d6c5d944aa",
+  "event_id": "99a306bf731534a5",
+  "evidence": [
+    "docs/kernel/6.3-gate0-gate1-report-2026-10-12.md:5"
+  ],
+  "lesson_id": "L-5c3db409ec",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.530359Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Executed autonomously overnight per owner directive (\"implement the plan, work autonomously\"). Everything landed is additive, read-only, or test-only \u2014 **no runtime behavior changed**. Enforcement stays staged per the plan and the chair's rulings.",
+  "type": "propose"
+}

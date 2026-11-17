@@ -1,0 +1,15 @@
+{
+  "digest": "ab5cd114ca205dd12ecc7244f07ca31601fe75370cfc3a6d1415456667760328",
+  "event_id": "ab5cd114ca205dd1",
+  "evidence": [
+    "docs/workbench/ai-pattern-intelligence-roadmap.md:189"
+  ],
+  "lesson_id": "L-283a287dde",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.575882Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "proposed; - retrieval-supported; - retrieval-contradicted; - test-scheduled; - confirmed; - rejected; - inconclusive; - expired.",
+  "type": "propose"
+}

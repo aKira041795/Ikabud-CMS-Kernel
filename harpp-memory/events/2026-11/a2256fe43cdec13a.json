@@ -1,0 +1,15 @@
+{
+  "digest": "a2256fe43cdec13a3ad43aae2dfb73adf8d9868f1656c6e668ef240a60e3a687",
+  "event_id": "a2256fe43cdec13a",
+  "evidence": [
+    "docs/email/EMAIL_SETUP_STATUS.md:77"
+  ],
+  "lesson_id": "L-5e76ab9c80",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.394414Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "```bash # From command line cd /var/www/html/ikabud php -r \" require_once 'bootstrap.php'; require_once 'src/helpers/email.php'; \\$result = sendEmail('test@example.com', 'Test', 'Hello!'); echo \\$result ? 'Sent' : 'Failed'; \" ```",
+  "type": "propose"
+}

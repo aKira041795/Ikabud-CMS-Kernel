@@ -1,0 +1,15 @@
+{
+  "digest": "c94db32efd047266a0a9530560861e33037c1a0f3b8096f8003ebd48782a1769",
+  "event_id": "c94db32efd047266",
+  "evidence": [
+    "docs/daily-ledger/HANDOFF-2026-10-11.md:356"
+  ],
+  "lesson_id": "L-1d406c6ac8",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.298156Z",
+  "schema_version": 1,
+  "scope": "daily-ledger",
+  "text": "Each recorded cell is classified **sold / measured zero (buyable) / censored (unbuyable) / unknown (absent row)**; the denominator is the days the product could actually be bought. Rows now carry `available_days`, `censored_days`, `unknown_days` and `evidence_status` (insufficient <5, provisional 5-9, sufficient 10+), and the page states all of it.",
+  "type": "propose"
+}

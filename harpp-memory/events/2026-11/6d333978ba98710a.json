@@ -1,0 +1,15 @@
+{
+  "digest": "6d333978ba98710a1510d3e8c6894159c96d6c6f2f8473af7c96c89bbe005892",
+  "event_id": "6d333978ba98710a",
+  "evidence": [
+    ".github/instructions/testing-conventions.instructions.md:16"
+  ],
+  "lesson_id": "L-abe766c97f",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.973085Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "```mermaid flowchart TD subgraph TIERS[Four-tier taxonomy mapping] UNIT[\"Unit \u2014 pure-logic TestHarness mode<br/>no bootstrap \u00b7 mocks where needed\"] INTEG[\"Integration \u2014 MODE_INTEGRATION<br/>real tenant DB + TestHarness\"] SEC[\"Security \u2014 permission / CSRF /<br/>tenant-isolation assertions\"] ACC[\"Acceptance \u2014 end-to-end<br/>role workflows + browser specs\"] end",
+  "type": "propose"
+}

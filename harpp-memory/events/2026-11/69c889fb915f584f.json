@@ -1,0 +1,15 @@
+{
+  "digest": "69c889fb915f584f3934e8ea1b222916b9bcf1f651ec11a54bdc98d4b4417fb8",
+  "event_id": "69c889fb915f584f",
+  "evidence": [
+    "docs/reviews/perf-metrics-2026-10-10.md:256"
+  ],
+  "lesson_id": "L-83dbe4ed11",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.393460Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Section 4b reported `route_match` at 8.82 ms and concluded the change had gone the wrong way. It is outside the range of all 8 subsequent samples; the probable cause is a cold OPcache immediately after deploy (that reading recorded `compiled_this_request = 1`). A single sample was never going to be adequate, which is the whole reason this section exists.",
+  "type": "propose"
+}

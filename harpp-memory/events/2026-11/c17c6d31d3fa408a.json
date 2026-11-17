@@ -1,0 +1,15 @@
+{
+  "digest": "c17c6d31d3fa408a2d09f000d1de0cf9aaa1afe2fe70a3f08b7d257c203f4573",
+  "event_id": "c17c6d31d3fa408a",
+  "evidence": [
+    "docs/ehr/implementation-plan.md:2297"
+  ],
+  "lesson_id": "L-e8c55d15c6",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.376246Z",
+  "schema_version": 1,
+  "scope": "ehr",
+  "text": "[ ] **Unified mental model.** Opening any Clinical page, the user sees a patient header (name, MRN, allergies, restrictions) and a visit context strip (if a visit is active). They never wonder \"who am I documenting for?\"",
+  "type": "propose"
+}

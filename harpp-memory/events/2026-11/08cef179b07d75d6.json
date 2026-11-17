@@ -1,0 +1,15 @@
+{
+  "digest": "08cef179b07d75d68e8d8b425c82378d421ecbfb113d69084705223a6dcd0e05",
+  "event_id": "08cef179b07d75d6",
+  "evidence": [
+    ".github/instructions/ai-development-execution-handoff.instructions.md:374"
+  ],
+  "lesson_id": "L-fef9555f6e",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.944083Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "Do not repeatedly run the entire suite after every small edit unless necessary.",
+  "type": "propose"
+}

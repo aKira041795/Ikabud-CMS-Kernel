@@ -1,0 +1,15 @@
+{
+  "digest": "256b7b5d79b398574c1d346dfde2211584af7396a61ac8775184f1a27ddfd132",
+  "event_id": "256b7b5d79b39857",
+  "evidence": [
+    "docs/reviews/cms-public-output-gaps-2026-10-20.md:33"
+  ],
+  "lesson_id": "L-9e99e14a0d",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.228517Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "`cmsSitemapPathForType(type, slug)` used by `cmsBuildSitemapUrls()` only. Canonical and JSON-LD paths are deliberately untouched (the red-team's main regression concern).",
+  "type": "propose"
+}

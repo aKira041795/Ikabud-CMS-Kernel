@@ -1,0 +1,15 @@
+{
+  "digest": "4a940a7464e2be9622eadcd43079c245ca19e4b4567d0434283912b7a8ff9229",
+  "event_id": "4a940a7464e2be96",
+  "evidence": [
+    "docs/kernel/module-development-guide.md:458"
+  ],
+  "lesson_id": "L-86c23aad58",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.714639Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": ": `capabilities.depends` must **only** list capabilities **provided by other modules** that your module genuinely needs. Do NOT list kernel-native capabilities.",
+  "type": "propose"
+}

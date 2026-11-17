@@ -1,0 +1,15 @@
+{
+  "digest": "40c2a577e76797559b534d143741d948a46edf21b12f7db42034807ea07d9f38",
+  "event_id": "40c2a577e7679755",
+  "evidence": [
+    "docs/kernel/app-decomposition-roadmap.md:96"
+  ],
+  "lesson_id": "L-f16bf0b191",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.555972Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Each subsystem gets a concrete provider implementing its contract. Providers are registered with `App` during bootstrap.",
+  "type": "propose"
+}

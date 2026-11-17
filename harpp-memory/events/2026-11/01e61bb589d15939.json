@@ -1,0 +1,15 @@
+{
+  "digest": "01e61bb589d15939377ba7c22400aa9cc436521a621b7d3a5f46f7c25e525d9e",
+  "event_id": "01e61bb589d15939",
+  "evidence": [
+    "docs/ai/chatgpt-advisor-mode.md:100"
+  ],
+  "lesson_id": "L-ed59eb3449",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.130688Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "The advisor lane is read-only by design: its messages are never queued as development work, and neither the plan router nor the debate router will claim them. To implement an opinion, use the one command allowed inside that lane:",
+  "type": "propose"
+}

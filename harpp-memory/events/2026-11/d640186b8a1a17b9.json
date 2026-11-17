@@ -1,0 +1,15 @@
+{
+  "digest": "d640186b8a1a17b9e9efb8f73d1e618001157f06fc328797f0f5662c9bea1422",
+  "event_id": "d640186b8a1a17b9",
+  "evidence": [
+    "docs/ai/chatgpt-advisor-mode.md:35"
+  ],
+  "lesson_id": "L-a7d8a8aecc",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.129418Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "A dedicated lane owns its bound conversation: title matching establishes the binding, and the conversation id preserves it across later renames. Its messages are never queued as dev runs, even while the lane is disabled. For the `page` backend, the watch daemon environment must expose both `DISPLAY` and `XAUTHORITY` so Playwright can launch headed Chrome.",
+  "type": "propose"
+}

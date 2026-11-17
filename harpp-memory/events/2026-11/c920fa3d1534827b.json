@@ -1,0 +1,15 @@
+{
+  "digest": "c920fa3d1534827bcb6488441535253958db72bcbb8124ef572f896114cd603e",
+  "event_id": "c920fa3d1534827b",
+  "evidence": [
+    "docs/evaluations/daily-ledger-load-and-concurrency-2026-09-16.md:174"
+  ],
+  "lesson_id": "L-0324433ebd",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.447108Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "Throughput also improved slightly (5.0\u20135.6 vs 4.4\u20135.4 req/s) with tighter p50 (1620\u20131843 ms vs 1662\u20131858 ms). Full daily-ledger regression: **1305 passed / 0 failed**.",
+  "type": "propose"
+}

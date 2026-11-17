@@ -1,0 +1,15 @@
+{
+  "digest": "3718616599cb5699b21cdb9c55f0d021a11c5f480ca72265ac662df7d9e1f7df",
+  "event_id": "3718616599cb5699",
+  "evidence": [
+    "docs/kernel/disyl-development-workflow.md:35"
+  ],
+  "lesson_id": "L-2715378feb",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.612071Z",
+  "schema_version": 1,
+  "scope": "workflow",
+  "text": "> **If the template needs a construct DiSyL does not support, do NOT reach for a template bandaid yet.** Continue the loop first \u2014 the decision gate at **Step 5** tells you when an engine fix is required.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "a81b697058c724a94e172427f1fc4b14b74c46a30c45e1c52258b720dc7e9fb5",
+  "event_id": "a81b697058c724a9",
+  "evidence": [
+    "docs/wms/wms-module.md:566"
+  ],
+  "lesson_id": "L-bd773af820",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.568549Z",
+  "schema_version": 1,
+  "scope": "wms",
+  "text": "`00-bootstrap.php` \u2014 capability handler map - `10-core.php` \u2014 module context helpers, render wrapper, settings, capability handlers - `20-stock.php` \u2014 stock snapshot, low-stock checks, immutable movement creation, reserve/release flows - `30-operations.php` \u2014 receiving, picking, transfers, putaway suggestions, cycle count closeout, reports",
+  "type": "propose"
+}

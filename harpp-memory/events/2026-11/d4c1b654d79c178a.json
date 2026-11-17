@@ -1,0 +1,15 @@
+{
+  "digest": "d4c1b654d79c178afade7ce6430f6befebdebb3e11b619464774cbf5a5597673",
+  "event_id": "d4c1b654d79c178a",
+  "evidence": [
+    "docs/kernel/cli-tools-reference.md:103"
+  ],
+  "lesson_id": "L-04ae9b364a",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.581448Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Why the binding matters: APCu is per-worker, so deleting a key reaches only the worker that deleted it. `php ikabud cache:clear` runs in a *separate* process with its own (usually empty) APCu store, so it can never reach the php-fpm workers by deleting keys. The generation bump is the only signal that crosses that boundary.",
+  "type": "propose"
+}

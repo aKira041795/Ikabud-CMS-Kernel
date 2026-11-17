@@ -1,0 +1,15 @@
+{
+  "digest": "f3ab00a224dac58cdc5a74f7488a046d61aed4ead79d23812b2457b2a6c23d05",
+  "event_id": "f3ab00a224dac58c",
+  "evidence": [
+    "docs/page-builder/page-builder-technical-spec.md:490"
+  ],
+  "lesson_id": "L-8a6a518f9b",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.894819Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "schema structure valid - nodes allowed in their current parents - required props present - disallowed values rejected",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "7ea4d48e4964f99e6e9a57812f3ee1e617e0bee62521c96a3ebc98df016440cc",
+  "event_id": "7ea4d48e4964f99e",
+  "evidence": [
+    "docs/cms/cms-akira-capability-namespace-and-adapter-plan.md:46"
+  ],
+  "lesson_id": "L-721be2e9c4",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.210586Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "Validation gates - `php ikabud architecture:check` passes. - Existing compatibility tests remain green: - `tests/cms_contract_freeze_v1_test.php` - `tests/cms_content_consumer_compat_test.php` - `tests/cms_optional_module_disablement_test.php` - Akira scaffold tests pass syntax and bootstrap checks.",
+  "type": "propose"
+}

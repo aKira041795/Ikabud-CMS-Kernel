@@ -1,0 +1,15 @@
+{
+  "digest": "299fd29d0646f2431c4464d0ebcc1196e7aae61d60f46978fae2d05fddcac129",
+  "event_id": "299fd29d0646f243",
+  "evidence": [
+    "docs/archive/disyl-plans/disyl-4.5-plan.md:119"
+  ],
+  "lesson_id": "L-83af6a1d9d",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.183560Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "All tests pass. - Benchmark: page with 5 independent fetches at 100 ms each renders in \u2264 150 ms end-to-end (vs ~500 ms sequential today). - No regression on prior suites. - Memory ceiling: each fiber \u2264 256 KB resident; scheduler caps at 64 concurrent fibers per render.",
+  "type": "propose"
+}

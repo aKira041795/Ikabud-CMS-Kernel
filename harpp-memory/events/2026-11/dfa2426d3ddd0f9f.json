@@ -1,0 +1,15 @@
+{
+  "digest": "dfa2426d3ddd0f9f20c604fb5166f03e426865d673a17392b690c7f80c59d4ca",
+  "event_id": "dfa2426d3ddd0f9f",
+  "evidence": [
+    "docs/kernel/choosing-the-right-primitive.md:139"
+  ],
+  "lesson_id": "L-339afb4e30",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.580087Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Registered during module bootstrap. - Cannot be enabled/disabled per tenant (use a trigger for that).",
+  "type": "propose"
+}

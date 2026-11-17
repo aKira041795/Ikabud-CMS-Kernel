@@ -1,0 +1,15 @@
+{
+  "digest": "59ca82875f73c90cd6d94285801e47b7e1fe2c94e31b1b3fb8d21e7cafc87ac5",
+  "event_id": "59ca82875f73c90c",
+  "evidence": [
+    "docs/daily-ledger/VIEWER-SURFACE-ASSESSMENT-PLAN-2026-10-12.md:154"
+  ],
+  "lesson_id": "L-4ab95b6bc9",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.305978Z",
+  "schema_version": 1,
+  "scope": "daily-ledger",
+  "text": "(F4) - Delete the prose \"Build it from the least instead\" link and the clickable \"Cumulative share\" heading. - Keep `Rank by` + `Order` only; explain the cumulative column in text beneath it. - Criterion: exactly two sorting controls render; `sort_by=cumulative` is never emitted.",
+  "type": "propose"
+}

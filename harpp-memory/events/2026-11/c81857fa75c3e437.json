@@ -1,0 +1,15 @@
+{
+  "digest": "c81857fa75c3e4371b1ff26abbf91fcde3b753fcc7376cc010234bf56b49d7eb",
+  "event_id": "c81857fa75c3e437",
+  "evidence": [
+    "docs/reviews/tailwind-build-migration-2026-10-09.md:60"
+  ],
+  "lesson_id": "L-f76227ae2a",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.537298Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "No `wms` palette or matching CSS selectors exist anywhere in the repository, so Tailwind's CDN runtime had no source from which to generate the 14 `wms` utilities. `bg-white/92` occurs 83 times, but `92` is not a configured opacity step and no matching selector exists today. These are pre-existing styling gaps, not migration regressions.",
+  "type": "propose"
+}

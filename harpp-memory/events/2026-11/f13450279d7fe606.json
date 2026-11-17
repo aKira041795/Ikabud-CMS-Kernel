@@ -1,0 +1,15 @@
+{
+  "digest": "f13450279d7fe606007e048546b99d2179e1cb5a3e08e4fea14848a929bab025",
+  "event_id": "f13450279d7fe606",
+  "evidence": [
+    "docs/evaluations/ikabud-kernel-technical-evaluation-2026-04-10.md:9"
+  ],
+  "lesson_id": "L-dcbf6368da",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.483997Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Ikabud CMS Kernel is a serious custom-built PHP application platform centered around a kernel-owned runtime, manifest-driven modules, a custom templating engine, and a first-class multi-tenant architecture. The codebase demonstrates clear architectural intent, meaningful security controls, and broad regression coverage across kernel, tenancy, CMS, workflow, and module integration behavior.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "f6cba1ba89fca6fa0d9438846a3a3ec2a7c3300d66aecf592cf3976397875beb",
+  "event_id": "f6cba1ba89fca6fa",
+  "evidence": [
+    "docs/kernel/disyl-async-fibers-scheduler.md:71"
+  ],
+  "lesson_id": "L-587f4fb7c0",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.610270Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Settled Promises (Fast Path) Promises that resolve immediately (sync data, cache hits) never enter the Fiber scheduler \u2014 they complete synchronously with zero overhead.",
+  "type": "propose"
+}

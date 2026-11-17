@@ -1,0 +1,15 @@
+{
+  "digest": "60191f7b814bd412ef52200313557645ad3c423604a5dc461a2f364bcbe640a5",
+  "event_id": "60191f7b814bd412",
+  "evidence": [
+    "docs/evaluations/platform-architecture-gap-analysis-2026-04-15.md:301"
+  ],
+  "lesson_id": "L-97c70acb61",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.513203Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Subscriptions are created but never renewed. Customers pay once and retain access forever (unless manually expired).",
+  "type": "propose"
+}

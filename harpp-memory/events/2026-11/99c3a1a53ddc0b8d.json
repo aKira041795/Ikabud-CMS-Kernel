@@ -1,0 +1,15 @@
+{
+  "digest": "99c3a1a53ddc0b8dee4943cf76cc420efa5cbcf773817d16df9a40f8dff63f8d",
+  "event_id": "99c3a1a53ddc0b8d",
+  "evidence": [
+    "docs/daily-ledger/three-owner-concerns-2026-11-17.md:90"
+  ],
+  "lesson_id": "L-54b56ff451",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.332265Z",
+  "schema_version": 1,
+  "scope": "daily-ledger",
+  "text": "a commissary recording production that `dl_production_movements` does not capture \u2014 i.e. an owner report of made stock that is absent from that table after a recorded entry.",
+  "type": "propose"
+}

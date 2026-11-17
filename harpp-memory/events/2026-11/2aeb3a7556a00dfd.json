@@ -1,0 +1,15 @@
+{
+  "digest": "2aeb3a7556a00dfdbf0745f0279711f24ec547445aedbe15f90d87fd6dd197ac",
+  "event_id": "2aeb3a7556a00dfd",
+  "evidence": [
+    ".github/instructions/ui-ux-conventions.instructions.md:105"
+  ],
+  "lesson_id": "L-8f332a320b",
+  "proposed_by": "harvest",
+  "reason": "ui-ux",
+  "recorded_at": "2026-11-17T13:22:44.996723Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Bulk operations are allowed only for **flags/settings**, and only with explicit scope: `All` vs `Selected` \u2014 never an implicit \"everything\".",
+  "type": "propose"
+}

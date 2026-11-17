@@ -1,0 +1,15 @@
+{
+  "digest": "14004cfb2ea8af369c87d7424245c99454cafbb67468d0dc11b0b432f040d864",
+  "event_id": "14004cfb2ea8af36",
+  "evidence": [
+    "docs/kernel/6.3-settings-contract-spec-2026-10-12.md:66"
+  ],
+  "lesson_id": "L-6dab2767f4",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.540168Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "New optional attributes (additive): `deprecated_since`, `superseded_by`, `migration: \"alias\"`. An alias is a **declared, testable key rename \u2014 never a type conversion or value transformation**. - **Conflict ruling (chair) \u2014 report reads, stop writes:**",
+  "type": "propose"
+}

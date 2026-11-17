@@ -1,0 +1,15 @@
+{
+  "digest": "1a3f21187f4fbe9b14c456eb8fc9743b3de0251f736cc387a24afbb16055c5ee",
+  "event_id": "1a3f21187f4fbe9b",
+  "evidence": [
+    "docs/reviews/ark-workbench-comprehension-architecture-review-and-plan-2026-07-16.md:215"
+  ],
+  "lesson_id": "L-ddefe37d17",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.155099Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "hypotheses ranked by confidence; - evidence IDs for and against each hypothesis; - suspected nodes/files, violated invariant, and missing evidence; - proposed next tests and expected information gain; - graph additions as suggestions, never direct mutations; - remediation outline, risk, and boundaries; - provider, model, prompt version, latency, and usage metadata.",
+  "type": "propose"
+}

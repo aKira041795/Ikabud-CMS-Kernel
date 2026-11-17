@@ -1,0 +1,15 @@
+{
+  "digest": "2e5752d62d576b9def4d59f0436318ebcee24058b7658549d99aa28a87822bf7",
+  "event_id": "2e5752d62d576b9d",
+  "evidence": [
+    "docs/proposal/attendance-wage-module-plan.md:806"
+  ],
+  "lesson_id": "L-2e2b9c7122",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.085241Z",
+  "schema_version": 1,
+  "scope": "attendance-wage",
+  "text": "Phase 1 \u2014 Database Foundation (Days 1-2) - Scaffold module via the canonical `php ikabud make:module attendance-wage` - Write all 12 migration SQL files - Create `module.json`, `routes.php`, `handlers.php` - Bootstrap auth guards and helpers stub - Seed default benefits rates (SSS, PhilHealth, Pag-IBIG 2025 tables)",
+  "type": "propose"
+}

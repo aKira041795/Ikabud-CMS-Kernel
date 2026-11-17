@@ -1,0 +1,15 @@
+{
+  "digest": "1694a142981b716d07374fb05b5cd5353bfb310d473ff41c7572ce5a6f6d841b",
+  "event_id": "1694a142981b716d",
+  "evidence": [
+    "docs/proposal/attendance-wage-module-plan.md:873"
+  ],
+  "lesson_id": "L-8a8ea0056e",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.088158Z",
+  "schema_version": 1,
+  "scope": "attendance-wage",
+  "text": "| Capability | Registered in | Also exposed by modules? | |---|---|---| | `kernel.auth.authenticate@1` | `kernel/App.php` | \u2705 bakeshop, cms (pipeline mode) \u2192 **Do NOT depend on this** | | `kernel.auth.user@1` | `kernel/App.php` | \u274c Kernel only \u2192 safe to depend on, but unnecessary | | `kernel.audit.record@1` | `kernel/App.php` | \u274c Kernel only \u2192 safe to depend on, but unnecessary |",
+  "type": "propose"
+}

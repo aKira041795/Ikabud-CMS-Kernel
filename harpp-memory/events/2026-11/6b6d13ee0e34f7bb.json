@@ -1,0 +1,15 @@
+{
+  "digest": "6b6d13ee0e34f7bbcf30f88c75fcc6583b18e7ead96857eab9c50115cd3b355f",
+  "event_id": "6b6d13ee0e34f7bb",
+  "evidence": [
+    "docs/cms/cms-akira-capability-namespace-and-adapter-plan.md:3"
+  ],
+  "lesson_id": "L-e03fe77aec",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.206915Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "Status: Bootstrap baseline (Phase A) Owner: CMS Akira Composer-First Track Date updated: 2026-08-04",
+  "type": "propose"
+}

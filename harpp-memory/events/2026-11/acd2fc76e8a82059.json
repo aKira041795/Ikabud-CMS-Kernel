@@ -1,0 +1,15 @@
+{
+  "digest": "acd2fc76e8a82059dc12b2cc3de753221d3a1b1df7aa50811152d0b4a9550010",
+  "event_id": "acd2fc76e8a82059",
+  "evidence": [
+    "docs/evaluations/ikabud-kernel-action-plan-2026-04-10.md:331"
+  ],
+  "lesson_id": "L-02408f7da9",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.474787Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "do not rewrite `public/index.php` wholesale in one PR - do not rename public helper APIs while structural extraction is underway - do not change tenant DB failure behavior in pursuit of cleaner abstractions - do not start CSP nonce rollout before templates are instrumented end to end - do not mix feature delivery with kernel decomposition PRs unless a production bug forces it",
+  "type": "propose"
+}

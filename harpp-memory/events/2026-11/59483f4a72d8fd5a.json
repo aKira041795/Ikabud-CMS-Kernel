@@ -1,0 +1,15 @@
+{
+  "digest": "59483f4a72d8fd5aefc5c7e43b1160c98f8bc15dc1ab1a17663cc6ff4a2fcfd1",
+  "event_id": "59483f4a72d8fd5a",
+  "evidence": [
+    "docs/reviews/perf-metrics-2026-10-10.md:610"
+  ],
+  "lesson_id": "L-cd5b8d083b",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.414144Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "It also carries a **vacuity guard**: \"no compiled line\" has two very different causes \u2014 the compiled path ran and is uninstrumented, or the fixture was interpreted so the compiled path never ran. The test distinguishes them by asserting that no `disyl.compile.phases` line appeared, and fails with a distinct reason if the fixture drifts onto the interpreted pipeline rather than passing quietly.",
+  "type": "propose"
+}

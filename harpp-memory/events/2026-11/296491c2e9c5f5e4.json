@@ -1,0 +1,15 @@
+{
+  "digest": "296491c2e9c5f5e409cf70d55fab245fa6b5ded5b516e74615165af47caf0aad",
+  "event_id": "296491c2e9c5f5e4",
+  "evidence": [
+    "docs/cms/capability-driven-theme-design.md:534"
+  ],
+  "lesson_id": "L-04d3f0d54e",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.200338Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "Prefer canonical list-card fragments and approved block variants for reusable card patterns. - Prefer builder widgets or blocks when a card needs page-specific composition. - Treat theme overrides as design-system customization only; they must not become the place where pricing, inventory, inquiry, or other module behavior is reimplemented.",
+  "type": "propose"
+}

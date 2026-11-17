@@ -1,0 +1,15 @@
+{
+  "digest": "edbf21eb3f195b0a32efad4359b3b7c9a96a39d2c56a4876f30b510f08097b01",
+  "event_id": "edbf21eb3f195b0a",
+  "evidence": [
+    "docs/releases/release-notes-2026-05-08-kernel-4.4.md:28"
+  ],
+  "lesson_id": "L-75dcc72057",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.098339Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Capabilities tracked: `raw.html`, `cache.invalidate`, `experiment`, `include.dynamic`. Default frame permits all (zero behaviour change). `{untrusted}` is a one-way trapdoor \u2014 `{trusted}` cannot re-elevate inside it. Every denial is audited to JSONL with redacted secrets.",
+  "type": "propose"
+}

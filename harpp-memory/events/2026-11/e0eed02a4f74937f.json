@@ -1,0 +1,15 @@
+{
+  "digest": "e0eed02a4f74937f7eeddb3377098f094719022971d2dd67353c6277b71c63f2",
+  "event_id": "e0eed02a4f74937f",
+  "evidence": [
+    "docs/architecture/evidence-adapter-pattern.md:67"
+  ],
+  "lesson_id": "L-c5e0498f56",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.170666Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "```sql CREATE TABLE evidence_review_decisions ( id, tenant_id, case_id, evidence_snapshot_id, match_id, machine_relationship VARCHAR(255), -- from AISS reviewer_relationship VARCHAR(255), -- human classification reviewer_action VARCHAR(100), -- confirmed, rejected, excluded, flagged reviewer_reason TEXT, reviewer_id, confirmed_at ); ```",
+  "type": "propose"
+}

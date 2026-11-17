@@ -1,0 +1,15 @@
+{
+  "digest": "66e08bb11ba99dc251857ac2e231d8578e086994958aa01dfb92596030a026c6",
+  "event_id": "66e08bb11ba99dc2",
+  "evidence": [
+    "docs/reviews/cms-page-builder-review-2026-10-10.md:144"
+  ],
+  "lesson_id": "L-2abf8d69e7",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.199673Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "`tests/ark_ux_quality_test.php` carried the same blanket ban. Refined to ban **styling** builder output while allowing a theme to **detect** a builder document from its own element \u2014 the exact distinction the chair drew (\"do not ban theme selectors targeting `.cms-builder-document`; that goes too far\").",
+  "type": "propose"
+}

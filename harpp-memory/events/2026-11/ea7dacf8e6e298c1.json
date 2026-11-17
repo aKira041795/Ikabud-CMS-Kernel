@@ -1,0 +1,15 @@
+{
+  "digest": "ea7dacf8e6e298c1dff15468365b88aa37ec97a488bb5d788bbc50ac5a1cb103",
+  "event_id": "ea7dacf8e6e298c1",
+  "evidence": [
+    "docs/ai/harpp-experience-repository.md:122"
+  ],
+  "lesson_id": "L-f6e35a6054",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.141845Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "Ranked by measured pain, not by research elegance. Each item names what makes it doable now.",
+  "type": "propose"
+}

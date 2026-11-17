@@ -1,0 +1,15 @@
+{
+  "digest": "cddfddbc585bff84e4d4f7b8e5ec011a3d90499b476301f630cc264a0b5d4fa3",
+  "event_id": "cddfddbc585bff84",
+  "evidence": [
+    "docs/daily-ledger/VIEWER-SURFACE-ASSESSMENT-PLAN-2026-10-12.md:72"
+  ],
+  "lesson_id": "L-21c2e029c4",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.302584Z",
+  "schema_version": 1,
+  "scope": "daily-ledger",
+  "text": "> **RULE:** a reviewer's claim is not evidence. Each finding below is marked VERIFIED (with > `file:line` or a measured URL) or CLAIM (must be checked before implementing).",
+  "type": "propose"
+}

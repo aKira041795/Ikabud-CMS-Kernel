@@ -1,0 +1,15 @@
+{
+  "digest": "049a67cb37738ad86bd49fe46aa6fda11b3130e76a4b3d7ebcb8e646a2a8283c",
+  "event_id": "049a67cb37738ad8",
+  "evidence": [
+    "docs/reviews/perf-metrics-2026-10-10.md:926"
+  ],
+  "lesson_id": "L-2bb57591b6",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.425356Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Round 1 was rejected, and the brief was why \u2014 the lesson this section exists for",
+  "type": "propose"
+}

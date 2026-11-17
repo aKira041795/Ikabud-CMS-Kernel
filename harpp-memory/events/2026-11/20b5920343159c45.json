@@ -1,0 +1,15 @@
+{
+  "digest": "20b5920343159c45dc0b329678175343dec50b06ad87d2a5e909766c8b656066",
+  "event_id": "20b5920343159c45",
+  "evidence": [
+    "docs/pal/pal-ark-workbench-architecture-plan.md:1409"
+  ],
+  "lesson_id": "L-7fb19d1d6f",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.029509Z",
+  "schema_version": 1,
+  "scope": "pal",
+  "text": "Theme Studio must not merely show locked fields and reject them on save. Prefer:",
+  "type": "propose"
+}

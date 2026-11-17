@@ -1,0 +1,15 @@
+{
+  "digest": "d3c27064fea8ab2c7aba0faa05a8b30959499224c76195a8a00695c099633803",
+  "event_id": "d3c27064fea8ab2c",
+  "evidence": [
+    "docs/cms/render-schema-context-profiles-plan.md:493"
+  ],
+  "lesson_id": "L-c087b4f61c",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.279499Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "`bootstrap.php` - `kernel/App.php` - `modules/cms/helpers/78-public-context.php` - `modules/ecommerce/helpers/00-init.php` - `kernel/DiSyL/TemplateEngine.php` - DiSyL linter/CLI files",
+  "type": "propose"
+}

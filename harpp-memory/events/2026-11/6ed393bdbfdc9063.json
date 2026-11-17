@@ -1,0 +1,15 @@
+{
+  "digest": "6ed393bdbfdc906379f6a3d9e2a8ce640eface4d3fe948180d76e76f5b5c0eb9",
+  "event_id": "6ed393bdbfdc9063",
+  "evidence": [
+    "docs/reviews/perf-metrics-2026-10-10.md:1278"
+  ],
+  "lesson_id": "L-c5a50b43ce",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.459093Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "**Translating the two shipped changes to live (extrapolation, clearly labelled as such).** Applying the *percentages* to the live phase costs gives roughly -2.5 ms on `route_merge` and -4.2 ms on `route_match`, i.e. **~6.7 ms, about 14% of dispatch**. This is arithmetic on percentages, not a live measurement \u2014 the local and live hosts differ by ~3x on this phase.",
+  "type": "propose"
+}

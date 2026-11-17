@@ -1,0 +1,15 @@
+{
+  "digest": "1cedf5ea7c32237e6165ea4f224b75360f4b9b7aec9441cf4c8dd64984594675",
+  "event_id": "1cedf5ea7c32237e",
+  "evidence": [
+    "docs/daily-ledger/business-analysis-2026-10-11.md:96"
+  ],
+  "lesson_id": "L-4640667947",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.316350Z",
+  "schema_version": 1,
+  "scope": "daily-ledger",
+  "text": "4. Loss \u2014 the largest controllable number, and the one the pages do not total",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "b2e88a772689cf5151e0b8c8ee6b1b75d8a3c8567c6781cc5fe395459558ceb0",
+  "event_id": "b2e88a772689cf51",
+  "evidence": [
+    "docs/engineering/lane-event-log-and-policy.md:194"
+  ],
+  "lesson_id": "L-4a585c6ee4",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.416172Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "`tools/lane-autonomy.py` runs a task and then a bounded number of repair attempts, feeding the previous attempt's failure bundle back into the next prompt. It stops on a repeated identical failure, a policy violation, an exhausted model, or the attempt limit, and it never merges or pushes. A zero lane exit without `completion = PASS` is not treated as success.",
+  "type": "propose"
+}

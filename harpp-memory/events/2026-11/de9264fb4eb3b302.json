@@ -1,0 +1,15 @@
+{
+  "digest": "de9264fb4eb3b302a391a0025961cfb2770c39356595d505f0083c13ab0c8664",
+  "event_id": "de9264fb4eb3b302",
+  "evidence": [
+    "docs/workbench/development-control-plane-migration.md:132"
+  ],
+  "lesson_id": "L-2ae7175e25",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.633495Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Every surface in section 1 receives exactly one classification. This is the baseline (verified against the code above) and the contract for Phase 1: **Phase 1 must not deviate from it except by a separately approved task.**",
+  "type": "propose"
+}

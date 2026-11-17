@@ -1,0 +1,15 @@
+{
+  "digest": "2dd9bede73a639bc914b8e1e33372739f8e1589d2d3aca9069e70d65bc5e6b64",
+  "event_id": "2dd9bede73a639bc",
+  "evidence": [
+    "docs/kernel/tenancy-roadmap.md:276"
+  ],
+  "lesson_id": "L-4bf81ecd08",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.840746Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": ": - Token minted on tenant A is rejected on tenant B (host mismatch). - Login/logout/refresh flows continue working within the same tenant.",
+  "type": "propose"
+}

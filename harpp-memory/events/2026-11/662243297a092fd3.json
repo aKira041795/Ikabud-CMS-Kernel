@@ -1,0 +1,15 @@
+{
+  "digest": "662243297a092fd328e978e248b5cf1e17cadde18e16dd08dccb4f2f66ead8ae",
+  "event_id": "662243297a092fd3",
+  "evidence": [
+    "docs/daily-ledger/HANDOFF-2026-10-11.md:343"
+  ],
+  "lesson_id": "L-7a529c66eb",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.296510Z",
+  "schema_version": 1,
+  "scope": "daily-ledger",
+  "text": "Measured (`tools/probe-forecast-censored-demand.php`, tenant 207, 2026-09-28..2026-10-11)",
+  "type": "propose"
+}

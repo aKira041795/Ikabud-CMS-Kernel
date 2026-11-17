@@ -1,0 +1,15 @@
+{
+  "digest": "aa2348877ff1a595084a14656b8956962b9a5a0f4c39444cb035c71d1c45ecb3",
+  "event_id": "aa2348877ff1a595",
+  "evidence": [
+    "docs/cms/cms-performance-and-scalability.md:73"
+  ],
+  "lesson_id": "L-d25af9adba",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.234263Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "No other CMS does this at the PHP level \u2014 all bootstrap the full framework first, then check cache. Ikabud checks cache first, boots only on miss.",
+  "type": "propose"
+}

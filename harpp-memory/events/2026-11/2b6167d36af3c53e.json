@@ -1,0 +1,15 @@
+{
+  "digest": "2b6167d36af3c53ea3170cb388ae14995f3c69b1ce0add017eb185fcec341fc6",
+  "event_id": "2b6167d36af3c53e",
+  "evidence": [
+    "docs/reviews/mobile-api-platform-implementation-plan-2026-07-10.md:234"
+  ],
+  "lesson_id": "L-0e9ade8cfc",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.281647Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "`bootstrap.php` \u2014 add `kernel_is_api_request()`, dual handler (exception + shutdown)",
+  "type": "propose"
+}

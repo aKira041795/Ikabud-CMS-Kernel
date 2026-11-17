@@ -1,0 +1,15 @@
+{
+  "digest": "2822bb9e3e748e47d6789ac4c3d0b7271f3a728992c2a21a6a7f0e5dae9fb3b4",
+  "event_id": "2822bb9e3e748e47",
+  "evidence": [
+    "tests/disyl_v44_sandbox_test.php:172"
+  ],
+  "lesson_id": "L-cf93987ad4",
+  "proposed_by": "harvest",
+  "reason": "gate",
+  "recorded_at": "2026-11-17T13:22:45.438966Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "engine: trusted inside sandbox re-allows raw",
+  "type": "propose"
+}

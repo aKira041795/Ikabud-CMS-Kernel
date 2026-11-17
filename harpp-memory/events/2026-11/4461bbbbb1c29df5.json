@@ -1,0 +1,15 @@
+{
+  "digest": "4461bbbbb1c29df5735a942ca8993e6aa9b8bd1083bde0feb3de2facc3669ec2",
+  "event_id": "4461bbbbb1c29df5",
+  "evidence": [
+    "docs/cms/cms-modularization-execution-plan.md:11"
+  ],
+  "lesson_id": "L-8ab2df8e28",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.220520Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "Global Release Gates (apply to every phase) 1. `php ikabud architecture:check` passes. 2. Manifest validators pass for changed modules. 3. Tenant-isolation regression checks pass. 4. Capability backward-compatibility checks pass. 5. No new criticals in app/error logs. 6. Rollback procedure tested in non-production environment.",
+  "type": "propose"
+}

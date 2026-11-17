@@ -1,0 +1,15 @@
+{
+  "digest": "c0c358bdc852234a02c62c64b77e103ec0832eebd52393988da50b73c3089430",
+  "event_id": "c0c358bdc852234a",
+  "evidence": [
+    "docs/kernel/module-developer-guide.md:128"
+  ],
+  "lesson_id": "L-484d7fb2b1",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.679126Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "require_once __DIR__ . '/handlers/00-bootstrap.php'; require_once __DIR__ . '/handlers/10-pages.php'; require_once __DIR__ . '/handlers/20-api.php'; ```",
+  "type": "propose"
+}

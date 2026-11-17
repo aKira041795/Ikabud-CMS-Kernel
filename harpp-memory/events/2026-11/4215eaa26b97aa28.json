@@ -1,0 +1,15 @@
+{
+  "digest": "4215eaa26b97aa282deae876b3a2bfc7c94e00db08ea8f7d18e7a1242ea2640a",
+  "event_id": "4215eaa26b97aa28",
+  "evidence": [
+    "docs/workbench/test-contract-v1.md:15"
+  ],
+  "lesson_id": "L-f08b1ff733",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.665300Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Every observation must retain `module`, `action`, `step`, `tenant`, `role`, `environment`, and `outcome`. Supported outcomes include `passed`, `failed`, `blocked`, `skipped`, and `censored`; absence of evidence is never silently converted to success.",
+  "type": "propose"
+}

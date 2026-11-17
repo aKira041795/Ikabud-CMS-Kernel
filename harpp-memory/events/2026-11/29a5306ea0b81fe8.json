@@ -1,0 +1,15 @@
+{
+  "digest": "29a5306ea0b81fe8ce552234944ad63a82e04985c2dd57d2a87733dfcfbcc52d",
+  "event_id": "29a5306ea0b81fe8",
+  "evidence": [
+    "docs/daily-ledger/three-owner-concerns-2026-11-17.md:120"
+  ],
+  "lesson_id": "L-828fccd409",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.333133Z",
+  "schema_version": 1,
+  "scope": "daily-ledger",
+  "text": "a bounded design pass first \u2014 the correction is a money-and-stock mutation spanning two branches, which is exactly the class the repository rules say must not be improvised inside an implementation lane.",
+  "type": "propose"
+}

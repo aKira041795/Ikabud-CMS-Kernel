@@ -1,0 +1,15 @@
+{
+  "digest": "33213285bd33d2fbed2a35f37bbff4a90716556ddcf392aa9ad007be4fe4b7d5",
+  "event_id": "33213285bd33d2fb",
+  "evidence": [
+    "docs/reviews/baronledger-db-audit-2026-10-10/README.md:69"
+  ],
+  "lesson_id": "L-8ca0792b79",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.177073Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "**~119,000 variance-flag ids were consumed since mid-August while only 982 rows survive.** Variance flags are being created and deleted in large batches \u2014 a recompute or a re-import \u2014 and **the notifications are never cleaned up with them.**",
+  "type": "propose"
+}

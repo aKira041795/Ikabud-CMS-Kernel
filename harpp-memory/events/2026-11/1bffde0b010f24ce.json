@@ -1,0 +1,15 @@
+{
+  "digest": "1bffde0b010f24ceb8189d7f72d30fc3aa641debc62aa6f40a9fdba1d1ce39a5",
+  "event_id": "1bffde0b010f24ce",
+  "evidence": [
+    "docs/reviews/cms-user-review-2026.md:160"
+  ],
+  "lesson_id": "L-84f97d217a",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.242168Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "2. Stabilize settings/module-context access patterns. - Action: provide one supported bootstrap path for CLI/operator scripts; fail with explicit guidance instead of fatal errors. - Success metric: zero recurring \"undefined function\" helper-context fatals in error logs for 30 days.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "41b5f2882752583d6f7a889b3937d2dbd4482c9241f8d17609b1d956f5ac2709",
+  "event_id": "41b5f2882752583d",
+  "evidence": [
+    "docs/evaluations/kernel-disyl-architecture-evaluation-2026-04-15.md:375"
+  ],
+  "lesson_id": "L-33c030c329",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.500620Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "| # | Gap | Severity | Detail | |---|-----|----------|--------| | K69 | getBaseDomain() is dead code | Low | Defined but never called | | K70 | img-src includes `https:` | Medium | Overly permissive \u2014 allows images from any HTTPS origin | | K71 | connect-src 'self' may break external frontend API calls | Low | Intentionally restrictive |",
+  "type": "propose"
+}

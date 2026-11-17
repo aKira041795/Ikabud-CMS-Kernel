@@ -1,0 +1,15 @@
+{
+  "digest": "105e144886eaa314ea80b63237512507c3a9896c6b2eb8eba3e7c2346770ac00",
+  "event_id": "105e144886eaa314",
+  "evidence": [
+    "docs/kernel/disyl-overview.md:191"
+  ],
+  "lesson_id": "L-579924ceec",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.629906Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Because DiSyL is part of the kernel, modules do not need to invent their own rendering story. Module authors can rely on the same runtime for CMS pages, admin pages, entity displays, shared components, and interactive fragments.",
+  "type": "propose"
+}

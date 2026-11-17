@@ -1,0 +1,15 @@
+{
+  "digest": "a4a8c31b20440cf95179ef1adda51fd15aa221b2865b00594b6bdbdf1662d729",
+  "event_id": "a4a8c31b20440cf9",
+  "evidence": [
+    "docs/reviews/perf-metrics-2026-10-10/sol-fix-verification.md:71"
+  ],
+  "lesson_id": "L-712d12df7f",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.370831Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "`probe-output-diff.php` \u2014 renders all 555 templates and prints `template<tab>sha256(output)`. Run on both trees and diff. This is what caught the regression. - `probe-render-one.php` \u2014 renders one template to stdout for a readable before/after HTML diff.",
+  "type": "propose"
+}

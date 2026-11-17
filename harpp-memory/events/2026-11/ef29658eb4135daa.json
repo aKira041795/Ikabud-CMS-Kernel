@@ -1,0 +1,15 @@
+{
+  "digest": "ef29658eb4135daa26ddbe272551f1554264afbf1891d45f18b0ef2de6bd5795",
+  "event_id": "ef29658eb4135daa",
+  "evidence": [
+    "docs/engineering/lane-harness-issue.md:455"
+  ],
+  "lesson_id": "L-c35ec0a44f",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.433442Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "The host cleared on its own, and **no code change was needed for any of it to run.** Measured 2026-10-04:",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "b78508067d41348e0e5cffd64630ff1b06df9f6caa8eab1cde4c81bebd471ff0",
+  "event_id": "b78508067d41348e",
+  "evidence": [
+    "docs/cms/render-schema-spec-v1.md:164"
+  ],
+  "lesson_id": "L-7c64e8d3a9",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.281098Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "use ownership only for top-level business roots that should have one stable producer - do not use ownership for shared shell or composition roots such as `page_title`, `storefront`, `theme_style_url`, or render metadata fields - non-owning modules should not overwrite owned roots; Render Schema v1 should log violations rather than fail requests",
+  "type": "propose"
+}

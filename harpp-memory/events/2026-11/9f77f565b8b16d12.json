@@ -1,0 +1,15 @@
+{
+  "digest": "9f77f565b8b16d1263c33a38cd2e8d4cf215ec462c719ca87ff94ee0fa1ca769",
+  "event_id": "9f77f565b8b16d12",
+  "evidence": [
+    "docs/reviews/production-deployment-readiness-assessment-2026-08-05.md:95"
+  ],
+  "lesson_id": "L-c68127cdb4",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.494510Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "`bootstrap.php` (~2,900 lines) **Purpose:** Application bootstrap \u2014 environment loading, path constants, error handling, session configuration, request context store, CSP nonce, redirect validation.",
+  "type": "propose"
+}

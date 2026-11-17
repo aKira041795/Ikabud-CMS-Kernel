@@ -1,0 +1,15 @@
+{
+  "digest": "c7d609bde45c91070c4bc7d7bbfb27988fdbcce435bdb5439191ce3b09507e62",
+  "event_id": "c7d609bde45c9107",
+  "evidence": [
+    "docs/reviews/kernel-modular-runtime-evidence-2026-07-24.md:481"
+  ],
+  "lesson_id": "L-e3ae8e012e",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.274106Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "7 measured optimization layers: catalog query cache (70\u2013187\u00d7 speedup), page-level output cache, DiSyL extends cache, stock gate, OPcache, APCu, fast-path pre-bootstrap cache",
+  "type": "propose"
+}

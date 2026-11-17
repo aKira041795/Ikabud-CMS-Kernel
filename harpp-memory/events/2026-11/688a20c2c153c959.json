@@ -1,0 +1,15 @@
+{
+  "digest": "688a20c2c153c9599b3400804f3fc5bb565c67767e832084c934d27bc4412557",
+  "event_id": "688a20c2c153c959",
+  "evidence": [
+    "docs/dc-cafe/pos-inventory-alignment-review.md:89"
+  ],
+  "lesson_id": "L-d024c3c25b",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.343670Z",
+  "schema_version": 1,
+  "scope": "dc-cafe",
+  "text": "``` x-show=\"p.has_stock && p.current_stock <= 5\" ``` Soft-serve, cone and all BOM products (`has_stock = 0`) render **no badge at all**. The cashier only discovers the problem at checkout. Cards are never disabled (`@click=\"addToCart(p)\"` is ungated).",
+  "type": "propose"
+}

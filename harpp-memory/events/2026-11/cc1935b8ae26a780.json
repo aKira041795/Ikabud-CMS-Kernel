@@ -1,0 +1,15 @@
+{
+  "digest": "cc1935b8ae26a78075c9416c209db98b67ed68c216311b5b7f9f928f4626abb1",
+  "event_id": "cc1935b8ae26a780",
+  "evidence": [
+    "docs/ai/harpp-experience-repository.md:23"
+  ],
+  "lesson_id": "L-8ecdb05bb1",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.139891Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "So the first question was not \"what do we build\" but **\"what already exists here?\"** Measured:",
+  "type": "propose"
+}

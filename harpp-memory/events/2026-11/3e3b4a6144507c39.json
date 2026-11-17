@@ -1,0 +1,15 @@
+{
+  "digest": "3e3b4a6144507c392b2c81cfb9b5ba3d7ba472511476a337e10e45a16dd27f8c",
+  "event_id": "3e3b4a6144507c39",
+  "evidence": [
+    "docs/daily-ledger/three-owner-concerns-2026-11-17.md:25"
+  ],
+  "lesson_id": "L-a118f3004c",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.329210Z",
+  "schema_version": 1,
+  "scope": "daily-ledger",
+  "text": "`$drNumber` was **never persisted** in this path \u2014 it appeared in exactly two places, the guard and the echoed response. `dl_recordConsigneeReturn()` does not take it. Nothing downstream keyed on it, so this is a rule removal, not a data-model change.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "af0fb57d2a3926ef1acae891a9f266d62a902b9f7559aca0552efbce5563ebfd",
+  "event_id": "af0fb57d2a3926ef",
+  "evidence": [
+    "docs/cms/render-schema-context-profiles-plan.md:292"
+  ],
+  "lesson_id": "L-ec2adf8ce2",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.277849Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "`bootstrap.php` - `kernel/App.php` - `modules/cms/helpers/78-public-context.php` - `modules/ecommerce/helpers/00-init.php`",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "0fb7f08b9f5dd591dd5f72cbb4856fd5233b44dffc912d96deda7fd2e2ab3326",
+  "event_id": "0fb7f08b9f5dd591",
+  "evidence": [
+    "docs/reviews/daily-ledger-area-rollout-plan-2026-10-10.md:153"
+  ],
+  "lesson_id": "L-0b6da621a7",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.252034Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "Baselines captured against the **unchanged** data before touching supply fields. - Every acceptance criterion measured against the current tree first; a criterion that already passes cannot discriminate the change. - Admin scope: prove BOTH directions \u2014 that scoping filters correctly, and that it does **not** reduce a cashier's or production user's authorization.",
+  "type": "propose"
+}

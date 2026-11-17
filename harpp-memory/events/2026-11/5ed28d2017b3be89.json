@@ -1,0 +1,15 @@
+{
+  "digest": "5ed28d2017b3be892294a46512630f69651cfa701b02c6f80ca25a7a28eb7d24",
+  "event_id": "5ed28d2017b3be89",
+  "evidence": [
+    "docs/demo/architecture-explainer.md:111"
+  ],
+  "lesson_id": "L-662ab6b4d9",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.346330Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "Modules do not import each other's classes. They call capabilities by ID. This means a module can be replaced, upgraded, or removed without affecting other modules, as long as the capability contract is preserved.",
+  "type": "propose"
+}

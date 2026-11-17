@@ -1,0 +1,15 @@
+{
+  "digest": "ebe096c6ff8251850d03bad7851361fe5cdf3a4abc27743dadc4c91ae59e0d12",
+  "event_id": "ebe096c6ff825185",
+  "evidence": [
+    "docs/kernel/kernel-os-6.3-platform-truth-plan-2026-10-12.md:14"
+  ],
+  "lesson_id": "L-f3612b1c33",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.649925Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "DiSyL release number: determine separately from actual compiler/template changes \u2014 do not force a language version bump for a kernel-only cycle. - Feature-module tracks (daily-ledger and others) continue independently; this cycle does not displace them. - Constraints unchanged: Bluehost shared hosting, MySQL 5.7, no new infrastructure services, running multi-tenant production.",
+  "type": "propose"
+}

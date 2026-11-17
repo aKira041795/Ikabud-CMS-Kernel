@@ -1,0 +1,15 @@
+{
+  "digest": "ed22215a99abf8a5f234cb0ca5b7db301fc3434c6f5fdd95e25ece1bfb085976",
+  "event_id": "ed22215a99abf8a5",
+  "evidence": [
+    "docs/reviews/kernel-modular-runtime-evidence-2026-07-24.md:195"
+  ],
+  "lesson_id": "L-faf4277d40",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.272030Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "```json // modules/ecommerce/module.json \"events\": { \"emits\": [ \"ecommerce.order.created\", \"ecommerce.order.paid\", \"ecommerce.order.shipped\", \"ecommerce.order.refunded\", \"ecommerce.order.cancelled\", \"ecommerce.return.requested\", \"ecommerce.return.approved\", \"ecommerce.return.rejected\" ] } ```",
+  "type": "propose"
+}

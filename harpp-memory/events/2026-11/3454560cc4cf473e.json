@@ -1,0 +1,15 @@
+{
+  "digest": "3454560cc4cf473e50994aec093aa01b9a2ed36f7a6472a98ff32c694f7d1d0f",
+  "event_id": "3454560cc4cf473e",
+  "evidence": [
+    "docs/engineering/lane-harness-issue.md:160"
+  ],
+  "lesson_id": "L-ea4579c6c8",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.420474Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Every one of the seven original bugs was found by accident or by an external reviewer \u2014 never by the tool. That is what let this class of bug keep coming back.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "c0a1af45e74edec62c73ff3c77f8e675d8b268c4a62c487e3cb78bd5abc59d72",
+  "event_id": "c0a1af45e74edec6",
+  "evidence": [
+    "docs/cms/cms-migration-bridge.md:495"
+  ],
+  "lesson_id": "L-4ecfc063f5",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.216620Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "The downloaded file contains the full API token in plaintext. Treat it as a credential. - Do not commit the companion plugin to public version control. - If the token is exposed, rotate it immediately and re-download.",
+  "type": "propose"
+}

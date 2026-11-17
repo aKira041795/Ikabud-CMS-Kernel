@@ -1,0 +1,15 @@
+{
+  "digest": "f5812b8626de781fb97e7731b1cbae964c788a354b9532d9c1d8288f177e6e47",
+  "event_id": "f5812b8626de781f",
+  "evidence": [
+    "docs/evaluations/performance-optimization-summary-2026-04-16.md:146"
+  ],
+  "lesson_id": "L-8112579a64",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.509710Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "> Shopping journey p50 is **2ms** \u2014 repeated product page views within the 180s ecommerce TTL hit the fast-path and never touch the kernel.",
+  "type": "propose"
+}

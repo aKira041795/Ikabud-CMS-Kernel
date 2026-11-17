@@ -1,0 +1,15 @@
+{
+  "digest": "6170c40e943d29545376de19d7d995c3775aad028496ee8a3657767f352f516c",
+  "event_id": "6170c40e943d2954",
+  "evidence": [
+    ".github/instructions/ai-development-execution-handoff.instructions.md:794"
+  ],
+  "lesson_id": "L-8d85b7a891",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.952138Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "Do not reread the entire repository unless evidence indicates that additional context is necessary.",
+  "type": "propose"
+}

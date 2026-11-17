@@ -1,0 +1,15 @@
+{
+  "digest": "71e322f0e8bc2b97229925d8c4e8e89e50f81f98bd633a88ef072432c930af37",
+  "event_id": "71e322f0e8bc2b97",
+  "evidence": [
+    "docs/evaluations/ikabud-kernel-technical-evaluation-2026-04-10.md:58"
+  ],
+  "lesson_id": "L-2eee0675e8",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.487860Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "`bootstrap.php` for environment loading, helpers, autoloading, and app bootstrap - `public/index.php` for front-controller routing and request dispatch - `kernel/App.php` for core runtime services",
+  "type": "propose"
+}

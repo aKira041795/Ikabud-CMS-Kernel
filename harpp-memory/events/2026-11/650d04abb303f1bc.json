@@ -1,0 +1,15 @@
+{
+  "digest": "650d04abb303f1bc32fcdad60d0f44321727d1186db56874c1e9ad02b8e6dce0",
+  "event_id": "650d04abb303f1bc",
+  "evidence": [
+    "docs/kernel/module-development-guide.md:535"
+  ],
+  "lesson_id": "L-65d068d731",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.716524Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "a module is placed under `modules/<suite>/<id>/` only when `--suite` is passed explicitly **or** an existing suite namespace folder (`modules/<suite>/` without a `module.json`) matches the id prefix. Arbitrary hyphenated ids that are not suite members (e.g. `cli-test-tmp`, `golden-module-<hex>`) are always installed flat at `modules/<id>/` \u2014 the scaffolder never invents a suite folder for them.",
+  "type": "propose"
+}

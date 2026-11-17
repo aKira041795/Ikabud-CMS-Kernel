@@ -1,0 +1,15 @@
+{
+  "digest": "f97b1c6f9206817b24e4fd7cd031fda2019675c596ce4b08e575c7c6de735a59",
+  "event_id": "f97b1c6f9206817b",
+  "evidence": [
+    "docs/workbench/ai-pattern-intelligence-roadmap.md:402"
+  ],
+  "lesson_id": "L-fa0d48524d",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.585291Z",
+  "schema_version": 1,
+  "scope": "ai",
+  "text": "root cause top-1 and top-3 accuracy; - evidence citation accuracy; - unsupported claim rate; - false-positive and false-negative rate; - correct abstention rate; - confidence calibration; - proposed-test validity and executability; - defect discovery uplift over deterministic ranking; - cost and latency; - reproducibility across repeated runs.",
+  "type": "propose"
+}

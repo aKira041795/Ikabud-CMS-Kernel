@@ -1,0 +1,15 @@
+{
+  "digest": "05fce4f2fd4f3eb9c6aeb696dc96a19d76a969af19e898072e45b30bdd160668",
+  "event_id": "05fce4f2fd4f3eb9",
+  "evidence": [
+    "docs/evaluations/ikabud-kernel-action-plan-2026-04-10.md:28"
+  ],
+  "lesson_id": "L-72c76840e5",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.452044Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "a thinner `public/index.php` that delegates request bootstrap, core route registration, and dispatch orchestration - a smaller `kernel/App.php` with core services extracted behind narrow APIs - a decomposed `src/helpers/module-manager.php` split by concern - aligned runtime and license metadata across docs and package metadata - contributor-facing docs for setup, tests, tenancy, and stable extension contracts",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "a52855e5cf46dd9aa254c55cffef11d5c86316868061a5c87d2b4a9587a9ef0d",
+  "event_id": "a52855e5cf46dd9a",
+  "evidence": [
+    "docs/workbench/competitive-roadmap.md:77"
+  ],
+  "lesson_id": "L-c25d41476e",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.613647Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Critical golden-defect detection: 100%. - Root cause appears in top three for at least 85% of verified cases. - False-positive rate below 5%. - Observation identity completeness: 100%. - Identical recorded inputs produce identical deterministic plans.",
+  "type": "propose"
+}

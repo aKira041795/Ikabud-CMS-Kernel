@@ -1,0 +1,15 @@
+{
+  "digest": "38a159287d6a4843971effa94a438b72f87224fa86dd9d25609485ba367c1131",
+  "event_id": "38a159287d6a4843",
+  "evidence": [
+    "docs/daily-ledger/unfinalized-shift-sales-semantics.md:35"
+  ],
+  "lesson_id": "L-04a834c006",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.340335Z",
+  "schema_version": 1,
+  "scope": "daily-ledger",
+  "text": "Even with provenance, inference must be reversible: present the independent next beginning as a candidate for the missing prior ending, retain the original `NULL`, and require an explicit audited confirmation before writing a physical ending. A carried copy must never be used for the inference.",
+  "type": "propose"
+}

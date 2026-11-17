@@ -1,0 +1,15 @@
+{
+  "digest": "9485accab082100c1be13c024317c2d70ec82914995468aa6c1b118091379afc",
+  "event_id": "9485accab082100c",
+  "evidence": [
+    "docs/reviews/cms-page-builder-review-2026-10-10.md:98"
+  ],
+  "lesson_id": "L-82001098a2",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.195078Z",
+  "schema_version": 1,
+  "scope": "cms",
+  "text": "Computed result for ARK is identical (verified: the only other `max-width` rules in ARK target `.ark-topbar__inner`, `.ark-content-area`, `.ark-content--standalone`, `.ark-region-footer__inner`, `.ark-region-footer-bar__inner` \u2014 none is a section). Non-ARK themes never declared the token, so the `none` fallback plus `width: 100%` resolves the auto margins to zero \u2014 a no-op.",
+  "type": "propose"
+}

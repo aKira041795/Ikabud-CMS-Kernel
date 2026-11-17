@@ -1,0 +1,15 @@
+{
+  "digest": "b257de44886c9a611b6137350c900aadb40687c3440e417801ce58a9cb37c527",
+  "event_id": "b257de44886c9a61",
+  "evidence": [
+    ".github/instructions/ui-ux-conventions.instructions.md:48"
+  ],
+  "lesson_id": "L-9a52186907",
+  "proposed_by": "harvest",
+  "reason": "ui-ux",
+  "recorded_at": "2026-11-17T13:22:44.984627Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "group the underlying rows by the record's real key (document number + date + origin), then assert group count \u226a row count on real data. Measured here: 219 delivery rows \u2192 32 DR groups.",
+  "type": "propose"
+}

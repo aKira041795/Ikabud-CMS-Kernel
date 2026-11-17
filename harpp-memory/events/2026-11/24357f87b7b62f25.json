@@ -1,0 +1,15 @@
+{
+  "digest": "24357f87b7b62f259490bc7b9960eb27d19fc2e6334aa923fb0d924765b750c1",
+  "event_id": "24357f87b7b62f25",
+  "evidence": [
+    "docs/evaluations/ikabud-kernel-security-architecture-evaluation-2026-04-10.md:129"
+  ],
+  "lesson_id": "L-d433c7643f",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.479033Z",
+  "schema_version": 1,
+  "scope": "security",
+  "text": "The JWT class supports a `token_version` claim and `verify()` accepts an optional `expectedTokenVersion` parameter. However, `kernelHandleAuthLogin()` never includes `token_version` in the JWT payload, and no code increments a user's version counter on password change. This means all existing tokens remain valid after a password change until they expire naturally (up to 24 hours).",
+  "type": "propose"
+}

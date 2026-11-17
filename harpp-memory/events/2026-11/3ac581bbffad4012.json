@@ -1,0 +1,15 @@
+{
+  "digest": "3ac581bbffad4012fe6d2e915481fe3154aeaeb37d4656511fee059b3fdcf9db",
+  "event_id": "3ac581bbffad4012",
+  "evidence": [
+    "docs/evaluations/ikabud-kernel-refactor-baseline-2026-04-10.md:29"
+  ],
+  "lesson_id": "L-0f40c38d62",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.476962Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Run this set for every PR that touches `bootstrap.php`, `public/index.php`, `kernel/App.php`, or `src/helpers/module-manager.php`.",
+  "type": "propose"
+}

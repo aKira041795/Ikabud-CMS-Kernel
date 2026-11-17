@@ -1,0 +1,15 @@
+{
+  "digest": "7f785ecf8fd8bd46e6e7d76930de3fc70a278b0e8b20d91ed59d6942d0f67826",
+  "event_id": "7f785ecf8fd8bd46",
+  "evidence": [
+    "docs/reviews/sol-production-attribution-2026-10-11.md:303"
+  ],
+  "lesson_id": "L-0e96e58767",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.505555Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "figure: \"Rizal: 0 produced, 0 wastage\" problem: Same structural-zero attribution defect. likely_owner_conclusion: No production and no waste were measured.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "20b66e841529bf2b5cdd0ef2ea9c7dd8c8f8e3d6659dd32d45437a51de0e7a49",
+  "event_id": "20b66e841529bf2b",
+  "evidence": [
+    "docs/evaluations/ikabud-kernel-technical-evaluation-2026-04-10.md:315"
+  ],
+  "lesson_id": "L-c35ba2647e",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.496113Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Split `public/index.php` into dedicated request bootstrap, route registration, and handler layers - Reduce the surface area of `kernel/App.php` by extracting focused services - Break up `src/helpers/module-manager.php` into discovery, registry, settings, and dispatch concerns",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "c5954100a5a5c710689e8100aa9917656ed042234a51dc2ee2020984342db2aa",
+  "event_id": "c5954100a5a5c710",
+  "evidence": [
+    "docs/daily-ledger/HANDOFF-2026-10-11.md:314"
+  ],
+  "lesson_id": "L-e309467fa5",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.294862Z",
+  "schema_version": 1,
+  "scope": "daily-ledger",
+  "text": "divide forecast demand by the branch's recorded days for that shift, not the product's own row-days. **Falsifier that would reverse it:** a measurement showing a branch records a shift it did not trade \u2014 then an absent product is unreported, not a measured zero, and the denominator must fall back to product row-days.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "573d53bd402a0a3f51740cda69714254b2c7a72e0882d73437a4f487fb9824e9",
+  "event_id": "573d53bd402a0a3f",
+  "evidence": [
+    "docs/reviews/system-review-2026-07-05.md:37"
+  ],
+  "lesson_id": "L-6745377d88",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.522885Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "These are **existing pre-6.0 patterns**, not regressions. They are documented but not scheduled for remediation.",
+  "type": "propose"
+}

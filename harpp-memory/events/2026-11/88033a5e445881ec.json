@@ -1,0 +1,15 @@
+{
+  "digest": "88033a5e445881ec4e0fa65df1be1d04b5be5930d594a24f3512a0ffcd7cccf1",
+  "event_id": "88033a5e445881ec",
+  "evidence": [
+    "docs/engineering/lane-event-log-and-policy.md:158"
+  ],
+  "lesson_id": "L-03a275d7d5",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.414984Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Checkpointing is non-fatal: a harness that cannot snapshot must not block the work.",
+  "type": "propose"
+}

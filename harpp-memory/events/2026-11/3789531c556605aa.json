@@ -1,0 +1,15 @@
+{
+  "digest": "3789531c556605aa0416301817ab62c4d9200d212c9893bab77ab68b663ee071",
+  "event_id": "3789531c556605aa",
+  "evidence": [
+    "docs/evaluations/ikabud-kernel-action-plan-2026-04-10.md:228"
+  ],
+  "lesson_id": "L-ac80f78b1a",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.466921Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "1. database manager 2. auth context 3. render context factory 4. CSRF service 5. kernel capability bootstrap",
+  "type": "propose"
+}

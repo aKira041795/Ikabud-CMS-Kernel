@@ -1,0 +1,15 @@
+{
+  "digest": "60a615fe15e1040cc480aa2e87605032ff9eafbd9d2455cb3721288ba8f362d0",
+  "event_id": "60a615fe15e1040c",
+  "evidence": [
+    ".github/instructions/ui-ux-conventions.instructions.md:145"
+  ],
+  "lesson_id": "L-77dbf65637",
+  "proposed_by": "harvest",
+  "reason": "ui-ux",
+  "recorded_at": "2026-11-17T13:22:45.003688Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Measured trap A list built from a cumulative-balance filter dropped a product that still had stock, because one historical day went negative. The quantity existed on the sheet and the modal showed nothing at all. Derive visibility from the record's existence, not from a derived total.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "4f47129696f18c7d89437effc693cc29bc98b53a208af92cc538c08c1d06c029",
+  "event_id": "4f47129696f18c7d",
+  "evidence": [
+    "docs/reviews/perf-metrics-2026-10-10.md:943"
+  ],
+  "lesson_id": "L-5aa40f63a2",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.432336Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "4j left one open line: *\"the 72 `interpreted` are \u2026 compiled-ineligible by design (component tags, macros), not a defect\"*. That was an assertion I had not measured, and the trigger list made it worth checking \u2014 `{ikb_}` is the project's **primary entity-view rendering engine**, so \"ineligible by design\" would mean the most-used pages in the app never touch the compiled path.",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "05634d6f52e1b0efccf15f2f6c6254fde603e703cd9f654e8e690dadc7ca0f5f",
+  "event_id": "05634d6f52e1b0ef",
+  "evidence": [
+    "docs/workbench/development-control-plane-migration.md:371"
+  ],
+  "lesson_id": "L-2a1e57a888",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:44.636422Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Verification result artifacts are only accepted when they carry an `hmac-sha256` runner attestation so a caller cannot self-author a pass by echoing public task/Git fields. The shared secret is a deployment configuration, never stored in the artifact or task ledger.",
+  "type": "propose"
+}

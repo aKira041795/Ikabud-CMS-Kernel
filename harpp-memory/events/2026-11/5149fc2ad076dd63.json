@@ -1,0 +1,15 @@
+{
+  "digest": "5149fc2ad076dd63c84bed489b63a26f5fae5341623319473170d4e7b9594bed",
+  "event_id": "5149fc2ad076dd63",
+  "evidence": [
+    "docs/evaluations/kernel-disyl-architecture-evaluation-2026-04-15.md:347"
+  ],
+  "lesson_id": "L-ddc6ccee13",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.499506Z",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "| # | Gap | Severity | Detail | |---|-----|----------|--------| | K65 | Inconsistent immutability | Low | `table()` clones, but all other methods mutate `$this` | | K66 | Column names in where() are unescaped | Low | Standard for query builders but callers must not pass user input as column names |",
+  "type": "propose"
+}

@@ -1,0 +1,15 @@
+{
+  "digest": "922ad057ed85b16c319e606f0bbbde4634e2402cc9af85d1283b591baa04c76b",
+  "event_id": "922ad057ed85b16c",
+  "evidence": [
+    "docs/ecommerce/ecommerce-customizer-entity-view-implementation-spec.md:452"
+  ],
+  "lesson_id": "L-c1cfd984ca",
+  "proposed_by": "harvest",
+  "reason": "harvested",
+  "recorded_at": "2026-11-17T13:22:43.361279Z",
+  "schema_version": 1,
+  "scope": "ecommerce",
+  "text": "Do not combine Phases 2 through 5 into one batch. The contracts need to harden incrementally.",
+  "type": "propose"
+}
