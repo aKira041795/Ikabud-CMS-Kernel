@@ -198,7 +198,12 @@ $h->test(
 );
 $h->test(
     'on-hand is the day\'s physical balance, not the cumulative sum',
-    str_contains($body, 'SUM(beg_qty + produced_qty - dispatched_qty - wastage_qty)'),
+    // OUTCOME, not mechanism: the prefill asks the ONE on-hand definition (the latest carried
+    // balance for that date, or the physical count), and no longer sums the ledger itself.
+    // The old inline SUM also added the carried balance once per SHIFT - 2+4 + 6 = 12 for a
+    // stock of 6 on 2035-09-01 (proved in daily_ledger_commissary_on_hand_test AC2).
+    str_contains($body, 'dl_commissaryOnHandByProduct($db, [$commissaryId], $ledgerDate)')
+        && !str_contains($body, 'SUM(beg_qty + produced_qty - dispatched_qty - wastage_qty)'),
     'a negative historical day would report a stocked product as unusable'
 );
 $h->test(
