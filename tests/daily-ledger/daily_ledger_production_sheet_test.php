@@ -285,7 +285,9 @@ try {
     $h->test('S7c modal opener takes an optional product id and the toolbar stays arg-less',
         str_contains($template, 'function openProductionAdditionModal(productId)')
         && str_contains($template, 'onclick="openProductionAdditionModal()"')
-        && str_contains($template, 'product.value = productId ? String(productId) : \'\''));
+        // The opener preselects the row's product on the entry's FIRST line (the modal is now
+        // one entry for the whole bake, so there is no single product select to set).
+        && str_contains($template, 'productionAddLine(productId || 0)'));
     // These select the padding the rule is about, not the whole class attribute: pinning
     // 'text-right pr-1">BEG<' made the assertion fail the moment the pinned-column work added
     // 'dl-sheet-sticky-beg' to the same token list, which changed no padding at all.

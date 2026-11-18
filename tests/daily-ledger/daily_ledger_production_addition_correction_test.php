@@ -262,10 +262,13 @@ try {
     $handlers = file_get_contents($base . '/modules/daily-ledger/handlers.php');
     $h->test(
         'the modal explains the signed correction (revert leaves the operator with an add-only field)',
+        // Each line of the one entry carries its own signed quantity, so the guidance and the
+        // per-line refusals live in the entry, not in a single quantity input. The client names
+        // the offending line; the server keeps its own capitalised refusal (asserted below).
         str_contains($template, 'put a minus sign first')
-            && str_contains($template, '(optional — required to reduce)')
-            && str_contains($template, "A reason is required to reduce a recorded addition.")
-            && str_contains($template, 'Addition reduced — correction logged')
+            && str_contains($template, 'a reduction must')
+            && str_contains($template, 'a reason is required to reduce a recorded addition.')
+            && str_contains($template, "'Line ' + (i + 1)")
     );
     $h->test(
         'the modal no longer pins the quantity to min="1"',

@@ -89,7 +89,35 @@ missing entry point.
 
 **Falsifier that reopens this:** a commissary recording production that `dl_production_movements`
 does not capture — i.e. an owner report of made stock that is absent from that table after a
-recorded entry. 
+recorded entry.
+
+### Correction — 2026-11-18: the gap was the ENTRY, not the mechanism ✅ DELIVERED
+
+Owner, asked again: *"add OWN PRODUCTION sa mga commissary pra usa ra daw ilang entry same sa mga
+branch."* The analysis above answered a question the owner had not asked. Nothing was missing on
+the write side (the numbers above still hold); what was missing is that the commissary recorded
+**one product per submission** while a branch posts **every line of its own production at once**.
+Recording a day's bake meant opening the modal once per product — literally "one entry" for a
+branch, N entries for a commissary.
+
+Shipped as a BATCH over the same single writer, not a second mechanism:
+
+- `dl_recordProductionAdditionBatch()` wraps `dl_recordProductionAddition()`, which gained
+  `$ownTransaction` so ONE transaction covers every line. A refused line rolls the whole entry back.
+- `POST /daily-ledger/api/v1/commissary/run` with `entity=production_addition` accepts
+  `lines: [{product_id, quantity, reason}]`; the single-product shape is unchanged for the sheet's
+  per-row trigger and its offline replay.
+- The modal is titled **Own Production**, starts with one line, and "+ Add product" appends lines to
+  the same entry. Per-line identity (`<submission>-p<product>`) makes a replayed entry return
+  duplicates instead of double-counting; the same product twice in one entry is refused up front.
+- Acceptance: `tests/daily-ledger/daily_ledger_commissary_own_production_batch_test.php` — 22/22,
+  including "one bad line records NOTHING" and "a replay does not add again".
+
+**Lesson recorded:** the first version of the modal's product list was emitted as
+`var rows = {...}, {...};` (the loop body was not wrapped in an array literal). That is a JS syntax
+error which killed the ENTIRE script block — every sheet function, not just the new one — and the
+DiSyL template linter reported the file as valid. Only the browser caught it. Render the page, do
+not trust the linter for script blocks.
 
 ---
 

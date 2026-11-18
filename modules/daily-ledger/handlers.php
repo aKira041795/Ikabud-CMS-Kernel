@@ -4796,7 +4796,7 @@ function dl_upsertProductionRunYield($db, string $ledgerDate, int $productId, in
  * guard, and two submissions with different ids create two entries. An absent id
  * is minted here and never falls back to a content hash.
  */
-function dl_recordProductionAddition(array $user, array $input): array
+function dl_recordProductionAddition(array $user, array $input, bool $ownTransaction = true): array
 {
     $ctx = module();
     if (!$ctx) {
@@ -4846,7 +4846,11 @@ function dl_recordProductionAddition(array $user, array $input): array
         throw new \RuntimeException('Product is not active for this commissary.');
     }
 
-    $db->beginTransaction();
+    // A multi-line entry (one submission, many products) must land atomically: the batch caller
+    // opens ONE transaction and asks this writer not to own one, because PDO cannot nest them.
+    if ($ownTransaction) {
+        $db->beginTransaction();
+    }
     try {
         if ($shift !== null) {
             $shiftStatus = dl_lockShiftStatusRow($db, $commissaryBranchId, $date, $shift);
@@ -4873,7 +4877,7 @@ function dl_recordProductionAddition(array $user, array $input): array
             $dupStmt->execute([':coid' => $clientOpId]);
             $duplicateId = (int)$dupStmt->fetchColumn();
             if ($duplicateId > 0) {
-                $db->commit();
+                if ($ownTransaction) { $db->commit(); }
                 return [
                     'row' => dl_readCommissaryProductLedgerRow($db, $commissaryBranchId, $productId, $date, $shift),
                     'duplicate' => true,
@@ -4951,7 +4955,7 @@ function dl_recordProductionAddition(array $user, array $input): array
 
             dl_upsertProductionRunYield($db, $date, $productId, $commissaryBranchId, $beforeProduced + $quantity, $actorId, $shift);
             $row = dl_readCommissaryProductLedgerRow($db, $commissaryBranchId, $productId, $date, $shift);
-            $db->commit();
+            if ($ownTransaction) { $db->commit(); }
             return [
                 'row' => $row,
                 'duplicate' => false,
@@ -4975,7 +4979,7 @@ function dl_recordProductionAddition(array $user, array $input): array
         ]);
 
         if (!empty($movement['duplicate'])) {
-            $db->commit();
+            if ($ownTransaction) { $db->commit(); }
             return [
                 'row' => dl_readCommissaryProductLedgerRow($db, $commissaryBranchId, $productId, $date, $shift),
                 'duplicate' => true,
@@ -4986,7 +4990,7 @@ function dl_recordProductionAddition(array $user, array $input): array
 
         dl_upsertProductionRunYield($db, $date, $productId, $commissaryBranchId, $beforeProduced + $quantity, $actorId, $shift);
         $row = dl_readCommissaryProductLedgerRow($db, $commissaryBranchId, $productId, $date, $shift);
-        $db->commit();
+        if ($ownTransaction) { $db->commit(); }
         return [
             'row' => $row,
             'duplicate' => false,
@@ -4994,11 +4998,138 @@ function dl_recordProductionAddition(array $user, array $input): array
             'movement_id' => (int)($movement['movement_id'] ?? 0),
         ];
     } catch (\Throwable $e) {
-        if ($db->inTransaction()) {
+        if ($ownTransaction && $db->inTransaction()) {
             $db->rollBack();
         }
         throw $e;
     }
+}
+
+/**
+ * Record OWN PRODUCTION for several products in ONE entry.
+ *
+ * Owner 2026-11-18: "add OWN PRODUCTION sa mga commissary pra usa ra daw ilang entry same sa mga
+ * branch". The capability already existed - the sheet's Record Addition writes BOTH
+ * dl_commissary_product_ledger.produced_qty and dl_production_movements - but it took ONE product
+ * per submission, while a branch's Own production modal posts every line at once. Recording a
+ * day's bake meant opening the modal once per product.
+ *
+ * This is a BATCH over the same single writer, not a second mechanism: each line goes through
+ * dl_recordProductionAddition(), and one transaction covers them all, so a bad line records
+ * nothing. Identity stays per line (the submission id plus the product), so a replayed batch
+ * returns duplicates instead of double-counting.
+ *
+ * @param list<array{product_id:int|string,quantity:int|string,reason?:string}> $lines
+ * @return array{ok:bool,lines:list<array>,line_count:int,duplicate_count:int}
+ * @throws \RuntimeException on the first invalid line (nothing is recorded)
+ */
+function dl_recordProductionAdditionBatch(array $user, array $input, array $lines): array
+{
+    $ctx = module();
+    if (!$ctx) {
+        throw new \RuntimeException('Module context unavailable');
+    }
+    $db = $ctx->db();
+    $date = (string)($input['date'] ?? '');
+    $commissaryBranchId = (int)($input['commissary_branch_id'] ?? 0);
+    $shift = isset($input['shift']) ? dl_normalizeShift((string)$input['shift']) : null;
+    $submissionId = dl_withdrawalSubmissionId((string)($input['submission_id'] ?? ''));
+    $batchReason = trim((string)($input['reason'] ?? ''));
+
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) || $commissaryBranchId <= 0) {
+        throw new \RuntimeException('Invalid production addition data.');
+    }
+    if ($submissionId === '') {
+        // The batch identity is what makes a retry safe; without it a replayed batch would
+        // record everything twice.
+        throw new \RuntimeException('A submission id is required to record production.', 422);
+    }
+    if ($lines === []) {
+        throw new \RuntimeException('Add at least one product to record.', 422);
+    }
+
+    // Refuse the whole entry up front when a product repeats: two lines for the same product
+    // would each get their own movement identity and silently double the day's output.
+    $seen = [];
+    foreach ($lines as $index => $line) {
+        $pid = (int)($line['product_id'] ?? 0);
+        $qty = (int)($line['quantity'] ?? 0);
+        if ($pid <= 0) {
+            throw new \RuntimeException('Line ' . ($index + 1) . ' has no product.', 422);
+        }
+        if ($qty === 0) {
+            throw new \RuntimeException('Line ' . ($index + 1) . ' has no quantity.', 422);
+        }
+        if (isset($seen[$pid])) {
+            throw new \RuntimeException('The same product appears twice in this entry; record one line per product.', 422);
+        }
+        $seen[$pid] = true;
+    }
+
+    $ownsTxn = !$db->inTransaction();
+    if ($ownsTxn) {
+        $db->beginTransaction();
+    }
+    $results = [];
+    $duplicates = 0;
+    try {
+        foreach ($lines as $index => $line) {
+            $lineInput = [
+                'date' => $date,
+                'commissary_branch_id' => $commissaryBranchId,
+                'shift' => $shift,
+                'product_id' => (int)$line['product_id'],
+                'quantity' => (int)$line['quantity'],
+                'reason' => trim((string)($line['reason'] ?? '')) !== ''
+                    ? (string)$line['reason']
+                    : $batchReason,
+                // Per-line identity: the same batch replayed must not add again, and two
+                // different products in one batch must not collide.
+                'submission_id' => $submissionId . '-p' . (int)$line['product_id'],
+            ];
+            $result = dl_recordProductionAddition($user, $lineInput, false);
+            if (!empty($result['duplicate'])) {
+                $duplicates++;
+            }
+            $results[] = [
+                'product_id' => (int)$line['product_id'],
+                'quantity' => (int)$line['quantity'],
+                'duplicate' => !empty($result['duplicate']),
+                'movement_id' => (int)($result['movement_id'] ?? 0),
+                'row' => $result['row'] ?? null,
+            ];
+        }
+        if ($ownsTxn) {
+            $db->commit();
+        }
+    } catch (\Throwable $e) {
+        if ($ownsTxn && $db->inTransaction()) {
+            $db->rollBack();
+        }
+        throw $e;
+    }
+
+    dl_auditLog(
+        'commissary_production_batch',
+        $commissaryBranchId,
+        'dl_commissary_product_ledger',
+        "{$commissaryBranchId}-{$date}",
+        null,
+        [
+            'line_count' => count($lines),
+            'products' => array_keys($seen),
+            'submission_id' => $submissionId,
+            'duplicate_count' => $duplicates,
+            'shift' => $shift,
+        ]
+    );
+
+    return [
+        'ok' => true,
+        'lines' => $results,
+        'line_count' => count($results),
+        'duplicate_count' => $duplicates,
+    ];
 }
 
 /**
@@ -26553,6 +26684,15 @@ function apiSaveProductionRun(): void
 
     if (($input['entity'] ?? '') === 'production_addition') {
         try {
+            // OWN PRODUCTION as ONE entry (owner 2026-11-18): a `lines` array records the whole
+            // bake in a single submission and a single transaction. The single-product shape is
+            // kept because the sheet's per-row ADDTL trigger and its offline replay post it.
+            $rawLines = $input['lines'] ?? null;
+            if (is_array($rawLines) && $rawLines !== []) {
+                $result = dl_recordProductionAdditionBatch($user, $input, array_values($rawLines));
+                $ctx->json($result);
+                return;
+            }
             $result = dl_recordProductionAddition($user, $input);
             $ctx->json(['ok' => true] + $result);
         } catch (RuntimeException $e) {

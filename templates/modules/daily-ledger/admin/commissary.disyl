@@ -2383,36 +2383,40 @@
          output_pieces_per_batch is NULL for every product on this tenant, so the
          mechanism is inert. It can return if yield profiles are ever configured. -->
     <div id="production-addition-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 p-4 print-hidden" role="dialog" aria-modal="true" aria-labelledby="production-addition-title">
-        <div class="w-full max-w-md rounded-lg bg-white shadow-xl">
-            <div class="card-header"><span id="production-addition-title">Record Addition (ADDTL)</span></div>
+        <div class="w-full max-w-2xl rounded-lg bg-white shadow-xl">
+            <div class="card-header"><span id="production-addition-title">Own Production</span></div>
             <div class="card-body space-y-3">
-                <div class="form-group mb-0">
-                    <label class="form-label">Product</label>
-                    <select id="production-addition-product" class="form-input">
-                        <option value="">-- Select Product --</option>
-                        {foreach daily_sheet_rows as row}
-                        <option value="{row.product_id}">{row.sheet_label}</option>
-                        {/foreach}
-                    </select>
+                {* Owner 2026-11-18: "usa ra ilang entry same sa mga branch". A branch posts every
+                   product it made in ONE submission; this sheet used to take one product per Save, so a
+                   day's bake meant opening the modal once per product. The rows below are one entry. *}
+                <div class="flex items-center justify-between">
+                    <p class="text-sm text-gray-600">Record what this commissary made today. One entry covers every product.</p>
+                    <button type="button" class="btn btn-accent btn-sm print-hidden" id="production-addition-add-line">+ Add product</button>
                 </div>
-                <div class="form-group mb-0">
-                    <label class="form-label">Quantity</label>
-                    <input type="number" step="1" id="production-addition-qty" class="form-input text-right" value="">
-                </div>
-                <div class="form-group mb-0">
-                    <label class="form-label">Reason <span class="text-gray-400">(optional — required to reduce)</span></label>
-                    <input type="text" id="production-addition-reason" class="form-input" maxlength="255" placeholder="e.g. morning bake">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr>
+                                <th class="text-left">Product</th>
+                                <th class="text-right w-32">Quantity</th>
+                                <th class="text-left w-48">Reason <span class="font-normal text-gray-400">(optional)</span></th>
+                                <th class="w-10"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="production-addition-lines"></tbody>
+                    </table>
                 </div>
                 <div class="rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-xs leading-5 text-orange-800">
                     A positive quantity <span class="font-semibold">adds</span> to today's ADDTL. To
                     <span class="font-semibold">reduce</span> an amount recorded too high, put a minus sign first
-                    (e.g. <span class="font-mono font-semibold">-3</span>) and give a reason. Each change is logged
-                    as its own row, so the trail reads: original entry → correction.
+                    (e.g. <span class="font-mono font-semibold">-3</span>) and give a reason: a reduction must
+                    explain itself. The whole entry lands together — if any line is refused, nothing is recorded.
+                    Each change is logged as its own row, so the trail reads: original entry → correction.
                 </div>
                 <div id="production-addition-status" class="text-sm text-rose-600" aria-live="polite"></div>
                 <div class="flex justify-end gap-2">
                     <button type="button" class="btn btn-accent" onclick="closeProductionAdditionModal()">Cancel</button>
-                    <button type="button" class="btn btn-primary" id="production-addition-submit" onclick="submitProductionAddition()">Record Addition</button>
+                    <button type="button" class="btn btn-primary" id="production-addition-submit" onclick="submitProductionAddition()">Record Production</button>
                 </div>
             </div>
         </div>
@@ -2865,12 +2869,13 @@
         if (!modal) return;
         var status = document.getElementById('production-addition-status');
         if (status) status.textContent = '';
-        var qty = document.getElementById('production-addition-qty');
-        if (qty) qty.value = '';
-        var reason = document.getElementById('production-addition-reason');
-        if (reason) reason.value = '';
-        var product = document.getElementById('production-addition-product');
-        if (product) product.value = productId ? String(productId) : '';
+        // One clean line, preselected when the sheet's ADDTL trigger asked for a product. The
+        // modal is ONE entry for the whole bake: "+ Add product" appends lines to the same one.
+        var body = document.getElementById('production-addition-lines');
+        if (body) {
+            body.innerHTML = '';
+            productionAddLine(productId || 0);
+        }
         modal.classList.remove('hidden');
         modal.classList.add('flex');
     }
@@ -2882,21 +2887,116 @@
         modal.classList.remove('flex');
     }
 
+    // ── Own production: ONE entry, many products (owner 2026-11-18) ─────────
+    // The product options are rendered once here and cloned into each line, so adding a row
+    // costs no request and the list can never drift from the sheet's own product set.
+    var PRODUCTION_PRODUCT_OPTIONS = (function () {
+        // Square brackets are load-bearing: the loop emits one `{...},` object per product, so
+        // without the array literal this is `var rows = {...}, {...};` — a syntax error that
+        // kills the ENTIRE script block (every sheet function, not just this one).
+        var rows = [{foreach daily_sheet_rows as row}{ productId: Number('{row.product_id}'), label: '{row.sheet_label | escape_js}' },{/foreach}];
+        return Array.isArray(rows) ? rows : [];
+    }());
+
+    function productionLineRow(selectedProductId) {
+        var tr = document.createElement('tr');
+        tr.className = 'production-addition-line';
+
+        var tdProduct = document.createElement('td');
+        var select = document.createElement('select');
+        select.className = 'form-input mt-0 production-addition-product';
+        var blank = document.createElement('option');
+        blank.value = '';
+        blank.textContent = '-- Select Product --';
+        select.appendChild(blank);
+        var products = Array.isArray(PRODUCTION_PRODUCT_OPTIONS) ? PRODUCTION_PRODUCT_OPTIONS : [];
+        products.forEach(function (option) {
+            var el = document.createElement('option');
+            el.value = String(option.productId);
+            el.textContent = option.label;
+            if (selectedProductId && Number(selectedProductId) === option.productId) el.selected = true;
+            select.appendChild(el);
+        });
+        tdProduct.appendChild(select);
+
+        var tdQty = document.createElement('td');
+        tdQty.className = 'text-right';
+        var qty = document.createElement('input');
+        qty.type = 'number';
+        qty.step = '1';
+        qty.className = 'form-input mt-0 text-right production-addition-qty';
+        tdQty.appendChild(qty);
+
+        var tdReason = document.createElement('td');
+        var reason = document.createElement('input');
+        reason.type = 'text';
+        reason.maxLength = 255;
+        reason.placeholder = 'e.g. morning bake';
+        reason.className = 'form-input mt-0 production-addition-reason';
+        tdReason.appendChild(reason);
+
+        var tdRemove = document.createElement('td');
+        var remove = document.createElement('button');
+        remove.type = 'button';
+        remove.className = 'btn btn-accent btn-sm';
+        remove.textContent = '×';
+        remove.setAttribute('aria-label', 'Remove this product');
+        remove.addEventListener('click', function () {
+            tr.remove();
+            // Keep one row on screen: an empty table would look like a broken modal.
+            if (!document.querySelector('.production-addition-line')) productionAddLine();
+        });
+        tdRemove.appendChild(remove);
+
+        tr.appendChild(tdProduct);
+        tr.appendChild(tdQty);
+        tr.appendChild(tdReason);
+        tr.appendChild(tdRemove);
+        return tr;
+    }
+
+    function productionAddLine(selectedProductId) {
+        var body = document.getElementById('production-addition-lines');
+        if (!body) return null;
+        var row = productionLineRow(selectedProductId);
+        body.appendChild(row);
+        return row;
+    }
+
+    (function bindProductionAddLine() {
+        var btn = document.getElementById('production-addition-add-line');
+        if (btn) btn.addEventListener('click', function () { productionAddLine(); });
+    }());
+
     function submitProductionAddition() {
-        var productEl = document.getElementById('production-addition-product');
-        var qtyEl = document.getElementById('production-addition-qty');
-        var reasonEl = document.getElementById('production-addition-reason');
         var status = document.getElementById('production-addition-status');
         var btn = document.getElementById('production-addition-submit');
-        if (!productEl || !qtyEl || !btn) return;
-        var pid = parseInt(productEl.value || '0', 10) || 0;
-        var qty = parseInt(qtyEl.value || '0', 10);
-        var reason = reasonEl ? reasonEl.value.trim() : '';
-        if (!pid) { if (status) status.textContent = 'Select a product.'; return; }
-        if (isNaN(qty) || qty === 0) { if (status) status.textContent = 'Quantity must be a non-zero whole number.'; return; }
-        // A reduction takes back an amount recorded too high, so it must say why —
-        // the same rule the branch cell applies to a change against a recorded entry.
-        if (qty < 0 && reason === '') { if (status) status.textContent = 'A reason is required to reduce a recorded addition.'; return; }
+        var body = document.getElementById('production-addition-lines');
+        if (!body || !btn) return;
+
+        var lines = [];
+        var seen = {};
+        var rows = body.querySelectorAll('.production-addition-line');
+        for (var i = 0; i < rows.length; i++) {
+            var productEl = rows[i].querySelector('.production-addition-product');
+            var qtyEl = rows[i].querySelector('.production-addition-qty');
+            var reasonEl = rows[i].querySelector('.production-addition-reason');
+            var pid = parseInt(productEl && productEl.value || '0', 10) || 0;
+            var qty = parseInt(qtyEl && qtyEl.value || '0', 10);
+            var reason = reasonEl ? reasonEl.value.trim() : '';
+            if (!pid && !qty) continue;                 // an untouched row is not an error
+            if (!pid) { if (status) status.textContent = 'Line ' + (i + 1) + ': select a product.'; return; }
+            if (isNaN(qty) || qty === 0) { if (status) status.textContent = 'Line ' + (i + 1) + ': quantity must be a non-zero whole number.'; return; }
+            // The server refuses a repeated product; say so before the round trip.
+            if (seen[pid]) { if (status) status.textContent = 'The same product appears twice — record one line per product.'; return; }
+            seen[pid] = true;
+            // A reduction takes back an amount recorded too high, so it must say why — the
+            // same rule the branch cell applies to a change against a recorded entry.
+            if (qty < 0 && reason === '') { if (status) status.textContent = 'Line ' + (i + 1) + ': a reason is required to reduce a recorded addition.'; return; }
+            lines.push({ product_id: pid, quantity: qty, reason: reason });
+        }
+        if (lines.length === 0) { if (status) status.textContent = 'Add at least one product and quantity.'; return; }
+
         btn.disabled = true;
         if (status) status.textContent = '';
         productionJson('{base_url}/api/v1/commissary/run', {
@@ -2904,15 +3004,15 @@
             date: '{date}',
             shift: '{shift}',
             commissary_branch_id: {sheet_source_branch_id},
-            product_id: pid,
-            quantity: qty,
-            reason: reason,
+            lines: lines,
             submission_id: dlNewSubmissionId()
         }).then(function(res) {
             closeProductionAdditionModal();
-            showToast(res.duplicate
-                ? 'Addition was already recorded'
-                : (qty < 0 ? 'Addition reduced — correction logged' : 'Addition recorded'), 'success');
+            var count = Number(res.line_count || lines.length);
+            var dupes = Number(res.duplicate_count || 0);
+            showToast(dupes > 0
+                ? count + ' product(s) recorded, ' + dupes + ' already recorded'
+                : count + ' product(s) recorded as one entry', 'success');
             setTimeout(function() { window.refreshMainContent(); }, 500);
         }).catch(function(error) {
             if (status) status.textContent = error.message || 'Save failed';
