@@ -2039,6 +2039,7 @@
                 </div>
                 {/if}
                 {if shift_status != 'finalized'}<button type="button" class="btn btn-primary btn-sm" onclick="openProductionAdditionModal()">Record Addition</button>{/if}
+                {if shift_status != 'finalized'}<button type="button" class="btn btn-secondary btn-sm" onclick="openCommissaryEntryModal()">Record pull-out / charges / other</button>{/if}
                 {if shift == 'PM' && shift_status != 'finalized'}<button type="button" class="btn btn-accent btn-sm" id="finalize-production-pm" onclick="finalizeProductionPm()">Close PM Shift</button>{/if}
                 {if can_view_production_management && shift_status == 'finalized'}<button type="button" class="btn btn-accent btn-sm" onclick="reopenProductionShift()">Reopen Shift</button>{/if}
                 {if can_close_day && day_status != 'closed'}<button type="button" class="btn btn-accent btn-sm" id="production-close-day" onclick="closeProductionDay()">Close Day</button>{/if}
@@ -2382,6 +2383,43 @@
          batch/yield machinery is deliberately not carried in;
          output_pieces_per_batch is NULL for every product on this tenant, so the
          mechanism is inert. It can return if yield profiles are ever configured. -->
+    {* Owner 2026-11-18: "ang mga commissary pabutangan ug pull-out, charges ... ug other, kanang
+       other para na sa mga product nga na damage nga ila himuon ug laing product. kana lng 3."
+       Exactly three types, mirroring the cashier modal rather than inventing a second interaction.
+       "Other" carries a written reason because the type name alone says nothing reviewable. *}
+    <div id="commissary-entry-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 p-4 print-hidden" role="dialog" aria-modal="true" aria-labelledby="commissary-entry-title">
+        <div class="card w-full max-w-lg">
+            <div class="card-header"><span id="commissary-entry-title">Pull-out / Charges / Other &mdash; {date}</span></div>
+            <div class="card-body">
+                <div class="form-group">
+                    <label class="form-label">Type <span class="text-rose-500">*</span></label>
+                    <select id="commissary-entry-type" class="form-input" onchange="syncCommissaryEntryFields()">
+                        <option value="pullout">Pull-out</option>
+                        <option value="charge">Charges</option>
+                        <option value="other">Other &mdash; damaged product to be reworked</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Product <span class="text-rose-500">*</span></label>
+                    <select id="commissary-entry-product" class="form-input"></select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Quantity <span class="text-rose-500">*</span></label>
+                    <input type="number" id="commissary-entry-qty" class="form-input" min="1" step="1" value="1">
+                </div>
+                <div class="form-group hidden" id="commissary-entry-reason-wrap">
+                    <label class="form-label">What was damaged, and what it becomes <span class="text-rose-500">*</span></label>
+                    <textarea id="commissary-entry-reason" class="form-input" rows="2" placeholder="e.g. 5 ka pan na lapas, himuon ug breadcrumbs"></textarea>
+                </div>
+                <p id="commissary-entry-status" class="text-sm text-gray-500"></p>
+            </div>
+            <div class="card-footer flex justify-end gap-2">
+                <button type="button" class="btn btn-secondary" onclick="closeCommissaryEntryModal()">Cancel</button>
+                <button type="button" class="btn btn-primary" id="commissary-entry-submit" onclick="submitCommissaryEntry()">Record entry</button>
+            </div>
+        </div>
+    </div>
+
     <div id="production-addition-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 p-4 print-hidden" role="dialog" aria-modal="true" aria-labelledby="production-addition-title">
         <div class="w-full max-w-2xl rounded-lg bg-white shadow-xl">
             <div class="card-header"><span id="production-addition-title">Own Production</span></div>
@@ -2885,6 +2923,92 @@
         if (!modal) return;
         modal.classList.add('hidden');
         modal.classList.remove('flex');
+    }
+
+    // ── Pull-out / Charges / Other (owner 2026-11-18) ──────────────────────
+    // Exactly three types, posted through the SAME withdrawals endpoint the cashier modal uses, so
+    // there is one write path and one set of rules rather than a second ledger implementation.
+    function openCommissaryEntryModal() {
+        var modal = document.getElementById('commissary-entry-modal');
+        var select = document.getElementById('commissary-entry-product');
+        if (!modal || !select) return;
+        select.innerHTML = '';
+        var blank = document.createElement('option');
+        blank.value = '';
+        blank.textContent = '-- Select Product --';
+        select.appendChild(blank);
+        (Array.isArray(PRODUCTION_PRODUCT_OPTIONS) ? PRODUCTION_PRODUCT_OPTIONS : []).forEach(function (option) {
+            var el = document.createElement('option');
+            el.value = option.productId;
+            el.textContent = option.label;
+            select.appendChild(el);
+        });
+        var qty = document.getElementById('commissary-entry-qty');
+        if (qty) qty.value = '1';
+        var reason = document.getElementById('commissary-entry-reason');
+        if (reason) reason.value = '';
+        var status = document.getElementById('commissary-entry-status');
+        if (status) status.textContent = '';
+        syncCommissaryEntryFields();
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+    }
+
+    function closeCommissaryEntryModal() {
+        var modal = document.getElementById('commissary-entry-modal');
+        if (!modal) return;
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+
+    function syncCommissaryEntryFields() {
+        var typeEl = document.getElementById('commissary-entry-type');
+        var wrap = document.getElementById('commissary-entry-reason-wrap');
+        if (typeEl && wrap) wrap.classList.toggle('hidden', typeEl.value !== 'other');
+    }
+
+    function submitCommissaryEntry() {
+        var typeEl = document.getElementById('commissary-entry-type');
+        var productEl = document.getElementById('commissary-entry-product');
+        var qtyEl = document.getElementById('commissary-entry-qty');
+        var reasonEl = document.getElementById('commissary-entry-reason');
+        var status = document.getElementById('commissary-entry-status');
+        var btn = document.getElementById('commissary-entry-submit');
+        if (!typeEl || !productEl || !qtyEl || !btn) return;
+        var type = typeEl.value;
+        var pid = parseInt(productEl.value || '0', 10) || 0;
+        var qty = parseInt(qtyEl.value || '0', 10);
+        var reason = reasonEl ? reasonEl.value.trim() : '';
+        if (!pid) { if (status) status.textContent = 'Select a product.'; return; }
+        if (!qty || qty < 1) { if (status) status.textContent = 'Quantity must be at least 1.'; return; }
+        // "Other" means damaged stock being reworked; without the words nobody can review it later.
+        if (type === 'other' && reason === '') {
+            if (status) status.textContent = 'Say what was damaged and what it becomes.';
+            return;
+        }
+        btn.disabled = true;
+        if (status) status.textContent = '';
+        productionJson('{base_url}/api/v1/cashier/ledger/withdrawals', {
+            date: '{date}',
+            header: {
+                withdrawal_type: type,
+                // Only "other" carries a reason. Charge and pull-out let the handler apply its own
+                // default, so changing that default never needs a matching template edit.
+                reason_code: type === 'other' ? 'other' : null,
+                custom_reason: reason
+            },
+            // No shift is sent: dl_resolveWithdrawalShift only honours an explicit shift for
+            // own_production and resolves the ledger shift for every other type.
+
+            lines: [{ product_id: pid, quantity: qty }]
+        }).then(function () {
+            closeCommissaryEntryModal();
+            showToast(type === 'other' ? 'Other entry recorded' : (type === 'charge' ? 'Charges recorded' : 'Pull-out recorded'), 'success');
+            setTimeout(function() { window.refreshMainContent(); }, 500);
+        }).catch(function (error) {
+            if (status) status.textContent = error.message || 'Save failed';
+            showToast(error.message || 'Save failed', 'error');
+        }).finally(function() { btn.disabled = false; });
     }
 
     // ── Own production: ONE entry, many products (owner 2026-11-18) ─────────

@@ -10515,7 +10515,11 @@ function apiSaveCashierWithdrawals(array $params = []): void
     }
 
     $type = (string)($header['withdrawal_type'] ?? 'charge');
-    if (!in_array($type, ['charge', 'pullout', 'adjustment_add', 'own_production', 'used', 'correction'], true)) {
+    // Owner 2026-11-18: commissaries record exactly pull-out, charges and OTHER, where "other" is
+    // damaged product the commissary will rework into a different product ("para na sa mga product
+    // nga na damage nga ila himuon ug laing product"). It is an OUTFLOW - damaged stock leaves
+    // sellable inventory - so it belongs with charge/pullout/used, not with the stock-creating types.
+    if (!in_array($type, ['charge', 'pullout', 'adjustment_add', 'own_production', 'used', 'correction', 'other'], true)) {
         $ctx->json(['ok' => false, 'error' => 'Invalid withdrawal type'], 422);
         return;
     }
@@ -10578,6 +10582,17 @@ function apiSaveCashierWithdrawals(array $params = []): void
     if ($type === 'own_production' && $reasonCode === null) {
         // The type states the reason: own production IS self production.
         $reasonCode = 'self_production';
+    }
+    if ($type === 'other') {
+        // "Other" without a written reason is unreviewable - it is the one type that cannot say
+        // what it means by naming itself.
+        if ($customReason === '') {
+            $ctx->json(['ok' => false, 'error' => 'An "other" entry needs a written reason (what was damaged, and what it becomes).'], 422);
+            return;
+        }
+        if ($reasonCode === null) {
+            $reasonCode = 'other';
+        }
     }
     if (in_array($type, ['charge','pullout','adjustment_add','used','correction'], true) && $reasonCode === null) {
         $reasonCode = 'manual_adjustment';
@@ -11023,7 +11038,11 @@ function apiUpdateCashierWithdrawal(array $params = []): void
     $lines = (array)($input['lines'] ?? []);
 
     $type = (string)($header['withdrawal_type'] ?? '');
-    if (!in_array($type, ['charge', 'pullout', 'adjustment_add', 'own_production', 'used', 'correction'], true)) {
+    // Owner 2026-11-18: commissaries record exactly pull-out, charges and OTHER, where "other" is
+    // damaged product the commissary will rework into a different product ("para na sa mga product
+    // nga na damage nga ila himuon ug laing product"). It is an OUTFLOW - damaged stock leaves
+    // sellable inventory - so it belongs with charge/pullout/used, not with the stock-creating types.
+    if (!in_array($type, ['charge', 'pullout', 'adjustment_add', 'own_production', 'used', 'correction', 'other'], true)) {
         $ctx->json(['ok' => false, 'error' => 'Invalid withdrawal type'], 422);
         return;
     }

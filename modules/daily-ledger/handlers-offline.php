@@ -612,7 +612,7 @@ function dl_offlineApplyWithdrawal(array $user, array $op, bool $inTx = false): 
     $lines = is_array($input['lines'] ?? null) ? $input['lines'] : [];
 
     $type = (string)($header['withdrawal_type'] ?? 'charge');
-    if (!in_array($type, ['charge', 'pullout', 'adjustment_add', 'own_production', 'used', 'correction'], true)) {
+    if (!in_array($type, ['charge', 'pullout', 'adjustment_add', 'own_production', 'used', 'correction', 'other'], true)) {
         throw new RuntimeException('Invalid withdrawal type', 422);
     }
     // PAPERLESS_DR_DISABLED: the replay used to have NO paperless gate at all, so a
