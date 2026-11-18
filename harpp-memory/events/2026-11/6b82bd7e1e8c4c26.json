@@ -1,0 +1,10 @@
+{
+  "digest": "6b82bd7e1e8c4c26010aa2b785049470244140c5e3427244ec25db327f798370",
+  "event_id": "6b82bd7e1e8c4c26",
+  "lesson_id": "L-4ecfc063f5",
+  "recorded_at": "2026-11-18T01:49:57.211626Z",
+  "schema_version": 1,
+  "source": "session-pass",
+  "task": "probe-run",
+  "type": "confirm"
+}

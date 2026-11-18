@@ -336,6 +336,16 @@ def _record(task: str, args: argparse.Namespace, attempts: int, acceptance: str,
     if result.returncode != 0:
         print(f"lane-autonomy: ledger record failed: {result.stderr.strip()}", file=sys.stderr)
 
+    # CLOSE THE LOOP ON SUCCESS (owner 2026-11-18: "at the end of a successful session,
+    # mechanically add new experiences"). Every outcome passes through here, so this is the one
+    # place that cannot miss a PASS. Best-effort by design: a memory write must never turn a
+    # verified success into a failure, so a close error is reported and ignored.
+    if acceptance == "PASS":
+        closed = _run([sys.executable, str(EXPERIENCE), "close",
+                       "--task", task, "--status", "pass"], timeout=60)
+        if closed.returncode == 0 and closed.stdout.strip():
+            print(f"lane-autonomy: {closed.stdout.strip().splitlines()[0]}", file=sys.stderr)
+
 
 def _load_contract(path: str | None) -> dict | None:
     if not path:

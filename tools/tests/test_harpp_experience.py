@@ -449,6 +449,37 @@ class HarppExperienceTest(unittest.TestCase):
         self.assertIn("cms-scoped rule", with_brief,
                       "the module named in the brief did not unlock its rules")
 
+    # -------------------------------------------------------------- the closing loop
+    def test_an_injected_rule_is_recorded_against_its_run(self) -> None:
+        """A run must be able to say what it was told, or success cannot reinforce anything."""
+        self._add("a rule that will be injected and then reinforced")
+        run = _run([str(TOOL), "hints", "--query", "anything at all", "--record", "run-abc"],
+                   env=self.env)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        record = json.loads((self._memory_dir() / "injected" / "run-abc.json").read_text())
+        self.assertEqual(record["tag"], "run-abc")
+        self.assertEqual(len(record["lessons"]), 1, record)
+
+    def test_a_successful_session_reinforces_what_it_was_told(self) -> None:
+        lesson = self._add("a rule present in a passing run")
+        _run([str(TOOL), "hints", "--query", "fix things", "--record", "run-pass"], env=self.env)
+        before = json.loads(_run([str(TOOL), "memory", "list", "--json"], env=self.env).stdout)[0]
+        closed = _run([str(TOOL), "close", "--task", "run-pass", "--status", "pass"], env=self.env)
+        self.assertEqual(closed.returncode, 0, closed.stderr)
+        after = json.loads(_run([str(TOOL), "memory", "list", "--json"], env=self.env).stdout)[0]
+        self.assertEqual(after["id"], lesson)
+        self.assertEqual(after["confirmations"], before["confirmations"] + 1)
+        self.assertGreater(after["activation"], before["activation"],
+                           "reinforcement did not raise the rule's influence")
+
+    def test_a_failed_session_reinforces_nothing(self) -> None:
+        self._add("a rule present in a failing run")
+        _run([str(TOOL), "hints", "--query", "fix things", "--record", "run-fail"], env=self.env)
+        _run([str(TOOL), "close", "--task", "run-fail", "--status", "fail"], env=self.env)
+        after = json.loads(_run([str(TOOL), "memory", "list", "--json"], env=self.env).stdout)[0]
+        self.assertEqual(after["confirmations"], 0,
+                         "a failure was treated as evidence FOR the rule")
+
     def test_hints_can_be_filtered_by_reason(self) -> None:
         _run([str(TOOL), "hint", "add", "--reason", "timeout", "--text", "T lesson"], env=self.env)
         _run([str(TOOL), "hint", "add", "--reason", "crash", "--text", "C lesson"], env=self.env)

@@ -68,6 +68,46 @@ can tell improvement from noise. Neither is complete, so no training run has bee
 from-scratch model would be worse than the one already on disk, and calling it "our LLM" would be a
 story rather than an artefact.
 
+## The mechanical loop (wired 2026-11-18)
+
+Owner direction: *"every time there's a coding, evaluation, review to do, the harness + harpp asks
+kahibaw if there's an experience relatable… then at the end of a successful session, mechanically
+add new experiences."*
+
+Three mechanical steps, none of which depends on anyone remembering:
+
+| Step | Where it happens | What it does |
+|---|---|---|
+| **Ask** | `lane_model_run()` | before dispatch, retrieves the rules that fit this task (deterministic), optionally with Kahibaw's verified picks |
+| **Record** | `hints --record <run>` | writes `harpp-memory/injected/<run>.json` — the exact rule ids that run was given |
+| **Close** | `lane-autonomy._record()` on `acceptance=PASS` | reinforces every injected rule, and harvests test files the run touched into proposed lessons |
+
+```bash
+python3 tools/harpp-experience.py hints --query "<task>" --record my-run   # what it will be told
+python3 tools/harpp-experience.py close --task my-run --status pass       # reinforce + learn
+```
+
+**Why recording had to come first:** a lane that succeeds cannot reinforce rules nobody wrote down.
+Before this, `confirm`/`contradict` existed but nothing emitted them, so activation stayed at 1.0
+forever and the "evidence-weighted" ranking was decorative.
+
+### What "confirm" honestly means here
+
+A confirmation from `close` is **co-occurrence evidence**: the rule was present and the run
+succeeded. It is *not* proof the rule caused the success, and it is recorded as
+`source: session-pass` so it stays distinguishable from a human confirming a rule against a later
+outcome. A **failed** run reinforces nothing — a failure is not evidence *for* a rule.
+
+### What closing adds that is genuinely new
+
+Any test file the run touched is harvested, so the assertions the session just wrote become proposed
+lessons. A new gate **is** new experience, and it is captured without an author deciding to write it
+down. Those arrive `proposed`; human review is unchanged.
+
+This is the starting point, not the neural design: retrieval is keyword and scope, reinforcement is
+co-occurrence, and the model only chooses among three candidates. Each is a place the system can
+later become more associative — but the loop is closed, and closed beats clever.
+
 ## The gate that decides whether this works
 
 ```bash

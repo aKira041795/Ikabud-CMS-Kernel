@@ -228,6 +228,9 @@ lane_model_run() {
     # the lane is about. A CMS lane that received only universal rules was the defect measured
     # 2026-11-17: 104 cms lessons existed and none of them reached the lane.
     if [ -n "$prompt" ]; then _exp_args+=(--query "${prompt:0:800}"); fi
+    # Record WHICH rules this run was given, so a successful run can reinforce them at close.
+    # Without this the loop cannot close: the lane would be told things nobody ever wrote down.
+    if [ -n "${LANE_EVENT_RUN:-}" ]; then _exp_args+=(--record "$LANE_EVENT_RUN"); fi
     _exp="$(python3 "$_LANE_MODEL_TOOLS_DIR/harpp-experience.py" hints "${_exp_args[@]}" 2>/dev/null || true)"
     case "$_exp" in
       ""|"(no hints"*|"(no experience"*)

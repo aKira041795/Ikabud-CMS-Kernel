@@ -1734,9 +1734,114 @@ def cmd_signatures(args) -> int:
     return 0
 
 
+def _select_lessons(reason: str | None, scope: str | None,
+                    query: str | None) -> tuple[list[dict], int]:
+    """Which lessons a lane would receive, and how many were withheld. One selection, two callers."""
+    if not scope:
+        scope = _scope_from_query(query)
+    candidates = [h for h in load_lessons()
+                  if h.get("text")
+                  and _lesson_status(h) == "active"
+                  and _scope_matches(h, scope)
+                  and (not reason or h.get("reason") in (reason, "", None, "any"))]
+    candidates.sort(key=lambda h: (0 if _scope_value(h) not in ("", "any") else 1,
+                                  -_query_overlap(query, h.get("text")),
+                                  -float(h.get("activation") or 0.0),
+                                  str(h.get("id") or "")))
+    hints = candidates[:MEMORY_INJECT_LIMIT]
+    return hints, max(0, len(candidates) - len(hints))
+
+
+def _injection_path(tag: str) -> Path:
+    safe = re.sub(r"[^A-Za-z0-9_.-]+", "_", str(tag))[:120] or "unnamed"
+    return MEMORY_DIR / "injected" / f"{safe}.json"
+
+
+def record_injection(tag: str, lessons: list[dict], block_chars: int) -> Path:
+    """Remember WHICH rules a run was given.
+
+    Without this the loop cannot close: a lane that succeeds cannot reinforce the rules it was
+    actually shown, and a later review cannot ask what it had been told. Written outside the event
+    store because it is telemetry about a run, not a lesson.
+    """
+    path = _injection_path(tag)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({
+        "tag": tag,
+        "recorded_at": _memory_now(),
+        "lessons": [str(r.get("id")) for r in lessons if r.get("id")],
+        "block_chars": int(block_chars),
+    }, indent=2) + "\n", encoding="utf-8")
+    return path
+
+
+def cmd_close(args) -> int:
+    """Close a successful session: reinforce what it was told, and learn from what it added.
+
+    Owner direction 2026-11-18: "at the end of a successful session, mechanically add new
+    experiences."  Two mechanical additions, no model in the loop:
+
+      1. REINFORCE - every rule injected into a PASSING run gets a `confirm` event. This is
+         evidence by co-occurrence: the rule was present and the run succeeded. It is NOT proof the
+         rule caused the success, so the event carries `source: session-pass` and is distinguishable
+         from a human confirming a rule against a later outcome.
+      2. LEARN - every test file the run touched is harvested, so the assertions it added become
+         proposed lessons. A new gate IS new experience, and it is written down automatically.
+    """
+    tag = args.task
+    confirmed = 0
+    injected: list[str] = []
+    path = _injection_path(tag)
+    if path.is_file():
+        try:
+            injected = [str(x) for x in (json.loads(path.read_text(encoding="utf-8"))
+                                        .get("lessons") or [])]
+        except ValueError:
+            injected = []
+    if args.status == "pass":
+        for lesson_id in injected:
+            write_memory_event("confirm", lesson_id,
+                               {"source": "session-pass", "task": tag})
+            confirmed += 1
+
+    proposed = 0
+    landing = {}
+    landing_path = RUNS_DIR / f"{tag}.landed.json"
+    if landing_path.is_file():
+        try:
+            landing = json.loads(landing_path.read_text(encoding="utf-8", errors="replace"))
+        except ValueError:
+            landing = {}
+    touched = [p for p in (landing.get("changed_paths") or []) if isinstance(p, str)]
+    test_files = [ROOT / p for p in touched
+                  if p.startswith("tests/") and p.endswith(".php") and (ROOT / p).is_file()]
+    for lesson in _harvest_test_candidates(test_files):
+        lesson_id = lesson_key(lesson["scope"], lesson["text"])
+        _, created = write_memory_event("propose", lesson_id, {
+            "text": lesson["text"],
+            "reason": "gate",
+            "scope": lesson["scope"],
+            "evidence": [lesson["source"], f"session:{tag}"],
+            "proposed_by": f"session-close:{tag}",
+        })
+        proposed += 1 if created else 0
+
+    print(f"closed {tag} ({args.status}): {confirmed} rule(s) reinforced, "
+          f"{proposed} new lesson(s) proposed from {len(test_files)} test file(s)")
+    if args.status == "pass" and confirmed:
+        print("  reinforcement is co-occurrence evidence, recorded as source=session-pass")
+    return 0
+
+
 def cmd_hints(args) -> int:
     block = hint_block(args.reason, args.max_chars, getattr(args, "scope", None),
                        getattr(args, "query", None))
+    record = getattr(args, "record", None)
+    if record:
+        chosen, _hidden = _select_lessons(args.reason, getattr(args, "scope", None),
+                                          getattr(args, "query", None))
+        path = record_injection(record, chosen, len(block))
+        print(f"recorded {len(chosen)} injected rule(s) -> {path}", file=sys.stderr)
     if args.json:
         print(json.dumps({"reason": args.reason, "scope": getattr(args, "scope", None),
                           "hints": load_lessons(), "block": block}, indent=2))
@@ -2138,6 +2243,7 @@ def _parser() -> argparse.ArgumentParser:
     hints.add_argument("--reason", help="restrict to one failure class")
     hints.add_argument("--scope", help="module id the lesson must apply to (e.g. daily-ledger)")
     hints.add_argument("--query", help="task text: rank the injected rules by relevance to it")
+    hints.add_argument("--record", help="remember which rules were injected under this run tag")
     hints.add_argument("--max-chars", type=int, default=1800)
     hints.add_argument("--json", action="store_true")
     hints.set_defaults(func=cmd_hints)
@@ -2195,6 +2301,11 @@ def _parser() -> argparse.ArgumentParser:
     memory_import = memory_sub.add_parser("import", help="reconstitute the store from an export")
     memory_import.add_argument("--from", dest="source", required=True, help="export file to read")
     memory_import.set_defaults(func=cmd_memory_import)
+
+    close_cmd = sub.add_parser("close", help="close a session: reinforce rules, learn from new tests")
+    close_cmd.add_argument("--task", required=True, help="run/lane name (matches .ai/runs/<task>.landed.json)")
+    close_cmd.add_argument("--status", choices=["pass", "fail"], default="pass")
+    close_cmd.set_defaults(func=cmd_close)
 
     harvest = sub.add_parser("harvest", help="turn documented experience into PROPOSED lessons")
     harvest.add_argument("paths", nargs="*", help="files or directories (default: docs)")
