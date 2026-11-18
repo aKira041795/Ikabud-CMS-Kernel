@@ -1152,6 +1152,60 @@ def _set_lesson_status(lesson_id: str, status_value: str, **extra) -> int:
     return 0
 
 
+def cmd_lesson_duplicates(args) -> int:
+    """Deterministic duplicate report - the baseline any model-assisted clustering must beat.
+
+    Chair verdict 2026-11-18: reject a 0.5B model as the authority for consolidating lessons; start
+    with normalization and exact deduplication, and keep an LLM stage only if it beats this on a
+    labelled sample. This command costs nothing and cannot hallucinate.
+    """
+    rows = [r for r in load_lessons() if _lesson_status(r) == "proposed" and r.get("text")]
+    groups: dict[str, list[dict]] = {}
+    for r in rows:
+        key = re.sub(r"[^a-z0-9 ]+", " ", str(r["text"]).lower())
+        groups.setdefault(re.sub(r"\s+", " ", key).strip(), []).append(r)
+    dupes = {k: v for k, v in groups.items() if len(v) > 1}
+    inside = sum(len(v) for v in dupes.values())
+    print(f"proposed: {len(rows)} · exact-duplicate groups: {len(dupes)} · lessons inside them: {inside}")
+    for key, items in sorted(dupes.items(), key=lambda kv: -len(kv[1]))[:args.limit]:
+        print(f"- {len(items)}x {key[:100]}")
+        print("    " + ", ".join(str(i.get("id")) for i in items))
+    return 0
+
+
+def cmd_lesson_apply(args) -> int:
+    """Record that a lesson was actually USED, with evidence the harness itself checks.
+
+    Chair verdict 2026-11-18: "lesson shown -> defect avoided" is a counterfactual and cannot be
+    observed, so it must not be the metric. What CAN be observed is recorded here: the lesson was
+    retrieved, the implementer says it was applied, and the evidence pointer resolves. A lesson with
+    no resolving evidence is EXPOSURE, not success, and is counted separately.
+    """
+    lesson_id = str(args.lesson_id)
+    if lesson_id not in {str(r.get("id")) for r in load_lessons()}:
+        print(f"harpp-experience: no such lesson: {lesson_id}", file=sys.stderr)
+        return 2
+    evidence = str(args.evidence or "").strip()
+    # The harness verifies; the caller does not self-certify.
+    verified = False
+    if evidence:
+        target = evidence.split("::", 1)[0].strip()
+        candidate = Path(target)
+        if not candidate.is_absolute():
+            candidate = ROOT / target
+        verified = candidate.exists()
+    _, created = write_memory_event("lesson_application", lesson_id, {
+        "run_id": str(args.run or ""),
+        "retrieved": True,
+        "applied": True,
+        "evidence": evidence,
+        "verified": verified,
+    })
+    state = "applied+verified" if verified else "exposure only (no resolving evidence)"
+    print(f"{'recorded' if created else 'already recorded'} {lesson_id}: {state}")
+    return 0
+
+
 def cmd_lesson_approve(args) -> int:
     # No timestamp in the payload: the event already carries recorded_at, and a volatile field in
     # the body would give every re-run a new digest and append a duplicate approval.
@@ -1615,6 +1669,10 @@ def cmd_status(args) -> int:
         return 0
     print("== HARPP status ==")
     print(f"  lessons:  {active} active · {proposed} proposed (NOT injected) · {retired} retired")
+    applied_events = [e for e in memory_events() if str(e.get("type")) == "lesson_application"]
+    verified_events = [e for e in applied_events if e.get("verified")]
+    print(f"  used:     {len(_injection_files())} run(s) given rules · {len(applied_events)} application(s) "
+          f"· {len(verified_events)} verified by evidence")
     print(f"  ledger:   {stats['rows']} rows · pass rate {stats['pass_rate']} · cost ${stats['cost_usd']:.4f}")
     print(f"  waste:    {stats['wasted_cost_share']}")
     if signatures:
@@ -1817,6 +1875,12 @@ def _injection_path(tag: str) -> Path:
     return MEMORY_DIR / "injected" / f"{safe}.json"
 
 
+def _injection_files() -> list[Path]:
+    """How many runs were actually GIVEN rules. Zero here means retrieval was never exercised."""
+    directory = MEMORY_DIR / "injected"
+    return sorted(directory.glob("*.json")) if directory.is_dir() else []
+
+
 def record_injection(tag: str, lessons: list[dict], block_chars: int) -> Path:
     """Remember WHICH rules a run was given.
 
@@ -1888,9 +1952,10 @@ def cmd_close(args) -> int:
 
     print(f"closed {tag} ({args.status}): {confirmed} rule(s) reinforced, "
           f"{proposed} new lesson(s) proposed from {len(test_files)} test file(s)")
-    # Always improve kahibaw through newly captured context (owner 2026-11-18).
-    changed, detail = refresh_kahibaw()
-    print(f"  kahibaw: {'rebuilt' if changed else 'unchanged'} ({detail})")
+    # NO automatic model rebuild here. Chair verdict 2026-11-18: a baked lesson snapshot is a
+    # SECOND representation of truth (it silently held 40 of 56 approved lessons), and FTS5 already
+    # indexes every record without a rebuild. Rebuilding on every close also made a 0.5B model part
+    # of the loop's cost. `llm refresh` stays available as an explicit, offline command.
     if args.status == "pass" and confirmed:
         print("  reinforcement is co-occurrence evidence, recorded as source=session-pass")
     return 0
@@ -2632,6 +2697,14 @@ def _parser() -> argparse.ArgumentParser:
     approve.add_argument("lesson_id")
     approve.add_argument("--by", default="owner")
     approve.set_defaults(func=cmd_lesson_approve)
+    dupes_cmd = lesson_sub.add_parser("duplicates", help="deterministic duplicate report for proposed lessons")
+    dupes_cmd.add_argument("--limit", type=int, default=15)
+    dupes_cmd.set_defaults(func=cmd_lesson_duplicates)
+    apply_cmd = lesson_sub.add_parser("apply", help="a retrieved lesson was USED; evidence is checked, not trusted")
+    apply_cmd.add_argument("lesson_id")
+    apply_cmd.add_argument("--evidence", help="path (optionally path::case) proving the application")
+    apply_cmd.add_argument("--run", help="lane run id, when known")
+    apply_cmd.set_defaults(func=cmd_lesson_apply)
     retire = lesson_sub.add_parser("retire")
     retire.add_argument("lesson_id")
     retire.add_argument("--compiled-as", help="path of the gate that now enforces it")
