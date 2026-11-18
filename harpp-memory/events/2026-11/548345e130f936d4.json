@@ -1,0 +1,16 @@
+{
+  "digest": "548345e130f936d44c19780f32a30654c5a6f2555cc2032d241d14e855c0e743",
+  "event_id": "548345e130f936d4",
+  "evidence": [
+    "commit cb81971c"
+  ],
+  "lesson_id": "L-3d7520fb15",
+  "proposed_by": "harness",
+  "reason": "Second write path would duplicate validation; the Pull-outs tab was the obvious but wrong place to look.",
+  "recorded_at": "2026-11-18T04:15:38.260801Z",
+  "review_after": "2026-12-18",
+  "schema_version": 1,
+  "scope": "daily-ledger",
+  "text": "Commissary entries reuse the cashier withdrawals endpoint (POST /api/v1/cashier/ledger/withdrawals, handler apiSaveCashierWithdrawals) rather than adding a second ledger write path; the recorded entries surface on /admin/withdrawals, NOT on the commissary Pull-outs tab, which lists deliveries FROM branches.",
+  "type": "propose"
+}
