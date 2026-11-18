@@ -1,0 +1,13 @@
+{
+  "applied": true,
+  "digest": "cda0bc5f2db1b9dcaa064647cedab50e4f85a204712f9a654b49ed21ec966988",
+  "event_id": "cda0bc5f2db1b9dc",
+  "evidence": "no/such/file.php::case",
+  "lesson_id": "L-eba43ddf79",
+  "recorded_at": "2026-11-18T14:31:00.818458Z",
+  "retrieved": true,
+  "run_id": "verify-demo",
+  "schema_version": 1,
+  "type": "lesson_application",
+  "verified": false
+}
