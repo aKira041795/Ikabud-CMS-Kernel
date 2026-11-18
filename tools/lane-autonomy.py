@@ -346,6 +346,45 @@ def _record(task: str, args: argparse.Namespace, attempts: int, acceptance: str,
         if closed.returncode == 0 and closed.stdout.strip():
             print(f"lane-autonomy: {closed.stdout.strip().splitlines()[0]}", file=sys.stderr)
 
+    # CAPTURE THE FAILURE SIDE TOO. Success was already mechanical; a criterion that resisted a
+    # repair was not, so the most valuable experience in this repo - "this criterion cannot be
+    # satisfied / this fix does not address it" - depended on somebody remembering to write it
+    # down. Only a criterion that survived at least one repair attempt is recorded: one failure is
+    # usually the bug being fixed, while a repeated one is knowledge about the criterion itself.
+    if acceptance != "PASS" and attempts >= 2:
+        _capture_failure(task, task_class=args.task_class, attempts=attempts,
+                         acceptance=acceptance, touches=str(args.touches or ""))
+
+
+def _capture_failure(task: str, task_class: str, attempts: int, acceptance: str,
+                     touches: str) -> None:
+    """Propose a lesson from a criterion that resisted repair. Best-effort, never raises."""
+    try:
+        text = _read(ROOT / ".ai" / "runs" / f"{task}.acceptance.log") or _read(
+            ROOT / ".ai" / "runs" / f"{task}.log")
+        lines = [line.strip() for line in text.splitlines() if line.strip()]
+        tail = " | ".join(lines[-3:])[:600] or "no acceptance output was captured"
+        scope = ""
+        for value in str(touches or "").split(","):
+            parts = [part for part in value.strip().split("/") if part]
+            if len(parts) >= 2 and parts[0] in ("modules", "templates", "src", "kernel"):
+                scope = parts[1] if parts[0] == "modules" else parts[1]
+                break
+        body = (f"Acceptance criterion for task '{task}' failed after {attempts} attempt(s). "
+                f"Last failure: {tail}")
+        cmd = [sys.executable, str(EXPERIENCE), "lesson", "propose", "--text", body,
+               "--reason", "captured mechanically: a criterion that resisted repair",
+               "--evidence", f"task={task} class={task_class} acceptance={acceptance}",
+               "--proposed-by", "lane-autonomy", "--json"]
+        if scope:
+            cmd += ["--scope", scope]
+        result = _run(cmd, timeout=60)
+        if result.returncode == 0:
+            print("lane-autonomy: recorded the repeated failure as a proposed lesson",
+                  file=sys.stderr)
+    except Exception as exc:  # pragma: no cover - durability must never break the lane
+        print(f"lane-autonomy: failure capture skipped: {exc}", file=sys.stderr)
+
 
 def _load_contract(path: str | None) -> dict | None:
     if not path:

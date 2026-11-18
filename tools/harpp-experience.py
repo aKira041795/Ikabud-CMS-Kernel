@@ -430,7 +430,47 @@ def write_memory_event(event_type: str, lesson_id: str, payload: dict) -> tuple[
     path = MEMORY_EVENTS_DIR / recorded_at[:7] / f"{name}.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(event, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    _memory_autocommit(path, event_type)
     return path, True
+
+
+def _memory_autocommit(path: Path, event_type: str) -> bool:
+    """Commit one memory event immediately, so capture cannot be lost by forgetting to commit.
+
+    Owner 2026-11-18: "make the recording of experiences mechanical and durable". An event that
+    exists only as an untracked file in a working tree is neither - `git status` showed three
+    captured events sitting untracked, one `git clean` away from being gone.
+
+    Best-effort by contract: a memory write must never turn a verified success into a failure, so
+    every failure path (not a work tree, git missing, empty commit, a lane mid-rebase) returns
+    False and is ignored. Set HARPP_MEMORY_AUTOGIT=0 to disable, which is what tests do.
+    """
+    if os.environ.get("HARPP_MEMORY_AUTOGIT", "1") == "0":
+        return False
+    try:
+        here = str(path.resolve())
+        root = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            cwd=str(path.parent), capture_output=True, text=True, timeout=10,
+        )
+        if root.returncode != 0:
+            return False
+        toplevel = root.stdout.strip()
+        # Only the repo's own store is committed. Tests point MEMORY_DIR at a temp dir, and
+        # committing there would either fail or, worse, commit someone else's files.
+        if not toplevel or not here.startswith(os.path.join(toplevel, "")):
+            return False
+        rel = os.path.relpath(here, toplevel)
+        subprocess.run(["git", "add", "--", rel], cwd=toplevel, capture_output=True, timeout=20)
+        msg = f"harpp-memory: {event_type} {path.stem}\n\nRecorded mechanically by tools/harpp-experience.py."
+        done = subprocess.run(
+            ["git", "commit", "-m", msg, "--no-verify", "--", rel],
+            cwd=toplevel, capture_output=True, text=True, timeout=30,
+        )
+        return done.returncode == 0
+    except Exception:
+        # Durability is the goal; an unavailable git must not break the caller.
+        return False
 
 
 def fold_lessons(events: list[dict]) -> dict[str, dict]:
