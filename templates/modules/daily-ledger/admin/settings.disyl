@@ -174,7 +174,7 @@
     <div class="modal branch-modal" style="max-width: 1100px; width: 95%;">
         <div class="branch-modal__header">
             <h3 class="mb-1">Branch operating switches</h3>
-            <p class="text-sm text-gray-500">Per branch only. Paper DR itself is always available. Admin and supervisor can always add stock without a paper DR. Own production controls whether the branch can mark stock it makes itself. Shift mode can only change before the branch's first ledger row of the business day.</p>
+            <p class="text-sm text-gray-500">Per branch only. Paper DR itself is always available. Admin can always add stock without a paper DR; at a branch where this switch is ON, its cashier and supervisor can too, and where it is OFF neither can. Own production controls whether the branch can mark stock it makes itself. Shift mode can only change before the branch's first ledger row of the business day.</p>
         </div>
         <div class="branch-modal__body" style="max-height: 70vh; overflow-y: auto;">
             <div class="flex flex-wrap items-center gap-3 mb-3">
