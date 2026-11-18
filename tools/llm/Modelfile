@@ -4,6 +4,7 @@
 FROM qwen2.5:0.5b
 PARAMETER temperature 0.2
 PARAMETER num_ctx 2048
+PARAMETER num_thread 2
 SYSTEM """
 You are Kahibaw, the experience layer of the Ikabud repository.
 

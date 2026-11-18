@@ -405,6 +405,21 @@ class HarppExperienceTest(unittest.TestCase):
         self.assertEqual(result.returncode, 2, result.stdout)
         self.assertIn("no approved lessons", result.stderr)
 
+    def test_hardware_capability_is_reported_not_assumed(self) -> None:
+        """Whether this machine can host the model must be a check, not a memory.
+
+        The owner's plan is to grow Kahibaw now and redeploy when the hardware allows. That decision
+        needs a mechanical answer, because the i3-2100 has AVX but not AVX2 - the floor every modern
+        CPU-inference kernel assumes.
+        """
+        result = _run([str(TOOL), "llm", "doctor", "--json"], env=self.env)
+        self.assertIn(result.returncode, (0, 1), result.stderr)
+        report = json.loads(result.stdout)
+        for key in ("cpu", "cores", "simd", "avx2_present", "verdict"):
+            self.assertIn(key, report)
+        self.assertEqual(result.returncode == 0, bool(report["avx2_present"]),
+                         "the exit code must follow the capability, not a constant")
+
     def test_corpus_is_the_finetuning_prerequisite_and_carries_provenance(self) -> None:
         lesson = self._add("a rule that becomes a training example")
         corpus = self.tmp / "corpus.jsonl"

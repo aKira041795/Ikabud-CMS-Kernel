@@ -158,6 +158,45 @@ A 7B model is ~5× the compute on 4 cores, so it would make the latency bar wors
 honest routes are a fine-tune (Tier 2, corpus already emitted by `llm corpus`) or accepting that the
 experience layer is retrieval, not inference.
 
+### Hardware verdict — measured 2026-11-18, and it is the real ceiling
+
+```
+cpu      Intel(R) Core(TM) i3-2100 CPU @ 3.10GHz      (2011, Sandy Bridge)
+cores    4 (2 physical)
+simd     avx=yes  avx2=no  avx512f=no  fma=no
+verdict  INSUFFICIENT
+```
+
+`llm doctor` prints this and exits non-zero, so "can this machine run the model?" is a check rather
+than a recollection.
+
+**Alternatives researched on GitHub, and why neither rescues this box:**
+
+| Project | Claim | Why it does not apply here |
+|---|---|---|
+| [`ik_llama.cpp`](https://github.com/ikawrakow/ik_llama.cpp) | "llama.cpp fork with better CPU performance", 3.4k★ | Its README states the only fully performant CPU backend is **"AVX2 or better"**. We have AVX1. |
+| [`microsoft/BitNet`](https://github.com/microsoft/BitNet) | 2.37×–6.17× on x86 CPUs | Gains come from SIMD lookup-table kernels, and the smallest official model is **2.4B** — 5× ours, on 2 cores. |
+
+**Levers that do work on AVX-only silicon**, in order of measured impact:
+
+1. **Prompt size** — dominant. 53 tokens → 9.0 s, 423 tokens → 61.8 s on the same model.
+2. **Smaller base** — 0.5B is 2× faster than 1.5B on identical input.
+3. **Physical cores, not hyperthreads** — `num_thread 2` answered in 11.3 s where 4 threads took 19.2 s (**41 %**). Now baked into the generated Modelfile.
+4. **Fewer candidates** — k=3 scored better *and* ran faster than k=5.
+
+Latency here varies ±50 % with ambient load on a 2-core box, so the acceptance bar is a threshold,
+not a precise number.
+
+### The plan this implies (owner's framing, made mechanical)
+
+Grow Kahibaw while the hardware cannot host it, and redeploy the day it can:
+
+```bash
+python3 tools/harpp-experience.py llm corpus --out data.jsonl   # grow the training set as lessons are approved
+python3 tools/harpp-experience.py llm doctor                    # exit 0 only when the CPU can host it
+python3 tools/harpp-experience.py llm build && llm bench        # redeploy, and prove it still passes
+```
+
 ### Measured 2026-11-17 — the uncomfortable verdict, recorded
 
 **Kahibaw** was built (8 approved lessons in its system block) and tested directly.

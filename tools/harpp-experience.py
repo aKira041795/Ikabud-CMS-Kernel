@@ -1907,7 +1907,14 @@ def _llm_lessons(limit: int = 40) -> list[dict]:
     return rows[:limit]
 
 
-def render_modelfile(base: str, lessons: list[dict], name: str, num_ctx: int = 2048) -> str:
+def _default_threads() -> int:
+    """Physical cores where they can be inferred; compute-bound inference loses to hyperthreads."""
+    total = os.cpu_count() or 1
+    return max(1, total // 2) if total > 2 else total
+
+
+def render_modelfile(base: str, lessons: list[dict], name: str, num_ctx: int = 2048,
+                     num_thread: int = 0) -> str:
     """The model's behaviour, as a diffable file rather than a UI setting.
 
     Every rule in the SYSTEM block is an APPROVED lesson from harpp-memory, so the model can only
@@ -1923,6 +1930,10 @@ def render_modelfile(base: str, lessons: list[dict], name: str, num_ctx: int = 2
         f"FROM {base}",
         "PARAMETER temperature 0.2",
         f"PARAMETER num_ctx {num_ctx}",
+        # Physical cores, not hyperthreads. Measured 2026-11-18 on an i3-2100 (2 cores/4 threads):
+        # 2 threads answered in 11.3s where 4 threads took 19.2s - a 41% loss from HT contention on
+        # compute-bound work.
+        f"PARAMETER num_thread {num_thread}",
         'SYSTEM """',
         "You are Kahibaw, the experience layer of the Ikabud repository.",
         "",
@@ -1945,7 +1956,8 @@ def cmd_llm_build(args) -> int:
         print("harpp-experience: no approved lessons yet - nothing to build behaviour from",
               file=sys.stderr)
         return 2
-    content = render_modelfile(args.base, lessons, args.name, args.num_ctx)
+    content = render_modelfile(args.base, lessons, args.name, args.num_ctx,
+                               args.num_thread or _default_threads())
     path = LLM_DIR / "Modelfile"
     if args.dry_run:
         print(content)
@@ -2086,6 +2098,41 @@ def cmd_llm_review(args) -> int:
         print("  nothing cited; the deterministic block still applies")
     print(f"\n{len(accepted)} citation(s) verified, {len(rejected)} dropped of {len(candidates)} rules considered")
     return 0
+
+
+def cmd_llm_doctor(args) -> int:
+    """Is THIS machine able to run the experience model acceptably? Answer mechanically."""
+    flags: set[str] = set()
+    cores = os.cpu_count() or 1
+    cpu_model = ""
+    try:
+        for line in Path("/proc/cpuinfo").read_text().splitlines():
+            if line.startswith("model name") and not cpu_model:
+                cpu_model = line.split(":", 1)[1].strip()
+            elif line.startswith("flags"):
+                flags = set(line.split(":", 1)[1].split())
+    except OSError:
+        pass
+    has = {name: name in flags for name in ("avx", "avx2", "avx512f", "fma")}
+    physical = max(1, cores // 2) if cores > 2 else cores
+    # AVX2 is the floor every modern CPU-inference kernel assumes: ik_llama.cpp states its only
+    # performant CPU backend is "AVX2 or better", and bitnet.cpp's gains need contemporary SIMD.
+    adequate = has["avx2"]
+    verdict = (
+        "ADEQUATE - kahibaw can be deployed inline" if adequate
+        else "INSUFFICIENT - no AVX2: kernels fall back and every prompt token costs ~150ms. "
+             "Keep retrieval deterministic; treat kahibaw as offline-only.")
+    report = {"cpu": cpu_model or "unknown", "cores": cores, "physical_cores": physical,
+              "simd": has, "avx2_present": adequate, "verdict": verdict}
+    if args.json:
+        print(json.dumps(report, indent=2))
+        return 0 if adequate else 1
+    print(f"cpu      {report['cpu']}")
+    print(f"cores    {cores} ({physical} physical)")
+    print("simd     " + " ".join(f"{k}={'yes' if v else 'no'}" for k, v in has.items()))
+    print(f"verdict  {verdict}")
+    print("\n  grow now -> `llm corpus --out data.jsonl`; redeploy -> `llm build && llm bench`")
+    return 0 if adequate else 1
 
 
 def cmd_llm_bench(args) -> int:
@@ -2324,6 +2371,8 @@ def _parser() -> argparse.ArgumentParser:
                            help="base model; 0.5b is 2x faster on CPU than 1.5b (measured)")
     llm_build.add_argument("--name", default="kahibaw", help="name of the built model")
     llm_build.add_argument("--limit", type=int, default=40, help="max approved lessons to embed (0 = role only)")
+    llm_build.add_argument("--num-thread", type=int, default=0,
+                           help="physical cores; 0 = auto (cpu_count // 2)")
     llm_build.add_argument("--num-ctx", type=int, default=2048,
                            help="context window; larger means slower prompt processing on CPU")
     llm_build.add_argument("--dry-run", action="store_true", help="print the Modelfile only")
@@ -2340,6 +2389,9 @@ def _parser() -> argparse.ArgumentParser:
     llm_review.add_argument("--rule-chars", type=int, default=150)
     llm_review.add_argument("--json", action="store_true")
     llm_review.set_defaults(func=cmd_llm_review)
+    llm_doctor = llm_sub.add_parser("doctor", help="can this machine run the model acceptably?")
+    llm_doctor.add_argument("--json", action="store_true")
+    llm_doctor.set_defaults(func=cmd_llm_doctor)
     llm_bench = llm_sub.add_parser("bench", help="acceptance: accuracy + latency on fixed cases")
     llm_bench.add_argument("--model", default="kahibaw")
     llm_bench.add_argument("--scope")
