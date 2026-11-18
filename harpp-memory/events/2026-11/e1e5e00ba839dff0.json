@@ -1,0 +1,16 @@
+{
+  "digest": "e1e5e00ba839dff06b9111b85fb69480f7f59ed74219b6ac4072ee2c74b8d047",
+  "event_id": "e1e5e00ba839dff0",
+  "evidence": [
+    "measured 2026-11-18: Record pull-out rendered bg none under btn-secondary; fixed to btn-accent rgb(62,122,107); footer padding 12px 16px after replacing card-footer"
+  ],
+  "lesson_id": "L-b3e252ada9",
+  "proposed_by": "harness",
+  "reason": "Owner filed it as 'button color and modal padding'; the cause was two undefined class names, not styling taste.",
+  "recorded_at": "2026-11-18T04:22:41.636587Z",
+  "review_after": "2026-12-18",
+  "schema_version": 1,
+  "scope": "daily-ledger",
+  "text": "In templates/modules/daily-ledger/admin/commissary.disyl only `.btn`, `.btn-sm`, `.btn-primary`, `.btn-outline`, `.btn-accent` and `.btn-danger` are defined - `btn-secondary` and `card-footer` do not exist there. A class that is not defined fails SILENTLY: the button renders with no background and the modal footer collapses to zero padding. Verify with getComputedStyle/measured rect, never by checking that the class name is in the markup.",
+  "type": "propose"
+}
