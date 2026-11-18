@@ -1,0 +1,16 @@
+{
+  "digest": "2694ce43ce5b632a5e5e0337af4b781d46d2163e2cde5bbf03e4ade31a6b0301",
+  "event_id": "2694ce43ce5b632a",
+  "evidence": [
+    "measured 2026-11-18: status said 52 active, Modelfile said 'lessons: 40 approved'; after the fix the header reads '40 of 52 approved'"
+  ],
+  "lesson_id": "L-ca51c05058",
+  "proposed_by": "harness",
+  "reason": "Twelve approved lessons were invisible: approved in the store, absent from the model, with nothing on screen saying so.",
+  "recorded_at": "2026-11-18T05:47:38.466797Z",
+  "review_after": "2026-12-18",
+  "schema_version": 1,
+  "scope": "harness",
+  "text": "A cap that silently drops approved experience is the same defect as a cap that silently drops rules: _llm_lessons() truncated to 40 by default while the store held 52 active lessons, and the Modelfile header reported '40 approved' as if 40 were all there was. Any cap on what reaches a consumer must state the total and the shortfall - the model header now reads 'N of M approved' and the build prints how many are excluded.",
+  "type": "propose"
+}
