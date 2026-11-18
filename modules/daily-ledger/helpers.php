@@ -427,7 +427,14 @@ function dl_noLossAdjustmentReasons(): array
  */
 function dl_adjustmentAddNeedsLiable(?string $reasonCode): bool
 {
-    return !in_array($reasonCode, dl_noLossAdjustmentReasons(), true);
+    // Owner direction 2026-11-18: "liable is optional". Charge to is a record of who a shortage is
+    // billed to WHEN somebody says so, never a precondition for saving the stock correction. Making
+    // it mandatory turned a quantity fix into an accusation: the operator had to name a person
+    // before the ledger would accept the count.
+    //
+    // The predicate is kept (rather than deleting every call site) so the four enforcement sites
+    // still read as one rule, and re-tightening it is a one-line change if it is ever wanted again.
+    return false;
 }
 
 /**

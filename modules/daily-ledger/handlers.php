@@ -5485,7 +5485,9 @@ function dl_recordDailySheetBranchEntry(array $user, array $input): array
             if ($liableId <= 0) {
                 $liableId = null;
             }
-            if ($type === 'adjustment_add' && $liableId === null) {
+            // Routed through the predicate like every other site, so "is liable required?" has one
+            // answer. Owner 2026-11-18: liable is optional, so this no longer refuses the save.
+            if ($type === 'adjustment_add' && $liableId === null && dl_adjustmentAddNeedsLiable($reasonCode)) {
                 throw new \RuntimeException('Charge to (liable person) is required for Add Stock that resolves a shortage. Choose Wrong entry, Missed entry or Unrecorded delivery if nothing was lost.');
             }
         }

@@ -406,7 +406,9 @@ function withdrawalModal() {
         // other type records what it records and charges nobody by default. Must
         // mirror the server rule in apiSaveCashierWithdrawals / handlers-offline.
         needsLiable() {
-            return this.serverType() === 'adjustment_add' && !this.isOmission();
+            // Owner 2026-11-18: "liable is optional". Never blocks the save; the field stays on
+            // screen as a choice, so a shortage can still be billed to somebody when that is known.
+            return false;
         },
 
         // A minus sign means "take back an amount recorded too high". Correction does

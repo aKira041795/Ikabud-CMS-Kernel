@@ -172,12 +172,14 @@ foreach ($noChargeCases as [$label, $header]) {
 // ─── Add Stock: a shortage must be charged ─────────────────────────────
 $h->section('Add Stock demands a charge unless nothing was lost');
 
+// Owner direction 2026-11-18 ("liable is optional"): a shortage reason may still NAME who it is
+// billed to, but naming nobody must never block the count. These three used to assert a 422.
 foreach (['manual_adjustment', 'spoilage', 'damage'] as $reason) {
     $res = $apply(['withdrawal_type' => 'adjustment_add', 'reason_code' => $reason], 1);
     $h->test(
-        "Add Stock + {$reason} without a liable person is rejected",
-        !$res['ok'] && $res['code'] === 422 && $mentionsLiable($res['error']),
-        $res['ok'] ? 'accepted (wrong)' : 'code=' . $res['code'] . ' ' . $res['error']
+        "Add Stock + {$reason} without a liable person is accepted",
+        $res['ok'] === true,
+        $res['ok'] ? 'accepted' : 'code=' . ($res['code'] ?? '?') . ' ' . ($res['error'] ?? '')
     );
 }
 
@@ -233,13 +235,14 @@ $h->section('Modal rule mirrors the server');
 
 $modalSrc = (string)file_get_contents($base . '/templates/modules/daily-ledger/cashier/modal_patch.disyl');
 $h->test(
-    'needsLiable() is limited to Add Stock that is not a no-loss reason',
+    'needsLiable() no longer blocks a save (owner 2026-11-18: liable is optional)',
     // Reads the type the SERVER will receive (serverType), so Correction-Additional
     // — which is recorded as adjustment_add — inherits the rule instead of slipping
     // past it and being rejected server-side. The no-loss list mirrors
     // dl_noLossAdjustmentReasons() on the server.
-    str_contains($modalSrc, "return this.serverType() === 'adjustment_add' && !this.isOmission();")
-    && str_contains($modalSrc, "['wrong_entry', 'missed_entry', 'unrecorded_delivery', 'encoder_omission']")
+    // The modal must agree with the server: Charge to is shown but never required. Asserting the
+    // helper returns false keeps the two from drifting apart again in either direction.
+    preg_match('/needsLiable\(\)\s*\{[^}]*return false;/', $modalSrc) === 1
 );
 $h->test('validate() uses needsLiable()', str_contains($modalSrc, 'if (this.needsLiable() &&'));
 $h->test('the Charge-to field is offered for Add Stock and for Charge', str_contains($modalSrc, 'x-show="showsLiable()"') && str_contains($modalSrc, "=== 'adjustment_add' || this.serverType() === 'charge'"));
