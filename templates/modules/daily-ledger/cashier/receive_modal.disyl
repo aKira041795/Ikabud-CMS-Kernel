@@ -238,7 +238,14 @@
                                                 <span class="inline-block w-10 shrink-0 text-left text-[11px] tabular-nums text-gray-400" x-text="'of ' + row.it.quantity"></span>
                                             </div>
                                         </td>
-                                        <td class="px-2 py-1"></td>
+                                        <td class="px-2 py-1 text-right">
+                                            {* Only a line that came from a real delivery can be corrected:
+                                               a paper-DR row has no delivery to re-point. *}
+                                            <button type="button"
+                                                    x-show="row.it.delivery_id"
+                                                    class="rounded border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[11px] font-semibold text-amber-800 hover:bg-amber-100"
+                                                    @click="openSubstitution(row.g, row.it)">Wrong item?</button>
+                                        </td>
                                         <td class="px-2 py-1"></td>
                                     </tr>
                                 </template>
@@ -282,6 +289,46 @@
                                                         </template>
                                                     </div>
                                                 </template>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </template>
+                                {* Wrong-item correction. Says plainly what will happen: the line is
+                                   corrected here and the production figures follow on their own, so
+                                   nobody adjusts the commissary a second time by hand. *}
+                                <template x-if="row.type === 'sub'">
+                                    <tr class="bg-amber-50">
+                                        <td colspan="7" class="px-2 pb-2 pt-0">
+                                            <div class="rounded-md border border-amber-300 bg-white px-3 py-2">
+                                                <div class="text-xs font-semibold text-amber-900">
+                                                    Correct <span x-text="row.it.product_name"></span> — which product should have been sent?
+                                                </div>
+                                                <div class="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-4">
+                                                    <select class="form-input mt-0 w-full text-sm" x-model="subCorrectId">
+                                                        <option value="">Choose the correct product…</option>
+                                                        <template x-for="p in substitutionOptions(row.it)" :key="'sub' + p.id">
+                                                            <option :value="p.id" x-text="p.name"></option>
+                                                        </template>
+                                                    </select>
+                                                    <input type="number" min="1" class="form-input mt-0 w-full text-right text-sm tabular-nums"
+                                                           x-model="subQty" aria-label="Quantity that arrived">
+                                                    <input type="text" maxlength="500" class="form-input mt-0 w-full text-sm"
+                                                           placeholder="Why? e.g. nasayop ug tuplok" x-model="subReason">
+                                                    <div class="flex items-center justify-end gap-2">
+                                                        <button type="button" class="btn btn-accent px-2 py-1 text-xs"
+                                                                :disabled="subSaving"
+                                                                @click="submitSubstitution(row.g, row.it)"
+                                                                x-text="subSaving ? 'Saving…' : 'Save correction'"></button>
+                                                        <button type="button" class="btn px-2 py-1 text-xs"
+                                                                :disabled="subSaving"
+                                                                @click="closeSubstitution()">Cancel</button>
+                                                    </div>
+                                                </div>
+                                                <p class="mt-1 text-[11px] font-semibold text-rose-700" x-show="subError"
+                                                   x-text="subError" role="status" aria-live="polite"></p>
+                                                <p class="mt-1 text-[11px] text-gray-500">
+                                                    Production updates automatically — do not adjust the commissary by hand.
+                                                </p>
                                             </div>
                                         </td>
                                     </tr>
@@ -716,6 +763,17 @@ function receiveModal() {
         // account's own rows, which is why the cashier never types a date.
         returnBucket: '',
 
+        // Wrong-item correction (owner 2026-11-17): the branch received a product the commissary
+        // did not intend to send. The RECEIVING side is the operator - they name the line that was
+        // wrong and the product that should have arrived. Production follows by itself because
+        // dispatched_qty is derived from posted deliveries, so nothing here touches commissary stock.
+        subOpenKey: '',
+        subCorrectId: '',
+        subQty: '',
+        subReason: '',
+        subSaving: false,
+        subError: '',
+
         get filteredDeliveries() {
             var q = this.drFilter.trim().toLowerCase();
             if (!q) return this.deliveries;
@@ -739,6 +797,11 @@ function receiveModal() {
                 var firstNote = true;
                 (g.items || []).forEach(function(it, ii) {
                     rows.push({ key: 'i|' + g.group_key + '|' + it.id, type: 'item', g: g, it: it, ii: ii });
+                    // The correction panel sits directly under the line it corrects, the same way
+                    // the variance note does, so the product being corrected is never in doubt.
+                    if (self.subOpenKey === 'i|' + g.group_key + '|' + it.id) {
+                        rows.push({ key: 's|' + g.group_key + '|' + it.id, type: 'sub', g: g, it: it });
+                    }
                     if (self.hasItemVariance(g, it)) {
                         rows.push({
                             key: 'n|' + g.group_key + '|' + it.id,
@@ -945,7 +1008,6 @@ function receiveModal() {
         returnMissing() {
             var missing = [];
             if (!this.returnConsigneeId) missing.push('the account');
-            if (!this.returnDr.trim()) missing.push('the return slip number');
             if (this.returnPicked().length === 0) missing.push('at least one quantity coming back');
             return missing;
         },
@@ -957,17 +1019,22 @@ function receiveModal() {
         submitReturn() {
             var self = this;
             var lines = this.returnPicked();
-            if (lines.length === 0 || !this.returnDr.trim()) return;
+            if (lines.length === 0) return;
+            // The return slip number is optional: the account cannot obtain a DR from the supplier
+            // for goods it pulled out (owner concern #2). Send it only when one was actually typed,
+            // so a blank field never looks like a real receipt downstream.
+            var payload = {
+                consignee_id: Number(this.returnConsigneeId),
+                branch_id: Number(this.currentBranchId()),
+                lines: lines
+            };
+            var dr = this.returnDr.trim();
+            if (dr !== '') payload.dr_number = dr;
             this.returnSaving = true;
             window.dlWriteTimeout(BASE + '/api/v1/deliveries/consignee-return', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    consignee_id: Number(this.returnConsigneeId),
-                    branch_id: Number(this.currentBranchId()),
-                    dr_number: this.returnDr.trim(),
-                    lines: lines
-                })
+                body: JSON.stringify(payload)
             }, 'This account return').then(function (response) {
                 return response.json().catch(function () { return {}; }).then(function (body) {
                     if (!response.ok || !body.ok) throw new Error(body.error || 'Return was not saved.');
@@ -1330,6 +1397,64 @@ function receiveModal() {
 
         isPartial(g) {
             return this.hasCorrections(g);
+        },
+
+        subKey(g, it) {
+            return 'i|' + g.group_key + '|' + it.id;
+        },
+
+        substitutionOptions(it) {
+            return (this.products || []).filter(function(p) {
+                return Number(p.id) !== Number(it.product_id);
+            });
+        },
+
+        openSubstitution(g, it) {
+            if (!it.delivery_id) return;
+            this.subOpenKey = this.subKey(g, it);
+            this.subCorrectId = '';
+            this.subQty = String(it.quantity);
+            this.subReason = '';
+            this.subError = '';
+        },
+
+        closeSubstitution() {
+            this.subOpenKey = '';
+            this.subError = '';
+        },
+
+        submitSubstitution(g, it) {
+            var self = this;
+            var correct = Number(this.subCorrectId || 0);
+            var qty = Number(this.subQty || 0);
+            var reason = (this.subReason || '').trim();
+            if (!correct) { this.subError = 'Choose the product that should have been sent.'; return; }
+            if (!Number.isInteger(qty) || qty <= 0) { this.subError = 'Quantity must be a whole number above zero.'; return; }
+            if (!reason) { this.subError = 'Say why this line is being corrected.'; return; }
+            this.subSaving = true;
+            this.subError = '';
+            window.dlWriteTimeout(BASE + '/api/v1/deliveries/substitute-item', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    delivery_id: Number(it.delivery_id),
+                    wrong_product_id: Number(it.product_id),
+                    correct_product_id: correct,
+                    quantity: qty,
+                    reason: reason
+                })
+            }, 'This item correction').then(function(response) {
+                return response.json().catch(function() { return {}; }).then(function(body) {
+                    if (!response.ok || !body.ok) throw new Error(body.error || 'The correction was not saved.');
+                    self.subSaving = false;
+                    self.subOpenKey = '';
+                    showToast('Item corrected — production figures follow automatically', 'success');
+                    self.load();
+                });
+            }).catch(function(error) {
+                self.subSaving = false;
+                self.subError = error.message || 'The correction was not saved.';
+            });
         },
 
         load() {

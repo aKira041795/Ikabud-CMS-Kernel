@@ -4520,7 +4520,11 @@ function dl_applyPostedDeliveryCommissaryLedger($db, int $deliveryId, int $actor
     );
     $applied = 0;
     foreach ($items->fetchAll(PDO::FETCH_ASSOC) ?: [] as $item) {
-        $exists = $db->prepare('SELECT effect_status FROM dl_delivery_ledger_effects WHERE delivery_item_id = :id FOR UPDATE');
+        // Skip only while an APPLIED effect exists. A REVERSED row means the dispatch was undone
+        // and is being re-applied (migration 104 removed the one-row-per-item unique key), so it
+        // must not block the corrected effect - and it must not be deleted either, because the
+        // applied/reversed pair IS the audit trail of what happened to commissary stock.
+        $exists = $db->prepare('SELECT effect_status FROM dl_delivery_ledger_effects WHERE delivery_item_id = :id AND effect_status = "applied" FOR UPDATE');
         $exists->execute([':id' => (int)$item['id']]);
         if ($exists->fetchColumn() !== false) continue;
         $before = dl_commissaryLedgerSnapshot($db, $originId, (int)$item['product_id'], (string)$head['delivery_date']);
@@ -11663,6 +11667,9 @@ function apiGetIncomingDeliveries(array $params = []): void
                 'product_name' => $row['product_name'],
                 'quantity' => (int)$row['quantity'],
                 'supply_origin' => (string)($row['supply_origin'] ?? 'commissary'),
+                // The delivery this line belongs to, so the receiving branch can correct a
+                // wrongly dispatched product against the right record (owner concern #3).
+                'delivery_id' => (int)$row['delivery_id'],
             ];
         }
     }
@@ -21133,6 +21140,109 @@ function dl_pendingDeliveryIssues($db, int $branchId, int $limit = 50): array
 }
 
 /**
+ * Dispatch corrections the RECEIVING BRANCH made to a delivery this commissary produced.
+ *
+ * Owner 2026-11-17: "notification shown at production dashboard for user to know what happened".
+ * The substitution already writes a dl_integrity_notifications row addressed to the commissary
+ * branch, but the only server-rendered surface here was dl_pendingDeliveryIssues(), which reads
+ * dl_variance_flags - QUANTITY mismatches with a receiver remark. A wrong-item correction is not a
+ * variance row, so the notice existed in the database and was invisible on the page the production
+ * in-charge actually lands on. That is the defect this closes; no second notifier is introduced.
+ *
+ * RECENT rows plus an explicit TOTAL: showing every correction forever would grow the landing page
+ * without bound, but silently cutting the list would hide a real change to the figures, so the
+ * caller renders "latest N of TOTAL" rather than letting the limit look like the whole story.
+ */
+function dl_recentProductionNotices($db, int $branchId, int $limit = 5): array
+{
+    if ($branchId <= 0) {
+        return ['rows' => [], 'total' => 0, 'heading' => ''];
+    }
+    $limit = max(1, min(50, $limit));
+    $totalStmt = $db->prepare(
+        "SELECT COUNT(*) FROM dl_integrity_notifications
+          WHERE finding_type = 'delivery_item_substituted' AND branch_id = :b"
+    );
+    $totalStmt->execute([':b' => $branchId]);
+    $total = (int)($totalStmt->fetchColumn() ?: 0);
+    if ($total === 0) {
+        return ['rows' => [], 'total' => 0, 'heading' => ''];
+    }
+    // Owner 2026-11-17: "A dispatched line was corrected at the <name of branch>". The heading names
+    // the branch only when exactly ONE branch did the correcting - the ordinary case of one commissary
+    // and one receiver. A commissary can send the same product to several branches in one shift, and
+    // naming one branch across a mixed list would be a false statement, so in that case the heading
+    // stays general and each row names its own branch.
+    $distinctStmt = $db->prepare(
+        "SELECT DISTINCT cb.name AS corrector_name, cb.code AS corrector_code
+           FROM dl_integrity_notifications n
+           LEFT JOIN dl_deliveries d ON n.entity_type = 'dl_deliveries' AND d.id = n.entity_id
+           LEFT JOIN dl_branches cb ON cb.id = d.destination_id
+          WHERE n.finding_type = 'delivery_item_substituted' AND n.branch_id = :b"
+    );
+    $distinctStmt->execute([':b' => $branchId]);
+    $correctors = [];
+    foreach ($distinctStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $candidate) {
+        $candidateName = trim((string)($candidate['corrector_name'] ?? ''));
+        if ($candidateName === '') {
+            continue; // delivery gone -> unknown; never invent a branch name
+        }
+        $candidateCode = trim((string)($candidate['corrector_code'] ?? ''));
+        $correctors[$candidateCode !== '' ? $candidateName . ' (' . $candidateCode . ')' : $candidateName] = true;
+    }
+    $plural = $total > 1;
+    if (count($correctors) === 1) {
+        $only = (string)array_key_first($correctors);
+        $heading = ($plural ? 'Dispatched lines were corrected at ' : 'A dispatched line was corrected at ') . $only;
+    } else {
+        $heading = $plural
+            ? 'Dispatched lines were corrected at receiving branches'
+            : 'A dispatched line was corrected at a receiving branch';
+    }
+    // WHO CORRECTED IT is the RECEIVING branch (dl_deliveries.destination_id) - the branch the
+    // delivery was sent TO.
+    // `n.branch_id` is the branch being NOTIFIED, i.e. the producing commissary that sent it.
+    // Reading the name off branch_id named the sender as the corrector, which is the opposite of
+    // what the owner asked for and actively misleading: "Rizal Commis is the production dispatch",
+    // not the branch that received and corrected the line (owner, 2026-11-17).
+    $stmt = $db->prepare(
+        "SELECT n.id, n.title, n.detail, n.finding_count, n.entity_id, n.raised_at, n.branch_id,
+                DATE_FORMAT(n.raised_at, '%Y-%m-%d %H:%i') AS raised_label,
+                cb.name AS corrector_name, cb.code AS corrector_code
+           FROM dl_integrity_notifications n
+           LEFT JOIN dl_deliveries d
+                  ON n.entity_type = 'dl_deliveries' AND d.id = n.entity_id
+           LEFT JOIN dl_branches cb ON cb.id = d.destination_id
+          WHERE n.finding_type = 'delivery_item_substituted' AND n.branch_id = :b
+          ORDER BY n.raised_at DESC, n.id DESC
+          LIMIT " . $limit
+    );
+    $stmt->execute([':b' => $branchId]);
+    $rows = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+        $repeats = (int)($row['finding_count'] ?? 1);
+        // Composed here, not in the template: DiSyL would need a branch-name fallback plus an
+        // arithmetic comparison in an interpolation slot, and the label reads identically either way.
+        $who = trim((string)($row['corrector_name'] ?? ''));
+        $code = trim((string)($row['corrector_code'] ?? ''));
+        if ($who === '') {
+            // The delivery row is gone. Say so plainly rather than naming the wrong branch.
+            $who = 'the receiving branch';
+        } elseif ($code !== '') {
+            $who .= ' (' . $code . ')';
+        }
+        $when = trim((string)($row['raised_label'] ?? ''));
+        $row['repeat_note'] = $repeats > 1 ? ' · repeated ' . $repeats . ' times' : '';
+        $row['finding_count'] = $repeats;
+        $row['corrector_label'] = $who;
+        $row['raised_label'] = $when;
+        $row['meta_label'] = 'Received and corrected at ' . $who . ($when !== '' ? ' · ' . $when : '') . $row['repeat_note'];
+        $rows[] = $row;
+    }
+    return ['rows' => $rows, 'total' => $total, 'heading' => $heading];
+}
+
+/**
  * Store one branch-side explanation without changing the discrepancy or its resolution.
  */
 function apiSaveDeliveryVarianceRemark(array $params = []): void
@@ -25665,12 +25775,23 @@ function handleAdminCommissary(): void
     if ($selectedCommissaryId > 0) {
         $pendingDeliveryIssues = dl_pendingDeliveryIssues($db, (int)$selectedCommissaryId, 8);
     }
+    // A correction made at the receiving branch MOVED this branch's figures. Production must be able
+    // to read why without hunting the variance page, so the notice is server-rendered here too.
+    $productionNotices = ['rows' => [], 'total' => 0, 'heading' => ''];
+    if ($selectedCommissaryId > 0) {
+        $productionNotices = dl_recentProductionNotices($db, (int)$selectedCommissaryId, 5);
+    }
 
     echo dlRender('modules/daily-ledger/admin/commissary.disyl', [
         'page_title' => 'Commissary',
         'base_url' => dlGetBaseUrl(),
         'pending_delivery_issues' => $pendingDeliveryIssues,
         'pending_delivery_issue_count' => count($pendingDeliveryIssues),
+        'production_notices' => $productionNotices['rows'],
+        'production_notice_total' => $productionNotices['total'],
+        'production_notice_heading' => $productionNotices['heading'],
+        'production_notice_shown' => count($productionNotices['rows']),
+        'production_notice_truncated' => $productionNotices['total'] > count($productionNotices['rows']),
         'dl_token' => (string)kernelCookie(dlCookieName(), ''),
         'csrf_token' => app()->csrfToken(),
         'current_page' => 'commissary',

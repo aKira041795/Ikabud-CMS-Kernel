@@ -188,7 +188,9 @@
     "database/migrations/100_receiving_supply_origin_cake_correction.sql",
     "database/migrations/101_branch_product_own_production.sql",
     "database/migrations/102_ledger_backdated_edit_finding_type.sql",
-    "database/migrations/103_adjustment_reason_codes.sql"
+    "database/migrations/103_adjustment_reason_codes.sql",
+    "database/migrations/104_delivery_ledger_effect_append_only.sql",
+    "database/migrations/105_delivery_item_substituted_finding_type.sql"
   ],
   "capabilities": {
     "exposes": [

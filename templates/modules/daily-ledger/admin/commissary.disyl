@@ -1474,6 +1474,31 @@
 </div>
 {/if}
 
+{* Owner 2026-11-17: a corrected DR line CHANGES this branch's figures. The correction already
+   raised a dl_integrity_notifications finding, but nothing on the landing page read it, so
+   production watched numbers move with no explanation. Informational, not action-required - hence
+   no reply field and a calmer colour than the rose "needs your answer" block above. *}
+{if production_notice_total > 0}
+<div id="dl-production-notices" class="mb-5 rounded-xl border border-sky-300 bg-sky-50 px-4 py-3 print-hidden" role="status" aria-live="polite">
+    <div class="min-w-0">
+        <p class="text-sm font-semibold text-sky-900">
+            {production_notice_heading}
+            {if production_notice_truncated}<span class="font-normal text-sky-800"> &mdash; showing the latest <span class="tabular-nums">{production_notice_shown}</span> of <span class="tabular-nums">{production_notice_total}</span></span>{/if}
+        </p>
+        <p class="mt-0.5 text-xs text-sky-800">Information only - nothing here needs an action from production. Each entry names the branch that received and corrected the line, and when.</p>
+    </div>
+    <ul class="mt-3 space-y-1.5">
+        {foreach production_notices as notice}
+        <li class="rounded-lg border border-sky-200 bg-white px-3 py-2">
+            <p class="text-sm font-semibold text-gray-900">{notice.title}</p>
+            <p class="mt-1 text-sm text-gray-800">{notice.detail}</p>
+            <p class="mt-0.5 text-[11px] text-gray-500">{notice.meta_label}</p>
+        </li>
+        {/foreach}
+    </ul>
+</div>
+{/if}
+
 <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6 print-hidden">
     <div>
         <h2 class="text-lg font-semibold text-gray-900">{if can_view_production_management}Commissary{else}Daily Sheet{/if}</h2>

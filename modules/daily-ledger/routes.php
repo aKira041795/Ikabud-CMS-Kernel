@@ -228,6 +228,7 @@ return [
         '/daily-ledger/api/v1/deliveries/correct-consignee-discrepancy' => 'daily-ledger:apiCorrectConsigneeDeliveryDiscrepancy',
         '/daily-ledger/api/v1/deliveries/consignee-return' => 'daily-ledger:apiRecordConsigneeReturn',
         '/daily-ledger/api/v1/deliveries/void'            => 'daily-ledger:apiVoidDelivery',
+        '/daily-ledger/api/v1/deliveries/substitute-item' => 'daily-ledger:apiSubstituteDeliveryItem',
         '/daily-ledger/api/v1/admin/deliveries/change-destination' => 'daily-ledger:apiChangeDeliveryDestination',
 
         // Phase B: branch receivings

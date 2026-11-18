@@ -2147,7 +2147,9 @@ function apiRecordConsigneeReturn(array $params = []): void
 
     $consigneeId = filter_var($input['consignee_id'] ?? null, FILTER_VALIDATE_INT);
     // Optional branch credit (client concern #2). When a branch is supplied the return is stock
-    // ENTERING that branch, so it needs a DR and must go through the ledger — see the try block.
+    // ENTERING that branch, so it must go through the ledger — see the try block. The DR number is
+    // optional: the account returning pulled-out goods cannot obtain one from the supplier
+    // (owner concern #2, 2026-11-17), so an empty dr_number must not block the return.
     $branchId = (int)(filter_var($input['branch_id'] ?? 0, FILTER_VALIDATE_INT) ?: 0);
     $drNumber = trim((string)($input['dr_number'] ?? ''));
 
@@ -2195,11 +2197,6 @@ function apiRecordConsigneeReturn(array $params = []): void
     }
     if ($lines === []) {
         $ctx->json(['ok' => false, 'error' => 'At least one return line is required.'], 422);
-        return;
-    }
-
-    if ($branchId > 0 && $drNumber === '') {
-        $ctx->json(['ok' => false, 'error' => 'A Delivery Receipt number is required when returned stock enters a branch.'], 422);
         return;
     }
 
@@ -2269,7 +2266,9 @@ function apiRecordConsigneeReturn(array $params = []): void
             // authorization and the supplying-branch rule, and names the result. Crediting again
             // here would double the branch stock.
             $result['branch_credited'] = $branchId;
-            $result['dr_number'] = $drNumber;
+            if ($drNumber !== '') {
+                $result['dr_number'] = $drNumber;
+            }
         }
 
         if ($ownsTx && $ctx->db()->inTransaction()) {
@@ -3256,6 +3255,285 @@ function apiChangeDeliveryDestination(array $params = []): void
         'target_branch_id' => (int)$result['target_branch_id'],
         'moved_addtl' => (bool)$result['moved_addtl'],
     ]);
+}
+
+// ─── Substitute a wrongly dispatched item (receiving correction) ─────────
+
+/**
+ * POST /daily-ledger/api/v1/deliveries/substitute-item
+ *
+ * The receiving branch got the wrong product dispatched to them. In ONE
+ * transaction: reverse the wrong product's received `addtl`, credit the
+ * correct product, repoint the delivery/receiving items, and re-run the
+ * derived production-side dispatch effect so dl_commissary_product_ledger
+ * follows the corrected item. Admin/supervisor only (an office correction),
+ * reason required, closed day refuses.
+ */
+function apiSubstituteDeliveryItem(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) { http_response_code(500); return; }
+    // The RECEIVING operator is the cashier at that branch (owner 2026-11-17: "the receiving can
+    // correct the wrong item selected to the correct one"). Refusing the cashier made the feature
+    // unusable at the counter, measured live 2026-11-17: HTTP 403 "This page is not open to your
+    // role". Same reasoning as apiRecordConsigneeReturn, which allows cashiers per the owner
+    // directive of 2026-11-10. Per-branch authority is enforced below.
+    $user = dlCurrentUser(['admin', 'supervisor', 'cashier']);
+    $actorId = dl_getActorUserId($user);
+
+    $input = (array)json_decode(file_get_contents('php://input'), true);
+    $deliveryId = (int)($input['delivery_id'] ?? 0);
+    $wrongProductId = (int)($input['wrong_product_id'] ?? 0);
+    $correctProductId = (int)($input['correct_product_id'] ?? 0);
+    $quantity = (int)($input['quantity'] ?? 0);
+    $reason = trim((string)($input['reason'] ?? ''));
+
+    if ($deliveryId <= 0 || $wrongProductId <= 0 || $correctProductId <= 0) {
+        $ctx->json(['ok' => false, 'error' => 'delivery_id, wrong_product_id and correct_product_id are required.'], 422);
+        return;
+    }
+    if ($wrongProductId === $correctProductId) {
+        $ctx->json(['ok' => false, 'error' => 'The wrongly dispatched product and the correct product are the same.'], 422);
+        return;
+    }
+    if ($quantity < 0) {
+        $ctx->json(['ok' => false, 'error' => 'quantity cannot be negative.'], 422);
+        return;
+    }
+    // A stock swap with no explanation is not reviewable.
+    if ($reason === '') {
+        $ctx->json(['ok' => false, 'error' => 'A reason is required.'], 422);
+        return;
+    }
+
+    $db = $ctx->db();
+    $db->beginTransaction();
+    try {
+        $stmt = $db->prepare('SELECT * FROM dl_deliveries WHERE id = :id FOR UPDATE');
+        $stmt->execute([':id' => $deliveryId]);
+        $delivery = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+        if (!is_array($delivery)) {
+            $db->rollBack();
+            $ctx->json(['ok' => false, 'error' => 'Delivery not found.'], 404);
+            return;
+        }
+        if ((string)$delivery['status'] !== 'posted') {
+            $db->rollBack();
+            $ctx->json(['ok' => false, 'error' => 'Only posted deliveries can have an item substituted.'], 409);
+            return;
+        }
+        if ((string)$delivery['destination_type'] !== 'branch' || (int)$delivery['destination_id'] <= 0) {
+            $db->rollBack();
+            $ctx->json(['ok' => false, 'error' => 'Only deliveries received by a branch can have an item substituted.'], 422);
+            return;
+        }
+        $branchId = (int)$delivery['destination_id'];
+
+        // Authority is per BRANCH, not merely per role. A cashier may correct a line at the branch
+        // they work at; allowing the role without this check would let any cashier move stock on
+        // another branch's ledger.
+        $auth = dl_authorizeBranch($user, ['branch_id' => $branchId]);
+        if (($auth['branch_id'] ?? -1) < 0) {
+            $db->rollBack();
+            $ctx->json(['ok' => false, 'error' => 'Branch not authorized'], 403);
+            return;
+        }
+
+        // The ACTIVE receiving on this delivery anchors the ledger date + shift.
+        $rcvStmt = $db->prepare(
+            'SELECT * FROM dl_branch_receivings
+              WHERE delivery_id = :did AND status <> "voided" ORDER BY id DESC LIMIT 1 FOR UPDATE'
+        );
+        $rcvStmt->execute([':did' => $deliveryId]);
+        $receiving = $rcvStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+        $receivingId = is_array($receiving) ? (int)$receiving['id'] : 0;
+        $ledgerDate = is_array($receiving) && (string)$receiving['received_ledger_date'] !== ''
+            ? (string)$receiving['received_ledger_date']
+            : (string)$delivery['delivery_date'];
+        $shift = is_array($receiving) && (string)($receiving['received_shift'] ?? '') !== ''
+            ? (string)$receiving['received_shift']
+            : 'AM';
+
+        // The wrong product must actually be on this delivery; the received
+        // quantity is the default when the caller does not name one.
+        $itemStmt = $db->prepare('SELECT id, quantity FROM dl_delivery_items WHERE delivery_id = :d AND product_id = :p FOR UPDATE');
+        $itemStmt->execute([':d' => $deliveryId, ':p' => $wrongProductId]);
+        $wrongItemIds = [];
+        $deliveredQty = 0;
+        foreach ($itemStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $it) {
+            $wrongItemIds[] = (int)$it['id'];
+            $deliveredQty += (int)$it['quantity'];
+        }
+        if ($wrongItemIds === []) {
+            $db->rollBack();
+            $ctx->json(['ok' => false, 'error' => 'The wrongly dispatched product is not on this delivery.'], 422);
+            return;
+        }
+        $receivedQty = 0;
+        if ($receivingId > 0) {
+            $rqStmt = $db->prepare('SELECT quantity_received FROM dl_branch_receiving_items WHERE receiving_id = :rid AND product_id = :p FOR UPDATE');
+            $rqStmt->execute([':rid' => $receivingId, ':p' => $wrongProductId]);
+            foreach ($rqStmt->fetchAll(PDO::FETCH_COLUMN) ?: [] as $q) {
+                $receivedQty += (int)$q;
+            }
+        }
+        if ($quantity === 0) {
+            $quantity = $receivedQty > 0 ? $receivedQty : $deliveredQty;
+        }
+        if ($quantity <= 0) {
+            $db->rollBack();
+            $ctx->json(['ok' => false, 'error' => 'quantity is required: none was received and none was given.'], 422);
+            return;
+        }
+
+        // A closed day refuses every later STOCK mutation (same rule as the move).
+        if (dl_getDayStatus($branchId, $ledgerDate) === 'closed') {
+            $db->rollBack();
+            $ctx->json(['ok' => false, 'error' => 'The branch day is closed; substitution refused.'], 409);
+            return;
+        }
+
+        // THE BRANCH LEDGER ONLY MOVES IF THE STOCK ACTUALLY ARRIVED.
+        //
+        // Measured live 2026-11-17: correcting a delivery that was dispatched but NOT YET RECEIVED
+        // was refused with "Cannot reverse before an output/withdrawal exists for this date", because
+        // reversing decrements `addtl` for stock the branch never added. That is the normal counter
+        // case - the cashier spots the wrong item while receiving it - so the reversal must be
+        // conditional. Repointing the line is always correct; the stock pair only when there is
+        // stock to move.
+        $stockMoved = $receivingId > 0 && $receivedQty > 0;
+        if ($stockMoved) {
+            dl_applyLedgerDelta($branchId, $wrongProductId, $ledgerDate, -$quantity, $actorId, 'addtl', $shift);
+            dl_recomputeSales($branchId, $wrongProductId, $ledgerDate, max(0, $actorId));
+            dl_applyLedgerDelta($branchId, $correctProductId, $ledgerDate, +$quantity, $actorId, 'addtl', $shift);
+            dl_recomputeSales($branchId, $correctProductId, $ledgerDate, max(0, $actorId));
+        }
+
+        // Repoint the records so the delivered/received lines match reality.
+        $db->prepare('UPDATE dl_delivery_items SET product_id = :correct WHERE delivery_id = :d AND product_id = :wrong')
+            ->execute([':correct' => $correctProductId, ':d' => $deliveryId, ':wrong' => $wrongProductId]);
+        if ($receivingId > 0) {
+            $db->prepare('UPDATE dl_branch_receiving_items SET product_id = :correct WHERE receiving_id = :rid AND product_id = :wrong')
+                ->execute([':correct' => $correctProductId, ':rid' => $receivingId, ':wrong' => $wrongProductId]);
+        }
+
+        // PRODUCTION SIDE: dl_commissary_product_ledger.dispatched_qty is a
+        // DERIVED read model fed from posted deliveries. APPEND-ONLY: the reversal flips
+        // the applied rows to "reversed" and the re-apply inserts new rows beside them
+        // (migration 104 dropped the one-row-per-item unique key). Nothing is deleted -
+        // the applied/reversed pair is the audit trail.
+        //
+        // THE EFFECT ROW MAY NOT EXIST. The Daily Sheet entry path writes the commissary
+        // ledger directly and creates no `dl_delivery_ledger_effects` row, so "reverse the
+        // applied effects" reversed nothing and the corrected line was ADDED on top of the
+        // original dispatch. Measured live 2026-11-17: product 17 stayed at dispatched=1
+        // while product 18 gained 1, doubling the dispatch. When there is no effect row we
+        // mirror the movement the dispatch actually made, for THIS line only.
+        $productionOrigin = (int)($delivery['resolved_origin_id'] ?? 0) ?: (int)($delivery['origin_id'] ?? 0);
+        $effectCheck = $db->prepare('SELECT id FROM dl_delivery_ledger_effects WHERE delivery_item_id = :id LIMIT 1');
+        $effectCheck->execute([':id' => (int)($wrongItemIds[0] ?? 0)]);
+        $hasEffectRow = $effectCheck->fetchColumn() !== false;
+
+        if ($hasEffectRow) {
+            dl_reversePostedDeliveryCommissaryLedger($db, $deliveryId, $actorId);
+        } else {
+            $productionDate = (string)($delivery['delivery_date'] ?? $ledgerDate);
+            $productionShift = (string)($delivery['production_shift'] ?? '');
+            $productionShift = in_array($productionShift, ['AM', 'PM'], true) ? $productionShift : null;
+            if ($productionOrigin > 0) {
+                dl_applyCommissaryProductLedgerDelta(
+                    $db, $productionOrigin, $wrongProductId, $productionDate,
+                    0, -$quantity, $actorId, 0, true, $productionShift
+                );
+            }
+        }
+        $ledgerEffect = dl_applyPostedDeliveryCommissaryLedger($db, $deliveryId, $actorId);
+
+        // TELL PRODUCTION WHAT CHANGED (owner 2026-11-17: "notification shown at production dashboard
+        // for user to know what happened. admin also is notified thru the commi dashboard"). Raised
+        // against the COMMISSARY branch, because that is where production_in_charge users live and
+        // it is the branch whose figures moved; admins receive every finding regardless of branch, so
+        // one row serves both surfaces. Reuses dl_integrity_notifications - no second notifier.
+        $nameStmt = $db->prepare('SELECT id, name FROM dl_products WHERE id IN (:a, :b)');
+        $nameStmt->execute([':a' => $wrongProductId, ':b' => $correctProductId]);
+        $productNames = [];
+        foreach ($nameStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $p) {
+            $productNames[(int)$p['id']] = (string)$p['name'];
+        }
+        $wrongName = $productNames[$wrongProductId] ?? ('product #' . $wrongProductId);
+        $correctName = $productNames[$correctProductId] ?? ('product #' . $correctProductId);
+        if ($productionOrigin > 0) {
+            // Owner 2026-11-17: "notification must be detailed as to which branch the correction was
+            // done, time and date aside from the current text." Naming only the products leaves
+            // production unable to tell WHICH receiver moved their figures, or on which truck-day -
+            // and a commissary dispatches several branches a day, often the same product to more than
+            // one. Branch and timestamp are read inside this transaction so the sentence cannot
+            // disagree with the row that is stored beside it.
+            $branchLabel = 'branch #' . $branchId;
+            if ($branchId > 0) {
+                $branchStmt = $db->prepare('SELECT code, name FROM dl_branches WHERE id = :id LIMIT 1');
+                $branchStmt->execute([':id' => $branchId]);
+                $branchRow = $branchStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+                $branchName = trim((string)($branchRow['name'] ?? ''));
+                $branchCode = trim((string)($branchRow['code'] ?? ''));
+                if ($branchName !== '') {
+                    $branchLabel = $branchCode !== '' ? $branchName . ' (' . $branchCode . ')' : $branchName;
+                }
+            }
+            // The database clock, not PHP's: raised_at is DB NOW(), so a notice read from the row and
+            // the same notice read from its text always carry the same minute.
+            $correctedAt = trim((string)($db->query("SELECT DATE_FORMAT(NOW(), '%Y-%m-%d %H:%i')")->fetchColumn() ?: ''));
+            $correctedBy = trim((string)($user['full_name'] ?? $user['name'] ?? $user['username'] ?? ''));
+            $noticeTitle = 'Dispatch corrected by ' . $branchLabel;
+            $noticeDetail = 'Delivery #' . $deliveryId . ' corrected by ' . $branchLabel
+                . ($correctedBy !== '' ? ' — ' . $correctedBy : '')
+                . ($correctedAt !== '' ? ' on ' . $correctedAt : '') . '. '
+                . $wrongName . ' → ' . $correctName . ' × ' . $quantity . '. Reason: ' . $reason
+                . '. Production figures were updated automatically; do not adjust the commissary by hand.';
+            dl_raiseIntegrityNotification(
+                $db,
+                'delivery_item_substituted:' . $deliveryId . ':' . $wrongProductId . ':' . $correctProductId,
+                'delivery_item_substituted',
+                $productionOrigin,
+                'dl_deliveries',
+                $deliveryId,
+                // title is VARCHAR(190); a long branch name must not truncate mid-word at the column.
+                mb_substr($noticeTitle, 0, 190),
+                $noticeDetail,
+                false,
+                ['production_in_charge']
+            );
+        }
+
+        dl_auditLog('delivery_item_substituted', $branchId, 'dl_delivery_items', (string)$deliveryId, [
+            'product_id' => $wrongProductId,
+            'quantity' => $quantity,
+            'receiving_id' => $receivingId ?: null,
+            'stock_moved' => $stockMoved,
+        ], [
+            'product_id' => $correctProductId,
+            'quantity' => $quantity,
+            'receiving_id' => $receivingId ?: null,
+            'ledger_date' => $ledgerDate,
+            'shift' => $shift,
+            'ledger_effect' => $ledgerEffect['status'] ?? null,
+        ], $reason);
+
+        $db->commit();
+        $ctx->json([
+            'ok' => true,
+            'delivery_id' => $deliveryId,
+            'receiving_id' => $receivingId ?: null,
+            'substituted_from' => $wrongProductId,
+            'substituted_to' => $correctProductId,
+            'quantity' => $quantity,
+            'ledger_effect' => $ledgerEffect,
+        ]);
+    } catch (\Throwable $e) {
+        if ($db->inTransaction()) { $db->rollBack(); }
+        $ctx->log('apiSubstituteDeliveryItem: ' . $e->getMessage(), 'error', ['delivery_id' => $deliveryId]);
+        $ctx->json(['ok' => false, 'error' => $e->getMessage()], 400);
+    }
 }
 
 // ─── Edit stock delivery by DR (cashier correction) ─────────────────────
