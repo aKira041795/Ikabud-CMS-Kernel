@@ -71,9 +71,24 @@ if (!function_exists('dl_canAddStockWithoutPaperDr')) {
      * which is a delivery being back-dated. The switch had no teeth because it defaulted
      * to allowing and nobody switched it off.
      *
-     * The switch now governs the one authority that still legitimately back-dates stock:
-     * a supervisor at a branch that permits it. Admin keeps it regardless — network-level
-     * authority, always audited.
+     * The switch governs branch staff — supervisor AND cashier — because the job title is not
+     * the decision. Owner direction 2026-11-18: "harmonize the rules". The 2026-11-14 change
+     * restricted this to supervisor, which left the cashier's Stock Adjustment modal offering a
+     * type the server then refused (measured that day: cake box, reason Other, 403
+     * PAPERLESS_DR_DISABLED). A branch that permits DR-free entry permits it for the staff who
+     * encode the ledger; a branch that forbids it forbids it for both alike. One switch, one rule,
+     * no role-specific side door.
+     *
+     * This deliberately re-opens what 2026-11-14 closed for cashiers, and that measurement still
+     * stands as the guard: 15,902 cashier stock-adds against 590 captured paper DRs (31:1) with
+     * 8,187 filed as `encoder_omission` is what "the switch has no teeth" looked like. The switch
+     * is therefore the whole policy — a branch that does not want DR-free entry sets it to 0, and
+     * both roles lose the path together. If the ratio returns to ~31:1 at branches with it on, the
+     * switch defaults off rather than the role restriction coming back.
+     *
+     * Admin keeps it regardless — network-level authority, always audited. Commissary staff
+     * (production_in_charge) do not take this path: their stock story is production, not a missed
+     * line, and they have the own-production lanes for it.
      */
     function dl_canAddStockWithoutPaperDr(array $user, int $branchId): bool
     {
@@ -81,7 +96,7 @@ if (!function_exists('dl_canAddStockWithoutPaperDr')) {
         if ($role === 'admin') {
             return true;
         }
-        if ($role === 'supervisor') {
+        if (in_array($role, ['supervisor', 'cashier'], true)) {
             return dl_branchPaperlessDrEnabled($branchId);
         }
         return false;

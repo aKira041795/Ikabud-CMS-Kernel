@@ -85,9 +85,12 @@ if (is_array($col) && $hasFlag && $hasGate) {
     try {
         $db->prepare('UPDATE dl_branches SET paperless_dr_enabled = 1 WHERE id = :id')->execute([':id' => $branchId]);
         $h->test('switch ON: branch allows paperless stock-in', dl_branchPaperlessDrEnabled($branchId) === true);
-        // Owner rule 2026-11-14: a cashier never takes the DR-free Add Stock lane.
-        // Their only DR-free story is Own production for a product the branch makes.
-        $h->test('switch ON: cashier is still refused the DR-free lane', dl_canAddStockWithoutPaperDr(['role' => 'cashier'], $branchId) === false);
+        // Owner direction 2026-11-18 ("harmonize the rules") SUPERSEDES the 2026-11-14 rule that a
+        // cashier was always refused: the branch switch now governs its own staff, so a branch that
+        // permits DR-free entry permits it for the cashier who encodes the ledger as well. The pair
+        // of assertions below is the whole policy - the SAME switch decides for both roles.
+        $h->test('switch ON: cashier may add stock without a paper DR', dl_canAddStockWithoutPaperDr(['role' => 'cashier'], $branchId) === true);
+        $h->test('switch ON: cashier and supervisor are treated alike', dl_canAddStockWithoutPaperDr(['role' => 'cashier'], $branchId) === dl_canAddStockWithoutPaperDr(['role' => 'supervisor'], $branchId));
         $h->test('switch ON: supervisor may add stock without a paper DR', dl_canAddStockWithoutPaperDr(['role' => 'supervisor'], $branchId) === true);
 
         $db->prepare('UPDATE dl_branches SET paperless_dr_enabled = 0 WHERE id = :id')->execute([':id' => $branchId]);
@@ -97,6 +100,8 @@ if (is_array($col) && $hasFlag && $hasGate) {
             dl_canAddStockWithoutPaperDr(['role' => 'cashier'], $branchId) === false,
             'the exact abuse the client reported'
         );
+        $h->test('switch OFF: supervisor is blocked too (one switch, both roles)', dl_canAddStockWithoutPaperDr(['role' => 'supervisor'], $branchId) === false);
+        $h->test('switch OFF: commissary staff never take the DR-free lane', dl_canAddStockWithoutPaperDr(['role' => 'production_in_charge'], $branchId) === false);
         $h->test('switch OFF: admin bypasses', dl_canAddStockWithoutPaperDr(['role' => 'admin'], $branchId) === true);
         $h->test('switch OFF: supervisor is gated by the branch switch', dl_canAddStockWithoutPaperDr(['role' => 'supervisor'], $branchId) === false);
     } finally {
