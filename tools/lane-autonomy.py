@@ -40,6 +40,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 LANE = ROOT / "tools" / "lane.sh"
 LEDGER = ROOT / "tools" / "autonomy-ledger.py"
+EXPERIENCE = ROOT / "tools" / "harpp-experience.py"
 MAX_BUNDLE_CHARS = 12000
 
 
@@ -94,9 +95,41 @@ def _tail(path: Path, lines: int = 120, chars: int = 4000) -> str:
     return tail[-chars:]
 
 
+def _scope_from_touches(touches: str) -> str:
+    """Which lesson scope this task should read.
+
+    A lesson about one module must not be pasted into every lane; at six lessons that is noise,
+    at thirty it buries the rules. Anything outside modules/<id>/ is harness work.
+    """
+    match = re.search(r'modules/([A-Za-z0-9_.-]+)/', touches or '')
+    return match.group(1) if match else 'harness'
+
+
+def _hints_block(reason: str | None = None, max_chars: int = 1800,
+                 scope: str | None = None) -> str:
+    """Known failure modes for this repository, from harpp-experience.py.
+
+    Fail-open: a missing tool or an empty store must never block a lane. The block is
+    counted from the landing records, so it states what actually happened here rather
+    than generic advice.
+    """
+    command = [sys.executable, str(EXPERIENCE), "hints", "--max-chars", str(max_chars)]
+    if reason:
+        command += ["--reason", reason]
+    if scope:
+        command += ["--scope", scope]
+    result = _run(command, timeout=20)
+    text = (result.stdout or "").strip()
+    if result.returncode != 0 or not text or text.startswith("(no hints"):
+        return ""
+    return text
+
+
 def _task_prompt(task: str, objective: str, acceptance: str, pass_looks_like: str,
                  touches: str, attempt: int) -> str:
     scope = touches.strip() or "no explicit scope. Keep the change as small as possible."
+    hints = _hints_block(scope=_scope_from_touches(touches))
+    hints_section = f"## WHAT ALREADY WENT WRONG HERE\n{hints}\n\n" if hints else ""
     if attempt == 1:
         return (
             f"# AUTONOMOUS TASK: {task}\n\n"
@@ -107,10 +140,14 @@ def _task_prompt(task: str, objective: str, acceptance: str, pass_looks_like: st
             "explain why instead of expanding scope silently.\n\n"
             f"## ACCEPTANCE (fixed; do not change it)\n    {acceptance.strip()}\n\n"
             f"PASS looks like: {pass_looks_like.strip()}\n\n"
+            f"{hints_section}"
             "## RULES\n"
             "- Make the smallest correct change.\n"
             "- Never weaken, skip, or delete an assertion or test to reach green.\n"
-            "- Run the acceptance command before finishing and report its real result.\n"
+            "- Run the acceptance command before finishing and report its REAL result.\n"
+            "- Print `Status: PASS` ONLY if that command just exited 0 in this run. A PASS claim the "
+            "acceptance criterion contradicts is the most frequently recorded failure in this "
+            "repository; the harness now records the contradiction and blocks completion.\n"
             "- Check storage/logs/app.log and storage/logs/error.log for new errors.\n"
             "- If the task is blocked by missing architecture or an environmental failure, stop and report "
             "BLOCKED with the evidence.\n"
@@ -124,11 +161,13 @@ def _task_prompt(task: str, objective: str, acceptance: str, pass_looks_like: st
         f"## ALLOWED SCOPE\n{scope}\n\n"
         f"## ACCEPTANCE (fixed)\n    {acceptance.strip()}\n\n"
         f"PASS looks like: {pass_looks_like.strip()}\n\n"
+        f"{hints_section}"
         "## RULES\n"
         "- Read the failure evidence below before editing.\n"
         "- Fix the cause, not the assertion.\n"
         "- Keep the diff inside the allowed scope.\n"
-        "- Run the acceptance command before finishing and report its real result.\n"
+        "- Run the acceptance command before finishing and report its REAL result.\n"
+        "- Print `Status: PASS` ONLY if that command just exited 0 in this run.\n"
         "- If the failure is environmental, architectural, or the same failure persists without new evidence, "
         "stop and report BLOCKED with the evidence instead of guessing.\n"
     )
@@ -253,6 +292,31 @@ def _acceptance_passes(acceptance: str) -> bool:
     return result.returncode == 0
 
 
+def _stamp_args(task: str, attempts: int, started: str | None = None) -> list[str]:
+    """run_id + component versions for the ledger row (docs/ai/harpp-experience-repository.md).
+
+    `started` scopes the cost sum to THIS dispatch: re-runs reuse lane names, so without it
+    a task would inherit the spend of an earlier attempt of the same name.
+
+    Fail-open on purpose: a row without stamps is still worth recording, whereas a
+    refused record loses the outcome entirely.
+    """
+    command = [sys.executable, str(EXPERIENCE), "stamp",
+               "--task", task, "--attempts", str(attempts), "--json"]
+    if started:
+        command += ["--since", started]
+    result = _run(command, timeout=20)
+    if result.returncode != 0:
+        return []
+    try:
+        fields = json.loads(result.stdout or "{}")
+    except ValueError:
+        return []
+    if not isinstance(fields, dict):
+        return []
+    return [f"{key}={value}" for key, value in fields.items() if value]
+
+
 def _record(task: str, args: argparse.Namespace, attempts: int, acceptance: str,
             notes: str, started: str) -> None:
     cmd = [
@@ -266,6 +330,7 @@ def _record(task: str, args: argparse.Namespace, attempts: int, acceptance: str,
         f"started_at={started}",
         f"finished_at={_now()}",
         f"notes={notes}",
+        *_stamp_args(task, attempts, started),
     ]
     result = _run(cmd, timeout=30)
     if result.returncode != 0:
