@@ -1,0 +1,16 @@
+{
+  "digest": "9060ed4561aeb4bc6102bc137ae60ea849f12169046fa0a3b5ad8eaa0819c002",
+  "event_id": "9060ed4561aeb4bc",
+  "evidence": [
+    "read-only queries 2026-11-18 against tenant baronledger: receiving 0, withdrawals 0, remarks none (markers only), audit JSON 0; the incoming list and receive modal were untouched by the fix, so the 3961 DR-bearing deliveries were already visible"
+  ],
+  "lesson_id": "L-11f5bc052c",
+  "proposed_by": "harness",
+  "reason": "Owner 2026-11-18 asked whether DR data existed before the fix that could now be used for a backfill. The honest answer required checking four sources, not assuming the fix revealed anything.",
+  "recorded_at": "2026-11-18T12:53:33.314818Z",
+  "review_after": "2026-12-18",
+  "schema_version": 1,
+  "scope": "daily-ledger",
+  "text": "Unblocking a creation path does NOT unlock historical data, and a blocked-creation bug is not a hidden-data bug. Before proposing a backfill, prove the value exists somewhere else: measured 2026-11-18 for delivery DR numbers, 11280 deliveries with 3961 holding a DR and 7319 without, and ZERO of the 7319 were recoverable from the receiving row (dr_number), informal transfers (dl_cashier_withdrawals.dr_number), delivery remarks, or audit_logs.new_data JSON. The value was never sent by the UI, so no second copy existed anywhere - a backfill could only come from the physical paper. State that plainly instead of implying the fix surfaced old records; also check whether the old records were already visible, because 'surface-blocked' and 'never created' need opposite remedies.",
+  "type": "propose"
+}
