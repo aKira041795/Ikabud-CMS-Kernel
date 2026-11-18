@@ -208,7 +208,8 @@
                     {if tab == 'assignment'}
                     <td>
                         <label class="inline-flex items-center gap-2 text-xs text-gray-700">
-                            <input type="checkbox" data-own-production-toggle="{p.id}" {if p.allow_own_production == 1}checked{/if} {if p.assigned != 1}disabled{/if}>
+                            <input type="checkbox" data-own-production-toggle="{p.id}" {if p.allow_own_production == 1}checked{/if} {if p.assigned != 1}disabled{/if}
+                                   title="This branch produces this item here, so it can be added as Own production without a supplier DR. Separate from the branch's No paper DR switch, which covers missed lines.">
                             Makes it
                         </label>
                     </td>

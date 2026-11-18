@@ -164,7 +164,7 @@
 
 <div class="settings-section" id="settings-branch-switches">
     <h3>Branch operating switches</h3>
-    <p>No paper DR controls whether cashiers at a branch may add stock (Add Stock / own production) without encoding a paper DR number. When off, stock must be received against a paper DR. Whole-day shift makes a branch use one AM ledger row for the entire business day and auto-close it. Both apply per branch.</p>
+    <p>Two independent answers, often mistaken for one. <strong>No paper DR</strong> (per branch) lets a branch record stock it already had but never wrote down &mdash; Add Stock (missed entry / variance). When off, anything that ARRIVED must be received against its paper DR. <strong>Own production</strong> (per branch capability, per product 'Makes it') covers the other story: the branch made the item, so no supplier document exists for it at all. Neither one grants the other: a branch that makes a product can add it as Own production whether or not No paper DR is on, and No paper DR never turns a product into one the branch makes. Whole-day shift makes a branch use one AM ledger row for the entire business day and auto-close it.</p>
     {* btn-accent, not btn-outline: this opens the switches, so it is an action. btn-outline
        renders solid white in this theme and read as a dead control. Owner report 2026-10-23. *}
     <button type="button" class="btn btn-accent" onclick="openBranchSwitches()">Manage branch switches</button>
@@ -174,7 +174,7 @@
     <div class="modal branch-modal" style="max-width: 1100px; width: 95%;">
         <div class="branch-modal__header">
             <h3 class="mb-1">Branch operating switches</h3>
-            <p class="text-sm text-gray-500">Per branch only. Paper DR itself is always available. Admin can always add stock without a paper DR; at a branch where this switch is ON, its cashier and supervisor can too, and where it is OFF neither can. Own production controls whether the branch can mark stock it makes itself. Shift mode can only change before the branch's first ledger row of the business day.</p>
+            <p class="text-sm text-gray-500">Two separate stories, two separate columns. <strong>No paper DR</strong> = stock the branch already had but never wrote down (missed or undercounted): branch-wide, and at a branch where it is ON the cashier and supervisor may use it, off neither may; admin always may. <strong>Own production</strong> = the branch MAKES the item, so no supplier DR exists: tick <em>Makes it</em> per product, and it works whether or not No paper DR is on. Neither column grants the other. Paper DR itself is always available. Shift mode can only change before the branch's first ledger row of the business day.</p>
         </div>
         <div class="branch-modal__body" style="max-height: 70vh; overflow-y: auto;">
             <div class="flex flex-wrap items-center gap-3 mb-3">
@@ -198,7 +198,7 @@
                             <th>Branch</th>
                             <th class="whitespace-normal">
                                 No paper DR (add stock)
-                                <span class="block text-[11px] font-normal text-gray-500 whitespace-normal break-words normal-case">unclick to hide</span>
+                                <span class="block text-[11px] font-normal text-gray-500 whitespace-normal break-words normal-case">Stock already on hand that was never written down &mdash; missed or undercounted. Branch-wide. Does NOT grant Own production. unclick to hide</span>
                             </th>
                             <th class="whitespace-normal">
                                 Single cashier shift (whole day)
@@ -210,7 +210,7 @@
                                The text wraps inside a bounded column instead. *}
                             <th class="whitespace-normal align-top" style="width: 42%; min-width: 16rem;">
                                 Own production
-                                <span class="block text-[11px] font-normal text-gray-500 whitespace-normal break-words normal-case">This branch makes stock of its own (not only a commissary). Cashiers get Add Stock (own production) for the Addt'l cell.</span>
+                                <span class="block text-[11px] font-normal text-gray-500 whitespace-normal break-words normal-case">This branch makes stock of its own. Per product: tick <em>Makes it</em> on each item it produces, so that item can be added as Own production. The item is the branch's own, so no supplier DR exists. Independent of No paper DR.</span>
                             </th>
                         </tr>
                     </thead>
@@ -624,7 +624,7 @@
            switch that does not exist — and stops anyone assuming a grant can widen them. *}
         <div class="mt-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs leading-5 text-gray-600" data-permission-rules>
             <span class="font-semibold text-gray-700">These are not switchable:</span>
-            a cashier never adds stock without a paper DR — a product the branch makes goes in as <em>Own production</em>, everything else is received against its DR;
+            a cashier adds stock without a paper DR only at a branch that permits it, and only in one of the two stories above &mdash; <em>Own production</em> for an item the branch makes, or a missed line the branch allows; everything that ARRIVED is received against its DR;
             a closed day is shut to every role until somebody with <em>Ledger Override</em> reopens it, and the branch is then told what changed;
             an admin is always allowed, and every change above is recorded against the person who made it.
         </div>

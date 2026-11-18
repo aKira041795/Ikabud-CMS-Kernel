@@ -7,8 +7,16 @@ declare(strict_types=1);
  *
  * OWNER CORRECTION (2026-10-22), which supersedes the first implementation:
  *   Paper DR is ALWAYS available. The per-branch switch does NOT gate paper DR.
- *   It gates the PAPERLESS stock-in path cashiers were using to bypass encoding a DR number:
- *   Stock Adjustment -> Add Stock (`adjustment_add`) and own production (`own_production`).
+ *   It gates the PAPERLESS missed-line lane: Stock Adjustment -> Add Stock (`adjustment_add`).
+ *
+ * DEFINITIONS (owner 2026-11-18 - these are two different stories, not one switch):
+ *   No paper DR (per branch)   = stock already on hand that was never written down.
+ *   Own production (per branch capability + per product 'Makes it') = the branch MADE the
+ *                                item, so no supplier document exists for it at all.
+ *   Neither grants the other; own production is asserted below to survive this switch.
+ *
+ * HISTORICAL NOTE: the first implementation of this switch DID gate own_production. That
+ * conflation is what left a cake box unrecordable - see the independence assertions.
  *
  * Each assertion names what breaks if it regresses:
  * - gating the paper-DR endpoints takes away the workflow the client explicitly wanted kept;
@@ -104,6 +112,43 @@ if (is_array($col) && $hasFlag && $hasGate) {
         $h->test('switch OFF: commissary staff never take the DR-free lane', dl_canAddStockWithoutPaperDr(['role' => 'production_in_charge'], $branchId) === false);
         $h->test('switch OFF: admin bypasses', dl_canAddStockWithoutPaperDr(['role' => 'admin'], $branchId) === true);
         $h->test('switch OFF: supervisor is gated by the branch switch', dl_canAddStockWithoutPaperDr(['role' => 'supervisor'], $branchId) === false);
+
+        // ── The two "no DR" stories are INDEPENDENT (owner 2026-11-18) ──────────────
+        // No paper DR = stock already on hand but never written down (missed/undercounted).
+        // Own production = the branch MADE the item, so no supplier document exists at all.
+        // The branch switch above must not touch the second one, or a branch would lose the
+        // ability to record stock it produced the moment it turned off missed-line entry.
+        $prodStmt = $db->prepare('SELECT product_id, allow_own_production FROM dl_branch_products WHERE branch_id = :b ORDER BY product_id LIMIT 1');
+        $prodStmt->execute([':b' => $branchId]);
+        $prodRow = $prodStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+        if ($prodRow) {
+            $prodId = (int)$prodRow['product_id'];
+            $origOwn = (int)$prodRow['allow_own_production'];
+            try {
+                $db->prepare('UPDATE dl_branch_products SET allow_own_production = 1 WHERE branch_id = :b AND product_id = :p')
+                    ->execute([':b' => $branchId, ':p' => $prodId]);
+                $threw = false;
+                try { dl_assertOwnProductionAllowed($db, $branchId, $prodId); } catch (\Throwable $e) { $threw = true; }
+                $h->test(
+                    'own production still allowed while the branch switch is OFF',
+                    $threw === false,
+                    'the paperless switch leaked into own production: one story gated two lanes'
+                );
+
+                $db->prepare('UPDATE dl_branch_products SET allow_own_production = 0 WHERE branch_id = :b AND product_id = :p')
+                    ->execute([':b' => $branchId, ':p' => $prodId]);
+                $threw = false;
+                try { dl_assertOwnProductionAllowed($db, $branchId, $prodId); } catch (\Throwable $e) { $threw = true; }
+                $h->test(
+                    'own production refused for an item the branch does not make',
+                    $threw === true,
+                    'the per-product "Makes it" flag stopped being the gate'
+                );
+            } finally {
+                $db->prepare('UPDATE dl_branch_products SET allow_own_production = :v WHERE branch_id = :b AND product_id = :p')
+                    ->execute([':v' => $origOwn, ':b' => $branchId, ':p' => $prodId]);
+            }
+        }
     } finally {
         if ($original !== false && $original !== null) {
             $db->prepare('UPDATE dl_branches SET paperless_dr_enabled = :v WHERE id = :id')
