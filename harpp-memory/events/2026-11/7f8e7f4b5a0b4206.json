@@ -1,0 +1,16 @@
+{
+  "digest": "7f8e7f4b5a0b4206d632771f54938e7abf083e0465b9aa979d8d87e62eac4b22",
+  "event_id": "7f8e7f4b5a0b4206",
+  "evidence": [
+    "2026-11-18:  verified a real path and refused a bogus one (exposure only);  found 1 dup group across 806 proposals; no kahibaw/ollama reference exists in lane-model.sh or lane-autonomy.py"
+  ],
+  "lesson_id": "L-b329488cf1",
+  "proposed_by": "harness",
+  "reason": "Chair verdict 2026-11-18 (.ai/consult/kahibaw-impact.md): 'Demote Kahibaw. Keep the memory engine.' It rejected both my counterfactual metric and my plan to let a 0.5B model consolidate lessons.",
+  "recorded_at": "2026-11-18T14:33:39.301326Z",
+  "review_after": "2026-12-18",
+  "schema_version": 1,
+  "scope": "harness",
+  "text": "Experience retrieval must be measured by OBSERVABLE use, never by counterfactuals. Do not report 'defects avoided' - it cannot be observed. Record a lesson_application event at verification: lesson id, run, evidence pointer, and let the HARNESS decide whether the evidence resolves (a caller never self-certifies); an application without resolving evidence is exposure, not success. Report three numbers only: runs given rules, applications, verified applications. A local model must not sit inline in a lane, must not own a baked snapshot of truth (it silently held 40 of 56 approved lessons), and must not consolidate rules - run the deterministic baseline first (normalization + exact duplicates): 806 proposed lessons contained exactly ONE duplicate pair, so there was nothing for clustering to do.",
+  "type": "propose"
+}
