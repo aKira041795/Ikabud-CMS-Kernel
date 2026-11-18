@@ -1,0 +1,16 @@
+{
+  "digest": "120970640b01486bba6cba8b6c7392f71ddd5d2268515246e036ce05e591f17e",
+  "event_id": "120970640b01486b",
+  "evidence": [
+    "traced 2026-11-18 through templates and routes: commissary.disyl:2054 openDispatchEntry -> dispatch-dr-number -> /api/v1/commissary/dispatch; ledger.disyl:366 openDispatchModal -> cashier/dispatch_modal.disyl:284 -> /api/v1/cashier/ledger/dispatch; deliveries.disyl:592 -> /api/v1/deliveries/create"
+  ],
+  "lesson_id": "L-eba43ddf79",
+  "proposed_by": "harness",
+  "reason": "Owner 2026-11-18 asked 'Send to branch or the new delivery modal? which is which?' - a summary that named the branch-side control for a commissary user is exactly how the wrong page gets opened.",
+  "recorded_at": "2026-11-18T06:59:43.088882Z",
+  "review_after": "2026-12-18",
+  "schema_version": 1,
+  "scope": "daily-ledger",
+  "text": "Three dispatch surfaces are easy to confuse, and naming the wrong one sends the operator to a page they are refused. (1) 'New Delivery (DR)' on the COMMISSARY sheet (/daily-ledger/admin/commissary, openDispatchEntry) posts to /api/v1/commissary/dispatch - commissary to branch, the lane production_in_charge uses, and the one that carries the DR. (2) 'Open Send to Branch' on the BRANCH ledger (/daily-ledger/ledger, openDispatchModal) posts to /api/v1/cashier/ledger/dispatch - branch to branch/consignee/commissary. (3) 'New Delivery' on the office Deliveries page posts to /api/v1/deliveries/create and is admin recovery only. Never tell a commissary user to use 'Send to Branch': their control is 'New Delivery (DR)'.",
+  "type": "propose"
+}
