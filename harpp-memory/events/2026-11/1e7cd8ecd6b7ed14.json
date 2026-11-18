@@ -1,0 +1,16 @@
+{
+  "digest": "1e7cd8ecd6b7ed141f3043e0665c89f59dcbab2fa0aed3b624ad522f961c6d00",
+  "event_id": "1e7cd8ecd6b7ed14",
+  "evidence": [
+    "2026-11-18: own_production paths contain zero reads of paperless (grep count 0); new assertions prove own production still allowed while the branch switch is OFF and refused when the product flag is 0 - paperless_dr_branch_test 32/32"
+  ],
+  "lesson_id": "L-e6bacfeb91",
+  "proposed_by": "harness",
+  "reason": "Owner 2026-11-18: 'we must properly define the two so it harmonizes'. The admin panel said the No paper DR switch governed 'Add Stock / own production', which is false in code.",
+  "recorded_at": "2026-11-18T05:39:20.947140Z",
+  "review_after": "2026-12-18",
+  "schema_version": 1,
+  "scope": "daily-ledger",
+  "text": "Two different 'no DR' stories must never be merged. (1) 'No paper DR' / dl_branches.paperless_dr_enabled, per branch: stock already on hand but never written down (missed/undercounted) -> enables adjustment_add; cashier+supervisor follow the switch, admin always. (2) 'Own production' / dl_branches.has_production + dl_branch_products.allow_own_production ('Makes it'), per product: the branch MADE the item so no supplier DR exists -> enables own_production. Neither grants the other, and own_production must NOT consult paperless_dr_enabled; the original switch implementation did gate own_production and that conflation is what left a cake box unrecordable.",
+  "type": "propose"
+}
