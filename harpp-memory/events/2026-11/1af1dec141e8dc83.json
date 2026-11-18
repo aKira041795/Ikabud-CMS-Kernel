@@ -1,0 +1,16 @@
+{
+  "digest": "1af1dec141e8dc83d7cb6b90c19c390d631247be568cd76007a17c36fc850f05",
+  "event_id": "1af1dec141e8dc83",
+  "evidence": [
+    "2026-11-18 live as CASHIER-KATIPUNANAM: row 1000187 written with empty dr_number and empty liable_user_id; unrecorded_delivery without DR => 422; addstock_reason 66/66, adjustment_matrix 58/58, paperless 32/32"
+  ],
+  "lesson_id": "L-7d3b1e22f8",
+  "proposed_by": "harness",
+  "reason": "Owner: 'if you have to correct an entry for different reasons, you don't have to require a DR, right? it's usually the qty that's the issue' and then 'liable is optional'. Requiring either turned a quantity fix into an accusation.",
+  "recorded_at": "2026-11-18T23:46:44.433152Z",
+  "review_after": "2026-12-18",
+  "schema_version": 1,
+  "scope": "daily-ledger",
+  "text": "Stock Adjustment saves with NO DR and NO liable person. Charge to (liable) is OPTIONAL everywhere (owner 2026-11-18): dl_adjustmentAddNeedsLiable() returns false and the modal's needsLiable() returns false, so the field is a choice, not a gate. A DR is required ONLY for reason unrecorded_delivery (dl_reasonRequiresDr), because that is the one reason whose evidence IS the document. Verified live: adjustment_add + reason other + custom reason saved 200 with liable_user_id and dr_number both empty; the same type with unrecorded_delivery and no DR still returns 422.",
+  "type": "propose"
+}
