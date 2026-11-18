@@ -1,0 +1,16 @@
+{
+  "digest": "76fd9c0e738c9c05fc2dbf7379046098115fbf1618964b7089f7ebec2a85ddde",
+  "event_id": "76fd9c0e738c9c05",
+  "evidence": [
+    "proved 2026-11-18: dl_canAddStockWithoutPaperDr(['role'=>'cashier']) => refused, admin => ALLOWED; grep for paperless_dr_allowed in templates/ returned zero consumers"
+  ],
+  "lesson_id": "L-e3b09420e4",
+  "proposed_by": "harness",
+  "reason": "Owner report 2026-11-18: cake box, reason Other, 'cannot be saved'. The refusal was role-based, not category-based; the category only decided that no alternative type was available.",
+  "recorded_at": "2026-11-18T04:53:08.544908Z",
+  "review_after": "2026-12-18",
+  "schema_version": 1,
+  "scope": "daily-ledger",
+  "text": "Stock Adjustment (add stock) is refused for role cashier at the API: apiSaveCashierWithdrawals throws PAPERLESS_DR_DISABLED via dl_canAddStockWithoutPaperDr() (admin always, supervisor only when the branch enables paperless DR, everyone else never). The ledger page ALREADY published that answer as 'paperless_dr_allowed' and no template consumed it, so the modal offered 'Add Stock (missed entry / variance)' to roles that could never save it - the cashier filled Type + Reason + Custom Reason + Charge-to and only learned on Save. Any server-side permission a form depends on must be consumed by the template, or the form is a dead end.",
+  "type": "propose"
+}
