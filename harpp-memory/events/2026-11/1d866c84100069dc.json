@@ -1,0 +1,16 @@
+{
+  "digest": "1d866c84100069dc278c59ae503b4656fa2d535232f7ec04227f44fd97ea3f04",
+  "event_id": "1d866c84100069dc",
+  "evidence": [
+    "2026-11-18: cashier at Katipunan (paperless_dr_enabled=1) went from 403 PAPERLESS_DR_DISABLED to 200 and row 1000090 saved (adjustment_add, reason other, custom 'CAKE BOX', product 177); paperless_dr_branch_test 30/30, addstock_reason 64/64, adjustment_matrix 58/58"
+  ],
+  "lesson_id": "L-d3e159310e",
+  "proposed_by": "harness",
+  "reason": "Owner direction 2026-11-18 'harmonize the rules' superseded the 2026-11-14 cashier restriction, which had made the Stock Adjustment modal offer a type the server refused.",
+  "recorded_at": "2026-11-18T05:23:44.056557Z",
+  "review_after": "2026-12-18",
+  "schema_version": 1,
+  "scope": "daily-ledger",
+  "text": "Add Stock without a paper DR is ONE rule: dl_canAddStockWithoutPaperDr() is the only gate, and it is role-blind for branch staff - cashier and supervisor both follow dl_branches.paperless_dr_enabled. admin always; production_in_charge never. Do not add a role-specific exception elsewhere: apiSaveCashierWithdrawals, the offline replay and the auto-DR paper receive all call this one function, and the UI reads the same answer through 'paperless_dr_allowed', so a second gate would silently re-open the dead-form defect.",
+  "type": "propose"
+}
