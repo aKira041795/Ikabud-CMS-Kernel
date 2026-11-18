@@ -1,0 +1,16 @@
+{
+  "digest": "49f59480ecebc97d9edf4e4abb1b4962159af7d0caa6950cb330dd05838f7bf2",
+  "event_id": "49f59480ecebc97d",
+  "evidence": [
+    "measured 2026-11-18: SQLSTATE 21S01 1136 Column count doesn't match value count; fixed by anchoring to the INSERT text and re-counting 18/18"
+  ],
+  "lesson_id": "L-9686466fd8",
+  "proposed_by": "harness",
+  "reason": "The SELECT matched first and received the change; php -l passed and the mismatch only surfaced as a generic Database error.",
+  "recorded_at": "2026-11-18T04:33:02.414051Z",
+  "review_after": "2026-12-18",
+  "schema_version": 1,
+  "scope": "daily-ledger",
+  "text": "A bulk str.replace(old, new, 1) on a handler file can hit a DIFFERENT statement than intended: adding target_consignee_id to an INSERT silently landed in a SELECT that shares the same column list 700 lines earlier, leaving the INSERT with 17 columns and 18 values and producing only 'Database error' at runtime. After editing SQL by substring, count columns against values for every INSERT into that table (regex INSERT INTO x (...) VALUES (...)) before running anything.",
+  "type": "propose"
+}
