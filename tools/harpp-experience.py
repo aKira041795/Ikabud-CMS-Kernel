@@ -610,7 +610,17 @@ def hint_block(reason: str | None = None, max_chars: int = 1800,
     candidates = [h for h in load_lessons()
                   if h.get("text")
                   and _lesson_status(h) == "active"
-                  and _scope_matches(h, scope)
+                  # When no module can be inferred from the brief, module-scoped rules are NOT
+                  # excluded: a real request phrased in plain language never names its module
+                  # ("ang mga commissary pabutangan ug pull-out..." names none), and filtering on an
+                  # unknown scope silently hid every domain rule the request needed. They are still
+                  # ranked below scope-matched ones by the scope term in the sort key.
+                  # Scope rules: a KNOWN scope filters strictly; an unknown scope with a brief
+                  # allows module rules through (ranked lower); no brief at all stays universal,
+                  # because a lane with no context cannot be helped by another module's rules.
+                  and (_scope_value(h) in ("", "any")
+                       or (scope is not None and _scope_matches(h, scope))
+                       or (scope is None and bool(query)))
                   and (not reason or h.get("reason") in (reason, "", None, "any"))]
     # Bounded working memory. A store of a thousand lessons must never become a thousand-line
     # prompt, so the ranking decides who reaches the lane rather than the file deciding.
@@ -1742,7 +1752,17 @@ def _select_lessons(reason: str | None, scope: str | None,
     candidates = [h for h in load_lessons()
                   if h.get("text")
                   and _lesson_status(h) == "active"
-                  and _scope_matches(h, scope)
+                  # When no module can be inferred from the brief, module-scoped rules are NOT
+                  # excluded: a real request phrased in plain language never names its module
+                  # ("ang mga commissary pabutangan ug pull-out..." names none), and filtering on an
+                  # unknown scope silently hid every domain rule the request needed. They are still
+                  # ranked below scope-matched ones by the scope term in the sort key.
+                  # Scope rules: a KNOWN scope filters strictly; an unknown scope with a brief
+                  # allows module rules through (ranked lower); no brief at all stays universal,
+                  # because a lane with no context cannot be helped by another module's rules.
+                  and (_scope_value(h) in ("", "any")
+                       or (scope is not None and _scope_matches(h, scope))
+                       or (scope is None and bool(query)))
                   and (not reason or h.get("reason") in (reason, "", None, "any"))]
     candidates.sort(key=lambda h: (0 if _scope_value(h) not in ("", "any") else 1,
                                   -_query_overlap(query, h.get("text")),

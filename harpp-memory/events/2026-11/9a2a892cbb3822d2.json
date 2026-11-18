@@ -1,0 +1,14 @@
+{
+  "digest": "9a2a892cbb3822d2960a29a404405520dccf36c807950dc9b233e6f649721a7d",
+  "event_id": "9a2a892cbb3822d2",
+  "evidence": [],
+  "lesson_id": "L-60d6b1328c",
+  "proposed_by": "manual",
+  "reason": "any",
+  "recorded_at": "2026-11-18T03:58:23.163285Z",
+  "review_after": "2026-12-18",
+  "schema_version": 1,
+  "scope": "daily-ledger",
+  "text": "The commissary entry surface must mirror the existing cashier modal pattern rather than invent a second interaction - owner 2026-11-18: 'similar to cashier modal'.",
+  "type": "propose"
+}

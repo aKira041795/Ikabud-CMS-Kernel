@@ -1,0 +1,14 @@
+{
+  "digest": "08ec3b02cae19895ab23f2106776a71e34da104a33708bea1fc2ce7cccba5c81",
+  "event_id": "08ec3b02cae19895",
+  "evidence": [],
+  "lesson_id": "L-e67c680bed",
+  "proposed_by": "manual",
+  "reason": "any",
+  "recorded_at": "2026-11-18T03:58:22.063038Z",
+  "review_after": "2026-12-18",
+  "schema_version": 1,
+  "scope": "daily-ledger",
+  "text": "'Other' on a commissary entry means damaged product that the commissary will rework into a different product - owner 2026-11-18: 'para na sa mga product nga na damage nga ila himuon ug laing product'. It is not a wastage write-off and not a stock adjustment.",
+  "type": "propose"
+}

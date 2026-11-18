@@ -1,0 +1,14 @@
+{
+  "digest": "badf2d5a09247553f9aadb2121160e84932c3b15b7bdbbf992ffffa81a0ad2d1",
+  "event_id": "badf2d5a09247553",
+  "evidence": [],
+  "lesson_id": "L-3b3b045132",
+  "proposed_by": "manual",
+  "reason": "any",
+  "recorded_at": "2026-11-18T03:58:20.984548Z",
+  "review_after": "2026-12-18",
+  "schema_version": 1,
+  "scope": "daily-ledger",
+  "text": "Commissary ledger entries need exactly three types: pull-out, charges, and other. Owner 2026-11-18: 'kanang 3 sir' - no fourth type, and no inventing one.",
+  "type": "propose"
+}
