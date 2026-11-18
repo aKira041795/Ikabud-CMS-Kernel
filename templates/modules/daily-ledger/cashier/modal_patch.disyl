@@ -31,7 +31,7 @@
                                 :class="header.withdrawal_type === 'own_production' ? 'border-teal-300 bg-teal-50 text-teal-900' : 'border-gray-300 bg-white text-gray-700'">
                             Own production
                         </button>
-                        <button type="button" @click="chooseType('adjustment_add')"
+                        <button type="button" x-show="window.PAPERLESS_DR_ALLOWED" @click="chooseType('adjustment_add')"
                                 class="rounded-lg border px-3 py-2 text-sm font-semibold"
                                 :class="header.withdrawal_type === 'adjustment_add' ? 'border-gray-400 bg-gray-100 text-gray-900' : 'border-gray-300 bg-white text-gray-700'">
                             Other adjustment
@@ -46,7 +46,13 @@
                                 <option value="pullout">Pullout</option>
                                 <option value="used">Used (for a product/order)</option>
                                 <option value="correction">Correction — W/Draw (wrong entry)</option>
-                                <option value="adjustment_add">Add Stock (missed entry / variance)</option>
+                                {* Only roles the server will actually let add stock without a paper DR
+                                   (dl_canAddStockWithoutPaperDr). Offering it otherwise meant a form that
+                                   filled in fine and refused on Save. Bodega-sourced stock has no other
+                                   route here: it arrives on a paper DR, so Receive Stock is the modal. *}
+                                <template x-if="window.PAPERLESS_DR_ALLOWED">
+                                    <option value="adjustment_add">Add Stock (missed entry / variance)</option>
+                                </template>
                                 <template x-if="window.BRANCH_HAS_PRODUCTION">
                                     <option value="own_production">Add Stock (own production)</option>
                                 </template>

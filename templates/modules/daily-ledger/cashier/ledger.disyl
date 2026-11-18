@@ -470,6 +470,12 @@
     var BASE = '{base_url}';
     var BRANCH_ID = '{branch_id}';
     var BRANCH_HAS_PRODUCTION = {if branch_has_production}true{else}false{/if};
+    // The server already refuses `adjustment_add` for a role it will not let add stock without a
+    // paper DR (dl_canAddStockWithoutPaperDr). It published that answer as `paperless_dr_allowed`
+    // and NOTHING consumed it, so the Stock Adjustment modal kept offering a type whose Save always
+    // returned 403 - the cashier only found out after filling the whole form (owner report
+    // 2026-11-18: cake box, reason Other, "cannot be saved").
+    var PAPERLESS_DR_ALLOWED = {if paperless_dr_allowed}true{else}false{/if};
     var LEDGER_DATE = '{ledger_date}';
     var SHIFT = '{shift}';
     var SHIFT_LOCKED = {if shift_locked}true{else}false{/if};
@@ -484,6 +490,7 @@
     window.BASE = BASE;
     window.BRANCH_ID = BRANCH_ID;
     window.BRANCH_HAS_PRODUCTION = BRANCH_HAS_PRODUCTION;
+    window.PAPERLESS_DR_ALLOWED = PAPERLESS_DR_ALLOWED;
     window.LEDGER_DATE = LEDGER_DATE;
     window.SHIFT = SHIFT;
     window.SHIFT_LOCKED = SHIFT_LOCKED;
@@ -516,6 +523,18 @@
     // The DR-tracked Receive Stock flow stays available from the action card
     // above for real incoming transfers.
     window.dlAddStockDirect = function(productId) {
+        // A role that cannot add stock without a paper DR must not be handed a form that refuses on
+        // Save. Stock that physically arrived (from Bodega or any supplier) comes in through
+        // RECEIVE STOCK against the paper DR - a different modal, which is exactly what the message
+        // says, so the cashier is not left guessing (owner report 2026-11-18).
+        if (!window.PAPERLESS_DR_ALLOWED) {
+            window.showToast(
+                'Stock that arrived with a DR is recorded in Receive Stock, not Stock Adjustment. '
+                + 'Adding stock without a paper DR is not available for your role.',
+                'error'
+            );
+            return;
+        }
         window.openWithdrawalModal({
             withdrawal_type: 'adjustment_add',
             reason_code: 'missed_entry',
