@@ -1,0 +1,16 @@
+{
+  "digest": "0cbcd3b353753d6adb4208b488b82d548871c04f522c0fef6ef23f50e0522a50",
+  "event_id": "0cbcd3b353753d6a",
+  "evidence": [
+    "measured 2026-11-18: real submit returned 403; after adding the path to the allowlist the same submit stored row id 1000089"
+  ],
+  "lesson_id": "L-e275783036",
+  "proposed_by": "harness",
+  "reason": "403 only appeared on a real submit; every static check passed while the feature was dead for its intended user.",
+  "recorded_at": "2026-11-18T04:32:53.351781Z",
+  "review_after": "2026-12-18",
+  "schema_version": 1,
+  "scope": "daily-ledger",
+  "text": "Any endpoint a production_in_charge surface POSTs to must appear in the role allowlist in dl_require... (modules/daily-ledger/handlers.php ~line 500). The commissary modal posted to /daily-ledger/api/v1/cashier/ledger/withdrawals and got 403 'A production in-charge account is limited to the Daily Sheet' - the surface was unusable for the only role that uses it, and neither php -l, a DiSyL lint nor a source-grep test could see it. Submit once in a real browser before declaring such a surface done.",
+  "type": "propose"
+}
