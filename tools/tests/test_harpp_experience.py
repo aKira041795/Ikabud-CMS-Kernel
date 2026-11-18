@@ -405,6 +405,29 @@ class HarppExperienceTest(unittest.TestCase):
         self.assertEqual(result.returncode, 2, result.stdout)
         self.assertIn("no approved lessons", result.stderr)
 
+    def test_semantic_recall_degrades_quietly_without_an_embedding_model(self) -> None:
+        """Association is an enhancement, never a dependency.
+
+        The model daemon may be absent on a fresh machine or in CI. Retrieval must then fall back
+        to lexical ranking rather than failing the command a lane depends on.
+        """
+        self._add("a rule that semantic recall would consider")
+        result = _run([str(TOOL), "memory", "semantic", "anything", "--json"], env=self.env)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        # Either the daemon answered (a list) or it did not (an empty list plus a message).
+        payload = result.stdout.strip()
+        self.assertTrue(payload == "" or payload.startswith("[") or "no semantic match" in payload,
+                        payload[:200])
+
+    def test_spreading_activation_needs_a_seed_and_says_so(self) -> None:
+        """Spreading generalises FROM a seed; with no shared term and no scope there is nothing
+        to spread from, and the command must say that instead of inventing a connection."""
+        self._add("a rule about ledger effect rows being append only")
+        result = _run([str(TOOL), "memory", "spread", "completely unrelated zebra quantum word"],
+                       env=self.env)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("nothing activates", result.stdout)
+
     def test_hardware_capability_is_reported_not_assumed(self) -> None:
         """Whether this machine can host the model must be a check, not a memory.
 

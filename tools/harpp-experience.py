@@ -1833,6 +1833,204 @@ def cmd_close(args) -> int:
     return 0
 
 
+# ---------------------------------------------------- associative (pseudo-neural) recall
+#
+# What we actually wanted from the small model was never language: it was ASSOCIATION. Given a
+# context, which memories activate? A transformer is one way to get that; so is spreading
+# activation over a similarity graph, which runs on this CPU in microseconds and is deterministic.
+#
+# The mechanism is the classic ACT-R shape, not a metaphor:
+#   seed      lessons whose terms overlap the query
+#   edges     cosine similarity between TF-IDF term vectors of lesson texts
+#   spread    activation flows to NEIGHBOURS, so a lesson with zero literal overlap can be recalled
+#             because a strongly related one fired first
+#   decay     activation is multiplied by a per-hop damping factor, so distant guesses stay weak
+#
+# This buys GENERALISATION - the thing keyword retrieval cannot do - without a single model call.
+
+_SPREAD_STOPWORDS = frozenset("""the and for with that this from have has are was were will would can
+    could should not but into than then when where which while there their they them you your our
+    its about over under more most some such same very what who how only also just like
+    must never always cannot should shall does have been being rule rules code change changes
+    need needs make makes made take takes thing things""".split())
+
+
+def _terms(text: str) -> list[str]:
+    return [w for w in re.findall(r"[a-z0-9_]{4,}", str(text).lower())
+            if w not in _SPREAD_STOPWORDS]
+
+
+def _term_vectors(texts: list[str]) -> list[dict[str, float]]:
+    """TF-IDF over the lesson corpus. No model, no download, no GPU."""
+    import math
+    docs = [_terms(t) for t in texts]
+    df: dict[str, int] = {}
+    for doc in docs:
+        for term in set(doc):
+            df[term] = df.get(term, 0) + 1
+    total = max(1, len(docs))
+    vectors: list[dict[str, float]] = []
+    for doc in docs:
+        tf: dict[str, float] = {}
+        for term in doc:
+            tf[term] = tf.get(term, 0.0) + 1.0
+        vectors.append({t: (1.0 + math.log(c)) * math.log((1.0 + total) / (1.0 + df[t]))
+                        for t, c in tf.items()})
+    return vectors
+
+
+def _cosine(left: dict[str, float], right: dict[str, float]) -> float:
+    if not left or not right:
+        return 0.0
+    overlap = set(left) & set(right)
+    if not overlap:
+        return 0.0
+    import math
+    dot = sum(left[t] * right[t] for t in overlap)
+    lnorm = math.sqrt(sum(v * v for v in left.values()))
+    rnorm = math.sqrt(sum(v * v for v in right.values()))
+    return dot / (lnorm * rnorm) if lnorm and rnorm else 0.0
+
+
+def spread_activation(query: str, scope: str | None = None, hops: int = 2,
+                      damping: float = 0.45, limit: int = 6,
+                      lessons: list[dict] | None = None) -> list[dict]:
+    """Rank lessons by activation spreading from the query, not by literal overlap alone."""
+    pool = lessons if lessons is not None else [r for r in load_lessons()
+                                                if _lesson_status(r) == "active"]
+    if not pool:
+        return []
+    texts = [str(r.get("text") or "") for r in pool]
+    vectors = _term_vectors(texts)
+    query_terms = set(_terms(query))
+    query_vec = {t: 1.0 for t in query_terms}
+
+    activation = [0.0] * len(pool)
+    for index, vector in enumerate(vectors):
+        shared = query_terms & set(vector)
+        if shared:
+            activation[index] = float(len(shared))
+        elif scope and _scope_value(pool[index]) not in ("", "any") and _scope_matches(pool[index], scope):
+            # Scope is a weak prior: a module's own rule is faintly active even before it matches.
+            activation[index] = 0.15
+    if not any(activation):
+        return []
+
+    similarity = [[_cosine(vectors[i], vectors[j]) if i != j else 0.0 for j in range(len(pool))]
+                  for i in range(len(pool))]
+    for _hop in range(max(1, hops)):
+        spread = [0.0] * len(pool)
+        for i, source in enumerate(activation):
+            if source <= 0:
+                continue
+            for j, weight in enumerate(similarity[i]):
+                if weight > 0.05:
+                    spread[j] += source * weight
+        activation = [a + damping * s for a, s in zip(activation, spread)]
+
+    ranked = sorted(zip(activation, pool), key=lambda pair: -pair[0])
+    return [dict(lesson, activation=round(score, 3)) for score, lesson in ranked[:limit] if score > 0]
+
+
+VECTOR_CACHE = Path(os.environ.get("HARPP_VECTOR_CACHE") or ROOT / ".ai" / "harpp" / "vectors.json")
+EMBED_MODEL = os.environ.get("HARPP_EMBED_MODEL") or "all-minilm"
+
+
+def _embed(text: str, model: str = EMBED_MODEL, timeout: int = 90) -> list[float]:
+    """One forward pass, not generation.
+
+    Measured 2026-11-18 on an AVX-only i3-2100: 0.4-0.8s for a 384-dim vector, where the same box
+    needs 7-11s to GENERATE even four tokens. Association does not require autoregression, and this
+    is the whole reason a "neural" capability is affordable here while the LLM is not.
+    """
+    payload = json.dumps({"model": model, "prompt": text[:2000]}).encode("utf-8")
+    request = urllib.request.Request(f"{OLLAMA_HOST}/api/embeddings", data=payload,
+                                     headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            return list(json.loads(response.read().decode("utf-8", errors="replace"))
+                        .get("embedding") or [])
+    except (urllib.error.URLError, OSError, ValueError, TimeoutError):
+        return []
+
+
+def _cosine_vec(left: list[float], right: list[float]) -> float:
+    import math
+    if not left or not right or len(left) != len(right):
+        return 0.0
+    dot = sum(a * b for a, b in zip(left, right))
+    lnorm = math.sqrt(sum(a * a for a in left))
+    rnorm = math.sqrt(sum(b * b for b in right))
+    return dot / (lnorm * rnorm) if lnorm and rnorm else 0.0
+
+
+def _load_vectors() -> dict:
+    try:
+        return json.loads(VECTOR_CACHE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def semantic_rank(query: str, lessons: list[dict], limit: int = 6,
+                  refresh: bool = False) -> list[dict]:
+    """Rank lessons by meaning. Vectors are cached so a query costs ONE embedding, not N."""
+    cache = {} if refresh else _load_vectors()
+    query_vector = _embed(query)
+    if not query_vector:
+        return []
+    ranked, dirty = [], False
+    for lesson in lessons:
+        lesson_id = str(lesson.get("id") or "")
+        text = str(lesson.get("text") or "")
+        vector = cache.get(lesson_id)
+        if not vector:
+            vector = _embed(text[:400])
+            if not vector:
+                continue
+            cache[lesson_id] = vector
+            dirty = True
+        ranked.append((_cosine_vec(query_vector, vector), lesson))
+    if dirty:
+        VECTOR_CACHE.parent.mkdir(parents=True, exist_ok=True)
+        VECTOR_CACHE.write_text(json.dumps(cache), encoding="utf-8")
+    ranked.sort(key=lambda pair: -pair[0])
+    return [dict(lesson, similarity=round(score, 3)) for score, lesson in ranked[:limit] if score > 0]
+
+
+def cmd_memory_semantic(args) -> int:
+    """Recall by meaning, so a paraphrase with no shared keywords still finds the rule."""
+    pool = [r for r in load_lessons() if _lesson_status(r) == "active"]
+    if args.scope:
+        pool = [r for r in pool if _scope_matches(r, args.scope)]
+    results = semantic_rank(args.query, pool, limit=args.limit, refresh=args.refresh)
+    if args.json:
+        print(json.dumps([{"id": r.get("id"), "similarity": r.get("similarity"),
+                           "text": str(r.get("text"))[:200]} for r in results], indent=2))
+        return 0
+    if not results:
+        print("no semantic match (is the embedding model pulled? `ollama pull all-minilm`)")
+        return 0
+    for row in results:
+        print(f"  sim {row['similarity']:>5.3f}  {row.get('id')}  {str(row.get('text'))[:110]}")
+    return 0
+
+
+def cmd_memory_spread(args) -> int:
+    """Associative recall: what activates, not just what matches."""
+    results = spread_activation(args.query, scope=args.scope, hops=args.hops,
+                                damping=args.damping, limit=args.limit)
+    if args.json:
+        print(json.dumps([{"id": r.get("id"), "activation": r.get("activation"),
+                           "text": str(r.get("text"))[:200]} for r in results], indent=2))
+        return 0
+    if not results:
+        print("nothing activates")
+        return 0
+    for row in results:
+        print(f"  act {row['activation']:>6.2f}  {row.get('id')}  {str(row.get('text'))[:120]}")
+    return 0
+
+
 def cmd_hints(args) -> int:
     block = hint_block(args.reason, args.max_chars, getattr(args, "scope", None),
                        getattr(args, "query", None))
@@ -2340,6 +2538,21 @@ def _parser() -> argparse.ArgumentParser:
     memory_verify.set_defaults(func=cmd_memory_verify)
     memory_migrate = memory_sub.add_parser("migrate", help="import legacy hints.json lessons")
     memory_migrate.set_defaults(func=cmd_memory_migrate)
+    memory_semantic = memory_sub.add_parser("semantic", help="recall by meaning (embedding similarity)")
+    memory_semantic.add_argument("query")
+    memory_semantic.add_argument("--scope")
+    memory_semantic.add_argument("--limit", type=int, default=6)
+    memory_semantic.add_argument("--refresh", action="store_true", help="rebuild cached vectors")
+    memory_semantic.add_argument("--json", action="store_true")
+    memory_semantic.set_defaults(func=cmd_memory_semantic)
+    memory_spread = memory_sub.add_parser("spread", help="associative recall over lesson similarity")
+    memory_spread.add_argument("query")
+    memory_spread.add_argument("--scope")
+    memory_spread.add_argument("--hops", type=int, default=2)
+    memory_spread.add_argument("--damping", type=float, default=0.45)
+    memory_spread.add_argument("--limit", type=int, default=6)
+    memory_spread.add_argument("--json", action="store_true")
+    memory_spread.set_defaults(func=cmd_memory_spread)
     memory_path = memory_sub.add_parser("path", help="print the memory directory")
     memory_path.set_defaults(func=cmd_memory_path)
     memory_export = memory_sub.add_parser("export", help="write the whole store to one portable file")

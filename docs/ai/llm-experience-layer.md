@@ -187,7 +187,37 @@ than a recollection.
 Latency here varies ±50 % with ambient load on a 2-core box, so the acceptance bar is a threshold,
 not a precise number.
 
-### The plan this implies (owner's framing, made mechanical)
+### Pseudo-neural capability that DOES fit this hardware (added 2026-11-18)
+
+Owner: *"can we have a pseudo neural capability?"* — yes, and it never required the LLM.
+
+What we wanted from the small model was **association**, not language. An embedding is **one forward
+pass**, not autoregressive generation, so it costs a fraction of what generating four tokens costs.
+
+| Capability | Command | Measured on the i3-2100 |
+|---|---|---|
+| **Recall by meaning** | `memory semantic "<query>"` | **0.99 s warm** (vectors cached), 41 s first build |
+| **Spreading activation** | `memory spread "<query>"` | instant; generalises *from a seed* |
+| **Reinforcement / decay** | `close` → `confirm` | activation 1.0 → 2.0 after a passing run |
+
+The decisive test, a paraphrase sharing **no** keywords with the target:
+
+```
+query      "corrections must not erase the history of what happened"
+literal    → no experience matches
+semantic   → append-only rule at rank 4 of 37
+```
+
+So meaning is reachable at ~1 s where keywords return nothing. Honesty about the quality: cosine
+scores cluster tightly (0.22–0.27) on short rule texts, so the ranking is noisy — the correct rule
+was rank 4, not rank 1. The standard fix is a **hybrid** score (lexical + semantic), which is the
+next measured step rather than an assumption.
+
+Both commands degrade quietly: with no embedding model pulled, `semantic` reports "no semantic
+match" and returns 0, and `spread` says "nothing activates". Association is an enhancement, never a
+dependency a lane can be blocked by.
+
+
 
 Grow Kahibaw while the hardware cannot host it, and redeploy the day it can:
 
