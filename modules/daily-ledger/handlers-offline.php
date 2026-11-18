@@ -648,6 +648,7 @@ function dl_offlineApplyWithdrawal(array $user, array $op, bool $inTx = false): 
     $shift = dl_resolveWithdrawalShift($user, $input, $type);
     $drNumber = !empty($header['dr_number']) ? (string)$header['dr_number'] : null;
     $targetBranchId = !empty($header['target_branch_id']) ? (int)$header['target_branch_id'] : null;
+    $targetConsigneeId = !empty($header['target_consignee_id']) ? (int)$header['target_consignee_id'] : null;
     $reasonCode = !empty($header['reason_code']) ? (string)$header['reason_code'] : null;
     $customReason = trim((string)($header['custom_reason'] ?? ''));
     $liableUserId = !empty($header['liable_user_id']) ? (int)$header['liable_user_id'] : null;
@@ -661,6 +662,19 @@ function dl_offlineApplyWithdrawal(array $user, array $op, bool $inTx = false): 
     }
     if (in_array($type, ['charge', 'pullout', 'adjustment_add', 'used', 'correction'], true) && $reasonCode === null) {
         $reasonCode = 'manual_adjustment';
+    }
+
+    // One source per entry: a branch or a consignee (migration 106). Absence is tolerated because a
+    // queued offline entry written before this field existed must still replay.
+    if ($targetBranchId !== null && $targetConsigneeId !== null) {
+        throw new RuntimeException('Record one source for the pull-out: a branch or a consignee, not both.', 422);
+    }
+    if ($targetConsigneeId !== null) {
+        $consigneeStmt = $ctx->db()->prepare('SELECT id FROM dl_consignees WHERE id = :id AND is_active = 1 AND assigned_commissary_id = :cid LIMIT 1');
+        $consigneeStmt->execute([':id' => $targetConsigneeId, ':cid' => (int)$branchId]);
+        if (!$consigneeStmt->fetchColumn()) {
+            throw new RuntimeException('That consignee is not served by this commissary.', 422);
+        }
     }
     if ($reasonCode === 'other' && $customReason === '') {
         throw new RuntimeException('A custom reason is required when reason is Other.', 422);
@@ -739,8 +753,8 @@ function dl_offlineApplyWithdrawal(array $user, array $op, bool $inTx = false): 
         $encodedByNameSnapshot = dl_userDisplayNameById($ctx->db(), $userId);
         $liableUserName = dl_userDisplayNameById($ctx->db(), $liableUserId);
         $stmtIns = $ctx->db()->prepare(
-            'INSERT INTO dl_cashier_withdrawals (branch_id, product_id, ledger_date, shift, withdrawal_type, reason_code, custom_reason, dr_number, target_branch_id, quantity, unit, pack_qty, encoded_by, encoded_by_name_snapshot, liable_user_id, liable_user_name, dedup_hash)
-             VALUES (:bid, :pid, :d, :shift, :typ, :rc, :crc, :dr, :tbid, :qty, :unit, :pack_qty, :uid, :uid_name, :luid, :luid_name, :dedup)'
+            'INSERT INTO dl_cashier_withdrawals (branch_id, product_id, ledger_date, shift, withdrawal_type, reason_code, custom_reason, dr_number, target_branch_id, target_consignee_id, quantity, unit, pack_qty, encoded_by, encoded_by_name_snapshot, liable_user_id, liable_user_name, dedup_hash)
+             VALUES (:bid, :pid, :d, :shift, :typ, :rc, :crc, :dr, :tbid, :tcid, :qty, :unit, :pack_qty, :uid, :uid_name, :luid, :luid_name, :dedup)'
         );
         // Mirrors apiSaveCashierWithdrawals: both accumulators are read under
         // lock because cashier rows are not the only source of ledger movement.
@@ -801,6 +815,7 @@ function dl_offlineApplyWithdrawal(array $user, array $op, bool $inTx = false): 
                     ':crc' => $customReason !== '' ? $customReason : null,
                     ':dr' => $drNumber,
                     ':tbid' => $targetBranchId,
+                    ':tcid' => $targetConsigneeId,
                     ':qty' => $qty,
                     ':unit' => $unit,
                     ':pack_qty' => $packQty,

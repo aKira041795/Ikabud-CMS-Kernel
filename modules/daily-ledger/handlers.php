@@ -510,6 +510,13 @@ function dlCurrentUser(array $roles = ['cashier', 'supervisor', 'admin', 'produc
                 || ($path === '/daily-ledger/api/v1/commissary/dispatch' && (!empty($input['sheet_entry']) || (string)($input['source'] ?? '') === 'daily_sheet'))
                 || $path === '/daily-ledger/api/v1/commissary/finalize-pm'
                 || $path === '/daily-ledger/api/v1/commissary/settle-endings'
+                // Owner 2026-11-18: the commissary records its own pull-out / charges / other. The
+                // withdrawals endpoint was NOT on this allowlist, so the modal's save returned 403 for
+                // the exact role the surface exists for - caught only by submitting in a real browser.
+                // Granted for those three types alone: own_production and adjustment_add keep their
+                // existing gates, so this cannot become a general branch-ledger door.
+                || ($path === '/daily-ledger/api/v1/cashier/ledger/withdrawals'
+                    && in_array((string)($input['header']['withdrawal_type'] ?? ''), ['pullout', 'charge', 'other'], true))
                 || $path === '/daily-ledger/api/v1/variances/delivery-remark'
                 || $path === '/daily-ledger/api/v1/products/toggle';
         }
@@ -10571,6 +10578,9 @@ function apiSaveCashierWithdrawals(array $params = []): void
     $shift = dl_resolveWithdrawalShift($user, $input, $type);
     $drNumber = isset($header['dr_number']) && $header['dr_number'] !== '' ? (string)$header['dr_number'] : null;
     $targetBranchId = !empty($header['target_branch_id']) ? (int)$header['target_branch_id'] : null;
+    // Owner 2026-11-18: "still need the branch or consignee the pullout is set from". A consignee is
+    // not a branch (dl_consignees is a separate table), so it needs its own column - migration 106.
+    $targetConsigneeId = !empty($header['target_consignee_id']) ? (int)$header['target_consignee_id'] : null;
     $reasonCode = isset($header['reason_code']) && $header['reason_code'] !== '' ? (string)$header['reason_code'] : null;
     $customReason = isset($header['custom_reason']) ? trim((string)$header['custom_reason']) : '';
     $liableUserId = !empty($header['liable_user_id']) ? (int)$header['liable_user_id'] : null;
@@ -10596,6 +10606,22 @@ function apiSaveCashierWithdrawals(array $params = []): void
     }
     if (in_array($type, ['charge','pullout','adjustment_add','used','correction'], true) && $reasonCode === null) {
         $reasonCode = 'manual_adjustment';
+    }
+
+    // Exactly one source. Deliberately NOT required here: an offline entry queued before this field
+    // existed must still replay (a permanent rejection loses a real ledger write), so the operator
+    // is required to choose it in the modal while the server stays permissive about absence.
+    if ($targetBranchId !== null && $targetConsigneeId !== null) {
+        $ctx->json(['ok' => false, 'error' => 'Record one source for the pull-out: a branch or a consignee, not both.'], 422);
+        return;
+    }
+    if ($targetConsigneeId !== null) {
+        $consigneeStmt = $ctx->db()->prepare('SELECT id FROM dl_consignees WHERE id = :id AND is_active = 1 AND assigned_commissary_id = :cid LIMIT 1');
+        $consigneeStmt->execute([':id' => $targetConsigneeId, ':cid' => (int)$branchId]);
+        if (!$consigneeStmt->fetchColumn()) {
+            $ctx->json(['ok' => false, 'error' => 'That consignee is not served by this commissary.'], 422);
+            return;
+        }
     }
     if ($reasonCode === 'other' && $customReason === '') {
         $ctx->json(['ok' => false, 'error' => 'A custom reason is required when reason is Other.'], 422);
@@ -10702,8 +10728,8 @@ function apiSaveCashierWithdrawals(array $params = []): void
         $encodedByNameSnapshot = dl_userDisplayNameById($ctx->db(), $userId);
         $liableUserName = dl_userDisplayNameById($ctx->db(), $liableUserId);
         $stmtIns = $ctx->db()->prepare(
-            'INSERT INTO dl_cashier_withdrawals (branch_id, product_id, ledger_date, shift, withdrawal_type, reason_code, custom_reason, dr_number, target_branch_id, quantity, unit, pack_qty, encoded_by, encoded_by_name_snapshot, liable_user_id, liable_user_name, dedup_hash)
-             VALUES (:bid, :pid, :d, :shift, :typ, :rc, :crc, :dr, :tbid, :qty, :unit, :pack_qty, :uid, :uid_name, :luid, :luid_name, :dedup)'
+            'INSERT INTO dl_cashier_withdrawals (branch_id, product_id, ledger_date, shift, withdrawal_type, reason_code, custom_reason, dr_number, target_branch_id, target_consignee_id, quantity, unit, pack_qty, encoded_by, encoded_by_name_snapshot, liable_user_id, liable_user_name, dedup_hash)
+             VALUES (:bid, :pid, :d, :shift, :typ, :rc, :crc, :dr, :tbid, :tcid, :qty, :unit, :pack_qty, :uid, :uid_name, :luid, :luid_name, :dedup)'
         );
         // Both accumulator columns are read under the row lock. Cashier rows are
         // only one source of ledger movement (dispatches also move withdraw), so
@@ -10772,6 +10798,7 @@ function apiSaveCashierWithdrawals(array $params = []): void
                     ':crc' => $customReason !== '' ? $customReason : null,
                     ':dr' => $drNumber,
                     ':tbid' => $targetBranchId,
+                    ':tcid' => $targetConsigneeId,
                     ':qty' => $qty,
                     ':unit' => $unit,
                     ':pack_qty' => $packQty,
@@ -11213,6 +11240,7 @@ function apiUpdateCashierWithdrawal(array $params = []): void
             ':crc' => $customReason !== '' ? $customReason : null,
             ':dr' => $drNumber,
             ':tbid' => $targetBranchId !== null && $targetBranchId > 0 ? $targetBranchId : null,
+            ':tcid' => $targetConsigneeId !== null && $targetConsigneeId > 0 ? $targetConsigneeId : null,
             ':qty' => $newQty,
             ':unit' => $newUnit,
             ':pack_qty' => $newPackQty,
@@ -25098,6 +25126,20 @@ function handleAdminCommissary(): void
     $dispatchBranchStmt->execute($dispatchBranchBind);
     $dispatchBranches = $dispatchBranchStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
+    // A consignee is a legitimate pull-out source too, and it is NOT a branch: dl_consignees is its
+    // own table assigned to a commissary (owner 2026-11-18: "the branch or consignee the pullout is
+    // set from"). Scoped the same way as dispatch branches so the selector cannot offer a consignee
+    // this commissary does not serve.
+    $pulloutConsignees = [];
+    if (dl_isConsigneeEnabled() && $selectedCommissaryId > 0) {
+        $consigneeSql = 'SELECT c.id, c.name, c.code FROM dl_consignees c'
+            . ' WHERE c.is_active = 1 AND c.assigned_commissary_id = :cid'
+            . ' ORDER BY c.sort_order, c.name';
+        $consigneeStmt = $db->prepare($consigneeSql);
+        $consigneeStmt->execute([':cid' => $selectedCommissaryId]);
+        $pulloutConsignees = $consigneeStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
     // ── Tab 1: Inventory (commissary product ledger) ──
     $inventorySql = "SELECT cpl.commissary_branch_id,
                 COALESCE(b.name, 'Commissary') AS commissary_name,
@@ -25975,6 +26017,7 @@ function handleAdminCommissary(): void
         'can_view_production_variance' => $role === 'admin',
         'branches' => $branches,
         'dispatch_branches' => $dispatchBranches,
+        'pullout_consignees' => $pulloutConsignees,
         'commissaries' => $commissaries,
         'branch_id' => $selectedBranchId,
         'commissary_id' => $selectedCommissaryId,

@@ -2039,7 +2039,9 @@
                 </div>
                 {/if}
                 {if shift_status != 'finalized'}<button type="button" class="btn btn-primary btn-sm" onclick="openProductionAdditionModal()">Record Addition</button>{/if}
-                {if shift_status != 'finalized'}<button type="button" class="btn btn-secondary btn-sm" onclick="openCommissaryEntryModal()">Record pull-out / charges / other</button>{/if}
+                {* `btn-secondary` is NOT defined in this template - the button rendered with no colour.
+                   `btn-accent` is the file's own token for a secondary action (see the style block). *}
+                {if shift_status != 'finalized'}<button type="button" class="btn btn-accent btn-sm" onclick="openCommissaryEntryModal()">Record pull-out</button>{/if}
                 {if shift == 'PM' && shift_status != 'finalized'}<button type="button" class="btn btn-accent btn-sm" id="finalize-production-pm" onclick="finalizeProductionPm()">Close PM Shift</button>{/if}
                 {if can_view_production_management && shift_status == 'finalized'}<button type="button" class="btn btn-accent btn-sm" onclick="reopenProductionShift()">Reopen Shift</button>{/if}
                 {if can_close_day && day_status != 'closed'}<button type="button" class="btn btn-accent btn-sm" id="production-close-day" onclick="closeProductionDay()">Close Day</button>{/if}
@@ -2390,13 +2392,36 @@
     <div id="commissary-entry-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 p-4 print-hidden" role="dialog" aria-modal="true" aria-labelledby="commissary-entry-title">
         <div class="card w-full max-w-lg">
             <div class="card-header"><span id="commissary-entry-title">Pull-out / Charges / Other &mdash; {date}</span></div>
-            <div class="card-body">
+            <div class="card-body pb-2">
                 <div class="form-group">
                     <label class="form-label">Type <span class="text-rose-500">*</span></label>
                     <select id="commissary-entry-type" class="form-input" onchange="syncCommissaryEntryFields()">
                         <option value="pullout">Pull-out</option>
                         <option value="charge">Charges</option>
                         <option value="other">Other &mdash; damaged product to be reworked</option>
+                    </select>
+                </div>
+                {* Owner 2026-11-18: "still need the branch or consignee the pullout is set from".
+                   A consignee is not a branch (dl_consignees is its own table), so the value carries
+                   its kind: branch:<id> -> target_branch_id, consignee:<id> -> target_consignee_id. *}
+                <div class="form-group" id="commissary-entry-source-wrap">
+                    <label class="form-label">Pull-out from <span class="text-rose-500">*</span></label>
+                    <select id="commissary-entry-source" class="form-input">
+                        <option value="">-- Select branch or consignee --</option>
+                        {if (dispatch_branches | count) > 0}
+                        <optgroup label="Branches">
+                            {foreach dispatch_branches as option}
+                            <option value="branch:{option.id}">{option.name}</option>
+                            {/foreach}
+                        </optgroup>
+                        {/if}
+                        {if (pullout_consignees | count) > 0}
+                        <optgroup label="Consignees">
+                            {foreach pullout_consignees as option}
+                            <option value="consignee:{option.id}">{option.name}{if option.code} ({option.code}){/if}</option>
+                            {/foreach}
+                        </optgroup>
+                        {/if}
                     </select>
                 </div>
                 <div class="form-group">
@@ -2413,8 +2438,10 @@
                 </div>
                 <p id="commissary-entry-status" class="text-sm text-gray-500"></p>
             </div>
-            <div class="card-footer flex justify-end gap-2">
-                <button type="button" class="btn btn-secondary" onclick="closeCommissaryEntryModal()">Cancel</button>
+            {* `card-footer` is NOT defined in this template, so the buttons sat flush against the card
+               edge. An explicit bordered, padded footer keeps the actions separated from the fields. *}
+            <div class="flex items-center justify-end gap-2 border-t border-slate-200 px-4 py-3">
+                <button type="button" class="btn btn-outline" onclick="closeCommissaryEntryModal()">Cancel</button>
                 <button type="button" class="btn btn-primary" id="commissary-entry-submit" onclick="submitCommissaryEntry()">Record entry</button>
             </div>
         </div>
@@ -2945,6 +2972,8 @@
         });
         var qty = document.getElementById('commissary-entry-qty');
         if (qty) qty.value = '1';
+        var source = document.getElementById('commissary-entry-source');
+        if (source) source.value = '';
         var reason = document.getElementById('commissary-entry-reason');
         if (reason) reason.value = '';
         var status = document.getElementById('commissary-entry-status');
@@ -2965,6 +2994,9 @@
         var typeEl = document.getElementById('commissary-entry-type');
         var wrap = document.getElementById('commissary-entry-reason-wrap');
         if (typeEl && wrap) wrap.classList.toggle('hidden', typeEl.value !== 'other');
+        // A pull-out is the only type that has a source: it is stock set FROM a branch or consignee.
+        var sourceWrap = document.getElementById('commissary-entry-source-wrap');
+        if (typeEl && sourceWrap) sourceWrap.classList.toggle('hidden', typeEl.value !== 'pullout');
     }
 
     function submitCommissaryEntry() {
@@ -2979,6 +3011,12 @@
         var pid = parseInt(productEl.value || '0', 10) || 0;
         var qty = parseInt(qtyEl.value || '0', 10);
         var reason = reasonEl ? reasonEl.value.trim() : '';
+        var sourceEl = document.getElementById('commissary-entry-source');
+        var sourceValue = sourceEl ? sourceEl.value : '';
+        if (type === 'pullout' && !sourceValue) {
+            if (status) status.textContent = 'Select the branch or consignee the pull-out is set from.';
+            return;
+        }
         if (!pid) { if (status) status.textContent = 'Select a product.'; return; }
         if (!qty || qty < 1) { if (status) status.textContent = 'Quantity must be at least 1.'; return; }
         // "Other" means damaged stock being reworked; without the words nobody can review it later.
@@ -2988,7 +3026,7 @@
         }
         btn.disabled = true;
         if (status) status.textContent = '';
-        productionJson('{base_url}/api/v1/cashier/ledger/withdrawals', {
+        var payload = {
             date: '{date}',
             header: {
                 withdrawal_type: type,
@@ -3001,7 +3039,14 @@
             // own_production and resolves the ledger shift for every other type.
 
             lines: [{ product_id: pid, quantity: qty }]
-        }).then(function () {
+        };
+        if (type === 'pullout' && sourceValue) {
+            var parts = sourceValue.split(':');
+            var sourceId = parseInt(parts[1] || '0', 10) || 0;
+            if (parts[0] === 'branch') payload.header.target_branch_id = sourceId;
+            else if (parts[0] === 'consignee') payload.header.target_consignee_id = sourceId;
+        }
+        productionJson('{base_url}/api/v1/cashier/ledger/withdrawals', payload).then(function () {
             closeCommissaryEntryModal();
             showToast(type === 'other' ? 'Other entry recorded' : (type === 'charge' ? 'Charges recorded' : 'Pull-out recorded'), 'success');
             setTimeout(function() { window.refreshMainContent(); }, 500);

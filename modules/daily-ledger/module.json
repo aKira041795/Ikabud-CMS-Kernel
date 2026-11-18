@@ -190,7 +190,8 @@
     "database/migrations/102_ledger_backdated_edit_finding_type.sql",
     "database/migrations/103_adjustment_reason_codes.sql",
     "database/migrations/104_delivery_ledger_effect_append_only.sql",
-    "database/migrations/105_delivery_item_substituted_finding_type.sql"
+    "database/migrations/105_delivery_item_substituted_finding_type.sql",
+    "database/migrations/106_withdrawal_target_consignee.sql"
   ],
   "capabilities": {
     "exposes": [
