@@ -507,7 +507,13 @@ function dlCurrentUser(array $roles = ['cashier', 'supervisor', 'admin', 'produc
             $allowed = ($path === '/daily-ledger/api/v1/commissary/run' && $entity === 'production_addition')
                 || ($path === '/daily-ledger/api/v1/commissary/material' && in_array($entity, ['product_beg', 'product_count'], true))
                 || $path === '/daily-ledger/api/v1/commissary/carry-beginnings'
-                || ($path === '/daily-ledger/api/v1/commissary/dispatch' && (!empty($input['sheet_entry']) || (string)($input['source'] ?? '') === 'daily_sheet'))
+                // Owner report 2026-11-18 (RIZAL-COMMIS): the dispatch MODAL - the only surface with a
+                // DR field - was refused because this condition only admitted the sheet-entry payload
+                // (sheet_entry / source=daily_sheet). The operator could therefore never send a DR with
+                // the load, and the branch received it as "NO DR". apiCommissaryDispatch() already
+                // restricts itself to admin|supervisor|production_in_charge, so the role gate is the
+                // handler's, not this line's; adding the condition back here would re-break the modal.
+                || $path === '/daily-ledger/api/v1/commissary/dispatch'
                 || $path === '/daily-ledger/api/v1/commissary/finalize-pm'
                 || $path === '/daily-ledger/api/v1/commissary/settle-endings'
                 // Owner 2026-11-18: the commissary records its own pull-out / charges / other. The

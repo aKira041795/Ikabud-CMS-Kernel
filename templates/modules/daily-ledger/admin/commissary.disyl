@@ -3292,6 +3292,16 @@
             if (drVal !== '') payload.dr_number = drVal;
         }
 
+        // The DR field is rendered for a NEW entry as well, but the read above only ran for an
+        // EDIT - so a DR number typed while dispatching was silently discarded and the receiving
+        // branch saw "NO DR" (owner report 2026-11-18, RIZAL-COMMIS to branch). A field the
+        // operator fills must reach the server or not be shown at all.
+        if (payload.dr_number === undefined) {
+            var drEntryEl = document.getElementById('branch-cell-dr-number');
+            var drEntry = drEntryEl ? (drEntryEl.value || '').trim() : '';
+            if (drEntry !== '') payload.dr_number = drEntry;
+        }
+
         btn.disabled = true;
         if (status) status.textContent = '';
         productionJson('{base_url}/api/v1/commissary/dispatch', payload).then(function(res) {
