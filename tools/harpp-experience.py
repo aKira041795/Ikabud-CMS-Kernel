@@ -1848,6 +1848,9 @@ def cmd_close(args) -> int:
 
     print(f"closed {tag} ({args.status}): {confirmed} rule(s) reinforced, "
           f"{proposed} new lesson(s) proposed from {len(test_files)} test file(s)")
+    # Always improve kahibaw through newly captured context (owner 2026-11-18).
+    changed, detail = refresh_kahibaw()
+    print(f"  kahibaw: {'rebuilt' if changed else 'unchanged'} ({detail})")
     if args.status == "pass" and confirmed:
         print("  reinforcement is co-occurrence evidence, recorded as source=session-pass")
     return 0
@@ -2318,6 +2321,50 @@ def cmd_llm_review(args) -> int:
     return 0
 
 
+KAHIBAW_DIGEST = Path(os.environ.get("HARPP_KAHIBAW_DIGEST")
+                      or ROOT / ".ai" / "harpp" / "kahibaw.digest")
+
+
+def _approved_digest() -> str:
+    """Fingerprint of the approved lesson set Kahibaw should be carrying."""
+    ids = sorted(str(r.get("id")) for r in load_lessons()
+                 if _lesson_status(r) == "active" and r.get("text"))
+    return hashlib.sha256("|".join(ids).encode("utf-8")).hexdigest()[:16]
+
+
+def refresh_kahibaw(base: str = "", limit: int = 0, force: bool = False) -> tuple[bool, str]:
+    """Rebuild the model when the approved lesson set has changed.
+
+    Owner direction 2026-11-18: "always improve kahibaw thru new contexts captured."  Every capture
+    that a human approves changes the digest, so `close` calls this and the model stops drifting
+    from memory - no one has to remember to rebuild it.
+    """
+    digest = _approved_digest()
+    try:
+        previous = KAHIBAW_DIGEST.read_text(encoding="utf-8").strip()
+    except OSError:
+        previous = ""
+    if digest == previous and not force:
+        return False, "unchanged"
+    command = [sys.executable, str(ROOT / "tools" / "harpp-experience.py"), "llm", "build"]
+    if base:
+        command += ["--base", base]
+    if limit:
+        command += ["--limit", str(limit)]
+    result = subprocess.run(command, capture_output=True, text=True, timeout=900)
+    if result.returncode != 0:
+        return False, (result.stderr or result.stdout).strip()[:200]
+    KAHIBAW_DIGEST.parent.mkdir(parents=True, exist_ok=True)
+    KAHIBAW_DIGEST.write_text(digest + "\n", encoding="utf-8")
+    return True, f"rebuilt at {digest}"
+
+
+def cmd_llm_refresh(args) -> int:
+    changed, detail = refresh_kahibaw(base=args.base, limit=args.limit, force=args.force)
+    print(("rebuilt kahibaw: " if changed else "kahibaw unchanged: ") + detail)
+    return 0
+
+
 def cmd_llm_doctor(args) -> int:
     """Is THIS machine able to run the experience model acceptably? Answer mechanically."""
     flags: set[str] = set()
@@ -2622,6 +2669,11 @@ def _parser() -> argparse.ArgumentParser:
     llm_review.add_argument("--rule-chars", type=int, default=150)
     llm_review.add_argument("--json", action="store_true")
     llm_review.set_defaults(func=cmd_llm_review)
+    llm_refresh = llm_sub.add_parser("refresh", help="rebuild kahibaw when approved context changed")
+    llm_refresh.add_argument("--base", default="")
+    llm_refresh.add_argument("--limit", type=int, default=0)
+    llm_refresh.add_argument("--force", action="store_true")
+    llm_refresh.set_defaults(func=cmd_llm_refresh)
     llm_doctor = llm_sub.add_parser("doctor", help="can this machine run the model acceptably?")
     llm_doctor.add_argument("--json", action="store_true")
     llm_doctor.set_defaults(func=cmd_llm_doctor)
