@@ -1,0 +1,16 @@
+{
+  "digest": "772059c43caa741418f6b8fd3deb4cb980b78ccac376fa65c589304753c6b4d5",
+  "event_id": "772059c43caa7414",
+  "evidence": [
+    "2026-11-18: as prod-rizal the modal payload returned 403 before the fix and 422 'items[] array is required' after it (i.e. it reached the handler); a real dispatch returned 200 with delivery 1000585 storing DR TEST-DR-2026-1118 and appearing in branch 8's incoming list"
+  ],
+  "lesson_id": "L-3e843e223b",
+  "proposed_by": "harness",
+  "reason": "Owner report 2026-11-18 (RIZAL-COMMIS): 'dili ka dispatch to branch' with the role-limitation page, and the branch not seeing the DR number set at dispatch.",
+  "recorded_at": "2026-11-18T06:51:53.023959Z",
+  "review_after": "2026-12-18",
+  "schema_version": 1,
+  "scope": "daily-ledger",
+  "text": "A production_in_charge can only dispatch from the commissary sheet OR from the dispatch modal - both must be on the role allowlist. The modal payload carries the DR; the sheet-entry payload does not, and the sheet modal has no DR field for a NEW entry at all (the only DR input lives inside branch-cell-edit-fields). So blocking the modal (the allowlist admitted dispatch only when sheet_entry/source=daily_sheet was present) left the operator no way to send a DR, and the branch received every load as NO DR: 7319 of 8137 commissary deliveries have a NULL dr_number.",
+  "type": "propose"
+}
