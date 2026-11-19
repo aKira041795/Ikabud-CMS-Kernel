@@ -1463,6 +1463,12 @@
             <div class="card-header">
                 <span>Variance Records</span>
                 <span class="text-sm text-muted">{variances | count} flags</span>
+                {* Payload budget (owner 2026-11-19, weak connections): 400 rich rows is ~4 MB of HTML.
+                   The view loads 100 by default and offers the rest here, so the common case is ~1 MB. *}
+                {if variances_can_show_more}
+                <a class="text-sm text-indigo-600 hover:underline ml-3"
+                   href="?view={view_mode}&status={status_filter}{filter_query}&vlimit=400">newest {variances_row_limit} shown — load up to 400</a>
+                {/if}
             </div>
             <div class="table-wrap">
                 <table>

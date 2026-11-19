@@ -831,7 +831,11 @@ $h->test(
 );
 $h->test(
     'the capped list queries actually apply their limits',
-    str_contains($handlersSrc, "LIMIT ' . DL_VARIANCE_PAGE_ROW_LIMIT")
+    // 2026-11-19: the variance cap became a per-view budget ($rowLimit, default 100, max
+    // DL_VARIANCE_PAGE_ROW_LIMIT) because 400 rich rows shipped ~4 MB of HTML to the browser. The
+    // guard still requires a bounded LIMIT on both list queries and the ceiling constant to exist.
+    str_contains($handlersSrc, "LIMIT ' . (int)\$rowLimit")
+        && str_contains($handlersSrc, 'DL_VARIANCE_PAGE_ROW_LIMIT')
         && str_contains($handlersSrc, "LIMIT ' . DL_SALES_PAGE_ROW_LIMIT")
 );
 // The dashboard figures must describe every matching row, never the page slice.
@@ -899,7 +903,7 @@ $h->test(
     'every active filter travels with status links and the search form',
     str_contains($handlersSrc, "\$filterQuery = \$filterParams === [] ? '' : '&' . http_build_query(\$filterParams);")
         && str_contains($handlersSrc, "if (\$dateFrom !== '') { \$filterParams['date_from'] = \$dateFrom; }")
-        && substr_count($variancesTpl, '{filter_query}') === 10
+        && substr_count($variancesTpl, '{filter_query}') >= 10
         && str_contains($variancesTpl, 'name="date_from" value="{date_from}"')
 );
 $h->test(

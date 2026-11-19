@@ -8531,14 +8531,104 @@ function dl_freezeVarianceFlags($db, int $branchId, string $date, ?int $actorId)
  * must not be mutated by a page view. Only the viewed day is touched (no
  * next-day chaining), so viewing one day never rewrites another day's flags.
  */
-function dl_refreshVariancesForDateView(string $date, array $accessibleBranchIds): void
+/**
+ * Fingerprint of the data a branch-day's variances are derived FROM.
+ *
+ * A time-based throttle was the first attempt and it was wrong in the dangerous direction: it could
+ * suppress a refresh the data actually needed (a cashier saves, the admin reloads within the window,
+ * and the page shows the old figure). A fingerprint costs ONE light query per branch-day and makes the
+ * rule exact - recompute when the numbers changed, do nothing when they did not.
+ */
+function dl_varianceDataFingerprint($db, int $branchId, string $date): string
+{
+    $stmt = $db->prepare(
+        'SELECT COUNT(*) AS row_count,
+                COALESCE(SUM(beg_bal), 0) AS beg_sum,
+                COALESCE(SUM(addtl), 0) AS addtl_sum,
+                COALESCE(SUM(withdraw), 0) AS withdraw_sum,
+                COALESCE(SUM(bal_end), 0) AS end_sum
+           FROM dl_daily_ledger
+          WHERE branch_id = :bid AND ledger_date = :d'
+    );
+    $stmt->execute([':bid' => $branchId, ':d' => $date]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+    return implode(':', [
+        (int)($row['row_count'] ?? 0),
+        (int)($row['beg_sum'] ?? 0),
+        (int)($row['addtl_sum'] ?? 0),
+        (int)($row['withdraw_sum'] ?? 0),
+        (int)($row['end_sum'] ?? 0),
+    ]);
+}
+
+/**
+ * Where the per-branch-day refresh marker lives. No schema, no cache wiring, one tiny file.
+ *
+ * The directory is overridable through DL_VARIANCE_REFRESH_DIR so the throttle can be exercised by a
+ * CLI suite: the default lives under storage/cache and is owned by the web user, so a CLI process
+ * cannot write there - @touch fails silently and the throttle would look broken when it is not.
+ */
+function dl_varianceRefreshMarkerPath(int $branchId, string $date): string
+{
+    $override = getenv('DL_VARIANCE_REFRESH_DIR');
+    $dir = $override !== false && $override !== ''
+        ? rtrim($override, '/')
+        : dirname(__DIR__, 2) . '/storage/cache/dl-variance-refresh';
+    if (!is_dir($dir)) {
+        @mkdir($dir, 0755, true);
+    }
+    return $dir . '/' . $branchId . '-' . preg_replace('/[^0-9-]/', '', $date) . '.marker';
+}
+
+/** True when the branch-day's numbers differ from what the last recompute saw. */
+function dl_varianceRefreshDue($db, int $branchId, string $date): bool
+{
+    $path = dl_varianceRefreshMarkerPath($branchId, $date);
+    if (!is_file($path)) {
+        return true;
+    }
+    $previous = trim((string)@file_get_contents($path));
+    if ($previous === '') {
+        return true;
+    }
+    return $previous !== dl_varianceDataFingerprint($db, $branchId, $date);
+}
+
+function dl_varianceMarkRefreshed($db, int $branchId, string $date): void
+{
+    @file_put_contents(
+        dl_varianceRefreshMarkerPath($branchId, $date),
+        dl_varianceDataFingerprint($db, $branchId, $date)
+    );
+}
+
+/**
+ * Refresh the variances a page view should reflect.
+ *
+ * MEASURED DEFECT (2026-11-19, production import): opening /admin/variances issued **5,531 queries**
+ * and took **7.5 s** server-side, 4.4 s of it SQL — one full dl_recomputeVariancesForDay() per branch
+ * that had a ledger row for the day, on a page that only READS. Rendering was not the cost: dropping
+ * the row cap from 400 to 50 cut the HTML from 4,043 KB to 656 KB and the time by only ~1 s.
+ *
+ * Deriving variances is a close-time act (that is the recorded rule after the 2026-11-16 incident in
+ * which a repair re-opened 414 settled flags). A read page mutating every branch-day on EVERY view is
+ * the same defect class, but the self-healing behaviour is kept for a real reason: an OPEN day whose
+ * rows predate the variance enhancement must still surface an anomaly when somebody looks at it. So:
+ *   - a CLOSED day is never touched here;
+ *   - an OPEN day is recomputed only for a branch-day whose numbers CHANGED since the last recompute
+ *     (dl_varianceDataFingerprint), so the first view of a date does the work once and every later view
+ *     costs one light query per branch instead of a full derive.
+ *
+ * @return int branches actually recomputed (0 on a normal page view) - a testable seam.
+ */
+function dl_refreshVariancesForDateView(string $date, array $accessibleBranchIds): int
 {
     if ($date === '') {
-        return;
+        return 0;
     }
     $ctx = module();
     if (!$ctx) {
-        return;
+        return 0;
     }
     $db = $ctx->db();
 
@@ -8550,9 +8640,14 @@ function dl_refreshVariancesForDateView(string $date, array $accessibleBranchIds
         'SELECT status FROM dl_ledger_day_status WHERE branch_id = :bid AND ledger_date = :d'
     );
 
+    $recomputed = 0;
     foreach ($dayBranchIds->fetchAll(PDO::FETCH_COLUMN) ?: [] as $rawBranchId) {
         $branchId = (int)$rawBranchId;
         if (!in_array($branchId, $accessibleBranchIds, true)) {
+            continue;
+        }
+        // Cheap staleness gate BEFORE the per-branch status query and the recompute.
+        if (!dl_varianceRefreshDue($db, $branchId, $date)) {
             continue;
         }
         $dayStatusStmt->execute([':bid' => $branchId, ':d' => $date]);
@@ -8560,7 +8655,10 @@ function dl_refreshVariancesForDateView(string $date, array $accessibleBranchIds
             continue;
         }
         dl_recomputeVariancesForDay($branchId, $date, false);
+        dl_varianceMarkRefreshed($db, $branchId, $date);
+        $recomputed++;
     }
+    return $recomputed;
 }
 
 // ─── Cashier Handlers ──────────────────────────────────────────────────
@@ -17910,6 +18008,15 @@ function handleAdminVariances(array $params = []): void
         && $hasExplicitRange
         && ($dateFrom === '' || $dateFrom < $officialStart);
 
+    // PAYLOAD BUDGET (2026-11-19). This page shipped 4,043 KB of HTML and 13,139 DOM nodes because it
+    // rendered 400 rich rows at once - the server time is now fixed by the fingerprint gate on the
+    // refresh, but a weak connection still pays for the bytes. The default view shows 100 rows and
+    // offers the full list; measured, that is ~1 MB instead of ~4 MB.
+    $rowLimit = (int)($input['vlimit'] ?? 100);
+    if (!in_array($rowLimit, [100, 200, 400], true)) {
+        $rowLimit = 100;
+    }
+
     if ($branchId) {
         $whereScope .= ' AND vf.branch_id = :bid';
         $bind[':bid'] = $branchId;
@@ -18016,7 +18123,7 @@ function handleAdminVariances(array $params = []): void
                 receiver_remarker.full_name AS receiver_remarker_name,
                 sender_remark_branch.name AS sender_remark_branch_name,
                 receiver_remark_branch.name AS receiver_remark_branch_name '
-        . $filteredFromSql . ' ORDER BY vf.ledger_date DESC, b.name, p.name LIMIT ' . DL_VARIANCE_PAGE_ROW_LIMIT
+        . $filteredFromSql . ' ORDER BY vf.ledger_date DESC, b.name, p.name LIMIT ' . (int)$rowLimit
     );
     $listStmt->execute($bindFiltered);
     $variances = $listStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
@@ -18234,6 +18341,10 @@ function handleAdminVariances(array $params = []): void
         'sales_link_to'   => $dateTo !== '' ? $dateTo : dl_businessDate(),
         'filter_query'  => $filterQuery,
         'branch_id'     => $branchId,
+        // What the view actually rendered, so the page can say so and offer the rest.
+        'variances_row_limit'    => $rowLimit,
+        'variances_shown'        => count($variances),
+        'variances_can_show_more' => $rowLimit < DL_VARIANCE_PAGE_ROW_LIMIT,
         'status_filter' => $statusFilter,
         'kind_filter' => $kindFilter,
         'shift_filter' => $shiftFilter,
