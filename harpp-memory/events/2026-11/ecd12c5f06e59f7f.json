@@ -1,0 +1,16 @@
+{
+  "digest": "ecd12c5f06e59f7f019dd88f3aee3f5a87f5396cccfca7538ba2e59f374156cd",
+  "event_id": "ecd12c5f06e59f7f",
+  "evidence": [
+    "verified 2026-11-19 live as prod-rizal: forest -> 2 of 90, SKU BBS-9949 -> 10 of 90, multi-term -> 1, no-match -> empty state, Escape -> 90, refresh keeps the filter, print shows all 90 rows with the bar hidden; production sheet suite 60/60"
+  ],
+  "lesson_id": "L-04ff0ee3d3",
+  "proposed_by": "harness",
+  "reason": "Owner request 2026-11-19: add a product search to the PIC Daily Sheet, then move it inside the sheet by the proximity principle.",
+  "recorded_at": "2026-11-19T02:08:19.640327Z",
+  "review_after": "2026-12-19",
+  "schema_version": 1,
+  "scope": "daily-ledger",
+  "text": "A control belongs next to what it changes, and that decides WHERE a search box goes. On the commissary Daily Sheet the Destinations chips choose which COLUMNS render; a product search narrows which ROWS. Parking the search in that chip row made the operator look in the wrong place (owner: 'move the PIC search bar inside the daily sheets. proximity principle'), so it lives directly above the product table, left-aligned over the PRODUCT column. Three things a row filter must not break: (1) PRINT - a filtered production document must never print as if complete, so the filter is released in @media print with rows forced back to table-row; (2) the in-place refresh after a saved beginning replaces every row, so remember the query and re-apply it or the operator retypes after every save; (3) never let a filtered table read as the whole one - show 'N of M' and an explicit no-match row, because an empty table says 'no products exist' when it means 'your search matched nothing'. Search client-side: a server round-trip discards unsaved cell edits.",
+  "type": "propose"
+}
