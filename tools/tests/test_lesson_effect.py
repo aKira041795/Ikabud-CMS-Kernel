@@ -277,6 +277,56 @@ class LessonEffectTest(unittest.TestCase):
                         "a lesson naming a file that is gone is stale - the claim may be obsolete")
         self.assertEqual(audit["counts"]["stale"], 1)
 
+    # ------------------------------------------------------------- test labels
+    def test_the_shared_pattern_sees_both_assertion_vocabularies(self) -> None:
+        # THE BUG THIS PINS: the harvester's pattern expected `$h->test` with no `(`, and never
+        # looked for the `check(` helper the CMS tests use. Measured 2026-11-19: 5,658 `$h->test(`
+        # calls existed and the pattern matched ZERO of them, so `harvest --kind tests` and every
+        # `close` learned nothing from the gates that were actually written.
+        module = _experience()
+        label = "the producing commissary is never named as the corrector in the notice"
+        for call in (f"$h->test('{label}', $ok);",
+                     f"check('{label}', $ok);",
+                     f"$t->test('{label}', $ok);",
+                     f"assert('{label}', $ok);"):
+            found = module._TEST_LABEL_RE.findall(call)
+            self.assertEqual(found, [label],
+                             f"the shared pattern must see this assertion form: {call[:24]}")
+
+        # PHPUnit's assertSame is deliberately NOT captured: its message is the LAST argument, so
+        # the first quoted string is an expected VALUE, not a claim. Recording it would file a data
+        # literal as an assertion label and pair prose against it.
+        self.assertEqual(module._TEST_LABEL_RE.findall(f"assertSame('{label}', $a, $b);"), [])
+
+    def test_a_test_path_scopes_to_its_module_even_with_a_hyphen(self) -> None:
+        # `tests/dc-cafe/DcCafeAnalyticsTest.php` lowercases to `dccafeanalyticstest.php`, which does
+        # not contain `dc-cafe`, so every test-derived candidate came out scope=any - which would
+        # pour module rules into the UNIVERSAL set every lane draws on.
+        module = _experience()
+        self.assertEqual(module._harvest_scope(Path("tests/dc-cafe/DcCafeAnalyticsTest.php")),
+                         "dc-cafe")
+        self.assertEqual(module._harvest_scope(Path("tests/daily-ledger/some_test.php")),
+                         "daily-ledger")
+
+    def test_a_lesson_that_is_a_copy_of_a_test_label_is_reported_as_compiled(self) -> None:
+        # `harvest` writes lessons straight out of assertion labels, so the store can hold a second
+        # copy of a gate that already runs. Those are retirable, not new knowledge - and the exact
+        # tier is the only one trustworthy enough to say so (>=3 shared words produced 70 mostly
+        # coincidental pairs; exact text produced 22 real ones).
+        module = _experience()
+        labels = module.test_assertion_labels()
+        self.assertTrue(labels, "the repository has assertions to pair against")
+        copied = labels[0]["text"]
+
+        self._propose(copied, "any")
+        result = _run(["lesson", "audit", "--scope", "any", "--json"], self.env)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        audit = json.loads(result.stdout)
+
+        self.assertGreaterEqual(audit["exact_copies"], 1,
+                                "a lesson whose text IS an assertion label must be reported as an "
+                                "exact copy of that gate")
+
 
 if __name__ == "__main__":
     unittest.main()

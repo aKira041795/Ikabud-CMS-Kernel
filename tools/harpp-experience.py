@@ -1337,18 +1337,24 @@ _HARVEST_MAX_CHARS = 420
 
 
 def _harvest_scope(path: Path) -> str:
-    """A rule found in docs/<module>/ belongs to that module, not to every task."""
+    """A rule found in docs/<module>/ or tests/<module>/ belongs to that module, not to every task."""
     parts = path.parts
-    if "docs" in parts:
-        index = parts.index("docs")
-        if index + 1 < len(parts):
-            candidate = parts[index + 1]
-            if (ROOT / "modules" / candidate).is_dir():
-                return candidate
+    for marker in ("docs", "tests"):
+        if marker in parts:
+            index = parts.index(marker)
+            if index + 1 < len(parts):
+                candidate = parts[index + 1]
+                if (ROOT / "modules" / candidate).is_dir():
+                    return candidate
     # Instruction files name their subject in the filename; ui-ux rules govern every screen.
-    name = path.name.lower()
+    #
+    # The filename fallback cannot see a hyphenated module: `tests/dc-cafe/DcCafeAnalyticsTest.php`
+    # lowercased is `dccafeanalyticstest.php`, which does not contain `dc-cafe`. Measured
+    # 2026-11-19, every test-derived candidate came out scope=any for that reason, which would have
+    # poured thousands of module rules into the UNIVERSAL set every lane draws on.
+    name = re.sub(r"[^a-z0-9]", "", path.name.lower())
     for module in sorted(p.name for p in (ROOT / "modules").iterdir() if p.is_dir()):
-        if module in name:
+        if re.sub(r"[^a-z0-9]", "", module.lower()) in name:
             return module
     return "any"
 
@@ -1403,6 +1409,51 @@ def _harvest_is_not_prose(body: str) -> bool:
     return bool(_HARVEST_NOT_PROSE.match(body)) or body.count("|") >= 3
 
 
+_TEST_LABEL_RE = re.compile(
+    r"(?:\$[A-Za-z_]+->)?(?:test|check|assert(?:_equal|_same|_true)?)\s*\(\s*"
+    r"'((?:[^'\\]|\\.){40,300})'", re.S)
+
+# Distinctive words only: shared vocabulary has to mean the same SUBJECT, not the same filler.
+_ASSERTION_STOP = frozenset({
+    "never", "always", "rather", "which", "should", "within", "their", "there", "these", "those",
+    "where", "after", "before", "because", "still", "without", "instead", "cannot", "would",
+    "every", "about", "using", "applies", "remains", "value", "returns", "return",
+})
+
+
+def _assertion_words(text) -> set[str]:
+    return {w for w in re.findall(r"[a-z]{6,}", str(text or "").lower()) if w not in _ASSERTION_STOP}
+
+
+def test_assertion_labels() -> list[dict]:
+    """Every assertion label in tests/, with file:line provenance.
+
+    ONE pattern, shared with the harvester below, because the two drifting apart is how the
+    harvester came to ignore `$h->test(` entirely while still appearing to work.
+    """
+    out: list[dict] = []
+    root = ROOT / "tests"
+    if not root.is_dir():
+        return out
+    for path in sorted(root.rglob("*.php")):
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        for match in _TEST_LABEL_RE.finditer(text):
+            line = text.count("\n", 0, match.start()) + 1
+            try:
+                relative = path.relative_to(ROOT)
+            except ValueError:
+                relative = path
+            out.append({
+                "origin": f"{relative}:{line}",
+                "text": match.group(1).replace("\\'", "'"),
+                "words": _assertion_words(match.group(1).replace("\\'", "'")),
+            })
+    return out
+
+
 def _harvest_test_candidates(paths: list[Path]) -> list[dict]:
     """Assertion labels ARE experience, already compiled into a gate.
 
@@ -1412,9 +1463,13 @@ def _harvest_test_candidates(paths: list[Path]) -> list[dict]:
     approved lesson can later be retired as `compiled_as: <this test>`.
     """
     found: list[dict] = []
-    label_pattern = re.compile(
-        r"(?:->test|dlSubTest|\$h->test|assert(?:_equal|_same|_true)?\s*\()\s*"
-        r"'((?:[^'\\]|\\.){40,300})'", re.S)
+    # The opening parenthesis is not optional in this repo's own helper: `$h->test('label', ...)`
+    # put a `(` between the method name and the quote, and the pattern only tolerated it for the
+    # assert* branch. Measured 2026-11-19: 5,803 `$h->test(` calls across 814 test files, 3,423
+    # with labels long enough to harvest, and this regex matched ZERO of them - so `harvest --kind
+    # tests` returned 27 candidates from other shapes, and `close` promised "a new gate IS new
+    # experience" while learning almost nothing from the gates actually written.
+    label_pattern = _TEST_LABEL_RE
     for base in paths:
         files = sorted(base.rglob("*Test.php")) + sorted(base.rglob("*_test.php"))
         for path in files or ([base] if base.is_file() else []):
@@ -2245,12 +2300,62 @@ def lesson_audit(scope: str | None = None) -> dict:
         if entry["covered"]:
             covered += 1
         buckets["anchored"].append(entry)
+
+    # COMPILE DIRECTION. The tests hold ~3,900 assertion labels and every one is already a gate, so
+    # importing them as lessons would grow the proposal backlog (806 already) while adding nothing
+    # executable. What they are good for is RETIRING prose that a test already enforces.
+    #
+    # CALIBRATION, measured 2026-11-19 rather than guessed:
+    #   >=3 shared words -> 70 pairs, and the two inspected were COINCIDENTAL (a lesson about
+    #      "print Status: PASS only when acceptance exited 0" matched "completion_status is
+    #      failed-before-analysis"). Too weak to report as a finding.
+    #   >=5 shared words -> 6 pairs, of which 5 were the lesson text being LITERALLY the assertion
+    #      label ("engine: raw outside sandbox renders unescaped"). That is the real signal.
+    # So the bar is 5, and an exact text match is reported separately as the strongest form - which
+    # also exposes the circularity worth knowing about: `harvest` wrote lessons straight out of these
+    # labels, so some proposals are a second copy of a gate that already exists.
+    retirable = 0
+    exact_copies = 0
+    if buckets["prose"]:
+        labels = test_assertion_labels()
+        index: dict[str, list[int]] = {}
+        for position, label in enumerate(labels):
+            for word in label["words"]:
+                index.setdefault(word, []).append(position)
+        normalised = {re.sub(r"[^a-z0-9]+", " ", str(label["text"]).lower()).strip(): label["origin"]
+                      for label in labels}
+        for entry in buckets["prose"]:
+            own = re.sub(r"[^a-z0-9]+", " ", entry["text"].lower()).strip()
+            if own and own in normalised:
+                entry["retire_to"] = normalised[own]
+                entry["retire_exact"] = True
+                retirable += 1
+                exact_copies += 1
+                continue
+            words = _assertion_words(entry["text"])
+            if len(words) < 3:
+                continue
+            tally: dict[int, int] = {}
+            for word in words:
+                for position in index.get(word, ()):
+                    tally[position] = tally.get(position, 0) + 1
+            if not tally:
+                continue
+            best_position, shared = max(tally.items(), key=lambda kv: kv[1])
+            if shared < 5:
+                continue
+            entry["retire_to"] = labels[best_position]["origin"]
+            entry["retire_shared"] = shared
+            retirable += 1
+
     return {
         "scope": scope or "(all)",
         "total": len(rows),
         "counts": {key: len(value) for key, value in buckets.items()},
         "covered": covered,
         "active_prose": sum(1 for e in buckets["prose"] if e["status"] == "active"),
+        "retirable": retirable,
+        "exact_copies": exact_copies,
         "buckets": buckets,
     }
 
@@ -2275,6 +2380,14 @@ def cmd_lesson_audit(args) -> int:
             print(f"    {entry['id']}  missing {', '.join(entry['missing'])}")
             print(f"      {entry['text'][:100]}")
     if counts["prose"]:
+        print(f"  -- of those, {payload['retirable']} already have a test asserting the same thing --")
+        print("     (retire with `lesson retire <id>`; the assertion is the compiled form)")
+        shown = 0
+        for entry in payload["buckets"]["prose"]:
+            if entry.get("retire_to") and shown < limit:
+                print(f"    {entry['id']} [{entry['status']}] -> {entry['retire_to']}")
+                print(f"      {entry['text'][:96]}")
+                shown += 1
         print("  -- prose: rewrite as a check, or it can only be believed --")
         for entry in payload["buckets"]["prose"][:limit]:
             print(f"    {entry['id']} [{entry['status']}] {entry['text'][:96]}")
