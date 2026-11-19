@@ -1,0 +1,16 @@
+{
+  "digest": "72e2e90b05ee271046e632a9d7aa073f7e4399686bef187e3bf6e96a14d9e4d6",
+  "event_id": "72e2e90b05ee2710",
+  "evidence": [
+    "tools/harpp-experience.py lesson audit --scope cms (575/42/3/530); two stale claims verified absent from the tree; tests tools/tests/test_lesson_effect.py 10/10, suites 58/58"
+  ],
+  "lesson_id": "L-3b2b521877",
+  "proposed_by": "harness",
+  "reason": "Owner asked what would make prose measurable like implemented things, and for a contextual review of the CMS module's prose lessons.",
+  "recorded_at": "2026-11-19T03:39:35.436362Z",
+  "review_after": "2026-12-19",
+  "schema_version": 1,
+  "scope": "harness",
+  "text": "Prose becomes measurable when it names something that exists and can be checked. Grade each lesson by what it REFERENCES, not by how it reads: anchored (names a repo path that still exists -> the claim has an inspectable subject), stale (names a path that is GONE -> the claim may already be obsolete), prose (names nothing checkable -> unmeasurable until rewritten as a check). Measured on cms 2026-11-19: 42 anchored, 3 stale, 530 prose (92%), 41 of the prose being ACTIVE and injected today. Two traps found by building it: an extension alternation ordered short-first parsed 'module.json' as 'module.js' and reported every manifest as a missing javascript file (order longest-first and guard with (?![\\w.])); and example paths inside fenced blocks or named my-module must be excluded or the stale bucket fills with CLI usage samples. Most damaging real finding: the genuinely stale lessons were pure FILE INVENTORIES ('src/http/*.php', 'kernel/Services/*.php') whose subjects had been deleted or refactored away - harvest produces enumerations that decay silently and nothing detects it. When auditing, verify each stale hit against the tree instead of trusting the bucket, and do not oversell 'anchored + covered': most anchored lessons are inventories too, so a test referencing the same path is not a gate waiting to be written.",
+  "type": "propose"
+}
