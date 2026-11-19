@@ -2735,7 +2735,7 @@
 <div class="card" id="dispatch-picker" style="display: none; position: fixed; z-index: 50; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(60rem, 95vw); max-height: 85vh; overflow: auto;">
     <div class="card-header">
         <span>Edit a Dispatch</span>
-        <span class="text-sm text-muted">Dispatches this commissary sent in the 7 days up to {date}</span>
+        <span class="text-sm text-muted ml-3">Dispatches this commissary sent in the 7 days up to {date}</span>
         <button type="button" class="btn btn-accent btn-sm print-hidden" style="margin-left: auto;" onclick="closeDispatchPicker()">Close</button>
     </div>
     <div class="card-body">
@@ -2753,7 +2753,7 @@
 <div class="card" id="dispatch-panel" style="display: none; position: fixed; z-index: 50; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(64rem, 95vw); max-height: 90vh; overflow: auto;">
     <div class="card-header">
         <span>Dispatch to Branch</span>
-        <span class="text-sm text-muted">Pick the destination and the shift that is sending, then fill quantities for products on hand</span>
+        <span class="text-sm text-muted ml-3">Pick the destination and the shift that is sending, then fill quantities for products on hand</span>
         <button type="button" class="btn btn-accent btn-sm print-hidden" style="margin-left: auto;" onclick="closeDispatchEntry()">Close</button>
     </div>
     <div class="card-body">
@@ -2842,6 +2842,19 @@
                 <button type="button" class="btn btn-primary" id="dispatch-confirm-yes" onclick="confirmDispatch()">Yes, Dispatch</button>
             </div>
         </div>
+        {* Owner request 2026-11-19: "add the product search in the PIC modal now ... same as the cashier
+           modal search". The cashier modal's control is type-to-find: the list narrows as you type, the
+           matches appear underneath, and an empty result says so. This is the same behaviour over the
+           table, with the SAME matching rule as dlProductMatches() in cashier/ledger.disyl - lowercase
+           `name + ' ' + sku` contains the query - so the two surfaces cannot disagree about what a
+           search finds. It sits directly above the rows it filters. *}
+        <div class="flex items-center gap-2 mb-2">
+            <label class="sr-only" for="dispatch-product-search">Find a product to dispatch</label>
+            <input type="search" id="dispatch-product-search" class="form-input"
+                   placeholder="Type to find a product..." autocomplete="off"
+                   oninput="applyDispatchRowVisibility()" onkeydown="dispatchSearchKeydown(event)">
+            <span id="dispatch-product-search-count" class="text-xs text-muted whitespace-nowrap"></span>
+        </div>
         <div class="border rounded-lg overflow-hidden">
             <table class="mb-0">
                 <thead class="bg-gray-50">
@@ -2883,6 +2896,11 @@
                         </td>
                     </tr>
                     {/foreach}
+                    <tr id="dispatch-search-empty" style="display: none;">
+                        <td colspan="5" class="text-sm text-muted text-center py-3">
+                            No product matches "<span id="dispatch-search-empty-term"></span>".
+                        </td>
+                    </tr>
                 </tbody>
             </table>
         </div>
@@ -3837,7 +3855,8 @@
 
         rows.forEach(function(entry) {
             entry.input.value = '';
-            if (entry.row) entry.row.style.display = '';
+            if (entry.row) { entry.row.style.display = ''; }
+            markDispatchDestHidden(entry, false);
         });
         if (destinationId <= 0) {
             if (statusEl) statusEl.textContent = '';
@@ -3899,16 +3918,17 @@
                     var pid = entry.input.getAttribute('data-product-id');
                     var qty = parseInt(lines[pid] || '0', 10) || 0;
                     if (qty <= 0 || notShownAtDestination(entry)) {
-                        if (entry.row) entry.row.style.display = 'none';
+                        markDispatchDestHidden(entry, true);
                         return;
                     }
                     var remaining = parseInt(entry.input.getAttribute('data-remaining') || '0', 10) || 0;
                     var sourceMatches = !res.commissary_id
                         || String(entry.input.getAttribute('data-commissary-id')) === String(res.commissary_id);
                     if (!sourceMatches) {
-                        if (entry.row) entry.row.style.display = 'none';
+                        markDispatchDestHidden(entry, true);
                         return;
                     }
+                    markDispatchDestHidden(entry, false);
                     entry.input.value = String(remaining > 0 ? Math.min(qty, remaining) : qty);
                     shown++;
                 });
@@ -4007,9 +4027,10 @@
                     var sourceMatches = String(entry.input.getAttribute('data-commissary-id')) === String(res.commissary_id);
                     var hidden = notShownAtDestination(entry);
                     if (hidden) { hiddenByDestination++; }
-                    if ((!sourceMatches || hidden) && entry.row) entry.row.style.display = 'none';
+                    markDispatchDestHidden(entry, !sourceMatches || hidden);
                 });
             }
+            applyDispatchRowVisibility();
             if (statusEl) {
                 statusEl.textContent = 'Nothing on the sheet yet' + source + ' — enter quantities to send.'
                     + (hiddenByDestination > 0
@@ -4440,6 +4461,72 @@
     }
 
     // Every quantity input back to a blank sheet: values, the correction allowance and injected rows.
+    // ── Product search (owner request 2026-11-19: "same as the cashier modal search") ────────────────
+    // The cashier modal narrows its product list as the operator types and says so when nothing matches
+    // (dlProductMatches / dlProductInput in cashier/ledger.disyl). This is the same rule over the
+    // dispatch rows: lowercase `name + ' ' + sku` contains the query. One matcher, so a search that
+    // finds a product at the till finds it here too.
+    function dispatchProductMatches(row, query) {
+        var q = String(query == null ? '' : query).trim().toLowerCase();
+        if (q === '') { return true; }
+        var input = row.querySelector('.dispatch-qty-input');
+        if (!input) { return true; }
+        var skuCell = row.querySelector('.font-mono');
+        var haystack = (String(input.getAttribute('data-product-name') || '') + ' '
+            + String(skuCell ? skuCell.textContent : '')).toLowerCase();
+        return haystack.indexOf(q) !== -1;
+    }
+
+    // Destination filtering and searching are ONE decision per row. They used to write display directly
+    // from two different places, which is how a row hidden for the destination could reappear as soon as
+    // the operator typed in a search box.
+    function applyDispatchRowVisibility() {
+        var searchInput = document.getElementById('dispatch-product-search');
+        var query = searchInput ? searchInput.value : '';
+        var rows = Array.prototype.slice.call(document.querySelectorAll('#dispatch-panel tbody tr'))
+            .filter(function(row) { return !!row.querySelector('.dispatch-qty-input'); });
+        var shown = 0;
+        var eligible = 0;
+        rows.forEach(function(row) {
+            var hiddenForDestination = row.getAttribute('data-dest-hidden') === '1';
+            if (!hiddenForDestination) { eligible++; }
+            var visible = !hiddenForDestination && dispatchProductMatches(row, query);
+            row.style.display = visible ? '' : 'none';
+            if (visible) { shown++; }
+        });
+        var emptyRow = document.getElementById('dispatch-search-empty');
+        var emptyTerm = document.getElementById('dispatch-search-empty-term');
+        var searching = String(query).trim() !== '';
+        if (emptyTerm) { emptyTerm.textContent = String(query).trim(); }
+        if (emptyRow) { emptyRow.style.display = (shown === 0 && searching) ? '' : 'none'; }
+        var counter = document.getElementById('dispatch-product-search-count');
+        if (counter) {
+            // The denominator is what this DESTINATION can receive, not every row on the page: a
+            // count that includes rows already ruled out reads as "6 of 93" when only 92 were ever
+            // in play, and the operator has no way to tell the difference.
+            counter.textContent = searching
+                ? ('showing ' + shown + ' of ' + eligible)
+                : (eligible + ' product(s)');
+        }
+    }
+
+    function dispatchSearchKeydown(event) {
+        if (event && event.key === 'Escape') {
+            event.target.value = '';
+            applyDispatchRowVisibility();
+        }
+    }
+
+    /** One place that records "this row is not offered for the chosen destination". */
+    function markDispatchDestHidden(entry, hidden) {
+        if (!entry || !entry.row) { return; }
+        if (hidden) {
+            entry.row.setAttribute('data-dest-hidden', '1');
+        } else {
+            entry.row.removeAttribute('data-dest-hidden');
+        }
+    }
+
     function resetDispatchQtyInputs() {
         Array.prototype.slice.call(document.querySelectorAll('.dispatch-qty-input')).forEach(function(input) {
             input.value = '';
@@ -4452,6 +4539,14 @@
         Array.prototype.slice.call(document.querySelectorAll('tr.dispatch-injected-row')).forEach(function(tr) {
             tr.parentNode.removeChild(tr);
         });
+        // A new dispatch starts with a clean search: a term left from the previous one would silently
+        // narrow the list, and the operator would read it as "the product is gone".
+        var searchInput = document.getElementById('dispatch-product-search');
+        if (searchInput) { searchInput.value = ''; }
+        Array.prototype.slice.call(document.querySelectorAll('#dispatch-panel tbody tr')).forEach(function(row) {
+            row.removeAttribute('data-dest-hidden');
+        });
+        applyDispatchRowVisibility();
     }
 
     function cancelDispatchEdit() {
