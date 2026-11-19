@@ -53,6 +53,26 @@ corrects the box with it.
 same item in two units; a mapping attached to the twin that never sells deducts nothing, and the real one
 looks like it consumes no boxes. That is the open 6-group decision.
 
+### Owner rule (2026-11-19): "twin item, if one is inactive, then the active one is true"
+
+Applied to the six groups actually present:
+
+| group | members (active / inactive) | outcome |
+|---|---|---|
+| nutri cookies | #187 active, #227 **inactive** | **RESOLVED by the rule** — #187 is the true one |
+| toasted mamon | #129 active, #224 active | **decision needed** — this is the 61%-of-variance pair |
+| cookies cream | #45 active, #212 active | decision needed |
+| toasted bread | #119, #121, #232 all active | decision needed (3-way) |
+| meat bun | #219, #220, #221 all active | decision needed (3-way) |
+| ube supreme | #209, #210 both active | decision needed |
+
+So the rule settles **1 of 6**. The other five have every twin still active, which is exactly why the
+duplication produced variance instead of disappearing: nothing ever marked one as superseded.
+
+The rule is still worth encoding as a guard rather than a one-off tidy-up: **when a twin is deactivated, the
+packaging mapping must follow it**, and the mapping screen must refuse to attach a box to a product that has
+an active twin — otherwise the box silently follows the twin that never sells.
+
 ## Why this is not built yet
 
 The write lands inside the branch balance derivation — the same numbers stabilised today (cashier carry
