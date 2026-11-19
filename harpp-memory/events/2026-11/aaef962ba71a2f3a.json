@@ -1,0 +1,16 @@
+{
+  "digest": "aaef962ba71a2f3af33debbb552c1be69aeb54d1c1057ef687840d85545844dc",
+  "event_id": "aaef962ba71a2f3a",
+  "evidence": [
+    "verified 2026-11-19: stub-model probe with a diverted store turned 0 into 1 run(s) given rules; tools/tests/test_lane_experience.py 2/2 green and mutation-tested (reintroducing the bug turns both red)"
+  ],
+  "lesson_id": "L-ee9f16fe5e",
+  "proposed_by": "harness",
+  "reason": "Owner question 2026-11-19: how do we make the harness efficient in learning? Answering it surfaced that the loop had never closed: status reported 0 runs given rules because of an ordering bug in lane_model_run.",
+  "recorded_at": "2026-11-19T02:53:05.830118Z",
+  "review_after": "2026-12-19",
+  "schema_version": 1,
+  "scope": "harness",
+  "text": "A learning loop's throughput is decided by its USE steps, not its capture steps. Measured 2026-11-19 on this repo's own experience store: 806 lessons proposed, 62 active, 24 reachable in the injected block, 0 runs credited with any rule, 2 applications, 1 verified, 0 retired. That funnel means the harness wrote lessons ~800x faster than it used them, and with zero attribution no rule could ever earn or lose precision - approval and retirement were opinion, not measurement. The attribution was switched off by an ORDERING bug: lane_model_run passed --record only when LANE_EVENT_RUN was already set, and the fallback assignment ran AFTER the injection. Rule: instrument the use path before adding more capture, rank and cap what is injected (24 rules every run is context paid per run and dilutes), own retirement as a verb (0 retired means precision can only decay), and convert any failure class that repeats into a gate - code-borne knowledge costs zero context and is deterministic while prompt-borne knowledge is paid every run and is probabilistic. Also: never learn from polluted labels - the top failure signature here was 34x report_present with status pass, i.e. the harness misreading its own passing runs, so fixing detection must precede learning from the corpus.",
+  "type": "propose"
+}
