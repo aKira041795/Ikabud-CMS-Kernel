@@ -1,0 +1,16 @@
+{
+  "digest": "9f4a2fccadd00919ec80665315033d9305391ca197449894486c5145e92c483c",
+  "event_id": "9f4a2fccadd00919",
+  "evidence": [
+    "verified 2026-11-19 live as prod-rizal: delivery 1000589 stores B.FOREST @430 x2 (cake) + 10X10 BOX @40 x2 (other); the confirm summary listed both lines; 'No, for review' hid the summary and dispatched nothing"
+  ],
+  "lesson_id": "L-7ed5551a1d",
+  "proposed_by": "harness",
+  "reason": "Owner request 2026-11-19: add a pre-dispatch confirmation to minimise unfinished dispatched entries, and let a cake go with its box so the box is actually recorded (only 203 of 5598 cake deliveries carried one).",
+  "recorded_at": "2026-11-19T00:41:19.982077Z",
+  "review_after": "2026-12-19",
+  "schema_version": 1,
+  "scope": "daily-ledger",
+  "text": "A cake dispatched from the commissary can carry its box as an ORDINARY SECOND LINE (category 'other' + name containing BOX), with the box qty mirroring the cake qty. No schema, endpoint or receiving change is needed: the branch counts the box like any line. The box list must NOT be 'all category other' - at RIZAL-COMMIS that also contains ECO BAG, EGG CRACKER, MILO SACHET and PANDESAL, which were offered as box sizes until the name filter was added; if a box is ever named without BOX this becomes an explicit per-product flag. The dispatch modal also now has a confirmation step ('No, for review' / 'Yes, Dispatch') that saves nothing on No - deliberately NOT a draft, because posting a draft lives on a page production_in_charge cannot open.",
+  "type": "propose"
+}
