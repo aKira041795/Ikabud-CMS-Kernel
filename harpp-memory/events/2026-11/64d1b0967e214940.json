@@ -1,0 +1,16 @@
+{
+  "digest": "64d1b0967e214940c810e66d62569ffca05d844e5ed690f664589dd3638654ff",
+  "event_id": "64d1b0967e214940",
+  "evidence": [
+    "verified 2026-11-19 live as prod-rizal on delivery 1000589: cake corrected 2->1 with the confirm gate, ledger followed to 1, audit recorded production_in_charge, then restored to 2; new suite 21/21 including the two-senders-one-DR case and the received refusal"
+  ],
+  "lesson_id": "L-ec63ce9331",
+  "proposed_by": "harness",
+  "reason": "Owner request 2026-11-19: production may correct an accidentally dispatched DR until the branch receives it; cashier adds from paper DR afterwards; admin always can.",
+  "recorded_at": "2026-11-19T02:00:16.527551Z",
+  "review_after": "2026-12-19",
+  "schema_version": 1,
+  "scope": "daily-ledger",
+  "text": "A correction after dispatch must be keyed by DELIVERY ID, not by the DR. The pair (destination, DR) is not unique in this tenant - DR 434 arrived at one branch from two different senders, and the lookup takes ORDER BY id DESC, so a sender correcting by DR rewrites whichever row is newest. Pass the id and VERIFY the destination+DR against it instead of searching. The received guard is the owner's line: a received dispatch is the branch's evidence, so the sender is refused (ALREADY_RECEIVED) and only admin may pass. Before building a sender-side edit, check what already exists: the cashier's add-missing-products path and the admin both-sides sync were already implemented in dl_correctDeliveryByDr, so only the origin-keyed entry point was missing. Two traps: an on-hand-only cap refuses the quantity on the paper DR because the dispatched stock has already left (allowance = remaining + already dispatched), and any delivery line absent from the payload is ZEROED, so a product that fell off the sheet because this dispatch spent it must be injected or the correction silently erases it.",
+  "type": "propose"
+}
