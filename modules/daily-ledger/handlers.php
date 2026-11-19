@@ -4398,11 +4398,19 @@ function dl_ensureCommissaryProductLedgerRow(
 }
 
 /**
- * Is this product being dispatched from an opening position that was never recorded?
+ * Is this product being dispatched with NO ledger history at all — i.e. an opening position that was
+ * never recorded?
  *
- * True when nothing has ever been recorded as stock for this product at this hub on or before the date
- * (beginnings, production and receipts less dispatches and wastage total zero or less) and the caller is
- * about to send stock out. That combination is not a dispatch - it is a missing opening position.
+ * NARROWED 2026-11-19 before deploy. The first version refused any dispatch where recorded stock totalled
+ * zero or less. That is wrong in production: 120 products still carry a negative balance there, and every
+ * one of them would have become UNDISPATCHABLE overnight - the guard would stop real work instead of the
+ * defect. The defect is narrower and exact: dispatching a product that has never had a ledger row at this
+ * hub on or before this date, which creates the first row out of nothing (STAR/FRANCIS #113 on 2026-09-30:
+ * beg 0, produced 0, dispatched 104 -> -104).
+ *
+ * A product that already has history is NOT blocked, even when that history is negative: re-shipping it
+ * changes no new rule, and blocking it would halt the branch. Correcting past negatives is the count and
+ * reconciliation work, not this guard.
  *
  * Takes an untyped $db on purpose: it is called from the ledger writer AND asserted directly by the
  * suite, which has no module() context in CLI.
@@ -4413,12 +4421,12 @@ function dl_commissaryOpeningPositionMissing($db, int $commissaryBranchId, int $
         return false;
     }
     $stmt = $db->prepare(
-        'SELECT COALESCE(SUM(beg_qty + produced_qty - dispatched_qty - wastage_qty), 0)
-           FROM dl_commissary_product_ledger
-          WHERE commissary_branch_id = :cb AND product_id = :pid AND ledger_date <= :d'
+        'SELECT 1 FROM dl_commissary_product_ledger
+          WHERE commissary_branch_id = :cb AND product_id = :pid AND ledger_date <= :d
+          LIMIT 1'
     );
     $stmt->execute([':cb' => $commissaryBranchId, ':pid' => $productId, ':d' => $ledgerDate]);
-    return (int)$stmt->fetchColumn() <= 0;
+    return $stmt->fetchColumn() === false;
 }
 
 function dl_applyCommissaryProductLedgerDelta(
