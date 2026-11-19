@@ -4056,74 +4056,9 @@
         // a reason behind, or corrected quantities sitting in the inputs.
         clearDispatchEditState();
         applyDispatchConfirmWording(false);
-        // initDispatchBoxControls() removed 2026-11-19: boxes belong to branches, so the PIC dispatch sheet
-        // carries no box control. The function is left in place, unreferenced, until its removal is reviewed
-        // together with the branch-side box handling - deleting the helper outright is a separate change.
-    }
-
-    // ── "With box?" — a cake can be dispatched together with the box it goes in ─────────────
-    // Owner request 2026-11-19. The box is NOT a new kind of line: it is an ordinary delivery
-    // item added to the same payload, so the branch receives and counts it like anything else and
-    // no schema, endpoint or receiving path had to change. The box list is built from the rows
-    // already on screen whose category is `other` (the cake-box products), so a box can only be
-    // offered when this commissary actually holds it.
-    function initDispatchBoxControls() {
-        var boxOptions = [];
-        Array.prototype.slice.call(document.querySelectorAll('.dispatch-qty-input')).forEach(function(input) {
-            if ((input.getAttribute('data-category') || '') !== 'other') return;
-            // `other` is NOT synonymous with "box": at RIZAL-COMMIS it also holds ECO BAG, EGG
-            // CRACKER, MILO SACHET and PANDESAL, which were offered as box sizes (measured
-            // 2026-11-19). Every cake box carries BOX in its name, so the name is the filter until a
-            // box exists without it - then this must become an explicit per-product flag, not a
-            // wider name match.
-            if (!/box/i.test(input.getAttribute('data-product-name') || '')) return;
-            var remaining = parseInt(input.getAttribute('data-remaining') || '0', 10) || 0;
-            if (remaining <= 0) return;
-            boxOptions.push({
-                id: parseInt(input.getAttribute('data-product-id') || '0', 10) || 0,
-                name: input.getAttribute('data-product-name') || '',
-                remaining: remaining
-            });
-        });
-
-        Array.prototype.slice.call(document.querySelectorAll('.dispatch-box-slot')).forEach(function(slot) {
-            var pid = slot.getAttribute('data-box-for');
-            var input = document.querySelector('.dispatch-qty-input[data-product-id="' + pid + '"]');
-            var isCake = input && (input.getAttribute('data-category') || '') === 'cake';
-            slot.innerHTML = '';
-            if (!isCake || boxOptions.length === 0) return;
-
-            var label = document.createElement('label');
-            label.className = 'inline-flex items-center gap-1 text-[11px] text-gray-600 whitespace-nowrap mt-1';
-            var check = document.createElement('input');
-            check.type = 'checkbox';
-            check.className = 'dispatch-box-check';
-            check.setAttribute('data-box-for-product', pid);
-            label.appendChild(check);
-            label.appendChild(document.createTextNode(' With box?'));
-            slot.appendChild(label);
-
-            var select = document.createElement('select');
-            select.className = 'form-input text-xs mt-1 dispatch-box-select';
-            select.setAttribute('data-box-for-product', pid);
-            select.style.display = 'none';
-            var blank = document.createElement('option');
-            blank.value = '';
-            blank.textContent = '— box size —';
-            select.appendChild(blank);
-            boxOptions.forEach(function(o) {
-                var opt = document.createElement('option');
-                opt.value = String(o.id);
-                opt.textContent = o.name + ' (' + o.remaining + ' on hand)';
-                opt.setAttribute('data-remaining', String(o.remaining));
-                select.appendChild(opt);
-            });
-            check.addEventListener('change', function() {
-                select.style.display = check.checked ? '' : 'none';
-                if (!check.checked) select.value = '';
-            });
-            slot.appendChild(select);
-        });
+        // "With box?" removed 2026-11-19 (admin: PIC only produces products; boxes of any kind belong to the
+        // branches). The control, its initDispatchBoxControls() helper and its payload logic are all gone - no
+        // dead code is left behind. The cake-to-box mapping is deferred to its own change, on the branch side.
     }
 
     function closeDispatchEntry() {
@@ -4598,9 +4533,7 @@
         if (confirmBox) { confirmBox.classList.add('hidden'); }
         if (reasonInput) { reasonInput.value = ''; }
         resetDispatchQtyInputs();
-        Array.prototype.slice.call(document.querySelectorAll('.dispatch-box-slot')).forEach(function(slot) {
-            slot.innerHTML = '';
-        });
+        // (box slot cleanup removed 2026-11-19 with the "With box?" control)
     }
 
     // The confirmation card fronts both a new dispatch and a correction, so its wording follows the
@@ -4735,37 +4668,10 @@
         // a dropped line is a line the correction would wipe.
         if (qtyProblem) { showToast(qtyProblem, 'error'); return; }
 
-        // Box line for every cake dispatched "with box?" (owner 2026-11-19). The box is an ordinary
-        // item on the same delivery, so nothing downstream had to change: the branch receives and
-        // counts it like any other line. The box qty mirrors the cake qty, and a box asked for
-        // beyond its own on-hand stops the whole dispatch instead of silently going without it.
-        // NEVER on a correction: the boxes of a sent load are already ordinary lines of THAT
-        // delivery and the edit board fills them like any other line. Re-deciding them here would
-        // add a second box on every save.
-        var boxProblem = '';
-        var boxSlots = isEdit ? [] : Array.prototype.slice.call(document.querySelectorAll('.dispatch-box-slot'));
-        boxSlots.forEach(function(slot) {
-            if (boxProblem) return;
-            var cakePid = slot.getAttribute('data-box-for');
-            var check = slot.querySelector('.dispatch-box-check');
-            var select = slot.querySelector('.dispatch-box-select');
-            if (!check || !check.checked || !select || !select.value) return;
-            var cakeInput = document.querySelector('.dispatch-qty-input[data-product-id="' + cakePid + '"]');
-            var cakeQty = cakeInput ? (parseInt(cakeInput.value || '0', 10) || 0) : 0;
-            if (cakeQty <= 0) return;
-            var opt = select.options[select.selectedIndex];
-            var boxRemaining = opt ? (parseInt(opt.getAttribute('data-remaining') || '0', 10) || 0) : 0;
-            if (cakeQty > boxRemaining) {
-                boxProblem = (opt ? opt.textContent : 'Box') + ': needs ' + cakeQty + ' but only ' + boxRemaining + ' on hand';
-                return;
-            }
-            items.push({
-                commissary_branch_id: parseInt(cakeInput.getAttribute('data-commissary-id') || '0', 10) || 0,
-                product_id: parseInt(select.value, 10) || 0,
-                quantity: cakeQty
-            });
-        });
-        if (boxProblem) { showToast(boxProblem, 'error'); return; }
+        // "With box?" removed 2026-11-19 (admin: PIC only produces products; boxes of any kind belong to the
+        // branches). This block used to append a box line for every cake dispatched with its box and to stop
+        // the dispatch when the box ran short. Boxes are a branch-side matter, so the PIC payload carries
+        // products only, and the box mapping between a cake and its box is deferred to its own change.
 
         if (items.length === 0) {
             showToast('Enter at least one product quantity to dispatch', 'error');
