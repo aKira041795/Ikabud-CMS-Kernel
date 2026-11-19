@@ -3723,6 +3723,11 @@ function dl_correctDeliveryByDr($db, array $args): array
     $branchId = (int)($args['branch_id'] ?? 0);
     $drNumber = trim((string)($args['dr_number'] ?? ''));
     $reason = trim((string)($args['reason'] ?? ''));
+    // Optional explicit target. The destination+DR pair is NOT unique in this tenant: measured
+    // 2026-10-22, DR 434 reached branch 24 from two different senders, and the DR lookup below
+    // resolves with ORDER BY id DESC. A SENDER correcting its own dispatch must land on the exact
+    // row it sent, so callers that know the id pass it and the pair is verified instead of searched.
+    $explicitDeliveryId = (int)($args['delivery_id'] ?? 0);
     $desired = is_array($args['desired'] ?? null) ? $args['desired'] : [];
     $role = (string)($args['role'] ?? '');
     $actorId = (int)($args['actor_id'] ?? 0);
@@ -3742,13 +3747,25 @@ function dl_correctDeliveryByDr($db, array $args): array
 
     $db->beginTransaction();
     try {
-        $stmt = $db->prepare(
-            'SELECT * FROM dl_deliveries
-              WHERE destination_type = "branch" AND destination_id = :bid AND dr_number = :dr
-                AND status <> "voided"
-              ORDER BY id DESC LIMIT 1 FOR UPDATE'
-        );
-        $stmt->execute([':bid' => $branchId, ':dr' => $drNumber]);
+        if ($explicitDeliveryId > 0) {
+            // Identity is verified, not assumed: the row must still be this destination's
+            // delivery under this DR, so a stale or tampered id cannot retarget the correction.
+            $stmt = $db->prepare(
+                'SELECT * FROM dl_deliveries
+                  WHERE id = :id AND destination_type = "branch" AND destination_id = :bid
+                    AND dr_number = :dr AND status <> "voided"
+                  LIMIT 1 FOR UPDATE'
+            );
+            $stmt->execute([':id' => $explicitDeliveryId, ':bid' => $branchId, ':dr' => $drNumber]);
+        } else {
+            $stmt = $db->prepare(
+                'SELECT * FROM dl_deliveries
+                  WHERE destination_type = "branch" AND destination_id = :bid AND dr_number = :dr
+                    AND status <> "voided"
+                  ORDER BY id DESC LIMIT 1 FOR UPDATE'
+            );
+            $stmt->execute([':bid' => $branchId, ':dr' => $drNumber]);
+        }
         $delivery = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!is_array($delivery)) {
             $db->rollBack();
@@ -4137,6 +4154,170 @@ function apiEditDeliveryByDr(array $params = []): void
         'removed' => (int)$result['removed'],
         'synced_received' => (int)($result['synced_received'] ?? 0),
     ]);
+}
+
+/**
+ * POST /daily-ledger/api/v1/commissary/dispatch-edit
+ *
+ * Correct a dispatch the SENDER already posted (wrong quantity, a line that should not have gone,
+ * a line that was missed). Owner request 2026-11-19: "if accidentally dispatched, production user
+ * can edit the dispatched DR and add/correct".
+ *
+ * Boundaries, all taken from that direction:
+ *  - The sender may correct only WHILE the branch has not received it. Once a receiving exists the
+ *    receipt is the truth, not the dispatch: the cashier adds what the paper DR says through
+ *    apiEditDeliveryByDr() (which already exists and keeps the count as evidence), and an admin can
+ *    move both sides in one action. Only an ADMIN bypasses the guard here — "admin, as per
+ *    principle, always can".
+ *  - A reason is mandatory and audited. The correction lands on the ORIGIN's ledger in the
+ *    delivery's OWN shift (dl_correctDeliveryByDr), never in the caller's current shift.
+ *  - Whoever may dispatch may correct their own dispatch: the role list is exactly the one
+ *    apiCommissaryDispatch() allows, and the delivery must be one this caller's branch sent. No new
+ *    setting is introduced, deliberately — a right that is off by default ships as a dead button,
+ *    measured twice in this module (paperless_dr_allowed, the withdrawals allowlist). To withdraw
+ *    it later, add a settings checkbox then; do not pre-emptively hide a right the owner granted.
+ *  - The caller's own DAY must still be open: the correction rewrites the origin's dispatched
+ *    quantity, so a closed origin day is only correctable with ledger.override. The engine's own
+ *    closed-day check reads the DESTINATION day, which is why this is checked here as well.
+ */
+function apiEditCommissaryDispatch(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) { http_response_code(500); return; }
+    $user = dlCurrentUser(['admin', 'supervisor', 'production_in_charge']);
+    $role = (string)($user['role'] ?? '');
+    $input = (array)json_decode(file_get_contents('php://input'), true);
+
+    $deliveryId = (int)($input['delivery_id'] ?? 0);
+    $reason = trim((string)($input['reason'] ?? ''));
+    $rawItems = is_array($input['items'] ?? null) ? $input['items'] : [];
+
+    if ($deliveryId <= 0) {
+        $ctx->json(['ok' => false, 'error' => 'delivery_id is required.'], 422);
+        return;
+    }
+    if ($reason === '') {
+        $ctx->json(['ok' => false, 'error' => 'A correction reason is required.'], 422);
+        return;
+    }
+    if (mb_strlen($reason) > 255) {
+        $ctx->json(['ok' => false, 'error' => 'Reason must be 255 characters or fewer.'], 422);
+        return;
+    }
+
+    // Merge duplicates; a 0 quantity removes a line (the engine zeroes it, never deletes it, so the
+    // receiving link and the audit trail survive).
+    $desired = [];
+    foreach ($rawItems as $item) {
+        if (!is_array($item)) { continue; }
+        $pid = (int)($item['product_id'] ?? 0);
+        $qty = (int)($item['quantity'] ?? 0);
+        if ($pid <= 0) { continue; }
+        if ($qty < 0) {
+            $ctx->json(['ok' => false, 'error' => 'Item quantities cannot be negative.'], 422);
+            return;
+        }
+        $desired[$pid] = ($desired[$pid] ?? 0) + $qty;
+    }
+    if ($desired === []) {
+        $ctx->json(['ok' => false, 'error' => 'At least one product line is required.'], 422);
+        return;
+    }
+
+    try {
+        $stmt = $ctx->db()->prepare(
+            'SELECT id, origin_type, origin_id, destination_type, destination_id, dr_number,
+                    delivery_date, production_shift, status
+               FROM dl_deliveries WHERE id = :id LIMIT 1'
+        );
+        $stmt->execute([':id' => $deliveryId]);
+        $delivery = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!is_array($delivery)) {
+            $ctx->json(['ok' => false, 'error' => 'Delivery not found.'], 404);
+            return;
+        }
+        if ((string)($delivery['destination_type'] ?? '') !== 'branch') {
+            $ctx->json(['ok' => false, 'error' => 'Only dispatches to a branch can be corrected here. Use the consignee correction path for a consignee dispatch.'], 422);
+            return;
+        }
+        if ((string)($delivery['status'] ?? '') !== 'posted') {
+            $ctx->json(['ok' => false, 'error' => 'Only a posted dispatch can be corrected. This one is "' . (string)$delivery['status'] . '".'], 409);
+            return;
+        }
+
+        // The sender's own branch, not the destination. An admin may correct any dispatch.
+        $originBranchId = in_array((string)($delivery['origin_type'] ?? ''), ['commissary', 'branch'], true)
+            ? (int)($delivery['origin_id'] ?? 0) : 0;
+        if ($role !== 'admin') {
+            $accessible = dl_accessibleBranchIds($user);
+            if ($originBranchId <= 0 || !in_array($originBranchId, array_map('intval', $accessible), true)) {
+                $ctx->json(['ok' => false, 'error' => 'This dispatch did not come from one of your branches.'], 403);
+                return;
+            }
+        }
+
+        // THE receipt guard (owner rule): a received dispatch is the branch's evidence, not the
+        // sender's draft. Refused for every role except admin.
+        if ($role !== 'admin' && dl_deliveryHasActiveReceivings($ctx->db(), $deliveryId)) {
+            $ctx->json([
+                'ok' => false,
+                'code' => 'ALREADY_RECEIVED',
+                'error' => 'The branch has already received this DR, so it can no longer be corrected '
+                    . 'from production. The cashier adds what the paper DR shows, or an admin corrects it.',
+            ], 409);
+            return;
+        }
+
+        // The origin day is what this correction rewrites. The engine below checks the DESTINATION
+        // day, so without this a commissary could silently restate a closed day's dispatched stock.
+        $hasOverride = dl_roleHasPermission($role, 'ledger.override');
+        if (!$hasOverride && $originBranchId > 0
+            && dl_getDayStatus($originBranchId, (string)$delivery['delivery_date']) === 'closed') {
+            $ctx->json(['ok' => false, 'error' => 'Your day for ' . (string)$delivery['delivery_date'] . ' is closed. Ask an admin, or reopen the day first.'], 409);
+            return;
+        }
+
+        $result = dl_correctDeliveryByDr($ctx->db(), [
+            'delivery_id' => $deliveryId,
+            'branch_id' => (int)$delivery['destination_id'],
+            'dr_number' => (string)$delivery['dr_number'],
+            'reason' => $reason,
+            'desired' => $desired,
+            'role' => $role,
+            'actor_id' => dl_getActorUserId($user),
+            'business_date' => dl_businessDate(),
+            'has_override' => $hasOverride,
+            'shift' => dl_currentShift(),
+            // Only the office moves the receiving side (admin direction 2026-11-16). Everyone else
+            // leaves the count as evidence and the difference becomes a variance.
+            'sync_destination' => ($role === 'admin'),
+        ]);
+
+        if (!$result['ok']) {
+            $ctx->json(['ok' => false, 'error' => $result['error']], (int)$result['status']);
+            return;
+        }
+
+        $zeroed = true;
+        foreach ($desired as $qty) {
+            if ((int)$qty > 0) { $zeroed = false; break; }
+        }
+
+        $ctx->json([
+            'ok' => true,
+            'delivery_id' => (int)$result['delivery_id'],
+            'item_count' => (int)$result['item_count'],
+            'updated' => (int)$result['updated'],
+            'removed' => (int)$result['removed'],
+            'synced_received' => (int)($result['synced_received'] ?? 0),
+            // Every line corrected to zero leaves the dispatch on record with nothing on it. Said
+            // out loud so the operator asks an admin to void it instead of assuming it vanished.
+            'zeroed' => $zeroed,
+        ]);
+    } catch (\Throwable $e) {
+        $ctx->log('apiEditCommissaryDispatch: ' . $e->getMessage(), 'error', ['delivery_id' => $deliveryId]);
+        $ctx->json(['ok' => false, 'error' => 'Database error'], 500);
+    }
 }
 
 // ─── Phase A: Branch product supply rules ────────────────────────────────

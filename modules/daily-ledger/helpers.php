@@ -1706,6 +1706,11 @@ function dl_roleMayOpenPage(string $role, string $path): bool
             '/daily-ledger/admin/commissary',
             '/daily-ledger/products',
             '/daily-ledger/admin/variances',
+            // The dispatch board reads this to list what THIS commissary sent and whether the branch
+            // has received it. It scopes itself to dl_accessibleBranchIds(), so the PIC sees only its
+            // own branches' rows. Without it the "Edit Dispatch" button would open a panel that
+            // answers 403 - the exact defect measured on the withdrawals modal 2026-11-18.
+            '/daily-ledger/api/v1/deliveries',
             // Signing out is not a privilege, and a refusal page whose only exit is dead would trap
             // the session. Listed here so the predicate can never become such a trap.
             '/daily-ledger/logout',
@@ -1729,10 +1734,16 @@ function dl_roleMayOpenPage(string $role, string $path): bool
  *
  * Owner direction 2026-11-13, looking at the production in-charge's own sidebar: "Deliveries and
  * Production Delivery audit links are showing ... if it's not the concern of PIC, don't show it".
- * The pages themselves still authorise that role (handleAdminDeliveries and friends list it, and
- * document creation stays a production right), so reaching one by URL works — it is simply not part
- * of this workspace's navigation. Showing LESS than the server allows is safe; showing MORE is the
- * defect this pair exists to prevent.
+ *
+ * For a production_in_charge this answer is ALSO the request gate, not just a menu: the narrowing in
+ * dlCurrentUser() asks dl_roleMayOpenPage(), which asks this function. So a PIC typing
+ * /daily-ledger/admin/deliveries by hand gets 403 - the earlier claim here that "reaching one by URL
+ * works" was wrong (verified 2026-11-19). handleAdminDeliveries() still lists the role, and
+ * can_view_production_management gates the Deliveries/Pullouts tabs to admin|supervisor, so the PIC
+ * workspace genuinely has NO dispatch list of its own - the "Edit Dispatch" board on the commissary
+ * page is the one it has (owner request 2026-11-19).
+ *
+ * Showing LESS than the server allows is safe; showing MORE is the defect this pair exists to prevent.
  *
  * A resolved role is required for a real answer. An empty one (CLI, export, render harness) keeps the
  * historical full menu rather than hiding admin items from non-request renders.

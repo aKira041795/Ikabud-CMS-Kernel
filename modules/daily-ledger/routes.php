@@ -212,6 +212,9 @@ return [
         '/daily-ledger/api/v1/commissary/carry-beginnings' => 'daily-ledger:apiCarryCommissaryBeginnings',
         '/daily-ledger/api/v1/commissary/dispatch'        => 'daily-ledger:apiCommissaryDispatch',
         '/daily-ledger/api/v1/commissary/dispatch-prefill' => 'daily-ledger:apiCommissaryDispatchPrefill',
+        // Correct a dispatch this commissary already sent (owner 2026-11-19). Refused once the
+        // branch has received the DR; only an admin may correct past that line.
+        '/daily-ledger/api/v1/commissary/dispatch-edit'   => 'daily-ledger:apiEditCommissaryDispatch',
         '/daily-ledger/api/v1/commissary/finalize-pm'     => 'daily-ledger:apiFinalizeProductionPmShift',
         // Explicit ending settlement: settle -> admin verify -> admin revert
         '/daily-ledger/api/v1/commissary/settle-endings'  => 'daily-ledger:apiSettleCommissaryEndings',

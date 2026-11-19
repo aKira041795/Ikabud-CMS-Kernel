@@ -2052,6 +2052,10 @@
                    stayed on row 1 while Print fell alone to row 2. *}
                 <span class="inline-flex items-center gap-2">
                     {if can_create_commissary_delivery}<button type="button" class="btn btn-primary btn-sm" onclick="openDispatchEntry()" title="Records a delivery to a branch against a DR number">New Delivery (DR)</button>{/if}
+                    {* Owner request 2026-11-19: an accidental dispatch must be correctable by the person
+                       who sent it, while the branch has not received it yet. Sits beside New Delivery
+                       because it is the same job on the same day - a load that left and needs fixing. *}
+                    {if can_create_commissary_delivery}<button type="button" class="btn btn-accent btn-sm" id="edit-dispatch-btn" onclick="openDispatchPicker()" title="Correct a dispatch this commissary already sent - available until the branch receives it">Edit Dispatch</button>{/if}
                     <button type="button" class="btn btn-accent btn-sm" onclick="window.print()">Print Daily Sheet</button>
                 </span>
             </div>
@@ -2619,6 +2623,30 @@
    This marker is also the end anchor for the Daily Sheet slice in
    daily_ledger_production_sheet_test.php - keep it above the dispatch panel. *}
 <!-- Dispatch to Branch -->
+{* Owner request 2026-11-19: the dispatch board. Lists what THIS commissary sent recently and whether
+   the branch has received it, because "not editable if already received" has to be visible before the
+   operator spends a correction on it. There is no separate PIC page to hang this on: /admin/deliveries
+   is the office's network-wide tool and dl_roleMenuShows() deliberately keeps it out of this role's
+   workspace (owner direction 2026-11-13), while handleAdminDeliveries() would technically admit the
+   role - a page half-open to a role is the 2026-11-13 defect. The dispatches a PIC cares about belong
+   beside the sheet that produced them. *}
+<div id="dispatch-picker-backdrop" class="fixed inset-0 z-40 bg-black/40 print-hidden" style="display: none;" onclick="closeDispatchPicker()"></div>
+<div class="card" id="dispatch-picker" style="display: none; position: fixed; z-index: 50; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(60rem, 95vw); max-height: 85vh; overflow: auto;">
+    <div class="card-header">
+        <span>Edit a Dispatch</span>
+        <span class="text-sm text-muted">Dispatches this commissary sent in the 7 days up to {date}</span>
+        <button type="button" class="btn btn-accent btn-sm print-hidden" style="margin-left: auto;" onclick="closeDispatchPicker()">Close</button>
+    </div>
+    <div class="card-body">
+        <p class="text-xs text-gray-500 mb-3">
+            A dispatch the branch has <span class="font-semibold">already received</span> cannot be corrected here
+            — the receipt is the branch's evidence. In that case the cashier adds what the paper DR shows,
+            or an admin corrects it.
+        </p>
+        <div id="dispatch-picker-status" class="text-sm text-muted mb-2" style="min-height: 1.25rem;"></div>
+        <div id="dispatch-picker-list"></div>
+    </div>
+</div>
 <div id="dispatch-backdrop" class="fixed inset-0 z-40 bg-black/40 print-hidden" style="display: none;" onclick="closeDispatchEntry()"></div>
 
 <div class="card" id="dispatch-panel" style="display: none; position: fixed; z-index: 50; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(64rem, 95vw); max-height: 90vh; overflow: auto;">
@@ -2676,16 +2704,33 @@
             </div>
         </div>
         <div id="dispatch-status" class="text-sm text-muted mb-3" style="min-height: 1.25rem;"></div>
+        {* Correction mode (owner 2026-11-19). Hidden for a new dispatch. A correction always carries
+           a reason: the audit row has to say WHY a dispatched load was changed, or the branch's count
+           is contradicted with no explanation on record. *}
+        <div id="dispatch-edit-banner" class="hidden rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-3 mb-3">
+            <div class="flex items-start justify-between gap-3">
+                <div>
+                    <p class="text-sm font-semibold text-indigo-900">Correcting a dispatch that already left</p>
+                    <p id="dispatch-edit-banner-text" class="text-xs text-indigo-800 mt-0.5"></p>
+                </div>
+                <button type="button" class="btn btn-accent btn-sm" onclick="cancelDispatchEdit()">Cancel correction</button>
+            </div>
+            <div class="form-group mb-0 mt-2">
+                <label class="form-label" for="dispatch-edit-reason">Why is this being corrected?</label>
+                <input type="text" id="dispatch-edit-reason" class="form-input" maxlength="255" placeholder="e.g. sent 12 instead of 21 on B.FOREST">
+            </div>
+        </div>
         {* Owner request 2026-11-19: a final step before the load leaves, so half-finished entries are
            caught here instead of being dispatched. This is a confirmation, NOT a draft: a draft state
            exists, but posting it lives on the office Deliveries page that a production in-charge
-           cannot open - which would create MORE unfinished entries, not fewer. *}
+           cannot open - which would create MORE unfinished entries, not fewer.
+           The same card fronts a CORRECTION (Edit Dispatch), so its wording is set at open time. *}
         <div id="dispatch-confirm" class="hidden rounded-lg border border-amber-300 bg-amber-50 px-3 py-3 mb-3">
-            <p class="text-sm font-semibold text-amber-900 mb-1">Ready to dispatch?</p>
+            <p class="text-sm font-semibold text-amber-900 mb-1" id="dispatch-confirm-title">Ready to dispatch?</p>
             <div id="dispatch-confirm-summary" class="text-xs leading-5 text-amber-900 mb-3"></div>
             <div class="flex items-center gap-2">
-                <button type="button" class="btn btn-outline" onclick="cancelDispatchConfirm()">No, for review</button>
-                <button type="button" class="btn btn-primary" onclick="confirmDispatch()">Yes, Dispatch</button>
+                <button type="button" class="btn btn-outline" id="dispatch-confirm-no" onclick="cancelDispatchConfirm()">No, for review</button>
+                <button type="button" class="btn btn-primary" id="dispatch-confirm-yes" onclick="confirmDispatch()">Yes, Dispatch</button>
             </div>
         </div>
         <div class="border rounded-lg overflow-hidden">
@@ -3845,6 +3890,10 @@
         var backdrop = document.getElementById('dispatch-backdrop');
         if (panel) { panel.style.display = 'block'; }
         if (backdrop) { backdrop.style.display = 'block'; }
+        // A NEW dispatch starts clean: an abandoned correction must not leave the destination locked,
+        // a reason behind, or corrected quantities sitting in the inputs.
+        clearDispatchEditState();
+        applyDispatchConfirmWording(false);
         initDispatchBoxControls();
     }
 
@@ -3920,6 +3969,332 @@
         if (backdrop) { backdrop.style.display = 'none'; }
     }
 
+    // ── Edit a dispatch that already left (owner request 2026-11-19) ──────────────────────────
+    // "if accidentally dispatched, production user can edit the dispatched DR and add/correct…
+    //  not editable if already received by cashier at branch."
+    //
+    // The SERVER owns both rules (ALREADY_RECEIVED, and origin-must-be-yours). This board exists so
+    // the operator sees the received state BEFORE spending a correction on it, and so the exact
+    // delivery is chosen rather than re-derived from a DR number - the same DR can exist twice at
+    // one destination from two different senders (measured 2026-10-22, DR 434).
+    //
+    // There is no separate PIC dispatch page to put this on. /admin/deliveries is the office's
+    // network-wide tool: handleAdminDeliveries() technically admits production_in_charge, but
+    // dl_roleMenuShows() keeps it out of the PIC workspace by owner direction (2026-11-13), and a
+    // page whose nine endpoints half-refuse the role is the exact defect measured that day.
+    var DL_ROLE = '{user_role}';
+
+    function dispatchBase() { return '{base_url}'; }
+
+    function dispatchCommissaryId() {
+        var sel = document.querySelector('select[name="commissary_id"]');
+        if (sel && sel.value) { return String(sel.value); }
+        return '{commissary_id}';
+    }
+
+    function setDispatchPickerStatus(text) {
+        var el = document.getElementById('dispatch-picker-status');
+        if (el) { el.textContent = text || ''; }
+    }
+
+    function openDispatchPicker() {
+        var panel = document.getElementById('dispatch-picker');
+        var backdrop = document.getElementById('dispatch-picker-backdrop');
+        if (panel) { panel.style.display = 'block'; }
+        if (backdrop) { backdrop.style.display = 'block'; }
+        loadDispatchPicker();
+    }
+
+    function closeDispatchPicker() {
+        var panel = document.getElementById('dispatch-picker');
+        var backdrop = document.getElementById('dispatch-picker-backdrop');
+        if (panel) { panel.style.display = 'none'; }
+        if (backdrop) { backdrop.style.display = 'none'; }
+    }
+
+    function loadDispatchPicker() {
+        var cid = dispatchCommissaryId();
+        var listEl = document.getElementById('dispatch-picker-list');
+        if (!listEl) { return; }
+        if (!cid) { setDispatchPickerStatus('No commissary selected.'); return; }
+        setDispatchPickerStatus('Loading…');
+        listEl.innerHTML = '';
+
+        // A correction is noticed hours after the send, sometimes after the sheet's date has moved
+        // on, so this is a window and not the single date in view.
+        var to = '{date}';
+        var from = to;
+        var d = new Date(to + 'T00:00:00');
+        if (!isNaN(d.getTime())) {
+            d.setDate(d.getDate() - 6);
+            from = d.getFullYear() + '-'
+                + ('0' + (d.getMonth() + 1)).slice(-2) + '-'
+                + ('0' + d.getDate()).slice(-2);
+        }
+
+        var url = dispatchBase() + '/api/v1/deliveries?branch_id=' + encodeURIComponent(cid)
+            + '&date_from=' + encodeURIComponent(from) + '&date_to=' + encodeURIComponent(to);
+
+        fetch(url, {
+            credentials: 'same-origin',
+            headers: { 'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '') }
+        })
+            .then(function(r) { return r.json(); })
+            .then(function(res) {
+                if (!res || !res.ok) {
+                    setDispatchPickerStatus((res && res.error) || 'Could not load dispatches.');
+                    return;
+                }
+                var rows = (res.deliveries || []).filter(function(row) {
+                    // Only what THIS commissary SENT. A delivery its own branch received is a
+                    // different job (the cashier's), and voided/draft rows are not correctable.
+                    return row.origin_type === 'commissary'
+                        && String(row.origin_id) === String(cid)
+                        && row.destination_type === 'branch'
+                        && row.delivery_status === 'posted';
+                });
+                renderDispatchPicker(rows);
+            })
+            .catch(function() { setDispatchPickerStatus('Could not load dispatches.'); });
+    }
+
+    function renderDispatchPicker(rows) {
+        var listEl = document.getElementById('dispatch-picker-list');
+        if (!listEl) { return; }
+        if (rows.length === 0) {
+            setDispatchPickerStatus('No dispatch from this commissary in the 7 days up to ' + '{date}' + '.');
+            return;
+        }
+        setDispatchPickerStatus(rows.length + ' dispatch(es) found.');
+
+        var table = document.createElement('table');
+        table.className = 'mb-0';
+        var thead = document.createElement('thead');
+        thead.className = 'bg-gray-50';
+        var headRow = document.createElement('tr');
+        ['DR #', 'Date', 'Shift', 'Destination', 'Lines', 'Qty', 'Status', ''].forEach(function(label, index) {
+            var th = document.createElement('th');
+            th.textContent = label;
+            if (index === 4 || index === 5) { th.className = 'text-right'; }
+            headRow.appendChild(th);
+        });
+        thead.appendChild(headRow);
+        table.appendChild(thead);
+
+        var tbody = document.createElement('tbody');
+        tbody.className = 'divide-y divide-gray-100';
+        rows.forEach(function(row) {
+            var tr = document.createElement('tr');
+            tr.className = 'hover:bg-gray-50';
+            var received = !!row.has_receiving;
+            var values = [
+                row.dr_number || '—',
+                row.delivery_date || '',
+                row.production_shift || '—',
+                row.destination_label || '',
+                String((row.items || []).length),
+                String(row.sent_quantity || 0)
+            ];
+            values.forEach(function(text, index) {
+                var td = document.createElement('td');
+                td.textContent = text;
+                if (index === 0) { td.className = 'font-mono text-sm font-semibold'; }
+                if (index === 4) { td.className = 'text-right'; }
+                if (index === 5) { td.className = 'text-right font-semibold'; }
+                tr.appendChild(td);
+            });
+
+            var statusTd = document.createElement('td');
+            var badge = document.createElement('span');
+            badge.className = 'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ring-inset '
+                + (received ? 'bg-emerald-50 text-emerald-700 ring-emerald-200' : 'bg-blue-50 text-blue-700 ring-blue-200');
+            badge.textContent = received ? 'received' : 'posted';
+            statusTd.appendChild(badge);
+            tr.appendChild(statusTd);
+
+            var actionTd = document.createElement('td');
+            var button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'btn btn-accent btn-sm';
+            button.textContent = 'Edit';
+            if (received && DL_ROLE !== 'admin') {
+                // Said here, not after a failed save: the branch's receipt is the evidence and the
+                // sender may not rewrite it. Admin is the stated exception.
+                button.disabled = true;
+                button.title = 'The branch already received this DR. The cashier adds what the paper DR shows, or an admin corrects it.';
+            } else {
+                button.addEventListener('click', function() { openDispatchEditor(row); });
+            }
+            actionTd.appendChild(button);
+            tr.appendChild(actionTd);
+            tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+        listEl.appendChild(table);
+    }
+
+    function openDispatchEditor(delivery) {
+        closeDispatchPicker();
+        var panel = document.getElementById('dispatch-panel');
+        var backdrop = document.getElementById('dispatch-backdrop');
+        if (panel) { panel.style.display = 'block'; }
+        if (backdrop) { backdrop.style.display = 'block'; }
+
+        window.__editingDelivery = {
+            id: parseInt(delivery.id, 10) || 0,
+            dr_number: delivery.dr_number || '',
+            destination_id: parseInt(delivery.destination_id, 10) || 0,
+            shift: (delivery.production_shift === 'PM') ? 'PM' : 'AM',
+            items: (delivery.items || []).map(function(item) {
+                return {
+                    product_id: parseInt(item.product_id, 10) || 0,
+                    quantity: parseInt(item.sent_qty, 10) || 0,
+                    product_name: item.product_name || ''
+                };
+            })
+        };
+
+        var destSel = document.getElementById('dispatch-dest-branch-id');
+        var drInput = document.getElementById('dispatch-dr-number');
+        var shiftSel = document.getElementById('dispatch-shift');
+        var submitBtn = document.getElementById('submit-dispatch');
+        var banner = document.getElementById('dispatch-edit-banner');
+        var bannerText = document.getElementById('dispatch-edit-banner-text');
+        var reasonInput = document.getElementById('dispatch-edit-reason');
+
+        // Destination, DR and shift identify the dispatch being corrected; a correction that could
+        // move them would be a different delivery, not a correction. Locked, not hidden, so the
+        // operator can see what they are about to change.
+        if (destSel) { destSel.value = String(window.__editingDelivery.destination_id); destSel.disabled = true; }
+        if (drInput) { drInput.value = window.__editingDelivery.dr_number; drInput.readOnly = true; }
+        if (shiftSel) { shiftSel.value = window.__editingDelivery.shift; shiftSel.disabled = true; }
+        if (submitBtn) { submitBtn.textContent = 'Save correction'; }
+        if (banner) { banner.classList.remove('hidden'); }
+        if (reasonInput) { reasonInput.value = ''; }
+        if (bannerText) {
+            bannerText.textContent = 'DR ' + window.__editingDelivery.dr_number
+                + ' · shift ' + window.__editingDelivery.shift
+                + ' — changing these quantities moves what this sheet dispatched.';
+        }
+
+        resetDispatchQtyInputs();
+
+        var tbody = document.querySelector('.dispatch-qty-input')
+            ? document.querySelector('.dispatch-qty-input').closest('tbody') : null;
+
+        window.__editingDelivery.items.forEach(function(item) {
+            var input = document.querySelector('.dispatch-qty-input[data-product-id="' + item.product_id + '"]');
+            if (input) {
+                input.value = String(item.quantity);
+                input.setAttribute('data-original-qty', String(item.quantity));
+                var remaining = parseInt(input.getAttribute('data-remaining') || '0', 10) || 0;
+                input.setAttribute('max', String(remaining + item.quantity));
+                return;
+            }
+            // A line whose product has left today's sheet (its on-hand fell to zero because this
+            // very dispatch spent it) has NO row to type in. Without an injected row it would be
+            // missing from the payload and the engine would ZERO it - a correction would silently
+            // erase a real line. The allowance is its own dispatched quantity, since that stock is
+            // already out of the commissary.
+            if (!tbody) { return; }
+            var tr = document.createElement('tr');
+            tr.className = 'dispatch-injected-row bg-amber-50';
+            var nameTd = document.createElement('td');
+            nameTd.className = 'font-medium';
+            nameTd.textContent = item.product_name;
+            var skuTd = document.createElement('td');
+            skuTd.className = 'text-sm text-muted';
+            skuTd.textContent = '—';
+            var commTd = document.createElement('td');
+            commTd.className = 'text-xs text-amber-800';
+            commTd.textContent = 'not on today\'s sheet';
+            var onHandTd = document.createElement('td');
+            onHandTd.className = 'text-right text-xs text-muted';
+            onHandTd.textContent = '—';
+            var qtyTd = document.createElement('td');
+            qtyTd.className = 'text-right';
+            var injected = document.createElement('input');
+            injected.type = 'number';
+            injected.min = '0';
+            injected.step = '1';
+            injected.className = 'form-input text-right w-24 dispatch-qty-input';
+            injected.setAttribute('data-commissary-id', dispatchCommissaryId());
+            injected.setAttribute('data-product-id', String(item.product_id));
+            injected.setAttribute('data-product-name', item.product_name);
+            injected.setAttribute('data-remaining', '0');
+            injected.setAttribute('data-original-qty', String(item.quantity));
+            injected.setAttribute('max', String(item.quantity));
+            injected.value = String(item.quantity);
+            qtyTd.appendChild(injected);
+            tr.appendChild(nameTd);
+            tr.appendChild(skuTd);
+            tr.appendChild(commTd);
+            tr.appendChild(onHandTd);
+            tr.appendChild(qtyTd);
+            tbody.appendChild(tr);
+        });
+    }
+
+    // Every quantity input back to a blank sheet: values, the correction allowance and injected rows.
+    function resetDispatchQtyInputs() {
+        Array.prototype.slice.call(document.querySelectorAll('.dispatch-qty-input')).forEach(function(input) {
+            input.value = '';
+            input.removeAttribute('data-original-qty');
+            input.removeAttribute('max');
+        });
+        Array.prototype.slice.call(document.querySelectorAll('tr.dispatch-injected-row')).forEach(function(tr) {
+            tr.parentNode.removeChild(tr);
+        });
+    }
+
+    function cancelDispatchEdit() {
+        clearDispatchEditState();
+        closeDispatchEntry();
+    }
+
+    // Drops correction mode without touching whether the panel is open.
+    function clearDispatchEditState() {
+        window.__editingDelivery = null;
+        window.__dispatchConfirmed = false;
+        var destSel = document.getElementById('dispatch-dest-branch-id');
+        var drInput = document.getElementById('dispatch-dr-number');
+        var shiftSel = document.getElementById('dispatch-shift');
+        var submitBtn = document.getElementById('submit-dispatch');
+        var banner = document.getElementById('dispatch-edit-banner');
+        var confirmBox = document.getElementById('dispatch-confirm');
+        var reasonInput = document.getElementById('dispatch-edit-reason');
+
+        if (destSel) { destSel.disabled = false; destSel.value = ''; }
+        if (drInput) { drInput.readOnly = false; drInput.value = ''; }
+        if (shiftSel) {
+            shiftSel.disabled = false;
+            // Restore the shift the page was rendered for; the original `selected` attribute is
+            // still on that option even after JS moved the value.
+            var rendered = shiftSel.querySelector('option[selected]');
+            shiftSel.value = rendered ? rendered.value : 'AM';
+        }
+        if (submitBtn) { submitBtn.textContent = 'Dispatch to Branch'; }
+        if (banner) { banner.classList.add('hidden'); }
+        if (confirmBox) { confirmBox.classList.add('hidden'); }
+        if (reasonInput) { reasonInput.value = ''; }
+        resetDispatchQtyInputs();
+        Array.prototype.slice.call(document.querySelectorAll('.dispatch-box-slot')).forEach(function(slot) {
+            slot.innerHTML = '';
+        });
+    }
+
+    // The confirmation card fronts both a new dispatch and a correction, so its wording follows the
+    // mode. Saying "Ready to dispatch?" while saving a correction is how an operator loses track of
+    // whether stock is leaving again.
+    function applyDispatchConfirmWording(isEdit) {
+        var title = document.getElementById('dispatch-confirm-title');
+        var noBtn = document.getElementById('dispatch-confirm-no');
+        var yesBtn = document.getElementById('dispatch-confirm-yes');
+        if (title) { title.textContent = isEdit ? 'Save this correction?' : 'Ready to dispatch?'; }
+        if (noBtn) { noBtn.textContent = isEdit ? 'No, keep editing' : 'No, for review'; }
+        if (yesBtn) { yesBtn.textContent = isEdit ? 'Yes, save correction' : 'Yes, Dispatch'; }
+    }
+
     // ── Final check before dispatch (owner 2026-11-19) ─────────────────────────────────────
     // "No, for review" hides this and saves nothing; "Yes, Dispatch" re-enters submitDispatch()
     // with the confirmation flag set. The gate only front-loads the same validation, so the POST
@@ -3981,8 +4356,18 @@
         if (!destBranchId) { showToast('Select a destination branch', 'error'); return; }
         if (!drNumber) { showToast('DR number is required', 'error'); return; }
 
+        // Correction mode (owner 2026-11-19): same panel, different target. The reason is required
+        // here because the audit row must say WHY a dispatched quantity changed.
+        var isEdit = !!window.__editingDelivery;
+        var correctionReason = '';
+        if (isEdit) {
+            correctionReason = ((document.getElementById('dispatch-edit-reason') || {}).value || '').trim();
+            if (!correctionReason) { showToast('Say why this dispatch is being corrected', 'error'); return; }
+        }
+
         // Collect all items with quantity > 0
         var items = [];
+        var qtyProblem = '';
         var inputs = document.querySelectorAll('.dispatch-qty-input');
         inputs.forEach(function(input) {
             var qty = parseInt(input.value || '0', 10) || 0;
@@ -3990,9 +4375,19 @@
             var commissaryId = parseInt(input.getAttribute('data-commissary-id') || '0', 10) || 0;
             var productId = parseInt(input.getAttribute('data-product-id') || '0', 10) || 0;
             var remaining = parseInt(input.getAttribute('data-remaining') || '0', 10) || 0;
+            // What may be sent is the stock still on hand PLUS what this delivery already took.
+            // A correction is mostly a decrease, and the dispatched stock has ALREADY left - so
+            // comparing against on-hand alone refused the operator the right to save the very
+            // quantity that is on the paper DR.
+            var original = parseInt(input.getAttribute('data-original-qty') || '0', 10) || 0;
+            var allowance = remaining + original;
             if (commissaryId <= 0 || productId <= 0) return;
-            if (qty > remaining) {
-                showToast(input.getAttribute('data-product-name') + ': qty ' + qty + ' exceeds on-hand ' + remaining, 'error');
+            if (qty > allowance) {
+                if (!qtyProblem) {
+                    qtyProblem = input.getAttribute('data-product-name') + ': qty ' + qty
+                        + ' exceeds what can be sent (' + allowance
+                        + (original > 0 ? ', including ' + original + ' already dispatched' : '') + ')';
+                }
                 return;
             }
             items.push({
@@ -4001,13 +4396,20 @@
                 quantity: qty
             });
         });
+        // Refuse the whole save rather than quietly leaving the over-quota line out of the payload:
+        // a dropped line is a line the correction would wipe.
+        if (qtyProblem) { showToast(qtyProblem, 'error'); return; }
 
         // Box line for every cake dispatched "with box?" (owner 2026-11-19). The box is an ordinary
         // item on the same delivery, so nothing downstream had to change: the branch receives and
         // counts it like any other line. The box qty mirrors the cake qty, and a box asked for
         // beyond its own on-hand stops the whole dispatch instead of silently going without it.
+        // NEVER on a correction: the boxes of a sent load are already ordinary lines of THAT
+        // delivery and the edit board fills them like any other line. Re-deciding them here would
+        // add a second box on every save.
         var boxProblem = '';
-        Array.prototype.slice.call(document.querySelectorAll('.dispatch-box-slot')).forEach(function(slot) {
+        var boxSlots = isEdit ? [] : Array.prototype.slice.call(document.querySelectorAll('.dispatch-box-slot'));
+        boxSlots.forEach(function(slot) {
             if (boxProblem) return;
             var cakePid = slot.getAttribute('data-box-for');
             var check = slot.querySelector('.dispatch-box-check');
@@ -4045,16 +4447,34 @@
 
         // Final step: show what is about to leave and let the operator go back or confirm.
         if (!window.__dispatchConfirmed) {
+            applyDispatchConfirmWording(isEdit);
             showDispatchConfirm(items, destBranchId, drNumber, dispatchShift);
             return;
         }
         window.__dispatchConfirmed = false;
 
         btn.disabled = true;
-        btn.textContent = 'Dispatching ' + items.length + ' item(s)...';
+        btn.textContent = (isEdit ? 'Saving ' : 'Dispatching ') + items.length + ' item(s)...';
         if (statusEl) statusEl.textContent = '';
 
-        fetch('{base_url}/api/v1/commissary/dispatch', {
+        var endpoint = isEdit
+            ? (dispatchBase() + '/api/v1/commissary/dispatch-edit')
+            : ('{base_url}/api/v1/commissary/dispatch');
+        var payload = isEdit
+            ? {
+                delivery_id: window.__editingDelivery.id,
+                reason: correctionReason,
+                items: items
+            }
+            : {
+                destination_branch_id: destBranchId,
+                dr_number: drNumber,
+                production_shift: dispatchShift,
+                ledger_date: '{date}',
+                items: items
+            };
+
+        fetch(endpoint, {
             method: 'POST',
             credentials: 'same-origin',
             headers: {
@@ -4062,19 +4482,25 @@
                 'X-CSRF-Token': (window.DL_CSRF || ''),
                 'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
             },
-            body: JSON.stringify({
-                destination_branch_id: destBranchId,
-                dr_number: drNumber,
-                production_shift: dispatchShift,
-                ledger_date: '{date}',
-                items: items
-            })
+            body: JSON.stringify(payload)
         })
         .then(function(r) { return r.json(); })
         .then(function(res) {
             if (!res.ok) {
                 showToast(res.error || 'Dispatch failed', 'error');
                 if (statusEl) statusEl.textContent = res.error || '';
+                return;
+            }
+            if (isEdit) {
+                var editMsg = 'Correction saved: ' + (res.updated || 0) + ' line(s) changed'
+                    + ((res.removed || 0) > 0 ? (', ' + res.removed + ' removed') : '') + '.';
+                if (res.zeroed) {
+                    editMsg = 'Every line is now zero. The dispatch still stands on record — ask an admin to void it if it should not exist.';
+                }
+                showToast(editMsg, res.zeroed ? 'warning' : 'success');
+                clearDispatchEditState();
+                closeDispatchEntry();
+                setTimeout(function() { window.refreshMainContent(); }, 800);
                 return;
             }
             if (res.replayed) {
@@ -4114,7 +4540,7 @@
         .catch(function() { showToast('Network error', 'error'); })
         .finally(function() {
             btn.disabled = false;
-            btn.textContent = 'Dispatch to Branch';
+            btn.textContent = window.__editingDelivery ? 'Save correction' : 'Dispatch to Branch';
         });
     }
 </script>

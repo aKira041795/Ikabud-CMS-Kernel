@@ -514,6 +514,11 @@ function dlCurrentUser(array $roles = ['cashier', 'supervisor', 'admin', 'produc
                 // restricts itself to admin|supervisor|production_in_charge, so the role gate is the
                 // handler's, not this line's; adding the condition back here would re-break the modal.
                 || $path === '/daily-ledger/api/v1/commissary/dispatch'
+                // Owner 2026-11-19: the dispatch the PIC just sent must be correctable by the PIC
+                // until the branch receives it. apiEditCommissaryDispatch() narrows itself to the
+                // caller's own origin and refuses a received dispatch to everyone but an admin, so
+                // this line is navigation, not the authorization boundary.
+                || $path === '/daily-ledger/api/v1/commissary/dispatch-edit'
                 || $path === '/daily-ledger/api/v1/commissary/finalize-pm'
                 || $path === '/daily-ledger/api/v1/commissary/settle-endings'
                 // Owner 2026-11-18: the commissary records its own pull-out / charges / other. The
