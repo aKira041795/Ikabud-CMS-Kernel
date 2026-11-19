@@ -1673,6 +1673,13 @@ def cmd_status(args) -> int:
     verified_events = [e for e in applied_events if e.get("verified")]
     print(f"  used:     {len(_injection_files())} run(s) given rules · {len(applied_events)} application(s) "
           f"· {len(verified_events)} verified by evidence")
+    effect = lesson_effect()
+    if effect["attributed_runs"]:
+        # The USE side. Capture counts alone say nothing about whether any rule works, which is how
+        # 806 proposals coexisted with 0 retired for months.
+        print(f"  scored:   {effect['scored']} rule(s) with >= {effect['min_n']} decided runs "
+              f"· baseline {effect['baseline_pass_rate']:.0%} "
+              f"· {len(effect['retire_candidates'])} retire candidate(s)")
     print(f"  ledger:   {stats['rows']} rows · pass rate {stats['pass_rate']} · cost ${stats['cost_usd']:.4f}")
     print(f"  waste:    {stats['wasted_cost_share']}")
     if signatures:
@@ -1897,6 +1904,225 @@ def record_injection(tag: str, lessons: list[dict], block_chars: int) -> Path:
         "block_chars": int(block_chars),
     }, indent=2) + "\n", encoding="utf-8")
     return path
+
+
+# ------------------------------------------------------------------------ attribution
+#
+# The injection record has existed since 2026-11-17 and NOTHING ever scored it. Measured
+# 2026-11-19: 806 lessons proposed, 62 active, 0 runs ever credited, 0 retired. A store that only
+# accumulates cannot learn, because no rule can ever lose precision - so this section exists to make
+# a rule answerable for the runs it appeared in.
+#
+# WHAT THIS IS NOT: causation. A rule present in a passing run was present; it did not necessarily
+# help. `close` already records reinforcement as `source: session-pass` for the same reason. These
+# numbers decide which rules to RE-READ, never which rule to credit with a success.
+
+MIN_ATTRIBUTED_RUNS = 5
+
+
+def _injection_records() -> list[dict]:
+    """Every recorded injection: the rules a run was given, and the tag it was recorded under."""
+    out: list[dict] = []
+    for path in _injection_files():
+        try:
+            value = json.loads(path.read_text(encoding="utf-8", errors="replace"))
+        except (OSError, ValueError):
+            continue
+        if isinstance(value, dict):
+            out.append(value)
+    return out
+
+
+def _landing_index() -> dict[str, dict]:
+    """Landing records keyed by run name AND by file stem, because either may be missing."""
+    index: dict[str, dict] = {}
+    if not RUNS_DIR.is_dir():
+        return index
+    for path in sorted(RUNS_DIR.glob("*.landed.json")):
+        try:
+            value = json.loads(path.read_text(encoding="utf-8", errors="replace"))
+        except (OSError, ValueError):
+            continue
+        if not isinstance(value, dict):
+            continue
+        stem = path.name[: -len(".landed.json")]
+        index[stem] = value
+        name = str(value.get("name") or "")
+        if name:
+            index[name] = value
+    return index
+
+
+def _landing_for_tag(tag: str, index: dict[str, dict]) -> dict:
+    """Find the landing a tag belongs to.
+
+    The injection tag is the lane log prefix, which is derived from the lane name and therefore a
+    SUPERSET of it (`<lane>-<model>`). An exact match is preferred; otherwise the longest recorded
+    run name the tag starts with wins, so a model suffix does not lose the join.
+    """
+    if not tag:
+        return {}
+    if tag in index:
+        return index[tag]
+    matches = [name for name in index if name and tag.startswith(name)]
+    if matches:
+        return index[max(matches, key=len)]
+    return {}
+
+
+def lesson_outcomes() -> list[dict]:
+    """Join each recorded injection to the landing record of the same run.
+
+    A tag with no landing is reported `unattributed` rather than assumed to have passed: the point
+    of the join is to stop treating "we told it something" as evidence of anything.
+    """
+    index = _landing_index()
+    rows: list[dict] = []
+    for record in _injection_records():
+        tag = str(record.get("tag") or "")
+        landing = _landing_for_tag(tag, index)
+        rows.append({
+            "tag": tag,
+            "lessons": [str(x) for x in (record.get("lessons") or []) if str(x).strip()],
+            "outcome": _landing_class(landing) if landing else "unattributed",
+        })
+    return rows
+
+
+def lesson_effect(min_n: int = MIN_ATTRIBUTED_RUNS) -> dict:
+    """Per-rule outcome counts for the runs that actually received it.
+
+    A rule is SCORED only once it has `min_n` runs with a decided outcome (pass or failure). Below
+    that the sample is refused rather than summarised - the same discipline `compare` applies, and
+    the reason is the same: a rate over two runs invites a decision the evidence cannot support.
+    """
+    outcomes = lesson_outcomes()
+    attributed = [row for row in outcomes if row["outcome"] in ("pass", "failure")]
+    passes = sum(1 for row in attributed if row["outcome"] == "pass")
+    baseline = (passes / len(attributed)) if attributed else None
+
+    rules: dict[str, dict] = {}
+    for row in outcomes:
+        for lesson_id in row["lessons"]:
+            entry = rules.setdefault(lesson_id, {
+                "id": lesson_id, "runs": 0, "passes": 0, "failures": 0, "unresolved": 0,
+            })
+            entry["runs"] += 1
+            if row["outcome"] == "pass":
+                entry["passes"] += 1
+            elif row["outcome"] == "failure":
+                entry["failures"] += 1
+            else:
+                entry["unresolved"] += 1
+
+    for entry in rules.values():
+        decided = entry["passes"] + entry["failures"]
+        entry["decided"] = decided
+        entry["pass_rate"] = (entry["passes"] / decided) if decided else None
+        if decided < min_n:
+            entry["verdict"] = "insufficient"
+            entry["vs_baseline"] = None
+            entry["retire_candidate"] = False
+        else:
+            entry["vs_baseline"] = (entry["pass_rate"] - baseline) if baseline is not None else None
+            if entry["passes"] == 0:
+                # Present in N decided runs and in none that passed. That is the one signal strong
+                # enough to act on, and it still only PROPOSES retirement.
+                entry["verdict"] = "suspect"
+                entry["retire_candidate"] = True
+            elif baseline is not None and entry["pass_rate"] >= baseline:
+                entry["verdict"] = "holding"
+                entry["retire_candidate"] = False
+            else:
+                entry["verdict"] = "weak"
+                entry["retire_candidate"] = False
+
+    ordered = sorted(rules.values(), key=lambda e: (
+        0 if e["verdict"] != "insufficient" else 1,
+        e["pass_rate"] if e["pass_rate"] is not None else -1,
+        -e["decided"],
+        e["id"],
+    ))
+    return {
+        "min_n": int(min_n),
+        "injections": len(outcomes),
+        "attributed_runs": len(attributed),
+        "unattributed_runs": len(outcomes) - len(attributed),
+        "baseline_pass_rate": baseline,
+        "rules": ordered,
+        "scored": sum(1 for e in ordered if e["verdict"] != "insufficient"),
+        "retire_candidates": [e["id"] for e in ordered if e["retire_candidate"]],
+    }
+
+
+def cmd_lesson_effect(args) -> int:
+    payload = lesson_effect(int(getattr(args, "min_n", MIN_ATTRIBUTED_RUNS) or MIN_ATTRIBUTED_RUNS))
+    if getattr(args, "json", False):
+        print(json.dumps(payload, indent=2))
+        return 0
+    baseline = payload["baseline_pass_rate"]
+    print("== lesson effect (co-occurrence, not causation) ==")
+    print(f"  attributed runs: {payload['attributed_runs']} · "
+          f"unattributed: {payload['unattributed_runs']} · "
+          f"baseline pass rate: {'n/a' if baseline is None else f'{baseline:.0%}'}")
+    if not payload["attributed_runs"]:
+        print("  no run has both a recorded injection and a decided outcome yet.")
+        print("  Lanes credit themselves via lane-model.sh; a run appears here after it lands.")
+        return 0
+    print(f"  {'ID':<14} {'RUNS':>4} {'PASS':>4} {'FAIL':>4} {'RATE':>6}  VERDICT")
+    for entry in payload["rules"]:
+        rate = "-" if entry["pass_rate"] is None else f"{entry['pass_rate']:.0%}"
+        print(f"  {entry['id']:<14} {entry['runs']:>4} {entry['passes']:>4} "
+              f"{entry['failures']:>4} {rate:>6}  {entry['verdict']}")
+    refused = len(payload["rules"]) - payload["scored"]
+    if refused:
+        # Never let the min-n refusal look like the whole truth.
+        print(f"  ({refused} rule(s) have fewer than {payload['min_n']} decided runs and are "
+              f"deliberately NOT scored)")
+    if payload["retire_candidates"]:
+        print(f"  retire candidate(s): {', '.join(payload['retire_candidates'])} "
+              f"(see `lesson sweep`)")
+    return 0
+
+
+def cmd_lesson_sweep(args) -> int:
+    """Retirement candidates from attribution. Reports by default; `--apply` acts.
+
+    Why not automatic: with `lesson_effect` being co-occurrence and not causation, retiring on a
+    below-baseline rate would delete rules for reasons they may not own. The one defensible rule is
+    the strictest one - a rule that appeared in `min_n` decided runs and passed in NONE - and even
+    that is applied only when the operator asks for it.
+    """
+    payload = lesson_effect(int(getattr(args, "min_n", MIN_ATTRIBUTED_RUNS) or MIN_ATTRIBUTED_RUNS))
+    candidates = payload["retire_candidates"]
+    by_id = {entry["id"]: entry for entry in payload["rules"]}
+    tested = {entry["id"] for entry in payload["rules"]}
+    untested = [row.get("id") for row in load_lessons()
+                if _lesson_status(row) == "active" and str(row.get("id")) not in tested]
+
+    print("== retirement candidates ==")
+    print(f"  scored rules: {payload['scored']} · candidates: {len(candidates)} · "
+          f"active rules never injected: {len(untested)}")
+    if not candidates:
+        print("  none: no rule has enough decided runs with zero passes.")
+    for lesson_id in candidates:
+        entry = by_id[lesson_id]
+        print(f"  - {lesson_id}: 0 of {entry['decided']} decided run(s) passed")
+    if untested:
+        # Not a retirement case: no evidence either way. Said out loud so the count is not
+        # mistaken for rules that were tried and failed.
+        print(f"  untested (active, never reached a lane): {', '.join(str(x) for x in untested[:12])}"
+              + (" ..." if len(untested) > 12 else ""))
+
+    if not candidates:
+        return 0
+    if not getattr(args, "apply", False):
+        print("  report only. Retire with `lesson retire <id>`, or re-run with --apply.")
+        return 0
+    for lesson_id in candidates:
+        _set_lesson_status(lesson_id, "retired",
+                           compiled_as=f"never passed in {by_id[lesson_id]['decided']} attributed run(s)")
+    return 0
 
 
 def cmd_close(args) -> int:
@@ -2709,6 +2935,18 @@ def _parser() -> argparse.ArgumentParser:
     retire.add_argument("lesson_id")
     retire.add_argument("--compiled-as", help="path of the gate that now enforces it")
     retire.set_defaults(func=cmd_lesson_retire)
+    effect_cmd = lesson_sub.add_parser(
+        "effect", help="per-rule outcome counts for the runs that actually received it")
+    effect_cmd.add_argument("--min-n", type=int, default=MIN_ATTRIBUTED_RUNS,
+                            help="decided runs required before a rule is scored")
+    effect_cmd.add_argument("--json", action="store_true")
+    effect_cmd.set_defaults(func=cmd_lesson_effect)
+    sweep_cmd = lesson_sub.add_parser(
+        "sweep", help="retirement candidates from attribution (report-only unless --apply)")
+    sweep_cmd.add_argument("--min-n", type=int, default=MIN_ATTRIBUTED_RUNS)
+    sweep_cmd.add_argument("--apply", action="store_true",
+                           help="retire rules that never appeared in a passing run")
+    sweep_cmd.set_defaults(func=cmd_lesson_sweep)
 
     memory = sub.add_parser("memory", help="git-tracked lesson memory: evidence events")
     memory_sub = memory.add_subparsers(dest="memory_command", required=True)
