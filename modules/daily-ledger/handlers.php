@@ -1043,17 +1043,23 @@ function dl_dispatchOfferRows($db, array $commissaryIds, ?string $asOfDate = nul
 /**
  * Is this product PACKAGING rather than goods a hub sells?
  *
- * Load-bearing for show/hide (owner model 2026-11-19: "branches/commis have show/hide products ...
- * that filters the product selection"). The cake boxes are HIDDEN at the commissary and SHOWN at
- * every branch - measured at RIZAL-COMMIS #18 on 2026-11-19: 10X10 BOX @40, B-DAY CAKE BOX HALF and
- * HALF ROLL BOX all `is_active = 0` there, `is_active = 1` at Mibutak/Obay/San Jose. That is correct
- * data, not a bug: the hub packs cakes IN the boxes instead of selling them, so the boxes must not
- * appear on its sheet. They still leave on the truck, so a strict show/hide filter would refuse the
- * very lines the shipped "With box?" control produces.
+ * OWNER CLARIFICATION 2026-11-19, verbatim:
+ *   "cake boxes are at branches, commis don't have that since it's not produced by the commissary;
+ *    thus, with box delivery => goes to branch data, it's not part of delivery by commis. we can
+ *    clarify this later"
+ *
+ * Measured the same day, and the data already says this: all 9 cake boxes are shown at 24-27 BRANCHES
+ * and hidden at every hub. So a hub's DR list correctly contains no box rows - that is the model, not a
+ * gap, and it must not be "fixed" by re-adding boxes to the hub's list.
+ *
+ * The predicate therefore survives for ONE purpose only: the destination gate below exempts packaging,
+ * so that a hub which does show a box can still send it to a store that hides it. When the box flow
+ * moves to branch-side data as the owner expects, this predicate and that exemption retire together.
  *
  * The name test is a HACK and is the same one `initDispatchBoxControls()` already uses in
- * commissary.disyl. Every box carries BOX in its name today; the day one does not, this must become
- * an explicit product flag - not a wider name match.
+ * commissary.disyl. Every box carries BOX in its name today (10X10 BOX, HALF ROLL BOX, WHOLE ROLL BOX,
+ * MOCHA BOX HALF, B-DAY CAKE BOX HALF, Pastry Box ...); the day one does not, this must become an
+ * explicit product flag - not a wider name match.
  */
 function dl_isPackagingProduct(array $product): bool
 {
@@ -1068,16 +1074,17 @@ function dl_isPackagingProduct(array $product): bool
 /**
  * The refusal when a dispatch line is not offerable at the DESTINATION, or null when it is.
  *
- * Only the receiving end is checked, and that asymmetry is deliberate: a hub's show/hide list says
- * what it produces/sheets, not what it may ship. Measured 2026-11-19: gating on the hub's own list
- * removed 12 RIZAL-COMMIS rows that every branch still shows - Toasted Mamon (2,736 on hand) and
- * PANDESAL (653) among them - i.e. it refused to ship stock the branches were asking for. The
- * destination's list is the one that answers "can this store receive it", and it is what stops a
- * load becoming a row the store's own sheet then hides.
+ * Only the receiving end is checked, and that asymmetry is deliberate: the hub's own list already
+ * decides what ROWS the modal offers (dl_dispatchOfferRows), so re-checking it here would only fire
+ * on a stale tab - while the destination's list answers a different question, "can this store receive
+ * it", and is what stops a load becoming a row the store's own sheet then hides (measured 2026-11-19:
+ * 14 of the 41 rows once offered at RIZAL-COMMIS did not exist on Fishport's sheet).
  *
  * Shared by the New Delivery save and by the correction path so the modal and the server cannot
- * drift into two different rules again; that drift is why 14 of the 41 rows offered at RIZAL-COMMIS
- * did not exist on Fishport's sheet.
+ * drift into two different rules again - that drift is the defect this whole change closes.
+ *
+ * Packaging (cake boxes) is exempt until the owner settles where box lines belong; see
+ * dl_isPackagingProduct() for the clarification and the measurement behind it.
  */
 function dl_dispatchAssignmentRefusal($db, int $originCommissaryId, int $destinationBranchId, array $product): ?string
 {

@@ -55,6 +55,23 @@ $h->test(
     'category `other` is not a synonym for packaging - ECO BAG, MILO SACHET and PANDESAL share it'
 );
 
+// OWNER 2026-11-19: "cake boxes are at branches, commis don't have that since it's not produced by the
+// commissary". The data already says this - all 9 boxes are shown at 24-27 branches and hidden at the
+// hubs - so the DR modal listing none of them is the model, not a gap. This guards the name-based
+// predicate against a NEW box that does not carry BOX in its name, which would silently stop being
+// recognised as packaging.
+$catalogueBoxes = $db->query(
+    "SELECT id, name AS product_name, product_category FROM dl_products
+      WHERE is_active = 1 AND product_category = 'other' AND name LIKE '%box%'"
+)->fetchAll(PDO::FETCH_ASSOC) ?: [];
+$unrecognised = array_filter($catalogueBoxes, static fn(array $r): bool => !dl_isPackagingProduct($r));
+$h->test(
+    'every box in the catalogue is recognised as packaging',
+    $catalogueBoxes !== [] && $unrecognised === [],
+    'a box renamed without the word BOX would stop being packaging: '
+    . implode(', ', array_column($unrecognised, 'product_name'))
+);
+
 $h->section('the destination gate answers for the RECEIVING branch');
 
 $destRow = $db->query(
