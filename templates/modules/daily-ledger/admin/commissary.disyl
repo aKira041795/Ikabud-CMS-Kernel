@@ -2892,7 +2892,10 @@
                                    `other` (the cake-box products), so the two never mix up. *}
                                 data-category="{row.product_category}"
                                 value="" placeholder="0">
-                            <div class="dispatch-box-slot mt-1" data-box-for="{row.product_id}"></div>
+                            {* ADMIN CLARIFICATION 2026-11-19: "PIC only produces products; boxes of any kind belong to
+                               the branches." The "With box?" control therefore no longer belongs on the PIC dispatch
+                               sheet and has been removed. Added earlier the same day, removed the same day it was
+                               clarified - boxes move on the branch side, not with the commissary's DR. *}
                         </td>
                     </tr>
                     {/foreach}
@@ -4053,7 +4056,9 @@
         // a reason behind, or corrected quantities sitting in the inputs.
         clearDispatchEditState();
         applyDispatchConfirmWording(false);
-        initDispatchBoxControls();
+        // initDispatchBoxControls() removed 2026-11-19: boxes belong to branches, so the PIC dispatch sheet
+        // carries no box control. The function is left in place, unreferenced, until its removal is reviewed
+        // together with the branch-side box handling - deleting the helper outright is a separate change.
     }
 
     // ── "With box?" — a cake can be dispatched together with the box it goes in ─────────────
