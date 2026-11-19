@@ -47,31 +47,54 @@ corrects the box with it.
 - No clamping, no deleting, no silent restatement.
 - Every write audited, in the same transaction, idempotent on re-run.
 
-## Blocking dependency
+## Blocking dependency — RE-EXAMINED 2026-11-20: it was not the blocker it looked like
 
-**The unit-duplicate twins must be merged first.** `TOASTED MAMON @15` vs `Toasted Mamon by PCS@10` are the
-same item in two units; a mapping attached to the twin that never sells deducts nothing, and the real one
-looks like it consumes no boxes. That is the open 6-group decision.
+This section was written on the assumption that the name-similar products were duplicate twins to be
+merged. Measured against `dl_products`, they are **price/size variants of one family**, each carrying its
+own `current_price`:
+
+| family | members (id · price · units sold last 90 d) |
+|---|---|
+| cookies & cream | #45 · 330 · 563  ·  #212 · 480 · 1 |
+| meat bun | #219 · 15 · 0  ·  #220 · 25 · 0  ·  #221 · 28 · 644 |
+| toasted bread | #119 · 6 · 1,926  ·  #121 · 9 · 10,119  ·  #232 · 15 · 19 |
+| toasted mamon | #129 · 15 · 101  ·  #224 · 10 · 50 |
+| ube supreme | #209 · 480 · 0  ·  #210 · 530 · 1 |
+
+Only ONE group was a true duplicate, and it is already resolved: `Nutri-Cookies` (#227) is inactive while
+`NUTRI COOKIES@18` (#187) sells — the owner's rule settled that one.
+
+**Merging is therefore the wrong direction.** A 6-peso toasted bread and a 15-peso one are different
+SKUs; applying the twin rule here would delete real price variants. Box mapping does not need the family
+merged — it needs the box attached to each variant that actually sells, because different sizes may take
+different boxes. Steps 1, 2 and 3 are all unblocked: the deduction targets one product id, and every
+variant is a product id.
 
 ### Owner rule (2026-11-19): "twin item, if one is inactive, then the active one is true"
 
-Applied to the six groups actually present:
+Kept for the record. Applied to the six name-similar groups it settled exactly one (nutri cookies) — now
+explained: the other five were never duplicates, so there was nothing to settle. The rule still holds as
+a guard worth encoding: **when a product is deactivated, its packaging mapping must follow**, and the
+mapping screen must refuse to attach a box to an inactive product.
 
-| group | members (active / inactive) | outcome |
+### Two data prerequisites found while re-examining
+
+- `pcs_per_pack` is **NULL on every one of these rows**, so nothing says how many pieces a box holds. If a
+  box holds 12 mamon, `usage = sales × 1` over-deducts 12×. The mapping needs an explicit units-per-box
+  (default 1) rather than an assumed 1:1.
+- `product_category` is inconsistent *within* a family: `TOASTED BREAD @6` and `@9` are `other` while
+  `@15` is `bread`; `TOASTED MAMON @15` is `other` while `PCS@10` is `bread`. Anything grouping by
+  category splits these families, so the "is this a box" flag (step 2) must not depend on it.
+
+## Options for proceeding (evaluated 2026-11-20)
+
+| option | what it means | verdict |
 |---|---|---|
-| nutri cookies | #187 active, #227 **inactive** | **RESOLVED by the rule** — #187 is the true one |
-| toasted mamon | #129 active, #224 active | **decision needed** — this is the 61%-of-variance pair |
-| cookies cream | #45 active, #212 active | decision needed |
-| toasted bread | #119, #121, #232 all active | decision needed (3-way) |
-| meat bun | #219, #220, #221 all active | decision needed (3-way) |
-| ube supreme | #209, #210 both active | decision needed |
-
-So the rule settles **1 of 6**. The other five have every twin still active, which is exactly why the
-duplication produced variance instead of disappearing: nothing ever marked one as superseded.
-
-The rule is still worth encoding as a guard rather than a one-off tidy-up: **when a twin is deactivated, the
-packaging mapping must follow it**, and the mapping screen must refuse to attach a box to a product that has
-an active twin — otherwise the box silently follows the twin that never sells.
+| **A. Per-product mapping** | one `box_product_id` per SKU; variants simply each get their box | **recommended** — matches the data, no schema join table, deduces per variant |
+| **B. Box-centric mapping** | box → list of products it serves | converges with A: A can point several products at the same box. Only worth it if a box's *membership* must be managed from the box side |
+| **C. Units-per-box ratio** | `usage = ceil(sales / units_per_box)` | **needed as a field in A**, not as a separate design — `pcs_per_pack` is NULL everywhere, so the ratio must be explicit on the mapping |
+| **D. Bootstrap suggestions** | pre-fill candidate mappings from category+name, admin confirms | useful only after A exists: turns ~90 decisions into a review. Risky before A, because `product_category` is inconsistent within families |
+| **E. Deduct from production instead of sales** | trigger at production output | rejected — owner direction is "when a qty shows how many were sold in a shift" |
 
 ## Why this is not built yet
 
@@ -79,3 +102,4 @@ The write lands inside the branch balance derivation — the same numbers stabil
 99.43% correct, zero negative endings across 261,515 rows). A half-built schema-plus-derivation change at
 the end of a long session is the exact risk that produced the defects being fixed. Storage and the Products
 tab are safe to build first; the deduction step wants a fresh pass with the mapping data in place.
+
