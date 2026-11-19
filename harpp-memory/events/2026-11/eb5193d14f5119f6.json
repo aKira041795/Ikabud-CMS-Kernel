@@ -1,0 +1,16 @@
+{
+  "digest": "eb5193d14f5119f688d999787ac7ee620f6b06410fc1250727b2eecc735f5efa",
+  "event_id": "eb5193d14f5119f6",
+  "evidence": [
+    "tools/harpp-experience.py;tools/tests/test_lesson_effect.py;commit 18d2dd31"
+  ],
+  "lesson_id": "L-f70a534ed8",
+  "proposed_by": "copilot",
+  "reason": "test corpus measurement 2026-11-19",
+  "recorded_at": "2026-11-19T03:59:35.609297Z",
+  "review_after": "2026-12-19",
+  "schema_version": 1,
+  "scope": "harness",
+  "text": "Harvest the test suite as RETIREMENT targets, never as new lessons: every assertion label is already a gate, so importing 3,898 of them multiplies the proposal backlog while adding nothing executable. Use them to retire prose a test already enforces - and report only the exact-text tier, because overlap thresholds lie: >=3 shared words gave 70 cms pairs whose inspected samples were coincidental, while exact text gave 22 real copies of existing gates.",
+  "type": "propose"
+}
