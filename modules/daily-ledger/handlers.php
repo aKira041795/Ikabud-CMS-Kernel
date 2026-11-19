@@ -4380,6 +4380,30 @@ function dl_ensureCommissaryProductLedgerRow(
     return $stmt->rowCount();
 }
 
+/**
+ * Is this product being dispatched from an opening position that was never recorded?
+ *
+ * True when nothing has ever been recorded as stock for this product at this hub on or before the date
+ * (beginnings, production and receipts less dispatches and wastage total zero or less) and the caller is
+ * about to send stock out. That combination is not a dispatch - it is a missing opening position.
+ *
+ * Takes an untyped $db on purpose: it is called from the ledger writer AND asserted directly by the
+ * suite, which has no module() context in CLI.
+ */
+function dl_commissaryOpeningPositionMissing($db, int $commissaryBranchId, int $productId, string $ledgerDate): bool
+{
+    if ($commissaryBranchId <= 0 || $productId <= 0 || $ledgerDate === '') {
+        return false;
+    }
+    $stmt = $db->prepare(
+        'SELECT COALESCE(SUM(beg_qty + produced_qty - dispatched_qty - wastage_qty), 0)
+           FROM dl_commissary_product_ledger
+          WHERE commissary_branch_id = :cb AND product_id = :pid AND ledger_date <= :d'
+    );
+    $stmt->execute([':cb' => $commissaryBranchId, ':pid' => $productId, ':d' => $ledgerDate]);
+    return (int)$stmt->fetchColumn() <= 0;
+}
+
 function dl_applyCommissaryProductLedgerDelta(
     \Ikabud\Kernel\Contracts\DatabaseContract $db,
     int $commissaryBranchId,
@@ -4417,6 +4441,26 @@ function dl_applyCommissaryProductLedgerDelta(
     if (!$row) {
         if ($producedDelta < 0 || $dispatchedDelta < 0 || $wastageDelta < 0) {
             throw new \RuntimeException('Cannot reverse commissary production before any output exists for this date.');
+        }
+        // ── OPENING-POSITION GUARD (2026-11-19) ────────────────────────────────────────────────
+        // This is where the live negative balances were BORN. Measured on the production import:
+        // STAR/FRANCIS #113 on 2026-09-30 PM had beg 0, produced 0, dispatched 104 -> remaining -104;
+        // PANDECHE #109 the same day 0/0/74 -> -74. No product's first row starts negative and no
+        // beginning was ever written negative - the first row IS the dispatch, recorded against an
+        // empty ledger because the hub's opening stock was never entered while dispatch was already
+        // live. Every later negative is that number carried forward with more dispatch on top.
+        //
+        // The rule: stock must be recorded before it can leave. An outbound-only movement for a product
+        // that has NO recorded stock at this hub, on this date or any earlier one, is not a dispatch -
+        // it is a missing opening position, and recording it as a negative balance poisons every later
+        // day. Refused with an instruction the operator can act on, not silently accepted.
+        if ($dispatchedDelta > 0 && $producedDelta <= 0 && $wastageDelta <= 0
+            && dl_commissaryOpeningPositionMissing($db, $commissaryBranchId, $productId, $ledgerDate)) {
+            throw new \RuntimeException(
+                'No opening stock is recorded for this product at this hub, so it cannot be dispatched yet. '
+                . 'Record the opening stock (or the receipt) for this product first, then dispatch it.',
+                422
+            );
         }
         dl_ensureCommissaryProductLedgerRow($db, $commissaryBranchId, $productId, $ledgerDate, $actorId, $shift);
         $select->execute([':cb' => $commissaryBranchId, ':pid' => $productId, ':d' => $ledgerDate, ':shift' => $shift]);
