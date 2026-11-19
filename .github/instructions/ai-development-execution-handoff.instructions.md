@@ -1047,7 +1047,26 @@ Workbench governs AI-assisted development.
 
 ---
 
-# 21. PRIMARY OPERATING PRINCIPLE
+# 21. EXPERIENCE LAYER — MEASURED, NOT ASSERTED
+
+Chair verdict 2026-11-18 (`.ai/consult/kahibaw-impact.md`): *"Demote Kahibaw. Keep the memory engine."*
+
+- **Retrieval is FTS5 inside `tools/harpp-experience.py`.** Keep it inline; it costs milliseconds and no
+  inference. Never put a local model in a lane's path — on this hardware a 0.5B model needed ~7.4 s for
+  a four-token answer and returned nothing inside 120 s under a 24-rule prompt.
+- **A baked model snapshot is not a source of truth.** It is a second representation that drifts: the
+  committed Modelfile claimed "40 approved" while the store held 56.
+- **Do not report counterfactuals.** "Defects avoided" cannot be observed. Record observable use
+  instead: `lesson apply <id> --evidence <path::case>` writes a `lesson_application` event, and the
+  **harness** decides whether the evidence resolves — a caller never self-certifies. No resolving
+  evidence means exposure, not success.
+- **Run the deterministic baseline before asking a model for anything.** `lesson duplicates` found
+  exactly one duplicate pair across 806 proposed lessons; model-assisted clustering had nothing to do.
+- Report three numbers only: runs given rules, applications, verified applications.
+
+---
+
+# 22. PRIMARY OPERATING PRINCIPLE
 
 Use AI where judgment and implementation intelligence provide value.
 
