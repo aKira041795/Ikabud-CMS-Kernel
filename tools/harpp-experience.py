@@ -2125,6 +2125,64 @@ def cmd_lesson_sweep(args) -> int:
     return 0
 
 
+def lesson_funnel(scope: str | None = None) -> dict:
+    """Where a scope's experience actually ends up: captured, usable, injected, attributed.
+
+    A per-scope version of `status`. Measured 2026-11-19 on cms: 104 lessons, 17 active (16%),
+    87 proposed - so 84% of what the repo knows about CMS could not reach a lane at all, while the
+    retrieval path was being blamed for poor relevance. The funnel names the stage that is actually
+    losing the knowledge instead of the one being argued about.
+    """
+    rows = load_lessons()
+    if scope:
+        rows = [row for row in rows if _scope_matches(row, scope)]
+    active = [row for row in rows if _lesson_status(row) == "active"]
+    proposed = [row for row in rows if _lesson_status(row) == "proposed"]
+    retired = [row for row in rows if _lesson_status(row) == "retired"]
+    # What a lane in this scope would receive with no brief to rank by - the cap applies.
+    would_inject, hidden = _select_lessons(None, scope, None)
+    effect = lesson_effect()
+    return {
+        "scope": scope or "(all)",
+        "captured": len(rows),
+        "active": len(active),
+        "proposed": len(proposed),
+        "retired": len(retired),
+        "active_share": round(len(active) / len(rows), 4) if rows else None,
+        "would_inject": len(would_inject),
+        "cap": MEMORY_INJECT_LIMIT,
+        "hidden_by_cap": hidden,
+        # Attribution is global: `lesson effect` joins shipped runs, which are not scope-tagged.
+        "attributed_runs": effect["attributed_runs"],
+        "scored_rules": effect["scored"],
+    }
+
+
+def cmd_lesson_funnel(args) -> int:
+    scope = getattr(args, "scope", None)
+    payload = lesson_funnel(scope)
+    if getattr(args, "json", False):
+        print(json.dumps(payload, indent=2))
+        return 0
+    share = payload["active_share"]
+    print(f"== lesson funnel: {payload['scope']} ==")
+    print(f"  captured   {payload['captured']:>5}  lesson(s) in scope")
+    print(f"  active     {payload['active']:>5}  can be injected"
+          + (f"  ({share:.0%} of captured)" if share is not None else ""))
+    print(f"  proposed   {payload['proposed']:>5}  NEVER injected - invisible to every lane")
+    if payload["retired"]:
+        print(f"  retired    {payload['retired']:>5}")
+    print(f"  injected   {payload['would_inject']:>5}  reach a lane per run "
+          f"(cap {payload['cap']}, {payload['hidden_by_cap']} held back)")
+    print(f"  attributed {payload['attributed_runs']:>5}  run(s) with a decided outcome "
+          f"· {payload['scored_rules']} rule(s) scored")
+    if payload["proposed"] > payload["active"]:
+        # The honest next action is triage, not better ranking: retrieval cannot surface knowledge
+        # that was never approved.
+        print("  action:     triage proposals - retrieval cannot reach what was never approved")
+    return 0
+
+
 def cmd_close(args) -> int:
     """Close a successful session: reinforce what it was told, and learn from what it added.
 
@@ -2947,6 +3005,11 @@ def _parser() -> argparse.ArgumentParser:
     sweep_cmd.add_argument("--apply", action="store_true",
                            help="retire rules that never appeared in a passing run")
     sweep_cmd.set_defaults(func=cmd_lesson_sweep)
+    funnel_cmd = lesson_sub.add_parser(
+        "funnel", help="per-scope: captured -> active -> injected -> attributed")
+    funnel_cmd.add_argument("--scope", help="module scope, e.g. cms")
+    funnel_cmd.add_argument("--json", action="store_true")
+    funnel_cmd.set_defaults(func=cmd_lesson_funnel)
 
     memory = sub.add_parser("memory", help="git-tracked lesson memory: evidence events")
     memory_sub = memory.add_subparsers(dest="memory_command", required=True)

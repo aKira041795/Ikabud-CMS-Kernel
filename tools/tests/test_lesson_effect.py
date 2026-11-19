@@ -180,6 +180,49 @@ class LessonEffectTest(unittest.TestCase):
         # matters here is that --apply is what attempts the write at all.
         self.assertIn("L-SWEEP", applied.stdout + applied.stderr)
 
+    # --------------------------------------------------------------- funnel
+    def _propose(self, text: str, scope: str) -> str:
+        result = _run(["lesson", "propose", "--text", text, "--scope", scope, "--json"], self.env)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        return str(json.loads(result.stdout)["id"])
+
+    def _approve(self, lesson_id: str) -> None:
+        result = _run(["lesson", "approve", lesson_id], self.env)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def _funnel(self, scope: str) -> dict:
+        result = _run(["lesson", "funnel", "--scope", scope, "--json"], self.env)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        return json.loads(result.stdout)
+
+    def test_funnel_names_the_stage_losing_the_knowledge(self) -> None:
+        # Two CMS rules, one approved; one universal rule, approved.
+        self._approve(self._propose("CMS rule that was approved", "cms"))
+        self._propose("CMS rule left as a proposal", "cms")
+        self._approve(self._propose("Universal rule that applies everywhere", "any"))
+
+        payload = self._funnel("cms")
+
+        # UNIVERSAL RULES COUNT FOR A MODULE. A cms lane draws on scope=any too, so the pool is
+        # 2 cms + 1 any - not 2. Measured 2026-11-19: cms reported 104 scoped lessons but a pool of
+        # 575, and the difference (471) is exactly the universal set.
+        self.assertEqual(payload["captured"], 3)
+        self.assertEqual(payload["active"], 2)
+        self.assertEqual(payload["proposed"], 1)
+        self.assertEqual(payload["would_inject"], 2)
+
+    def test_funnel_shows_that_retrieval_cannot_reach_what_was_never_approved(self) -> None:
+        for index in range(4):
+            self._propose(f"Unapproved CMS observation number {index}", "cms")
+
+        payload = self._funnel("cms")
+
+        self.assertEqual(payload["proposed"], 4)
+        self.assertEqual(payload["active"], 0)
+        self.assertEqual(payload["would_inject"], 0,
+                         "an unapproved rule must never reach a lane - that is the funnel's point")
+        self.assertEqual(payload["attributed_runs"], 0)
+
 
 if __name__ == "__main__":
     unittest.main()
