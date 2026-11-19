@@ -1154,6 +1154,39 @@
     </div>
     {/if}
 
+    {* "What these figures cover" — owner acceptance criteria 2026-11-19: factual, traceable, educate not
+       confuse. A variance can only come from a PHYSICAL COUNT, so the page states how much of the period
+       was actually counted and separates the negative balances, which can never appear as a variance
+       (their expectation is negative too). Nothing here is derived for display: every number is a count
+       straight out of the ledger, and the negative list names the products so it can be traced. *}
+    {if variance_integrity.rows_total > 0}
+    <div class="mx-4 mt-3 rounded border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs leading-5 text-indigo-900"
+         id="variance-integrity-note" role="status">
+        <p class="font-semibold">What these figures cover</p>
+        <p class="mt-1">
+            Of <span class="font-semibold">{variance_integrity.rows_total}</span> stock lines in this period,
+            <span class="font-semibold">{variance_integrity.counted}</span> ({variance_integrity.counted_pct}%)
+            were physically counted. A variance can only come from a counted line:
+            <span class="font-semibold">{variance_integrity.derived}</span> endings were filled from movements and
+            <span class="font-semibold">{variance_integrity.forced}</span> were forced to zero at settlement, so those
+            cannot show a difference, and
+            <span class="font-semibold">{variance_integrity.not_counted}</span> lines were never counted at all.
+            A small count percentage means the variance below describes a fraction of the business, not all of it.
+        </p>
+        {if variance_integrity.negative_products > 0}
+        <p class="mt-2">
+            Separately, <span class="font-semibold">{variance_integrity.negative_products} product(s)</span> carry a
+            <span class="font-semibold">negative balance</span> totalling
+            <span class="font-semibold">{variance_integrity.negative_units}</span> units as of
+            {variance_integrity.as_of}. That is <span class="font-semibold">not a variance</span>: more was dispatched
+            than was ever recorded as received, so every later day inherits the error and the difference cancels out
+            to zero. It is corrected by recording the missing receipt or counting the stock — not by adjusting a
+            variance. Largest: <span class="font-semibold">{variance_integrity.negative_examples_text}</span>.
+        </p>
+        {/if}
+    </div>
+    {/if}
+
     <!-- Filter bar -->
     <div class="variance-filter-bar">
         <span class="text-xs font-semibold text-gray-500 mr-1">Quick filter:</span>

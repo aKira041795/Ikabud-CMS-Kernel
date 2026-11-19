@@ -4695,6 +4695,32 @@ function dl_applyPostedDeliveryCommissaryLedger($db, int $deliveryId, int $actor
         $state = dl_applyCommissaryProductLedgerDelta($db, $originId, (int)$item['product_id'], (string)$head['delivery_date'], 0, (int)$item['quantity'], $actorId, 0, false, $head['production_shift'] ?? null);
         if (!empty($state['skipped'])) throw new RuntimeException('Resolved origin is not an active commissary.');
         $after = dl_commissaryLedgerSnapshot($db, $originId, (int)$item['product_id'], (string)$head['delivery_date']);
+        // A dispatch is a FACT: goods left, so it is never refused here. But when the effect drives the
+        // balance negative the ledger is now describing stock that was never recorded as received, and
+        // that is precisely how 82 products reached -36,851 units at RIZAL-COMMIS (2026-11-19). Silent
+        // negatives are what made this invisible for months, so the shortfall is named at the moment it
+        // is created, with the delivery that caused it. Detection, not a block: correcting the receipt or
+        // counting the stock is the human fix, and it now has a pointer to the exact event.
+        $shortfallUnits = (int)($after['remaining_qty'] ?? 0);
+        if ($shortfallUnits < 0 && $shortfallUnits < (int)($before['remaining_qty'] ?? 0)) {
+            dl_auditLog(
+                'commissary_dispatch_shortfall',
+                $originId,
+                'dl_commissary_product_ledger',
+                $originId . '-' . $head['delivery_date'] . '-' . (int)$item['product_id'],
+                ['remaining_qty' => (int)($before['remaining_qty'] ?? 0)],
+                [
+                    'remaining_qty' => $shortfallUnits,
+                    'delivery_id' => $deliveryId,
+                    'delivery_item_id' => (int)$item['id'],
+                    'quantity' => (int)$item['quantity'],
+                    'product_id' => (int)$item['product_id'],
+                    'ledger_date' => (string)$head['delivery_date'],
+                    'shift' => $head['production_shift'] ?? null,
+                    'note' => 'dispatched beyond recorded stock; correct the receipt or count the stock',
+                ]
+            );
+        }
         $insert->execute([
             ':d' => $deliveryId, ':di' => (int)$item['id'], ':b' => $originId, ':p' => (int)$item['product_id'],
             ':dt' => (string)$head['delivery_date'], ':q' => (int)$item['quantity'], ':u' => $actorId ?: null,
@@ -8600,6 +8626,139 @@ function dl_varianceMarkRefreshed($db, int $branchId, string $date): void
         dl_varianceRefreshMarkerPath($branchId, $date),
         dl_varianceDataFingerprint($db, $branchId, $date)
     );
+}
+
+/**
+ * "What these numbers mean" — the facts behind the variance screen, stated plainly.
+ *
+ * OWNER ACCEPTANCE CRITERIA (2026-11-19), verbatim: "i want the fix implemented to be factual and
+ * acceptable to the admin, users as cashiers, PIC ... it reflects the true picture of the business. if
+ * there are deviations, correctable moving forward. it must educate not confuse. traceable not hidden".
+ *
+ * That rules out the tempting version of this fix (hide the noisy rows, or quietly drop derived
+ * endings). Hiding is what produced the confusion: measured on the production import, 66% of stock
+ * lines have NO ending at all and 359 more were filled from movements, so a variance total presented
+ * as "the business" is really a total over the 30% somebody actually counted - and 82 products carry
+ * a negative balance that can never appear as a variance because the expectation is negative too.
+ *
+ * So the page reports all four states instead of one blended number, and names the negative balances
+ * as their own subject. Everything here is READ-ONLY: it explains, it does not adjust.
+ *
+ * @param array<int,int|string> $commissaryIds hubs in scope
+ * @return array<string,mixed>
+ */
+function dl_varianceIntegritySummary($db, array $commissaryIds, string $dateFrom, string $dateTo): array
+{
+    $ids = [];
+    foreach ($commissaryIds as $candidate) {
+        $value = (int)$candidate;
+        if ($value > 0) {
+            $ids[$value] = $value;
+        }
+    }
+    $summary = [
+        'rows_total' => 0,
+        'counted' => 0,
+        'derived' => 0,
+        'forced' => 0,
+        'not_counted' => 0,
+        'counted_pct' => 0,
+        'variance_abs_counted' => 0,
+        'variance_abs_all' => 0,
+        'net_variance_counted' => 0,
+        'negative_products' => 0,
+        'negative_units' => 0,
+        'negative_examples' => [],
+        'as_of' => $dateTo !== '' ? $dateTo : dl_businessDate(),
+        'in_scope' => count($ids),
+    ];
+    if ($ids === []) {
+        return $summary;
+    }
+    $inList = implode(',', $ids);
+    $from = preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateFrom) ? $dateFrom : null;
+    $to = preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateTo) ? $dateTo : null;
+    $dateSql = '';
+    $bind = [];
+    if ($from !== null) { $dateSql .= ' AND ledger_date >= :dfrom'; $bind[':dfrom'] = $from; }
+    if ($to !== null) { $dateSql .= ' AND ledger_date <= :dto'; $bind[':dto'] = $to; }
+
+    // One pass over the hub ledger: who actually counted, and what the variance is worth in each state.
+    $stmt = $db->prepare(
+        "SELECT CASE
+                    WHEN actual_end_qty IS NULL THEN 'not_counted'
+                    WHEN end_source IS NULL THEN 'counted'
+                    WHEN end_source = 'derived-from-movements' THEN 'derived'
+                    ELSE 'forced'
+                END AS provenance,
+                COUNT(*) AS rows_n,
+                SUM(ABS(COALESCE(calc_variance, 0))) AS abs_var,
+                SUM(COALESCE(calc_variance, 0)) AS net_var
+           FROM dl_commissary_product_ledger
+          WHERE commissary_branch_id IN ({$inList}){$dateSql}
+          GROUP BY provenance"
+    );
+    $stmt->execute($bind);
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+        $key = (string)$row['provenance'];
+        $n = (int)$row['rows_n'];
+        $summary['rows_total'] += $n;
+        if (isset($summary[$key])) {
+            $summary[$key] = $n;
+        }
+        $summary['variance_abs_all'] += (int)$row['abs_var'];
+        if ($key === 'counted') {
+            $summary['variance_abs_counted'] = (int)$row['abs_var'];
+            $summary['net_variance_counted'] = (int)$row['net_var'];
+        }
+    }
+    if ($summary['rows_total'] > 0) {
+        $summary['counted_pct'] = (int)round(($summary['counted'] / $summary['rows_total']) * 100);
+    }
+
+    // Negative balances are a SEPARATE subject: they cannot be a variance (the expectation is negative
+    // too), so a variance screen that omits them hides the largest stock problem in the business.
+    $asOf = $summary['as_of'];
+    $matrix = dl_commissaryOnHandByProduct($db, array_values($ids), $asOf);
+    $worst = [];
+    foreach ($matrix as $hubId => $products) {
+        foreach ($products as $productId => $row) {
+            $onHand = (int)($row['on_hand'] ?? 0);
+            if ($onHand < 0) {
+                $summary['negative_products']++;
+                $summary['negative_units'] += $onHand;
+                $worst[(int)$productId] = $onHand;
+            }
+        }
+    }
+    if ($worst !== []) {
+        asort($worst);
+        $topIds = array_slice(array_keys($worst), 0, 5);
+        $nameStmt = $db->prepare(
+            'SELECT id, name FROM dl_products WHERE id IN (' . implode(',', array_map('intval', $topIds)) . ')'
+        );
+        $nameStmt->execute();
+        $names = [];
+        foreach ($nameStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $p) {
+            $names[(int)$p['id']] = (string)$p['name'];
+        }
+        foreach ($topIds as $productId) {
+            $summary['negative_examples'][] = [
+                'product_id' => $productId,
+                'name' => $names[$productId] ?? ('#' . $productId),
+                'on_hand' => $worst[$productId],
+            ];
+        }
+        // Also as one sentence: the template shows it inline, and a plain string keeps the wording in
+        // one place where it can be asserted (and read by whoever audits the screen).
+        $parts = [];
+        foreach ($summary['negative_examples'] as $example) {
+            $parts[] = $example['name'] . ' (' . number_format((int)$example['on_hand']) . ')';
+        }
+        $summary['negative_examples_text'] = implode(', ', $parts);
+    }
+
+    return $summary;
 }
 
 /**
@@ -18320,6 +18479,11 @@ function handleAdminVariances(array $params = []): void
     if ($dateFrom !== '') { $filterParams['date_from'] = $dateFrom; }
     if ($dateTo !== '') { $filterParams['date_to'] = $dateTo; }
     $filterQuery = $filterParams === [] ? '' : '&' . http_build_query($filterParams);
+    // "What these numbers mean" (owner criteria 2026-11-19: factual, traceable, educate not confuse).
+    // Read-only: it explains the variance figures and names the negative balances the variance report
+    // structurally cannot see. Scoped to the same hubs the list is scoped to.
+    $integrityScopeIds = $branchId > 0 ? [$branchId] : $accessibleBranchIds;
+    $varianceIntegrity = dl_varianceIntegritySummary($ctx->db(), $integrityScopeIds, $dateFrom, $dateTo);
     echo dlRender('modules/daily-ledger/admin/variances.disyl', [
         'page_title'    => 'Variance Dashboard',
         'user_name'     => $userName,
@@ -18345,6 +18509,7 @@ function handleAdminVariances(array $params = []): void
         'variances_row_limit'    => $rowLimit,
         'variances_shown'        => count($variances),
         'variances_can_show_more' => $rowLimit < DL_VARIANCE_PAGE_ROW_LIMIT,
+        'variance_integrity'     => $varianceIntegrity,
         'status_filter' => $statusFilter,
         'kind_filter' => $kindFilter,
         'shift_filter' => $shiftFilter,
@@ -27508,10 +27673,16 @@ function apiCommissaryDispatch(): void
         // Read stock on hand ONCE per hub through the single definition: asking per item re-ran
         // the whole hub matrix for every line of the DR (measured 82 ms for 10 items, and the
         // earlier shape cost 237 ms PER item).
+        //
+        // AS-OF THE DELIVERY DATE, not "latest" (found 2026-11-19 while tracing the negative balances).
+        // Without the date this check read the newest balance for the hub, so a dispatch entered today
+        // for an EARLIER date was validated against stock that did not exist yet on that date - it passed,
+        // the debit landed on the older bucket, and that bucket went negative. Those negatives then carry
+        // forward every day and can never show as a variance, because the expectation is negative too.
         $dispatchOnHand = dl_commissaryOnHandByProduct($db, array_values(array_unique(array_map(
             static fn(array $item): int => (int)$item['commissary_branch_id'],
             $cleanItems
-        ))));
+        ))), $ledgerDate);
         foreach ($cleanItems as $item) {
             $cid = $item['commissary_branch_id'];
             $pid = $item['product_id'];
