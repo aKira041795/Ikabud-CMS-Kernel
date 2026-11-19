@@ -1,0 +1,16 @@
+{
+  "digest": "69d16b081f5dfb6e21ac8535b499a758eb5e1ceb2476600bd3287a82f9e33a83",
+  "event_id": "69d16b081f5dfb6e",
+  "evidence": [
+    "tools/harpp-experience.py lesson funnel --scope cms (575/41/6/0) and the test tools/tests/test_lesson_effect.py pinning the universal-rules semantic; 55/55 suites green"
+  ],
+  "lesson_id": "L-ec2590509b",
+  "proposed_by": "harness",
+  "reason": "Owner asked to run a measurement and try the CMS module; the measurement showed the loss happens at approval, not retrieval.",
+  "recorded_at": "2026-11-19T03:31:33.859407Z",
+  "review_after": "2026-12-19",
+  "schema_version": 1,
+  "scope": "harness",
+  "text": "Measure the learning funnel per scope before blaming retrieval. Measured 2026-11-19 across every scope on this repo: cms 575 pooled / 41 active (7%), daily-ledger 537 / 43 (8%), ai 577 / 24 (4%), any 471 / 24 (5%) - i.e. 92-96% of recorded knowledge is 'proposed' and therefore invisible to every lane. Retrieval had been under suspicion because a cms brief received 6 rules of which 4 shared no word with the brief, but the 8 rules that WERE relevant sat in the unapproved pile; the bottleneck was triage, not ranking. Two supporting facts: a module pool includes the universal (any) rules - cms reported 104 scoped lessons but a working pool of 575, so quote both numbers or the gap reads as a bug - and only 6 of 87 cms proposals name a concrete file path, meaning most proposals are prose advice rather than machine-checkable claims, which is why triage is expensive and why converting a recurring rule into a gate beats writing another one.",
+  "type": "propose"
+}
