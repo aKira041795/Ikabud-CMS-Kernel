@@ -1,0 +1,16 @@
+{
+  "digest": "e6c2e5c5a4ec4f160c7915778a957f3db445581125026dbaf3f2c345c77037c5",
+  "event_id": "e6c2e5c5a4ec4f16",
+  "evidence": [
+    "verified 2026-11-19 live as prod-rizal + Cashier_RizalGawasAM on delivery 1000589: PIC edit while unreceived; cashier received it; direct POST refused 409 ALREADY_RECEIVED; cashier added MOCHA CAKE HALF x1 (audit edited_by_role cashier, synced_received [], commissary dispatched=1 for product 65); PIC reopened read-only with 'Added after this dispatch left'; dispatch edit suite 25/25"
+  ],
+  "lesson_id": "L-7b635bc2ab",
+  "proposed_by": "harness",
+  "reason": "Owner request 2026-11-19: PIC dispatch modal must show what the receiving branch added but not allow editing it; test both the unreceived-edit and received-refused paths plus the cashier add.",
+  "recorded_at": "2026-11-19T02:26:39.514398Z",
+  "review_after": "2026-12-19",
+  "schema_version": 1,
+  "scope": "daily-ledger",
+  "text": "A refused control is not an answer. When a role may not CHANGE a record it often still must READ it: disabling Edit on a received dispatch hid exactly what production needed (what the branch counted, what the cashier added from the paper DR). Open the same panel read-only instead - lock the identifying fields, disable every quantity, REMOVE the save button rather than disabling it (a disabled save invites hunting for what enables it), drop the reason field, and NAME the lines added after the fact instead of only showing them. Security note: the read-only view is a UI property; the refusal must stay server-side (409 ALREADY_RECEIVED held even when the endpoint was called directly). Two configuration traps measured the same day: (1) a stored role array REPLACES that role's default permission list, so adding one grant silently drops the others unless you write them back; (2) in tenant mode the global storage/modules.json is IGNORED for non-lifecycle keys - a write there reports success and changes nothing the app reads, so verify through the tenant store or an HTTP request, never through the writer's own read-back.",
+  "type": "propose"
+}
