@@ -46,3 +46,24 @@ Options -Indexes
 <IfModule mod_rewrite.c>
     RewriteRule ^uploads/.*\.php$ - [F,L]
 </IfModule>
+
+# Static asset caching.
+#
+# MEASURED 2026-11-20 on the live host: /daily-ledger/admin/variances references 628 KB of JS/CSS
+# (tailwindcss.js 407 KB, FontAwesome all.min.css 102 KB, alpine 47 KB, htmx 48 KB, dl-scroll 12 KB)
+# against 43 KB of gzipped HTML. The assets are the page's real weight, and they shipped with NO
+# Cache-Control at all - only Last-Modified - so a cashier moving between screens all shift paid a
+# revalidation round trip for each one, which is exactly what a slow connection cannot afford.
+#
+# The max-age for CODE is deliberately short: these URLs are not fingerprinted, so a long max-age
+# would serve stale script after a deploy. One hour covers a shift's navigation and keeps deploy
+# staleness bounded to an hour. Media gets a week: uploads are stored with a timestamped, unique
+# filename (logo_20260507_212944_d1b0867a.png), so a replaced file arrives as a new URL.
+<IfModule mod_headers.c>
+    <FilesMatch "\.(css|js|mjs)$">
+        Header set Cache-Control "public, max-age=3600"
+    </FilesMatch>
+    <FilesMatch "\.(png|jpe?g|gif|svg|webp|avif|ico|woff2?|ttf|eot)$">
+        Header set Cache-Control "public, max-age=604800"
+    </FilesMatch>
+</IfModule>
