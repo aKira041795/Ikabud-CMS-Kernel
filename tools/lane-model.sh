@@ -208,6 +208,16 @@ lane_model_run() {
 
   local models="$1" prompt="$2" prefix="$3"
 
+  # Event log identity: the lane harness sets this; direct callers fall back to the log prefix.
+  #
+  # THIS MUST BE ASSIGNED BEFORE THE INJECTION BELOW. It used to be exported after it, which meant
+  # the `--record` flag was omitted whenever the caller had not pre-set LANE_EVENT_RUN - so the rules
+  # were injected but never credited to the run. `harpp-experience.py status` then reported
+  # "0 run(s) given rules" while the hint block had in fact reached every lane, and the loop could
+  # not close: no run could ever be attributed to a rule, so no rule could ever earn or lose
+  # precision. Measured 2026-11-19.
+  export LANE_EVENT_RUN="${LANE_EVENT_RUN:-$(basename "$prefix")}"
+
   # EXPERIENCE TRAVELS WITH THE LANE.
   #
   # Owner direction 2026-11-17: the small model provides the unique experiences, the established
@@ -243,9 +253,6 @@ $_exp"
         echo "lane_model_run: experience injected (${_exp_len} chars${LANE_SCOPE:+, scope=$LANE_SCOPE})" >&2 ;;
     esac
   fi
-  # Event log identity: the lane harness sets this; direct callers fall back to the log prefix.
-  export LANE_EVENT_RUN="${LANE_EVENT_RUN:-$(basename "$prefix")}"
-
   # A list shorter than the canonical chain is the defect that ended the work on
   # 2026-10-03: both models exhausted, nothing continued. This is a WARNING, not a
   # refusal, because the documented contract accepts any list and a lane may legitimately
