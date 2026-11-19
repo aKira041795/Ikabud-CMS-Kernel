@@ -786,6 +786,27 @@ function dl_offlineApplyWithdrawal(array $user, array $op, bool $inTx = false): 
         foreach ($validLines as $line) {
             $pid = $line['product_id'];
             $qty = $line['quantity'];
+            // AUDIT GAP CLOSED (2026-11-19). A replayed offline operation adds to addtl/withdraw LATER than
+            // the branch performed it, so the branch sees a movement it did not just make - exactly the
+            // 2026-11-12 report ("naay mukalit ug add or withdraw sa ilaa nga wla man unta silay gihilabtan").
+            // Until now this path left no audit row at all, so the movement could not be explained afterwards.
+            dl_auditLog(
+                'offline_replay_ledger_delta',
+                (int)$branchId,
+                'dl_daily_ledger',
+                $branchId . '-' . $pid . '-' . $shift,
+                null,
+                [
+                    'product_id' => (int)$pid,
+                    'quantity' => (int)$qty,
+                    'column' => $isAddtl ? 'addtl' : 'withdraw',
+                    'type' => (string)$type,
+                    'ledger_date' => (string)$date,
+                    'shift' => (string)$shift,
+                    'source' => 'offline_replay',
+                    'note' => 'queued operation replayed; the branch did not act at this moment',
+                ]
+            );
             $unit = $line['unit'];
             $packQty = $line['pack_qty'];
 

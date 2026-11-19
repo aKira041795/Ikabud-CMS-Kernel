@@ -333,6 +333,23 @@ function dl_repriceProductLedgerRows(\Ikabud\Kernel\Contracts\ModuleDB $db, int 
     }
 
     $summary['skipped_days'] = array_values($skippedDays);
+
+    // AUDIT GAP CLOSED (2026-11-19). This path rewrites price_snapshot and updated_at on every row of a
+    // product from a date forward - thousands of branch-ledger rows in one call - and left NO audit row,
+    // so a branch whose figures moved could not tell why. Measured on 2026-11-12: 8,065 branch rows carried
+    // a last-touch by an admin account with no daily-ledger action recorded that day. Only the PRICE changes
+    // here, so this does not explain an add/withdraw movement - but the shadow it casts over the branch's
+    // ledger is exactly what made that day unattributable.
+    dl_auditLog('ledger_rows_repriced', null, 'dl_daily_ledger', 'product-' . $productId, null, [
+        'product_id' => $productId,
+        'effective_from' => $effectiveFrom,
+        'updated_rows' => $summary['updated_rows'],
+        'unchanged_rows' => $summary['unchanged_rows'],
+        'skipped_rows' => $summary['skipped_rows'],
+        'skipped_days' => array_slice($summary['skipped_days'], 0, 20),
+        'note' => 'price snapshots rewritten; quantities untouched',
+    ]);
+
     return $summary;
 }
 
