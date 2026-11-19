@@ -335,6 +335,65 @@ try {
         && str_contains($routes, "'/daily-ledger/api/v1/commissary/run'")
         && str_contains($routes, "'/daily-ledger/api/v1/commissary/material'")
         && str_contains($routes, "'/daily-ledger/api/v1/commissary/dispatch'"));
+
+    // ── Product search on the Daily Sheet (owner request 2026-11-19) ─────────────────────────
+    // Each assertion names what breaks if it regresses:
+    // - the bar sitting with the Destinations chips puts a ROW control beside a COLUMN control, so
+    //   the operator looks in the wrong place (owner correction: "inside the daily sheets,
+    //   proximity principle") - hence the ORDER assertion, not just presence;
+    // - rows without the SKU make it impossible to find a product the way the box asks;
+    // - a print style that keeps the filter turns a search into a silently PARTIAL production
+    //   document;
+    // - a missing refresh hook drops the operator's search every time a beginning is saved;
+    // - a server-side search would 404 on the route assertion and, worse, discard unsaved edits.
+    $searchTpl = (string)file_get_contents($base . '/templates/modules/daily-ledger/admin/commissary.disyl');
+    $searchPos = strpos($searchTpl, 'id="daily-sheet-product-search"');
+    $destinationsPos = strpos($searchTpl, '>Destinations</span>');
+    $tablePos = strpos($searchTpl, '<div class="table-wrap dl-sheet-scroll">');
+    $h->test(
+        'the product search exists once, above the product rows it narrows',
+        $searchPos !== false
+            && $destinationsPos !== false
+            && $tablePos !== false
+            && $searchPos > $destinationsPos
+            && $searchPos < $tablePos
+            && substr_count($searchTpl, 'id="daily-sheet-product-search"') === 1,
+        'the search must sit immediately above the rows, after the destination-column filter - '
+            . 'the owner rejected the earlier placement beside the destination chips'
+    );
+    $h->test(
+        'every sheet row carries its SKU so the box can find a product by code',
+        substr_count($searchTpl, 'data-sku="{row.sku}"') === 1
+            && str_contains($searchTpl, 'class="daily-sheet-product-row"'),
+        'the search advertises "product or SKU" and would only match the printed label'
+    );
+    $h->test(
+        'the filter reports how many rows it is hiding, and says when it matches none',
+        str_contains($searchTpl, 'id="daily-sheet-search-count"')
+            && str_contains($searchTpl, 'id="daily-sheet-search-empty"'),
+        'a filtered sheet with no visible count reads as the whole sheet, and an empty table '
+            . 'reads as a commissary with no products'
+    );
+    $h->test(
+        'printing releases the filter so a printed sheet is never silently partial',
+        str_contains($searchTpl, '#production-ledger-table tbody tr.daily-sheet-product-row { display: table-row !important; }'),
+        'a search left active would print a subset of the production document'
+    );
+    $h->test(
+        'the search survives the in-place refresh that follows a saved beginning',
+        // Three parts, all required: the query is remembered, a re-apply entry point exists, and
+        // the swap actually calls it. Any one missing and the operator retypes after every save.
+        str_contains($searchTpl, 'window.__dailySheetSearch = query;')
+            && str_contains($searchTpl, 'window.dlReapplyDailySheetSearch = function')
+            && str_contains($searchTpl, 'if (window.dlReapplyDailySheetSearch) window.dlReapplyDailySheetSearch();'),
+        'the swap replaces every row, so the operator would retype the search after each save'
+    );
+    $h->test(
+        'the search is client-side: no route, no server filter',
+        !str_contains($routes, 'daily-sheet-search')
+            && !str_contains($routes, 'search-products'),
+        'a server round-trip would discard beginning-quantity edits in progress'
+    );
 } finally {
     $cleanup();
 }

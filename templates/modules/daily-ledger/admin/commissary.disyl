@@ -588,6 +588,69 @@
             window.dlRestoreScroll();
         }
 
+        // ── Find a product on the Daily Sheet (owner request 2026-11-19) ──────────────────────────
+        // "add a search bar so user can easily find the product". The sheet runs to thousands of
+        // pixels, so locating one product meant scrolling through every row.
+        //
+        // Client-side on purpose: a server round-trip would replace the sheet and throw away
+        // beginning-quantity edits in progress, and the rows are already rendered.
+        //
+        // It narrows ROWS only - never a column - and always reports how many rows it is hiding, so
+        // a filtered sheet can never be mistaken for the whole one. Several words must all match
+        // ("ford cake"), and the SKU is searchable even though the sheet does not print it.
+        window.filterDailySheetRows = function() {
+            var input = document.getElementById('daily-sheet-product-search');
+            var countEl = document.getElementById('daily-sheet-search-count');
+            var emptyRow = document.getElementById('daily-sheet-search-empty');
+            var rows = Array.prototype.slice.call(
+                document.querySelectorAll('#production-ledger-table tbody tr.daily-sheet-product-row')
+            );
+            if (!rows.length) {
+                if (countEl) { countEl.textContent = ''; }
+                if (emptyRow) { emptyRow.style.display = 'none'; }
+                return;
+            }
+
+            var query = (input && input.value ? input.value : '').trim();
+            window.__dailySheetSearch = query;
+            var terms = query.toLowerCase().split(/\s+/).filter(function(t) { return t !== ''; });
+
+            var shown = 0;
+            rows.forEach(function(tr) {
+                var labelCell = tr.querySelector('.dl-sheet-sticky-product');
+                var haystack = ((labelCell ? labelCell.textContent : '') + ' ' + (tr.getAttribute('data-sku') || '')).toLowerCase();
+                var match = true;
+                for (var i = 0; i < terms.length; i++) {
+                    if (haystack.indexOf(terms[i]) === -1) { match = false; break; }
+                }
+                tr.style.display = match ? '' : 'none';
+                if (match) { shown++; }
+            });
+
+            if (emptyRow) { emptyRow.style.display = shown === 0 ? '' : 'none'; }
+            if (countEl) {
+                countEl.textContent = terms.length === 0
+                    ? ''
+                    : (shown + ' of ' + rows.length + ' product' + (rows.length === 1 ? '' : 's'));
+            }
+        };
+
+        // Re-applies the operator's search to freshly swapped rows (see dlLoadUrl).
+        window.dlReapplyDailySheetSearch = function() {
+            var input = document.getElementById('daily-sheet-product-search');
+            if (!input) { return; }
+            var kept = window.__dailySheetSearch || '';
+            if (input.value !== kept) { input.value = kept; }
+            window.filterDailySheetRows();
+        };
+
+        window.dailySheetSearchKeydown = function(ev) {
+            if (ev.key !== 'Escape') { return; }
+            var input = document.getElementById('daily-sheet-product-search');
+            if (input) { input.value = ''; }
+            window.filterDailySheetRows();
+        };
+
         window.dlLoadUrl = function(url, usePush) {
             // The ledger owns page-level state and timers outside #main-content.
             // Replacing only its markup leaves the old date/branch and callbacks live.
@@ -642,6 +705,10 @@
                 window.dlScheduleDailySheetStickyOffsets();
                 window.dlInitDailySheetPan();
                 window.dlInitDailySheetHScroll();
+                // A search is where the operator is working on the sheet. Re-applying it after the
+                // swap keeps their place instead of making them retype it every time a beginning
+                // quantity is saved - the refresh that follows a save replaces every row.
+                if (window.dlReapplyDailySheetSearch) window.dlReapplyDailySheetSearch();
                 // Put the operator back on the row they were working on: the swap
                 // above replaces every child, so #main-content would sit at the top.
                 if (scrollKey) window.dlRestoreScroll(scrollKey);
@@ -941,6 +1008,12 @@
            (all marked .print-hidden in markup) and the product-label warning banner. */
         .print-hidden, form, .tab-panel:not(#tab-daily-sheet), .card.mt-6,
         #wb-sidebar, header { display: none !important; }
+
+        /* A search narrows the sheet ON SCREEN. A printed Daily Sheet is a production document, so
+           a filter left applied by accident must never reach paper: the rows are released here
+           rather than left to the operator to remember to clear. */
+        #production-ledger-table tbody tr.daily-sheet-product-row { display: table-row !important; }
+        #daily-sheet-search-empty { display: none !important; }
 
         /* Un-clip the layout. On screen the shell is height:100vh + overflow:hidden,
            which pinned the ~9,200px sheet to one viewport. Undo the constraint so the
@@ -2143,6 +2216,29 @@
         {else}
         {set sheet_numeric_column_count = sheet_branch_column_count + 3}
         {/if}
+        {* Owner request 2026-11-19: "add a search bar so user can easily find the product". The sheet
+           runs to thousands of pixels on a normal day, so finding one product meant scrolling.
+
+           It sits HERE, immediately above the product rows, not up with the Destinations chips:
+           proximity. Those chips choose which COLUMNS the sheet shows; this narrows WHICH ROWS.
+           A row control parked beside a column control makes the operator look in the wrong place
+           for it, and it was one more item competing with the date, shift and day buttons.
+
+           Client-side on purpose - a server round-trip would throw away beginning-quantity edits in
+           progress, and the sheet is already rendered. It narrows rows only, never a column, and
+           always states how many rows it is hiding, so a filtered sheet cannot read as the whole
+           one. Left-aligned so it sits over the product column it filters. *}
+        <div class="mx-4 mt-3 mb-2 flex flex-wrap items-center gap-2 print-hidden" data-dl-sheet-search>
+            <label class="sr-only" for="daily-sheet-product-search">Find a product on this sheet</label>
+            <div class="relative">
+                <i class="fas fa-search pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400" aria-hidden="true"></i>
+                <input type="search" id="daily-sheet-product-search" class="form-input w-72 py-1 pl-8 text-sm"
+                       placeholder="Find product or SKU…" autocomplete="off"
+                       oninput="filterDailySheetRows()" onkeydown="dailySheetSearchKeydown(event)"
+                       title="Filters the rows below. Several words must all match. Escape clears it.">
+            </div>
+            <span id="daily-sheet-search-count" class="text-xs whitespace-nowrap text-gray-500" role="status" aria-live="polite"></span>
+        </div>
         <div class="table-wrap dl-sheet-scroll">
             <table class="production-ledger-table dl-zebra" id="production-ledger-table" style="--sheet-numeric-cols: {sheet_numeric_column_count}">
                 <thead>
@@ -2180,7 +2276,7 @@
                     <tr><td colspan="99" class="px-4 py-10 text-center text-sm text-gray-500">No ledger activity for the assigned consignee products on this date.</td></tr>
                     {/if}
                     {foreach daily_sheet_rows as row}
-                    <tr class="daily-sheet-product-row" data-product-id="{row.product_id}" data-produced="{row.addtl_qty}">
+                    <tr class="daily-sheet-product-row" data-product-id="{row.product_id}" data-produced="{row.addtl_qty}" data-sku="{row.sku}">
                         <td class="font-medium dl-sheet-sticky-product">{row.sheet_label}</td>
                         <td class="px-1 py-1 text-right dl-sheet-sticky-beg">
                             {* BEG is user-settable; the carry is the suggestion, never auto-persisted. *}
@@ -2307,6 +2403,11 @@
                         {if can_view_production_variance}<td class="text-right production-variance dl-sheet-sticky-variance">{if row.calc_variance_present}{row.calc_variance}{/if}</td>{/if}
                     </tr>
                     {/foreach}
+                    {* Says it found nothing instead of showing an empty table, which reads as "this
+                       commissary has no products" rather than "your search matched none". *}
+                    <tr id="daily-sheet-search-empty" style="display: none;">
+                        <td colspan="99" class="px-4 py-10 text-center text-sm text-gray-500">No product on this sheet matches that search.</td>
+                    </tr>
                 </tbody>
             </table>
         </div>
