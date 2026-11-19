@@ -4057,8 +4057,8 @@
         clearDispatchEditState();
         applyDispatchConfirmWording(false);
         // "With box?" removed 2026-11-19 (admin: PIC only produces products; boxes of any kind belong to the
-        // branches). The control, its initDispatchBoxControls() helper and its payload logic are all gone - no
-        // dead code is left behind. The cake-to-box mapping is deferred to its own change, on the branch side.
+        // branches). The control, its initialisation helper and its payload logic are all gone - no dead code
+        // is left behind. The cake-to-box mapping is deferred to its own change, on the branch side.
     }
 
     function closeDispatchEntry() {
