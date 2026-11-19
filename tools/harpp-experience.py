@@ -2325,6 +2325,10 @@ def lesson_audit(scope: str | None = None) -> dict:
         normalised = {re.sub(r"[^a-z0-9]+", " ", str(label["text"]).lower()).strip(): label["origin"]
                       for label in labels}
         for entry in buckets["prose"]:
+            if entry["status"] == "retired":
+                # Already collected. Counting it again makes `retirable` a number that cannot go
+                # down, so the command keeps advertising work it has already performed.
+                continue
             own = re.sub(r"[^a-z0-9]+", " ", entry["text"].lower()).strip()
             if own and own in normalised:
                 entry["retire_to"] = normalised[own]
