@@ -19,6 +19,7 @@ present:
 """
 from __future__ import annotations
 
+import importlib.util
 import json
 import os
 import subprocess
@@ -29,6 +30,19 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 TOOL = ROOT / "tools" / "harpp-experience.py"
+
+_EXPERIENCE = None
+
+
+def _experience():
+    """The shipped module itself, for the pure helpers the CLI wraps."""
+    global _EXPERIENCE
+    if _EXPERIENCE is None:
+        spec = importlib.util.spec_from_file_location("harpp_experience_under_test", TOOL)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        _EXPERIENCE = module
+    return _EXPERIENCE
 
 
 def _run(args: list[str], env: dict) -> subprocess.CompletedProcess:
@@ -222,6 +236,46 @@ class LessonEffectTest(unittest.TestCase):
         self.assertEqual(payload["would_inject"], 0,
                          "an unapproved rule must never reach a lane - that is the funnel's point")
         self.assertEqual(payload["attributed_runs"], 0)
+
+    # ---------------------------------------------------------------- audit
+    def test_a_manifest_reference_is_not_read_as_a_javascript_file(self) -> None:
+        # THE BUG THIS PINS: with the extensions ordered `ts|js|json`, `modules/ecommerce/module.json`
+        # matched as `module.js`, so every manifest reference was reported as a MISSING javascript
+        # file and landed in the stale bucket. Caught by the cms audit 2026-11-19.
+        paths = _experience().lesson_paths("see `modules/ecommerce/module.json` here")
+        self.assertEqual(paths, ["modules/ecommerce/module.json"],
+                         "a manifest path must never be truncated to its .js prefix")
+
+    def test_example_paths_are_not_treated_as_claims_about_this_repo(self) -> None:
+        self._propose(
+            "Run it:\n```bash\nphp tests/import_contract_test.php\n```\n"
+            "and put it at modules/my-module/services/Workflow.php",
+            "any",
+        )
+        payload = _run(["lesson", "audit", "--scope", "any", "--json"], self.env)
+        self.assertEqual(payload.returncode, 0, payload.stderr)
+        audit = json.loads(payload.stdout)
+        self.assertEqual(audit["counts"]["stale"], 0,
+                         "a CLI usage sample and a `my-module` placeholder are examples, not "
+                         "claims; reporting them as stale buries the real ones")
+        self.assertEqual(audit["counts"]["prose"], 1)
+
+    def test_audit_separates_a_real_claim_from_a_vanished_one(self) -> None:
+        self._propose("`public/index.php` owns the entrypoint", "any")
+        self._propose("`src/http/dispatch.php` orchestrates dispatch", "any")
+
+        result = _run(["lesson", "audit", "--scope", "any", "--json"], self.env)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        audit = json.loads(result.stdout)
+
+        anchored = [e["text"] for e in audit["buckets"]["anchored"]]
+        stale = [e["text"] for e in audit["buckets"]["stale"]]
+
+        self.assertTrue(any("public/index.php" in text for text in anchored),
+                        "a lesson naming a file that exists is anchored")
+        self.assertTrue(any("dispatch.php" in text for text in stale),
+                        "a lesson naming a file that is gone is stale - the claim may be obsolete")
+        self.assertEqual(audit["counts"]["stale"], 1)
 
 
 if __name__ == "__main__":

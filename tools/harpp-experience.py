@@ -2158,6 +2158,129 @@ def lesson_funnel(scope: str | None = None) -> dict:
     }
 
 
+# --------------------------------------------------------------------------- audit
+#
+# Making prose MEASURABLE. Most lessons are advice: "keep hook handlers deterministic", "variants
+# control presentation only". That cannot be scored, so it cannot be retired on evidence, which is
+# how 534 of 575 cms-pool lessons ended up permanently un-injected (measured 2026-11-19).
+#
+# A prose lesson becomes gradable the moment it names something that EXISTS and can be checked. So
+# this grades each lesson by what it references rather than by how it reads:
+#
+#   anchored - names a repo path that still exists    -> the claim has a subject we can inspect
+#   stale    - names a path that is GONE              -> the claim may already be obsolete
+#   prose    - names nothing checkable                -> cannot be measured until rewritten
+#
+# `covered` is reported alongside `anchored` and is deliberately weak: it means a test file
+# REFERENCES the same path. That is a place to add the assertion, NOT proof the claim is asserted.
+
+LESSON_PATH_RE = re.compile(
+    r"(?:modules|templates|src|kernel|tools|tests|docs|database|config|public)"
+    # Longest extension FIRST, and (?![\w.]) after: with `ts|js|json` ordered short-first,
+    # `modules/ecommerce/module.json` matched as `module.js` and every manifest reference was
+    # reported as a missing JavaScript file. Caught by the cms audit 2026-11-19.
+    r"/[\w./-]+\.(?:disyl|json|php|tsx|jsx|sql|css|ts|js|md)(?![\w.])"
+)
+
+# A path inside a fenced block is an EXAMPLE of how to call a tool, not a claim about this repo.
+# Without this the stale bucket filled with `tests/import_contract_test.php` (a hypothetical task in
+# a CLI usage sample) and `modules/my-module/services/Workflow.php` (a literal placeholder).
+_FENCE_RE = re.compile(r"```.*?```", re.DOTALL)
+_PLACEHOLDER_HINTS = ("my-module", "your-module", "my_module", "your_module", "example-module")
+
+
+def lesson_paths(text) -> list[str]:
+    """Repo paths a lesson CLAIMS, de-duplicated, examples and placeholders excluded."""
+    raw = str(text or "")
+    claim_text = _FENCE_RE.sub(" ", raw)
+    found: list[str] = []
+    for match in LESSON_PATH_RE.findall(claim_text):
+        cleaned = match.rstrip(".,;:)]}`")
+        if any(hint in cleaned.lower() for hint in _PLACEHOLDER_HINTS):
+            continue
+        if cleaned not in found:
+            found.append(cleaned)
+    return found
+
+
+def _test_corpus() -> str:
+    """Every test file's text, once. 814 files / 12MB on this repo, so it is built per call."""
+    chunks: list[str] = []
+    root = ROOT / "tests"
+    if root.is_dir():
+        for path in sorted(root.rglob("*.php")):
+            try:
+                chunks.append(path.read_text(encoding="utf-8", errors="replace"))
+            except OSError:
+                continue
+    return "\n".join(chunks)
+
+
+def lesson_audit(scope: str | None = None) -> dict:
+    """Grade every lesson in scope by whether its claim can be CHECKED at all."""
+    rows = load_lessons()
+    if scope:
+        rows = [row for row in rows if _scope_matches(row, scope)]
+    corpus = _test_corpus()
+    buckets: dict[str, list[dict]] = {"anchored": [], "stale": [], "prose": []}
+    covered = 0
+    for lesson in rows:
+        text = str(lesson.get("text") or "")
+        paths = lesson_paths(text)
+        entry = {
+            "id": str(lesson.get("id")),
+            "status": _lesson_status(lesson),
+            "text": text,
+            "paths": paths,
+        }
+        if not paths:
+            buckets["prose"].append(entry)
+            continue
+        missing = [p for p in paths if not (ROOT / p).exists()]
+        if missing:
+            entry["missing"] = missing
+            buckets["stale"].append(entry)
+            continue
+        entry["covered"] = any(p in corpus for p in paths)
+        if entry["covered"]:
+            covered += 1
+        buckets["anchored"].append(entry)
+    return {
+        "scope": scope or "(all)",
+        "total": len(rows),
+        "counts": {key: len(value) for key, value in buckets.items()},
+        "covered": covered,
+        "active_prose": sum(1 for e in buckets["prose"] if e["status"] == "active"),
+        "buckets": buckets,
+    }
+
+
+def cmd_lesson_audit(args) -> int:
+    payload = lesson_audit(getattr(args, "scope", None))
+    limit = int(getattr(args, "limit", 8) or 8)
+    if getattr(args, "json", False):
+        print(json.dumps(payload, indent=2))
+        return 0
+    counts = payload["counts"]
+    print(f"== lesson audit: {payload['scope']} ==")
+    print(f"  total    {payload['total']:>5}")
+    print(f"  anchored {counts['anchored']:>5}  name a path that still exists "
+          f"({payload['covered']} also referenced by a test)")
+    print(f"  stale    {counts['stale']:>5}  name a path that is GONE")
+    print(f"  prose    {counts['prose']:>5}  name nothing checkable "
+          f"({payload['active_prose']} of them are ACTIVE and being injected)")
+    if counts["stale"]:
+        print("  -- stale: the subject of the claim no longer exists --")
+        for entry in payload["buckets"]["stale"][:limit]:
+            print(f"    {entry['id']}  missing {', '.join(entry['missing'])}")
+            print(f"      {entry['text'][:100]}")
+    if counts["prose"]:
+        print("  -- prose: rewrite as a check, or it can only be believed --")
+        for entry in payload["buckets"]["prose"][:limit]:
+            print(f"    {entry['id']} [{entry['status']}] {entry['text'][:96]}")
+    return 0
+
+
 def cmd_lesson_funnel(args) -> int:
     scope = getattr(args, "scope", None)
     payload = lesson_funnel(scope)
@@ -3010,6 +3133,12 @@ def _parser() -> argparse.ArgumentParser:
     funnel_cmd.add_argument("--scope", help="module scope, e.g. cms")
     funnel_cmd.add_argument("--json", action="store_true")
     funnel_cmd.set_defaults(func=cmd_lesson_funnel)
+    audit_cmd = lesson_sub.add_parser(
+        "audit", help="grade lessons by whether their claim can be CHECKED (anchored/stale/prose)")
+    audit_cmd.add_argument("--scope", help="module scope, e.g. cms")
+    audit_cmd.add_argument("--limit", type=int, default=8)
+    audit_cmd.add_argument("--json", action="store_true")
+    audit_cmd.set_defaults(func=cmd_lesson_audit)
 
     memory = sub.add_parser("memory", help="git-tracked lesson memory: evidence events")
     memory_sub = memory.add_subparsers(dest="memory_command", required=True)
