@@ -4317,6 +4317,30 @@ function dl_carryCommissaryBeginnings(array $user, array $input): array
             dl_auditLog('save_commissary_product_beg', $branchId, 'dl_commissary_product_ledger', $entityId, null, [
                 'beg_qty' => $begQty, 'source' => 'carry_forward', 'idempotency_key' => $key,
             ]);
+            // A NEGATIVE CARRY IS THE MECHANISM THAT MADE 113 OF 226 PRODUCTS NEGATIVE (measured
+            // 2026-11-19). The previous shift ended in the negative because the hub dispatched goods it
+            // never recorded receiving - there is still no receipt path for bought-in stock - and this
+            // carry hands that debt to the next shift, and the next, forever. It is NOT clamped and NOT
+            // refused: the book position is real and hiding it is what kept it invisible. It is named,
+            // with enough detail to trace it to the product and day that produced it.
+            if ((int)$begQty < 0) {
+                dl_auditLog(
+                    'commissary_negative_beginning',
+                    $branchId,
+                    'dl_commissary_product_ledger',
+                    $entityId,
+                    null,
+                    [
+                        'beg_qty' => (int)$begQty,
+                        'ledger_date' => $date,
+                        'shift' => $shift,
+                        'product_id' => (int)$productId,
+                        'source' => 'carry_forward',
+                        'note' => 'previous shift ended negative (dispatched beyond recorded receipts); '
+                            . 'record the missing receipt or count the stock',
+                    ]
+                );
+            }
         }
         dl_auditLog('carry_commissary_beginnings', $branchId, 'dl_commissary_product_ledger', $batchEntityId, null, [
             'date' => $date, 'shift' => $shift, 'rows' => count($normalized),
