@@ -4233,7 +4233,9 @@
             button.textContent = readOnly ? 'View' : 'Edit';
             button.title = readOnly
                 ? 'The branch already received this DR. Open to see what they counted and added; it cannot be changed from production.'
-                : 'Correct this dispatch.';
+                : (received
+                    ? 'The branch already received this DR. An admin correction also moves their received quantities to match.'
+                    : 'Correct this dispatch.');
             button.addEventListener('click', function() { openDispatchEditor(row, readOnly); });
             actionTd.appendChild(button);
             tr.appendChild(actionTd);
@@ -4261,6 +4263,10 @@
             dr_number: delivery.dr_number || '',
             destination_id: parseInt(delivery.destination_id, 10) || 0,
             shift: (delivery.production_shift === 'PM') ? 'PM' : 'AM',
+            // Admin is ALLOWED to correct a received dispatch (owner rule: "admin, as per
+            // principle, always can") - but the panel never said so, so an admin could move a
+            // branch's counted stock without being told that is what the save does.
+            received: !!delivery.has_receiving,
             read_only: isReadOnly,
             items: (delivery.items || []).map(function(item) {
                 return {
@@ -4297,19 +4303,30 @@
         }
         if (banner) { banner.classList.remove('hidden'); }
         if (bannerTitle) {
-            bannerTitle.textContent = isReadOnly
-                ? 'Received by the branch - read only'
-                : 'Correcting a dispatch that already left';
+            if (isReadOnly) {
+                bannerTitle.textContent = 'Received by the branch - read only';
+            } else if (window.__editingDelivery.received) {
+                bannerTitle.textContent = 'Already received - saving also moves the branch\'s count';
+            } else {
+                bannerTitle.textContent = 'Correcting a dispatch that already left';
+            }
         }
         if (reasonGroup) { reasonGroup.style.display = isReadOnly ? 'none' : ''; }
         if (cancelBtn) { cancelBtn.textContent = isReadOnly ? 'Close' : 'Cancel correction'; }
         if (reasonInput) { reasonInput.value = ''; }
         if (bannerText) {
-            bannerText.textContent = isReadOnly
-                ? 'DR ' + window.__editingDelivery.dr_number + ' · shift ' + window.__editingDelivery.shift
-                    + ' - the branch has already counted this load, so it can no longer be changed from production.'
-                : 'DR ' + window.__editingDelivery.dr_number + ' · shift ' + window.__editingDelivery.shift
+            var drLabel = 'DR ' + window.__editingDelivery.dr_number + ' · shift ' + window.__editingDelivery.shift;
+            if (isReadOnly) {
+                bannerText.textContent = drLabel
+                    + ' - the branch has already counted this load, so it can no longer be changed from production.';
+            } else if (window.__editingDelivery.received) {
+                bannerText.textContent = drLabel
+                    + ' - the branch has already RECEIVED this load. Saving moves their received quantities to match '
+                    + 'what you send, and any difference is recorded as a delivery issue.';
+            } else {
+                bannerText.textContent = drLabel
                     + ' — changing these quantities moves what this sheet dispatched.';
+            }
         }
 
         resetDispatchQtyInputs();
@@ -4463,9 +4480,24 @@
         var title = document.getElementById('dispatch-confirm-title');
         var noBtn = document.getElementById('dispatch-confirm-no');
         var yesBtn = document.getElementById('dispatch-confirm-yes');
-        if (title) { title.textContent = isEdit ? 'Save this correction?' : 'Ready to dispatch?'; }
+        // Admin editing an ALREADY-RECEIVED dispatch: the save moves the branch's counted stock, so
+        // the confirmation says that instead of the generic "save this correction?".
+        var receivedEdit = isEdit && window.__editingDelivery && window.__editingDelivery.received;
+        if (title) {
+            if (receivedEdit) {
+                title.textContent = 'Save this correction to an already-received dispatch?';
+            } else {
+                title.textContent = isEdit ? 'Save this correction?' : 'Ready to dispatch?';
+            }
+        }
         if (noBtn) { noBtn.textContent = isEdit ? 'No, keep editing' : 'No, for review'; }
-        if (yesBtn) { yesBtn.textContent = isEdit ? 'Yes, save correction' : 'Yes, Dispatch'; }
+        if (yesBtn) {
+            if (receivedEdit) {
+                yesBtn.textContent = 'Yes, save and move the branch count';
+            } else {
+                yesBtn.textContent = isEdit ? 'Yes, save correction' : 'Yes, Dispatch';
+            }
+        }
     }
 
     // ── Final check before dispatch (owner 2026-11-19) ─────────────────────────────────────

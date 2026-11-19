@@ -148,6 +148,26 @@ $h->test(
         . 'ordinary line as one the branch added'
 );
 
+// Owner rule: "admin, as per principle, always can". Admin therefore KEEPS Edit on a received
+// dispatch - but an admin silently moving a branch's counted stock is the failure this guards.
+// Measured 2026-11-19: the first read-only build shipped the admin path with no warning at all,
+// and the owner met it as "received dispatches are still editable?".
+$h->test(
+    'admin keeps Edit on a received dispatch and everyone else gets View',
+    str_contains($commissaryTpl, "var readOnly = received && DL_ROLE !== 'admin';"),
+    'either the admin exception or the read-only rule for the other roles would be lost'
+);
+
+$h->test(
+    'an admin correcting a received dispatch is told it moves the branch count',
+    str_contains($commissaryTpl, "Already received - saving also moves the branch")
+        && str_contains($commissaryTpl, 'Save this correction to an already-received dispatch?')
+        && str_contains($commissaryTpl, 'Yes, save and move the branch count')
+        && str_contains($commissaryTpl, 'received: !!delivery.has_receiving,'),
+    'the office could restate a branch\'s received stock without being told that is what the '
+        . 'save does - and the allow-all can be silently lost while still "allowed"'
+);
+
 // ---------------------------------------------------------------- fixture
 
 $comm = 99701;        // the sender
