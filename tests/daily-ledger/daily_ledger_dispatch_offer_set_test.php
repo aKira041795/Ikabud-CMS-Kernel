@@ -189,9 +189,17 @@ $h->test(
 );
 $h->test(
     'stock is not used to decide what is listed',
-    count($offerRows) > 0 && count($zeroStockRows) < count($offerRows),
-    'a list that only shows stocked products is the bug being fixed, not the fix '
-    . '(' . count($zeroStockRows) . ' of ' . count($offerRows) . ' rows carry no stock today)'
+    $offerRows !== [] && array_diff(
+        array_map('intval', $db->query(
+            "SELECT bp.product_id FROM dl_branch_products bp
+               JOIN dl_products p ON p.id = bp.product_id AND p.is_active = 1
+              WHERE bp.branch_id = " . (int)$offerHubId . " AND bp.is_active = 1"
+        )->fetchAll(PDO::FETCH_COLUMN) ?: []),
+        $offeredIds
+    ) === [],
+    'every set product must have a row whatever its stock. Formulated as coverage rather than as '
+    . '"some rows have no stock", which would pass or fail on the size of the fixture: '
+    . count($zeroStockRows) . ' of ' . count($offerRows) . ' rows carry no stock today'
 );
 
 $h->section('the wiring the modal depends on exists');
