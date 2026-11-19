@@ -16,6 +16,16 @@ module.exports = {
         './modules/guidance/templates/**/*.disyl',
         './modules/wms/templates/**/*.disyl',
 
+        // Daily Ledger. These paths were simply never added, which is why the module still ships a
+        // 407 KB browser-side Tailwind compiler (156 KB gzipped) on every page: measured 2026-11-20,
+        // 370 of the module's 721 utility tokens were absent from the compiled bundle, including
+        // py-2.5, py-0.5, text-[11px], text-[10px], sm:grid-cols-2 and hover:bg-white/10. Until this
+        // list covers the module, swapping its JIT for the compiled stylesheet would break spacing
+        // and responsive layout - so the globs come first, verified by coverage, then the swap.
+        './templates/modules/daily-ledger/**/*.disyl',
+        './modules/daily-ledger/templates/**/*.disyl',
+        './modules/daily-ledger/**/*.php',
+
         // PHP handlers that may contain inline class references
         './modules/project-audit-ledger/handlers/**/*.php',
 
