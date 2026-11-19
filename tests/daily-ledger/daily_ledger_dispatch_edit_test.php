@@ -62,6 +62,7 @@ $db = $ctx->db();
 $routes = (string) file_get_contents($base . '/modules/daily-ledger/routes.php');
 $handlersSrc = (string) file_get_contents($base . '/modules/daily-ledger/handlers.php');
 $helpersSrc = (string) file_get_contents($base . '/modules/daily-ledger/helpers.php');
+$deliveriesSrc = (string) file_get_contents($base . '/modules/daily-ledger/handlers-deliveries.php');
 $commissaryTpl = (string) file_get_contents($base . '/templates/modules/daily-ledger/admin/commissary.disyl');
 
 // ---------------------------------------------------------------- wiring
@@ -110,6 +111,41 @@ $h->test(
     'the correction never re-decides boxes',
     str_contains($commissaryTpl, 'var boxSlots = isEdit ? [] :'),
     'every save would add a second box line to the same delivery'
+);
+
+// ── A received dispatch is visible to the sender, but not editable ──────────────────────────
+// Owner direction 2026-11-19: "PIC dispatch modal allows user to see what was added by receiving
+// branch but cannot edit". The settled state was a DISABLED Edit button, which hid the one thing
+// production has to see - what the branch received and what the cashier added from the paper DR.
+$h->test(
+    'a received dispatch opens read-only instead of refusing to open',
+    str_contains($commissaryTpl, "button.textContent = readOnly ? 'View' : 'Edit';")
+        && str_contains($commissaryTpl, 'openDispatchEditor(row, readOnly)'),
+    'the sender would be locked out of the evidence of what the branch received'
+);
+
+$h->test(
+    'the received view offers no save button and no reason field',
+    str_contains($commissaryTpl, "submitBtn.style.display = isReadOnly ? 'none' : '';")
+        && str_contains($commissaryTpl, "reasonGroup.style.display = isReadOnly ? 'none' : '';"),
+    'a visible-but-inert Save invites the operator to hunt for what would enable it'
+);
+
+$h->test(
+    'the received view names the lines the branch added after dispatch',
+    str_contains($commissaryTpl, 'id="dispatch-edit-branch-additions"')
+        && str_contains($commissaryTpl, 'item.added_after_dispatch'),
+    'production could see the quantities but not that the cashier had added a missed item'
+);
+
+$h->test(
+    'the delivery list marks a line inserted by a later correction',
+    // dl_correctDeliveryByDr() stamps inserted rows with this remark; the flag is derived from it
+    // rather than from a second source of truth that could drift.
+    str_contains($deliveriesSrc, "'added_after_dispatch' =>")
+        && str_contains($deliveriesSrc, "=== 'edited-by-dr'"),
+    'the read-only view would have nothing to label, and a wrong marker would mislabel an '
+        . 'ordinary line as one the branch added'
 );
 
 // ---------------------------------------------------------------- fixture

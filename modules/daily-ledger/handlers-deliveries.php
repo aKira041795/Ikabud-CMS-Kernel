@@ -2508,13 +2508,18 @@ function apiListDeliveries(array $params = []): void
     if ($deliveries !== []) {
         $deliveryIds = array_map('intval', array_column($deliveries, 'id'));
         $marks = implode(',', array_fill(0, count($deliveryIds), '?'));
-        $itemStmt = $ctx->db()->prepare("SELECT di.delivery_id, di.product_id, di.quantity, p.name AS product_name FROM dl_delivery_items di INNER JOIN dl_products p ON p.id = di.product_id WHERE di.delivery_id IN ($marks) ORDER BY di.id");
+        $itemStmt = $ctx->db()->prepare("SELECT di.delivery_id, di.product_id, di.quantity, di.remarks, p.name AS product_name FROM dl_delivery_items di INNER JOIN dl_products p ON p.id = di.product_id WHERE di.delivery_id IN ($marks) ORDER BY di.id");
         $itemStmt->execute($deliveryIds);
         foreach ($itemStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $item) {
             $itemsByDelivery[(int)$item['delivery_id']][] = [
                 'product_id' => (int)$item['product_id'],
                 'product_name' => (string)$item['product_name'],
                 'sent_qty' => (int)$item['quantity'],
+                // A line the correction engine INSERTED after the dispatch was posted — normally the
+                // cashier adding what the paper DR shows. The sender may not change a received
+                // dispatch, but it MUST be able to see what the branch added to it (owner 2026-11-19).
+                // dl_correctDeliveryByDr() stamps exactly these rows with this remark.
+                'added_after_dispatch' => ((string)($item['remarks'] ?? '') === 'edited-by-dr'),
             ];
         }
     }
