@@ -1026,8 +1026,10 @@ function dl_dispatchOfferRows($db, array $commissaryIds, ?string $asOfDate = nul
                    p.id AS product_id,
                    p.name AS product_name,
                    p.sku,
-                   -- A cake can be dispatched WITH its box, and the box is chosen from this same
-                   -- table, so the category has to reach the template.
+                   -- The category travels with the row so the client and the server classify a line
+                   -- the same way: dl_isPackagingProduct() below reads it, and the modal's own
+                   -- destination filter in commissary.disyl reads the same attribute. The two must
+                   -- not be able to disagree about what counts as packaging.
                    p.product_category,
                    COALESCE(SUM(cpl.produced_qty), 0) AS total_produced,
                    COALESCE(SUM(cpl.dispatched_qty), 0) AS total_dispatched
@@ -1073,10 +1075,12 @@ function dl_dispatchOfferRows($db, array $commissaryIds, ?string $asOfDate = nul
  * so that a hub which does show a box can still send it to a store that hides it. When the box flow
  * moves to branch-side data as the owner expects, this predicate and that exemption retire together.
  *
- * The name test is a HACK and is the same one `initDispatchBoxControls()` already uses in
- * commissary.disyl. Every box carries BOX in its name today (10X10 BOX, HALF ROLL BOX, WHOLE ROLL BOX,
- * MOCHA BOX HALF, B-DAY CAKE BOX HALF, Pastry Box ...); the day one does not, this must become an
- * explicit product flag - not a wider name match.
+ * The name test is a HACK, and it is deliberately the SAME test the modal's destination filter uses
+ * (notShownAtDestination in commissary.disyl): if the two disagreed, a line the client showed would
+ * be refused by the server, or the reverse. Every box carries BOX in its name today (10X10 BOX, HALF
+ * ROLL BOX, WHOLE ROLL BOX, MOCHA BOX HALF, B-DAY CAKE BOX HALF, Pastry Box ...); the day one does
+ * not, this must become an explicit product flag - not a wider name match. The box-mapping build
+ * (docs/daily-ledger/box-mapping-spec.md) is what retires this hack.
  */
 function dl_isPackagingProduct(array $product): bool
 {
@@ -2541,6 +2545,13 @@ function dl_maybeAutoCloseBranchDay(int $branchId, ?int $actorId = null, ?\DateT
         return false;
     }
 
+    // Retry throttle (see dl_autoClosePassDir()). Marked BEFORE the work so a pass that throws
+    // cannot be retried in a tight burst either: bounded work per branch per TTL, whatever happens.
+    if (!dl_autoClosePassDue($branchId)) {
+        return false;
+    }
+    dl_autoClosePassMark($branchId);
+
     $timezone = new \DateTimeZone($settings['operating_timezone']);
     $now = $now ? $now->setTimezone($timezone) : new \DateTimeImmutable('now', $timezone);
     // The shift before the *current* business date has already ended.
@@ -2627,6 +2638,72 @@ function dl_maybeAutoCloseBranchDay(int $branchId, ?int $actorId = null, ?\DateT
     }
 
     return $closedAny;
+}
+
+/**
+ * How often ONE branch may pay for an auto-close pass.
+ *
+ * MEASURED 2026-11-20 on tenant 207 (28 active branches): /daily-ledger/admin/dashboard took
+ * 2,744 ms and issued 352 queries with auto-close enabled, and 436 ms / 40 queries with it
+ * disabled - so the sweep was ~2.3 s and ~312 queries of the page, ~11 queries per branch, on
+ * EVERY dashboard view. It was not one slow query: it was the same per-branch pass being retried
+ * over and over, because the common outcome is 'deferred' (endings still owed), which leaves the
+ * branch eligible again on the very next request.
+ *
+ * This throttles ONLY how often a branch is retried. It changes no close decision: whatever the
+ * pass would have done, it still does - just not 40 times a minute. The cost of the throttle is
+ * that a day which becomes closable waits at most the TTL; for an event that fires once a day at a
+ * fixed cutoff, that is immaterial. Set DL_AUTOCLOSE_PASS_TTL=0 to disable the throttle entirely
+ * (every pass runs, the pre-2026-11-20 behaviour), which is also what the suite uses.
+ */
+function dl_autoClosePassDir(): string
+{
+    $override = getenv('DL_AUTOCLOSE_PASS_DIR');
+    $dir = ($override !== false && $override !== '')
+        ? rtrim($override, '/')
+        : dirname(__DIR__, 2) . '/storage/cache/dl-autoclose-pass';
+    if (!is_dir($dir)) {
+        @mkdir($dir, 0755, true);
+    }
+    return $dir;
+}
+
+/** Seconds between permitted passes for one branch. 0 disables the throttle. */
+function dl_autoClosePassTtl(): int
+{
+    $override = getenv('DL_AUTOCLOSE_PASS_TTL');
+    if ($override !== false && $override !== '') {
+        $ttl = (int)$override;
+        return $ttl < 0 ? 0 : $ttl;
+    }
+    // The retry storm this throttles is a PAGE-LOAD problem: the dashboard calls the sweep on every
+    // view. A CLI process - the suite, or a scheduled sweep run deliberately - is ONE run and should
+    // do the work, so it is unthrottled by default. Making that explicit here is better than editing
+    // ten test files to opt out, and better than throttling a scheduled job that runs once anyway.
+    return PHP_SAPI === 'cli' ? 0 : 60;
+}
+
+/** True when this branch may run a pass now. A stat() call, never a query. */
+function dl_autoClosePassDue(int $branchId): bool
+{
+    $ttl = dl_autoClosePassTtl();
+    if ($ttl <= 0 || $branchId <= 0) {
+        return true;
+    }
+    $path = dl_autoClosePassDir() . '/' . $branchId . '.pass';
+    $last = @filemtime($path);
+    if ($last === false) {
+        return true;
+    }
+    return (time() - $last) >= $ttl;
+}
+
+function dl_autoClosePassMark(int $branchId): void
+{
+    if ($branchId <= 0) {
+        return;
+    }
+    @touch(dl_autoClosePassDir() . '/' . $branchId . '.pass');
 }
 
 function dl_maybeAutoCloseBranches(array $branchIds, ?int $actorId = null, ?\DateTimeImmutable $now = null): void
@@ -8888,9 +8965,21 @@ function dl_refreshVariancesForDateView(string $date, array $accessibleBranchIds
         'SELECT DISTINCT branch_id FROM dl_daily_ledger WHERE ledger_date = :d'
     );
     $dayBranchIds->execute([':d' => $date]);
+
+    // ONE query for the whole day's statuses, not one per branch, and it is read BEFORE the
+    // fingerprint gate - the two were in the wrong order. A closed branch-day is deliberately never
+    // recomputed and therefore never marked, so gating it on the fingerprint first made the check
+    // UNSATISFIABLE: every view of any past date paid one fingerprint query per branch, forever, and
+    // could never short-circuit. The test suite only ever exercised OPEN days, so it never saw this.
+    // Statuses are read in one pass and closed days are skipped before any fingerprint work.
     $dayStatusStmt = $db->prepare(
-        'SELECT status FROM dl_ledger_day_status WHERE branch_id = :bid AND ledger_date = :d'
+        'SELECT branch_id, status FROM dl_ledger_day_status WHERE ledger_date = :d'
     );
+    $dayStatusStmt->execute([':d' => $date]);
+    $statusByBranchId = [];
+    foreach ($dayStatusStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $statusRow) {
+        $statusByBranchId[(int)$statusRow['branch_id']] = (string)$statusRow['status'];
+    }
 
     $recomputed = 0;
     foreach ($dayBranchIds->fetchAll(PDO::FETCH_COLUMN) ?: [] as $rawBranchId) {
@@ -8898,12 +8987,10 @@ function dl_refreshVariancesForDateView(string $date, array $accessibleBranchIds
         if (!in_array($branchId, $accessibleBranchIds, true)) {
             continue;
         }
-        // Cheap staleness gate BEFORE the per-branch status query and the recompute.
-        if (!dl_varianceRefreshDue($db, $branchId, $date)) {
+        if (($statusByBranchId[$branchId] ?? '') === 'closed') {
             continue;
         }
-        $dayStatusStmt->execute([':bid' => $branchId, ':d' => $date]);
-        if ((string)$dayStatusStmt->fetchColumn() === 'closed') {
+        if (!dl_varianceRefreshDue($db, $branchId, $date)) {
             continue;
         }
         dl_recomputeVariancesForDay($branchId, $date, false);

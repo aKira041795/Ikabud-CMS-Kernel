@@ -3903,8 +3903,10 @@
             function notShownAtDestination(entry) {
                 if (!shownSet) { return false; }
                 var pid = entry.input.getAttribute('data-product-id');
-                // A box is packaging that travels WITH a cake: the branch shows it here anyway, but
-                // exempting it keeps cake-with-box working on a store that has hidden the boxes.
+                // Packaging is exempt from the destination filter, matching dl_isPackagingProduct()
+                // on the server. Boxes belong to BRANCHES, so a hub normally lists none; the
+                // exemption exists for the store that hides a box the hub does show. It retires with
+                // the box-mapping build (docs/daily-ledger/box-mapping-spec.md).
                 if ((entry.input.getAttribute('data-category') || '') === 'other'
                     && /box/i.test(entry.input.getAttribute('data-product-name') || '')) {
                     return false;
