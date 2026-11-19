@@ -2676,6 +2676,18 @@
             </div>
         </div>
         <div id="dispatch-status" class="text-sm text-muted mb-3" style="min-height: 1.25rem;"></div>
+        {* Owner request 2026-11-19: a final step before the load leaves, so half-finished entries are
+           caught here instead of being dispatched. This is a confirmation, NOT a draft: a draft state
+           exists, but posting it lives on the office Deliveries page that a production in-charge
+           cannot open - which would create MORE unfinished entries, not fewer. *}
+        <div id="dispatch-confirm" class="hidden rounded-lg border border-amber-300 bg-amber-50 px-3 py-3 mb-3">
+            <p class="text-sm font-semibold text-amber-900 mb-1">Ready to dispatch?</p>
+            <div id="dispatch-confirm-summary" class="text-xs leading-5 text-amber-900 mb-3"></div>
+            <div class="flex items-center gap-2">
+                <button type="button" class="btn btn-outline" onclick="cancelDispatchConfirm()">No, for review</button>
+                <button type="button" class="btn btn-primary" onclick="confirmDispatch()">Yes, Dispatch</button>
+            </div>
+        </div>
         <div class="border rounded-lg overflow-hidden">
             <table class="mb-0">
                 <thead class="bg-gray-50">
@@ -2708,7 +2720,12 @@
                                 data-product-id="{row.product_id}"
                                 data-product-name="{row.product_name}"
                                 data-remaining="{row.on_hand}"
+                                {* Owner request 2026-11-19: a cake may go WITH its box. Only a row whose
+                                   category is `cake` gets the box control; the box itself is any row in
+                                   `other` (the cake-box products), so the two never mix up. *}
+                                data-category="{row.product_category}"
                                 value="" placeholder="0">
+                            <div class="dispatch-box-slot mt-1" data-box-for="{row.product_id}"></div>
                         </td>
                     </tr>
                     {/foreach}
@@ -3828,6 +3845,72 @@
         var backdrop = document.getElementById('dispatch-backdrop');
         if (panel) { panel.style.display = 'block'; }
         if (backdrop) { backdrop.style.display = 'block'; }
+        initDispatchBoxControls();
+    }
+
+    // ── "With box?" — a cake can be dispatched together with the box it goes in ─────────────
+    // Owner request 2026-11-19. The box is NOT a new kind of line: it is an ordinary delivery
+    // item added to the same payload, so the branch receives and counts it like anything else and
+    // no schema, endpoint or receiving path had to change. The box list is built from the rows
+    // already on screen whose category is `other` (the cake-box products), so a box can only be
+    // offered when this commissary actually holds it.
+    function initDispatchBoxControls() {
+        var boxOptions = [];
+        Array.prototype.slice.call(document.querySelectorAll('.dispatch-qty-input')).forEach(function(input) {
+            if ((input.getAttribute('data-category') || '') !== 'other') return;
+            // `other` is NOT synonymous with "box": at RIZAL-COMMIS it also holds ECO BAG, EGG
+            // CRACKER, MILO SACHET and PANDESAL, which were offered as box sizes (measured
+            // 2026-11-19). Every cake box carries BOX in its name, so the name is the filter until a
+            // box exists without it - then this must become an explicit per-product flag, not a
+            // wider name match.
+            if (!/box/i.test(input.getAttribute('data-product-name') || '')) return;
+            var remaining = parseInt(input.getAttribute('data-remaining') || '0', 10) || 0;
+            if (remaining <= 0) return;
+            boxOptions.push({
+                id: parseInt(input.getAttribute('data-product-id') || '0', 10) || 0,
+                name: input.getAttribute('data-product-name') || '',
+                remaining: remaining
+            });
+        });
+
+        Array.prototype.slice.call(document.querySelectorAll('.dispatch-box-slot')).forEach(function(slot) {
+            var pid = slot.getAttribute('data-box-for');
+            var input = document.querySelector('.dispatch-qty-input[data-product-id="' + pid + '"]');
+            var isCake = input && (input.getAttribute('data-category') || '') === 'cake';
+            slot.innerHTML = '';
+            if (!isCake || boxOptions.length === 0) return;
+
+            var label = document.createElement('label');
+            label.className = 'inline-flex items-center gap-1 text-[11px] text-gray-600 whitespace-nowrap mt-1';
+            var check = document.createElement('input');
+            check.type = 'checkbox';
+            check.className = 'dispatch-box-check';
+            check.setAttribute('data-box-for-product', pid);
+            label.appendChild(check);
+            label.appendChild(document.createTextNode(' With box?'));
+            slot.appendChild(label);
+
+            var select = document.createElement('select');
+            select.className = 'form-input text-xs mt-1 dispatch-box-select';
+            select.setAttribute('data-box-for-product', pid);
+            select.style.display = 'none';
+            var blank = document.createElement('option');
+            blank.value = '';
+            blank.textContent = '— box size —';
+            select.appendChild(blank);
+            boxOptions.forEach(function(o) {
+                var opt = document.createElement('option');
+                opt.value = String(o.id);
+                opt.textContent = o.name + ' (' + o.remaining + ' on hand)';
+                opt.setAttribute('data-remaining', String(o.remaining));
+                select.appendChild(opt);
+            });
+            check.addEventListener('change', function() {
+                select.style.display = check.checked ? '' : 'none';
+                if (!check.checked) select.value = '';
+            });
+            slot.appendChild(select);
+        });
     }
 
     function closeDispatchEntry() {
@@ -3835,6 +3918,55 @@
         var backdrop = document.getElementById('dispatch-backdrop');
         if (panel) { panel.style.display = 'none'; }
         if (backdrop) { backdrop.style.display = 'none'; }
+    }
+
+    // ── Final check before dispatch (owner 2026-11-19) ─────────────────────────────────────
+    // "No, for review" hides this and saves nothing; "Yes, Dispatch" re-enters submitDispatch()
+    // with the confirmation flag set. The gate only front-loads the same validation, so the POST
+    // path itself is untouched.
+    function showDispatchConfirm(items, destBranchId, drNumber, dispatchShift) {
+        var box = document.getElementById('dispatch-confirm');
+        var summary = document.getElementById('dispatch-confirm-summary');
+        if (!box || !summary) return;
+        var destSel = document.getElementById('dispatch-dest-branch-id');
+        var destName = (destSel && destSel.options[destSel.selectedIndex])
+            ? destSel.options[destSel.selectedIndex].textContent : ('branch #' + destBranchId);
+        var totalQty = items.reduce(function(n, it) { return n + (parseInt(it.quantity || 0, 10) || 0); }, 0);
+        summary.textContent = '';
+        var head = document.createElement('div');
+        head.className = 'font-medium';
+        head.textContent = 'To ' + destName + ' · DR ' + drNumber
+            + (dispatchShift ? (' · shift ' + dispatchShift) : '')
+            + ' · ' + items.length + ' line(s) · ' + totalQty + ' pc(s)';
+        summary.appendChild(head);
+        var ul = document.createElement('ul');
+        ul.className = 'list-disc ml-5 mt-1';
+        items.slice(0, 12).forEach(function(it) {
+            var input = document.querySelector('.dispatch-qty-input[data-product-id="' + it.product_id + '"]');
+            var li = document.createElement('li');
+            li.textContent = (input ? input.getAttribute('data-product-name') : ('#' + it.product_id)) + ' × ' + it.quantity;
+            ul.appendChild(li);
+        });
+        if (items.length > 12) {
+            var more = document.createElement('li');
+            more.textContent = '… and ' + (items.length - 12) + ' more line(s)';
+            ul.appendChild(more);
+        }
+        summary.appendChild(ul);
+        box.classList.remove('hidden');
+    }
+
+    function cancelDispatchConfirm() {
+        var box = document.getElementById('dispatch-confirm');
+        if (box) box.classList.add('hidden');
+        window.__dispatchConfirmed = false;
+    }
+
+    function confirmDispatch() {
+        var box = document.getElementById('dispatch-confirm');
+        if (box) box.classList.add('hidden');
+        window.__dispatchConfirmed = true;
+        submitDispatch();
     }
 
     function submitDispatch() {
@@ -3870,6 +4002,34 @@
             });
         });
 
+        // Box line for every cake dispatched "with box?" (owner 2026-11-19). The box is an ordinary
+        // item on the same delivery, so nothing downstream had to change: the branch receives and
+        // counts it like any other line. The box qty mirrors the cake qty, and a box asked for
+        // beyond its own on-hand stops the whole dispatch instead of silently going without it.
+        var boxProblem = '';
+        Array.prototype.slice.call(document.querySelectorAll('.dispatch-box-slot')).forEach(function(slot) {
+            if (boxProblem) return;
+            var cakePid = slot.getAttribute('data-box-for');
+            var check = slot.querySelector('.dispatch-box-check');
+            var select = slot.querySelector('.dispatch-box-select');
+            if (!check || !check.checked || !select || !select.value) return;
+            var cakeInput = document.querySelector('.dispatch-qty-input[data-product-id="' + cakePid + '"]');
+            var cakeQty = cakeInput ? (parseInt(cakeInput.value || '0', 10) || 0) : 0;
+            if (cakeQty <= 0) return;
+            var opt = select.options[select.selectedIndex];
+            var boxRemaining = opt ? (parseInt(opt.getAttribute('data-remaining') || '0', 10) || 0) : 0;
+            if (cakeQty > boxRemaining) {
+                boxProblem = (opt ? opt.textContent : 'Box') + ': needs ' + cakeQty + ' but only ' + boxRemaining + ' on hand';
+                return;
+            }
+            items.push({
+                commissary_branch_id: parseInt(cakeInput.getAttribute('data-commissary-id') || '0', 10) || 0,
+                product_id: parseInt(select.value, 10) || 0,
+                quantity: cakeQty
+            });
+        });
+        if (boxProblem) { showToast(boxProblem, 'error'); return; }
+
         if (items.length === 0) {
             showToast('Enter at least one product quantity to dispatch', 'error');
             return;
@@ -3882,6 +4042,13 @@
             showToast('A branch cannot formally dispatch to itself. Use the Commissary Usage page for an Internal release (same location) instead.', 'error');
             return;
         }
+
+        // Final step: show what is about to leave and let the operator go back or confirm.
+        if (!window.__dispatchConfirmed) {
+            showDispatchConfirm(items, destBranchId, drNumber, dispatchShift);
+            return;
+        }
+        window.__dispatchConfirmed = false;
 
         btn.disabled = true;
         btn.textContent = 'Dispatching ' + items.length + ' item(s)...';

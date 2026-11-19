@@ -25201,13 +25201,17 @@ function handleAdminCommissary(): void
                 cpl.product_id,
                 p.name AS product_name,
                 p.sku,
+                -- Owner request 2026-11-19: a cake can be dispatched WITH its box, and the box is
+                -- chosen from this same table. The category is what tells a cake row from a box row,
+                -- so it has to reach the template.
+                p.product_category,
                 SUM(cpl.produced_qty) AS total_produced,
                 SUM(cpl.dispatched_qty) AS total_dispatched
            FROM dl_commissary_product_ledger cpl
            INNER JOIN dl_products p ON p.id = cpl.product_id AND p.is_active = 1
            LEFT JOIN dl_branches b ON b.id = cpl.commissary_branch_id
           " . ($applyViewBranchFilter ? "WHERE cpl.commissary_branch_id IN ({$viewBranchSql})" : '') . "
-          GROUP BY cpl.commissary_branch_id, cpl.product_id, b.name, p.name, p.sku
+          GROUP BY cpl.commissary_branch_id, cpl.product_id, b.name, p.name, p.sku, p.product_category
           ORDER BY p.name ASC"
     );
     $cumulativeStockRows->execute();
