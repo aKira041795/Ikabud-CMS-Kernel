@@ -962,6 +962,139 @@ function dl_fetchProductionSheetProducts($db, int $branchId): array
     return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 }
 
+/**
+ * The product rows the "New Delivery (DR)" modal offers.
+ *
+ * USER DIRECTION 2026-11-19, verbatim from the commissary operator:
+ *   "kong mgdeliver c commi dili tanan product moshow, dapat kong unsay nakaset nga product nila
+ *    mao pod ila makita inig mag dr na sila ... inig diri ko sa record additional makita tanan
+ *    giset, pero inig mag new dr na bisan katong ako na gihide makita sya, dayun dghan kayu ang wala"
+ *
+ * Two complaints, ONE wrong source. The list used to be derived from dl_commissary_product_ledger -
+ * products that had ever moved - so:
+ *   - a HIDDEN product still appeared, because the ledger knows nothing about dl_branch_products;
+ *   - SET products went missing, because anything with no ledger row or no stock was dropped
+ *     (measured 2026-11-19: RIZAL-COMMIS showed 90 products, carried stock of 26, offered 41).
+ *
+ * The reference surface the operator named is "record additional", which reads the ASSORTMENT
+ * (dl_fetchProductionSheetProducts). So the modal now reads the same list: what the hub is SET to
+ * show, one row per product, with on_hand as a COLUMN instead of a filter. Stock is still enforced
+ * where it belongs - apiCommissaryDispatch refuses a quantity above on hand - it just no longer
+ * decides what the operator is allowed to SEE.
+ *
+ * @param array<int,int|string> $commissaryIds Hubs in scope (one selected, or every accessible hub).
+ * @return array<int,array<string,mixed>> Rows with product_id, product_name, sku, product_category,
+ *                                        commissary_branch_id, commissary_name, on_hand, and the
+ *                                        all-time produced/dispatched totals the table shows.
+ */
+function dl_dispatchOfferRows($db, array $commissaryIds, ?string $asOfDate = null): array
+{
+    $ids = [];
+    foreach ($commissaryIds as $candidate) {
+        $value = (int)$candidate;
+        if ($value > 0) {
+            $ids[$value] = $value;
+        }
+    }
+    if ($ids === []) {
+        return [];
+    }
+    $inList = implode(',', $ids);
+    $onHandMatrix = dl_commissaryOnHandByProduct($db, array_values($ids), $asOfDate);
+
+    // Driven by the ASSORTMENT, then left-joined to the ledger for the totals. The left join is what
+    // lets a product that has never moved still have a row: an inner join is exactly the bug above.
+    $sql = "SELECT bp.branch_id AS commissary_branch_id,
+                   COALESCE(b.name, 'Commissary') AS commissary_name,
+                   p.id AS product_id,
+                   p.name AS product_name,
+                   p.sku,
+                   -- A cake can be dispatched WITH its box, and the box is chosen from this same
+                   -- table, so the category has to reach the template.
+                   p.product_category,
+                   COALESCE(SUM(cpl.produced_qty), 0) AS total_produced,
+                   COALESCE(SUM(cpl.dispatched_qty), 0) AS total_dispatched
+              FROM dl_branch_products bp
+              INNER JOIN dl_products p ON p.id = bp.product_id AND p.is_active = 1
+              INNER JOIN dl_branches b ON b.id = bp.branch_id AND b.is_commissary = 1
+              LEFT JOIN dl_commissary_product_ledger cpl
+                     ON cpl.commissary_branch_id = bp.branch_id AND cpl.product_id = bp.product_id
+             WHERE bp.is_active = 1
+               AND bp.branch_id IN ({$inList})
+             GROUP BY bp.branch_id, p.id, b.name, p.name, p.sku, p.product_category
+             ORDER BY p.sort_order, p.name";
+    $stmt = $db->prepare($sql);
+    $stmt->execute();
+
+    $rows = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+        // Zero is a legitimate number here, not a reason to hide the row: the operator asked to see
+        // what is SET. A 0 badge plus the server's stock refusal is the honest answer.
+        $onHand = $onHandMatrix[(int)$row['commissary_branch_id']][(int)$row['product_id']] ?? null;
+        $row['on_hand'] = (int)($onHand['on_hand'] ?? 0);
+        $row['on_hand_as_of'] = $onHand['as_of_date'] ?? null;
+        $row['on_hand_settled'] = (bool)($onHand['settled'] ?? false);
+        $row['shown_at_origin'] = true;
+        $rows[] = $row;
+    }
+    return $rows;
+}
+
+/**
+ * Is this product PACKAGING rather than goods a hub sells?
+ *
+ * Load-bearing for show/hide (owner model 2026-11-19: "branches/commis have show/hide products ...
+ * that filters the product selection"). The cake boxes are HIDDEN at the commissary and SHOWN at
+ * every branch - measured at RIZAL-COMMIS #18 on 2026-11-19: 10X10 BOX @40, B-DAY CAKE BOX HALF and
+ * HALF ROLL BOX all `is_active = 0` there, `is_active = 1` at Mibutak/Obay/San Jose. That is correct
+ * data, not a bug: the hub packs cakes IN the boxes instead of selling them, so the boxes must not
+ * appear on its sheet. They still leave on the truck, so a strict show/hide filter would refuse the
+ * very lines the shipped "With box?" control produces.
+ *
+ * The name test is a HACK and is the same one `initDispatchBoxControls()` already uses in
+ * commissary.disyl. Every box carries BOX in its name today; the day one does not, this must become
+ * an explicit product flag - not a wider name match.
+ */
+function dl_isPackagingProduct(array $product): bool
+{
+    $category = (string)($product['product_category'] ?? $product['category'] ?? '');
+    if ($category !== 'other') {
+        return false;
+    }
+    $name = (string)($product['product_name'] ?? $product['name'] ?? '');
+    return $name !== '' && stripos($name, 'box') !== false;
+}
+
+/**
+ * The refusal when a dispatch line is not offerable at the DESTINATION, or null when it is.
+ *
+ * Only the receiving end is checked, and that asymmetry is deliberate: a hub's show/hide list says
+ * what it produces/sheets, not what it may ship. Measured 2026-11-19: gating on the hub's own list
+ * removed 12 RIZAL-COMMIS rows that every branch still shows - Toasted Mamon (2,736 on hand) and
+ * PANDESAL (653) among them - i.e. it refused to ship stock the branches were asking for. The
+ * destination's list is the one that answers "can this store receive it", and it is what stops a
+ * load becoming a row the store's own sheet then hides.
+ *
+ * Shared by the New Delivery save and by the correction path so the modal and the server cannot
+ * drift into two different rules again; that drift is why 14 of the 41 rows offered at RIZAL-COMMIS
+ * did not exist on Fishport's sheet.
+ */
+function dl_dispatchAssignmentRefusal($db, int $originCommissaryId, int $destinationBranchId, array $product): ?string
+{
+    if (dl_isPackagingProduct($product)) {
+        return null;
+    }
+    $productId = (int)($product['product_id'] ?? $product['id'] ?? 0);
+    if ($productId <= 0 || $destinationBranchId <= 0 || $destinationBranchId === $originCommissaryId) {
+        return null;
+    }
+    $destRefusal = dl_branchProductAssignmentRefusal($db, $destinationBranchId, $productId);
+    if ($destRefusal !== null) {
+        return str_replace('Cannot save', 'Cannot dispatch', $destRefusal);
+    }
+    return null;
+}
+
 /** Confirmed paper labels belong here; unresolved names must not be guessed. */
 function dl_productionSheetLabel(array $product): string
 {
@@ -25200,40 +25333,8 @@ function handleAdminCommissary(): void
     unset($inventoryRow);
 
     // ── Stock on hand (as of the sheet date) for the dispatch dropdown ──
-    $cumulativeStockRows = $db->prepare(
-        "SELECT cpl.commissary_branch_id,
-                COALESCE(b.name, 'Commissary') AS commissary_name,
-                cpl.product_id,
-                p.name AS product_name,
-                p.sku,
-                -- Owner request 2026-11-19: a cake can be dispatched WITH its box, and the box is
-                -- chosen from this same table. The category is what tells a cake row from a box row,
-                -- so it has to reach the template.
-                p.product_category,
-                SUM(cpl.produced_qty) AS total_produced,
-                SUM(cpl.dispatched_qty) AS total_dispatched
-           FROM dl_commissary_product_ledger cpl
-           INNER JOIN dl_products p ON p.id = cpl.product_id AND p.is_active = 1
-           LEFT JOIN dl_branches b ON b.id = cpl.commissary_branch_id
-          " . ($applyViewBranchFilter ? "WHERE cpl.commissary_branch_id IN ({$viewBranchSql})" : '') . "
-          GROUP BY cpl.commissary_branch_id, cpl.product_id, b.name, p.name, p.sku, p.product_category
-          ORDER BY p.name ASC"
-    );
-    $cumulativeStockRows->execute();
-    $cumulativeStock = [];
-    foreach ($cumulativeStockRows->fetchAll(PDO::FETCH_ASSOC) ?: [] as $stockRow) {
-        $stockOnHand = $onHandMatrix[(int)$stockRow['commissary_branch_id']][(int)$stockRow['product_id']] ?? null;
-        // Nothing on hand is not an offer. This gate used to read the FLOW, so a product
-        // whose net flow was negative vanished from the dispatch table even while it held
-        // stock (measured: BDAY CAKE 1 LAYER summed -7 while the shift held 3).
-        if ($stockOnHand === null || (int)$stockOnHand['on_hand'] <= 0) {
-            continue;
-        }
-        $stockRow['on_hand'] = (int)$stockOnHand['on_hand'];
-        $stockRow['on_hand_as_of'] = $stockOnHand['as_of_date'];
-        $stockRow['on_hand_settled'] = $stockOnHand['settled'];
-        $cumulativeStock[] = $stockRow;
-    }
+    // The rows are the hub's ASSORTMENT, not its movement history. See dl_dispatchOfferRows().
+    $cumulativeStock = dl_dispatchOfferRows($db, $onHandScopeIds, $rawDate);
 
     // ── Tab 2: Deliveries to branches ──
     $deliverySql = "SELECT d.id AS delivery_id,
@@ -26953,6 +27054,21 @@ function apiCommissaryDispatchPrefill(array $params = []): void
         }
     }
 
+    // Show/hide per DESTINATION (owner model 2026-11-19: "the combo filters the product selection at
+    // dropdown per branch/commis"). The modal renders every item the hub holds stock of, so without
+    // this a dispatch to a store that does not show the product lands as a row that store's own sheet
+    // then hides - measured 2026-11-19 at RIZAL-COMMIS: 41 rows offered, Fishport shows 27 of them,
+    // Bagting 32. Consignees keep the previous behaviour: their picker is not `dl_branch_products`.
+    $shownProductIds = null;
+    if ($destinationType === 'branch') {
+        $shownProductIds = [];
+        $shownStmt = $db->prepare('SELECT product_id FROM dl_branch_products WHERE branch_id = :bid AND is_active = 1');
+        $shownStmt->execute([':bid' => $destinationId]);
+        foreach ($shownStmt->fetchAll(PDO::FETCH_COLUMN) ?: [] as $shownId) {
+            $shownProductIds[] = (int)$shownId;
+        }
+    }
+
     $ctx->json([
         'ok' => true,
         'destination_type' => $destinationType,
@@ -26966,6 +27082,7 @@ function apiCommissaryDispatchPrefill(array $params = []): void
         'items' => $items,
         'line_count' => count($lines),
         'total_quantity' => $total,
+        'shown_product_ids' => $shownProductIds,
     ]);
 }
 
@@ -27058,6 +27175,38 @@ function apiCommissaryDispatch(): void
     if (count($cleanItems) === 0) {
         $ctx->json(['ok' => false, 'error' => 'No valid items with commissary_branch_id, product_id, and quantity > 0.'], 422);
         return;
+    }
+
+    // The modal narrows its rows to what the DESTINATION shows, but the modal is not the defence: a
+    // stale tab, a replayed request or a hand-made payload must obey the same rule. Only the receiving
+    // end is gated - see dl_dispatchAssignmentRefusal() for why the hub's own list deliberately is
+    // not. Refuse the whole document before the transaction so no delivery or item row is half made.
+    $dispatchProductIds = array_values(array_unique(array_map(
+        static fn(array $item): int => (int)$item['product_id'],
+        $cleanItems
+    )));
+    if ($dispatchProductIds !== []) {
+        $productMeta = [];
+        $metaStmt = $db->query(
+            'SELECT id, name AS product_name, product_category FROM dl_products WHERE id IN ('
+            . implode(',', $dispatchProductIds) . ')'
+        );
+        foreach ($metaStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $metaRow) {
+            $productMeta[(int)$metaRow['id']] = $metaRow;
+        }
+        foreach ($cleanItems as $item) {
+            $pid = (int)$item['product_id'];
+            $refusal = dl_dispatchAssignmentRefusal(
+                $db,
+                (int)$item['commissary_branch_id'],
+                $destinationBranchId,
+                $productMeta[$pid] ?? ['id' => $pid, 'product_name' => '', 'product_category' => '']
+            );
+            if ($refusal !== null) {
+                $ctx->json(['ok' => false, 'code' => 'PRODUCT_NOT_ASSIGNED', 'error' => $refusal], 422);
+                return;
+            }
+        }
     }
 
     try {

@@ -4282,6 +4282,40 @@ function apiEditCommissaryDispatch(array $params = []): void
             return;
         }
 
+        // A correction can ADD a line the original never carried, so it needs the same destination
+        // gate the New Delivery save applies - otherwise "show/hide filters the selection" holds for
+        // a first send and dissolves on the second. A line the store does not show would become a
+        // row that store's own sheet hides.
+        $editProductIds = array_keys($desired);
+        if ($editProductIds !== []) {
+            $editMeta = [];
+            $editMetaStmt = $ctx->db()->query(
+                'SELECT id, name AS product_name, product_category FROM dl_products WHERE id IN ('
+                . implode(',', array_map('intval', $editProductIds)) . ')'
+            );
+            foreach ($editMetaStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $metaRow) {
+                $editMeta[(int)$metaRow['id']] = $metaRow;
+            }
+            foreach ($editProductIds as $editPid) {
+                $editPid = (int)$editPid;
+                // A zero quantity is a REMOVAL, not an addition: refusing it would trap a wrong line
+                // on the dispatch until someone unhides the product.
+                if ((int)($desired[$editPid] ?? 0) <= 0) {
+                    continue;
+                }
+                $refusal = dl_dispatchAssignmentRefusal(
+                    $ctx->db(),
+                    $originBranchId,
+                    (int)$delivery['destination_id'],
+                    $editMeta[$editPid] ?? ['id' => $editPid, 'product_name' => '', 'product_category' => '']
+                );
+                if ($refusal !== null) {
+                    $ctx->json(['ok' => false, 'code' => 'PRODUCT_NOT_ASSIGNED', 'error' => $refusal], 422);
+                    return;
+                }
+            }
+        }
+
         $result = dl_correctDeliveryByDr($ctx->db(), [
             'delivery_id' => $deliveryId,
             'branch_id' => (int)$delivery['destination_id'],

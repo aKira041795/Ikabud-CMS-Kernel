@@ -2759,7 +2759,8 @@
     <div class="card-body">
         {if cumulative_stock | count == 0}
         <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-            No products with remaining stock. Record production output first.
+            No products are set to show for this commissary. Set them in Products &rarr; Show in Branches
+            first \u2014 this list is exactly what that screen has switched on.
         </div>
         {/if}
         {if cumulative_stock | count > 0}
@@ -3868,6 +3869,28 @@
 
             var source = res.commissary_name ? (' from ' + res.commissary_name) : '';
 
+            // Show/hide, per the SELECTED branch (owner model 2026-11-19): a store is only offered
+            // what it actually shows. The rows are built from the hub's stock, which knows nothing
+            // about the destination, so this is the step that makes the combo filter the dropdown.
+            // Measured 2026-11-19 at RIZAL-COMMIS: 41 rows, Fishport shows 27, Bagting 32.
+            var shownSet = null;
+            if (res.shown_product_ids && res.shown_product_ids.length) {
+                shownSet = {};
+                res.shown_product_ids.forEach(function(pid) { shownSet[String(pid)] = true; });
+            }
+            function notShownAtDestination(entry) {
+                if (!shownSet) { return false; }
+                var pid = entry.input.getAttribute('data-product-id');
+                // A box is packaging that travels WITH a cake: the branch shows it here anyway, but
+                // exempting it keeps cake-with-box working on a store that has hidden the boxes.
+                if ((entry.input.getAttribute('data-category') || '') === 'other'
+                    && /box/i.test(entry.input.getAttribute('data-product-name') || '')) {
+                    return false;
+                }
+                return !shownSet[String(pid)];
+            }
+            var hiddenByDestination = 0;
+
             if (res.mode === 'sheet') {
                 // Sheet-first: keep only the items already carrying a quantity.
                 var lines = res.lines || {};
@@ -3875,7 +3898,7 @@
                 rows.forEach(function(entry) {
                     var pid = entry.input.getAttribute('data-product-id');
                     var qty = parseInt(lines[pid] || '0', 10) || 0;
-                    if (qty <= 0) {
+                    if (qty <= 0 || notShownAtDestination(entry)) {
                         if (entry.row) entry.row.style.display = 'none';
                         return;
                     }
@@ -3977,15 +4000,22 @@
                 return;
             }
 
-            // Dispatch-first: nothing on the sheet, so offer everything this commissary carries.
+            // Dispatch-first: nothing on the sheet, so offer everything this commissary carries
+            // that this DESTINATION shows.
             if (res.commissary_id) {
                 rows.forEach(function(entry) {
                     var sourceMatches = String(entry.input.getAttribute('data-commissary-id')) === String(res.commissary_id);
-                    if (!sourceMatches && entry.row) entry.row.style.display = 'none';
+                    var hidden = notShownAtDestination(entry);
+                    if (hidden) { hiddenByDestination++; }
+                    if ((!sourceMatches || hidden) && entry.row) entry.row.style.display = 'none';
                 });
             }
             if (statusEl) {
-                statusEl.textContent = 'Nothing on the sheet yet' + source + ' — enter quantities to send.';
+                statusEl.textContent = 'Nothing on the sheet yet' + source + ' — enter quantities to send.'
+                    + (hiddenByDestination > 0
+                        ? ' ' + hiddenByDestination + ' item(s) are not shown for '
+                            + (res.destination_name || 'this branch') + ', so they are not listed.'
+                        : '');
             }
         })
         .catch(function() {
