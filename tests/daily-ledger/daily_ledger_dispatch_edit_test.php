@@ -108,9 +108,16 @@ $h->test(
 );
 
 $h->test(
-    'the correction never re-decides boxes',
-    str_contains($commissaryTpl, 'var boxSlots = isEdit ? [] :'),
-    'every save would add a second box line to the same delivery'
+    'the PIC dispatch carries no box control at all, so a correction cannot re-decide one',
+    // SUPERSEDES "the correction never re-decides boxes". That guard existed because a correction that
+    // re-ran the box control would append a second box line on every save. The admin then clarified the
+    // process (2026-11-19): PIC only produces products and boxes of any kind belong to the branches, so
+    // the control was removed outright. The intent is now satisfied structurally, and this asserts the
+    // stronger fact - no box wiring remains anywhere in the PIC sheet.
+    !str_contains($commissaryTpl, 'dispatch-box-')
+        && !str_contains($commissaryTpl, 'initDispatchBoxControls(')
+        && !str_contains($commissaryTpl, 'boxProblem'),
+    'a box line cannot be added twice if there is no box control to add it from'
 );
 
 // ── A received dispatch is visible to the sender, but not editable ──────────────────────────
