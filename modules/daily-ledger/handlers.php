@@ -27734,6 +27734,38 @@ function handleAdminCommissary(): void
     }
     $commissaries = $commissariesStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     $availableCommissaryIds = array_map('intval', array_column($commissaries, 'id'));
+
+    // ── Products a receipt may be recorded against ────────────────────────────────────────────
+    // The receipt endpoint refuses a product that is not assigned to the hub
+    // (dl_recordCommissaryReceipt: "That product is not assigned to this commissary"), so the
+    // picker must not offer one. Each product carries the hubs it is actually assigned to, which
+    // lets one rendered <option> per product be filtered in the browser when the hub changes —
+    // no second round trip, and no way for the form to offer something the API will reject.
+    $receiptProducts = [];
+    if ($availableCommissaryIds !== []) {
+        $hubMarks = implode(',', array_fill(0, count($availableCommissaryIds), '?'));
+        $receiptStmt = $db->prepare(
+            "SELECT bp.branch_id, p.id, p.name, p.sku
+               FROM dl_branch_products bp
+               INNER JOIN dl_products p ON p.id = bp.product_id AND p.is_active = 1
+              WHERE bp.is_active = 1 AND bp.branch_id IN ({$hubMarks})
+              ORDER BY p.name ASC, bp.branch_id ASC"
+        );
+        $receiptStmt->execute($availableCommissaryIds);
+        foreach ($receiptStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+            $pid = (int)$row['id'];
+            if (!isset($receiptProducts[$pid])) {
+                $receiptProducts[$pid] = [
+                    'id' => $pid,
+                    'name' => (string)$row['name'],
+                    'sku' => (string)($row['sku'] ?? ''),
+                    'hub_ids' => [],
+                ];
+            }
+            $receiptProducts[$pid]['hub_ids'][] = (int)$row['branch_id'];
+        }
+        $receiptProducts = array_values($receiptProducts);
+    }
     // Explicit choice wins when it is available to this actor; an explicit but
     // unavailable id keeps the old All fallback. A URL that carries NO choice at
     // all (fresh open, sidebar link) lands on the first available commissary
@@ -28677,6 +28709,9 @@ function handleAdminCommissary(): void
         'dispatch_branches' => $dispatchBranches,
         'pullout_consignees' => $pulloutConsignees,
         'commissaries' => $commissaries,
+        // The receipt form's product picker, scoped to products actually assigned to one of the
+        // accessible hubs, so the screen cannot offer a choice the API will refuse.
+        'receipt_products' => $receiptProducts,
         'branch_id' => $selectedBranchId,
         'commissary_id' => $selectedCommissaryId,
         'inventory_rows' => $inventoryRows,
