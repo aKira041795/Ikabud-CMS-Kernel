@@ -1971,13 +1971,23 @@ function dl_overviewBranchSignals(DatabaseContract $db, array $filters): array
 
     $marks = implode(',', array_fill(0, count($ids), '?'));
     $bind = array_merge([$filters['date_from'] ?? '', $filters['date_to'] ?? ''], $ids);
+    // pending_locked separates the two kinds of "pending ending" that used to be one number:
+    // one the branch can finish, and one it cannot reach at all. A shift marked `finalized` is
+    // immutable (dl_assertShiftMutable), so a row still lacking bal_end on it can only be completed
+    // after an admin reopens that day. Measured on tenant 203, 2026-10-01..11-20: of 2,804 pending
+    // rows, 631 sat on FINALIZED shifts, 608 of them activity-bearing - the branch worked the
+    // reachable part and the verdict stayed "Incomplete" with no way to learn why.
     $ledger = $db->prepare(
-        "SELECT branch_id, COUNT(*) rows_total,
-                SUM(CASE WHEN bal_end IS NULL THEN 1 ELSE 0 END) pending,
-                SUM(CASE WHEN bal_end IS NOT NULL THEN 1 ELSE 0 END) completed
-           FROM dl_daily_ledger
-          WHERE ledger_date BETWEEN ? AND ? AND branch_id IN ({$marks})
-          GROUP BY branch_id"
+        "SELECT dl.branch_id, COUNT(*) rows_total,
+                SUM(CASE WHEN dl.bal_end IS NULL THEN 1 ELSE 0 END) pending,
+                SUM(CASE WHEN dl.bal_end IS NOT NULL THEN 1 ELSE 0 END) completed,
+                SUM(CASE WHEN dl.bal_end IS NULL AND ss.status = 'finalized' THEN 1 ELSE 0 END) pending_locked
+           FROM dl_daily_ledger dl
+           LEFT JOIN dl_ledger_shift_status ss
+             ON ss.branch_id = dl.branch_id AND ss.ledger_date = dl.ledger_date
+            AND ss.shift = dl.shift COLLATE utf8mb4_unicode_ci
+          WHERE dl.ledger_date BETWEEN ? AND ? AND dl.branch_id IN ({$marks})
+          GROUP BY dl.branch_id"
     );
     $ledger->execute($bind);
     $signals = [];
@@ -1985,6 +1995,7 @@ function dl_overviewBranchSignals(DatabaseContract $db, array $filters): array
         $signals[(int)$row['branch_id']] = [
             'rows_total' => (int)$row['rows_total'],
             'pending' => (int)$row['pending'],
+            'pending_locked' => (int)$row['pending_locked'],
             'completed' => (int)$row['completed'],
             'unresolved_variances' => 0,
             'absolute_variance' => 0,
@@ -2002,7 +2013,7 @@ function dl_overviewBranchSignals(DatabaseContract $db, array $filters): array
     $variance->execute($bind);
     foreach ($variance->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
         $id = (int)$row['branch_id'];
-        $signals[$id] ??= ['rows_total' => 0, 'pending' => 0, 'completed' => 0, 'unresolved_variances' => 0, 'absolute_variance' => 0];
+        $signals[$id] ??= ['rows_total' => 0, 'pending' => 0, 'pending_locked' => 0, 'completed' => 0, 'unresolved_variances' => 0, 'absolute_variance' => 0];
         $signals[$id]['unresolved_variances'] = (int)$row['unresolved_variances'];
         $signals[$id]['absolute_variance'] = (int)$row['absolute_variance'];
     }

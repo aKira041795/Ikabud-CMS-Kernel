@@ -16166,6 +16166,7 @@ function handleAdminOverview(array $params = []): void
     $completeness = [
         'rows_total' => array_sum(array_column($branchSignals, 'rows_total')),
         'pending' => array_sum(array_column($branchSignals, 'pending')),
+        'pending_locked' => array_sum(array_column($branchSignals, 'pending_locked')),
         'completed' => array_sum(array_column($branchSignals, 'completed')),
     ];
     // Completeness of the period's ledger: the ranked tables drop pending rows, so an
@@ -16425,6 +16426,13 @@ function handleAdminOverview(array $params = []): void
         $healthLead = $pendingCards[0] ?? $healthLead;
         $healthPath = '/admin/reports/data-integrity';
         $healthReason = $completeness['pending'] . ' ledger ending(s) are pending; ' . $healthLead['name'] . ' has ' . ($healthLead['pending'] ?? 0);
+        // Say which share of that number the branch CANNOT finish. A finalized shift is immutable,
+        // so those rows need an admin reopen; without this the operator works the reachable rows,
+        // watches the verdict stay Incomplete, and reports it as "dili mawala".
+        if (($completeness['pending_locked'] ?? 0) > 0) {
+            $healthReason .= '; ' . (int)$completeness['pending_locked']
+                . ' of them sit on a shift already marked final and can only be entered after that day is reopened';
+        }
     } elseif ($unresolvedVarianceCount > 0) {
         $healthVerdict = 'Attention required';
         $healthLead = $varianceCards[0] ?? $healthLead;
@@ -16593,6 +16601,7 @@ function handleAdminOverview(array $params = []): void
         'reporting_pending' => $reportingPending,
         'sales_state' => $salesState,
         'pending_ledger_rows' => $completeness['pending'],
+        'pending_ledger_rows_locked' => (int)($completeness['pending_locked'] ?? 0),
         // The form carries this marker, so the cue can tell a submitted filter
         // from a plain page load where the same defaults are in force.
         'filters_applied' => !empty($input['filters_applied']),
