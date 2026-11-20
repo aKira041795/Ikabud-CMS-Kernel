@@ -96,6 +96,53 @@ mapping screen must refuse to attach a box to an inactive product.
 | **D. Bootstrap suggestions** | pre-fill candidate mappings from category+name, admin confirms | useful only after A exists: turns ~90 decisions into a review. Risky before A, because `product_category` is inconsistent within families |
 | **E. Deduct from production instead of sales** | trigger at production output | rejected — owner direction is "when a qty shows how many were sold in a shift" |
 
+## Operating model — a negative box is the control signal, and Stock Adjustment is the remedy
+
+OWNER DIRECTION 2026-11-20: *"growing negative is permissible … this is where stocks adjustments will
+allow for additional boxes without the need for DR."*
+
+So a negative box balance is **not** an error to suppress. It means the branch sold cakes whose boxes
+are not on the sheet. The system's job is to say so, not to stop the till and not to cap the number.
+
+What happens when a mapped cake sells and the box was never received:
+
+| step | behaviour |
+|---|---|
+| the sale | **allowed**, always — no code path refuses a sale because its box is short |
+| the box | deducts anyway and goes negative; nothing clamps |
+| the log | `packaging_shortfall` names box, product, date, shift, short units and the remedy |
+| the sheet | shows the negative balance plus "N box(es) used by sales" on the box row |
+| finalization / day close | unaffected — only a NEGATIVE TYPED COUNT is refused, never a derived balance |
+
+The remedy is a **Stock Adjustment** (`adjustment_add`), not a DR:
+
+- admins may always add stock without a paper DR (`dl_canAddStockWithoutPaperDr()` returns true for
+  `admin`); supervisors and cashiers may when the branch has paperless DR enabled;
+- the plausible no-DR reason code is `manual_adjustment` — `unrecorded_delivery` deliberately DEMANDS
+  a DR number, so it is the wrong code for this case.
+
+### Verified end to end 2026-11-20 (branch 8, real rows, snapshot/restore around the run)
+
+| step | box row |
+|---|---|
+| 20 cakes sold, 2 per box, no box stock recorded | `addtl=0 withdraw=10 applied=10` → negative, shortfall named |
+| Stock Adjustment `adjustment_add` + `manual_adjustment`, qty 40, no DR | `addtl=40 withdraw=10 applied=10` — **packaging portion untouched** |
+| 4 more cakes sold | `withdraw=12 applied=12`, **no new shortfall event** |
+
+Two properties this proves:
+
+1. The adjustment path is **delta-based under `FOR UPDATE`** (it reads the row and adjusts by the edit's
+   delta), so it preserves the packaging portion of `withdraw` instead of overwriting it. An
+   absolute set there would have silently erased every box the cakes had consumed.
+2. Once the boxes are recorded, the shortfall stops by itself, because the deduction is derived.
+
+### Known edge, named rather than hidden
+
+The withdrawals path refuses `nextWithdraw < 0` ("This change would take withdrawals below zero"). The
+packaging portion occupies part of `withdraw`, so REMOVING an older withdrawal entry can be refused when
+the packaging amount is what keeps the column positive. That refusal is harmless to the data and only
+needs a better message; it never blocks a sale or a close.
+
 ## Why this is not built yet
 
 The write lands inside the branch balance derivation — the same numbers stabilised today (cashier carry
