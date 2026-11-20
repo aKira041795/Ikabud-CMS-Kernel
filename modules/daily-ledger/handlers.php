@@ -5234,7 +5234,52 @@ function dl_applyCommissaryProductLedgerDelta(
         ':id' => (int)$row['id'],
     ]);
 
-    return ['beg_qty' => (int)$row['beg_qty'], 'produced_qty' => $newProduced, 'dispatched_qty' => $newDispatched, 'wastage_qty' => $newWastage, 'remaining_qty' => dl_productionBalance((int)$row['beg_qty'], $newProduced, $newDispatched, $newWastage), 'skipped' => false];
+    $newRemaining = dl_productionBalance((int)$row['beg_qty'], $newProduced, $newDispatched, $newWastage);
+    $oldRemaining = dl_productionBalance((int)$row['beg_qty'], $currentProduced, $currentDispatched, $currentWastage);
+
+    // ── SHORTFALL AT THE CHOKE POINT (2026-11-21) ──────────────────────────────────────────
+    // Every commissary ledger write in this module funnels through THIS function — nine call
+    // sites: dispatch from delivery, correction, reversal, production output, wastage, admin
+    // adjustment, pull-out, and the rest. Shortfall detection existed at exactly ONE of them
+    // (dl_applyPostedDeliveryCommissaryLedger), so a negative created anywhere else was silent.
+    // That made the integrity panel read `deviation_events_24h | OK` for periods where nothing
+    // was instrumented — health inferred from an absence of evidence.
+    //
+    // Detecting it here covers all nine by construction, and cannot drift out of step with a new
+    // writer. The event is an OBSERVATION, never a refusal: a dispatch is a fact, and blocking it
+    // would stop real work. The human fix is a count, a receipt, or a correction — this is the
+    // pointer to the exact row that needs one.
+    //
+    // Fires when this delta made the row MORE negative than it already was. Proven by probe on
+    // 2026-11-21: beg 5 + dispatch 50 -> -45 fires once; a further dispatch 5 -> -50 fires AGAIN,
+    // and that is correct, not noise — each event says "another 5 units left without recorded
+    // stock", which is a new fact about a new outflow. What the condition does suppress is the
+    // false alarm: a movement that leaves the row exactly as negative as it was (a production
+    // that brings it back up, a zero delta) logs nothing.
+    if ($newRemaining < 0 && $newRemaining < $oldRemaining) {
+        dl_auditLog(
+            'commissary_stock_shortfall',
+            $commissaryBranchId,
+            'dl_commissary_product_ledger',
+            $commissaryBranchId . '-' . $ledgerDate . '-' . $productId,
+            ['remaining_qty' => $oldRemaining],
+            [
+                'remaining_qty' => $newRemaining,
+                'beg_qty' => (int)$row['beg_qty'],
+                'produced_qty' => $newProduced,
+                'dispatched_qty' => $newDispatched,
+                'wastage_qty' => $newWastage,
+                'produced_delta' => $producedDelta,
+                'dispatched_delta' => $dispatchedDelta,
+                'wastage_delta' => $wastageDelta,
+                'shift' => $shift,
+                'ledger_date' => $ledgerDate,
+                'product_id' => $productId,
+            ]
+        );
+    }
+
+    return ['beg_qty' => (int)$row['beg_qty'], 'produced_qty' => $newProduced, 'dispatched_qty' => $newDispatched, 'wastage_qty' => $newWastage, 'remaining_qty' => $newRemaining, 'skipped' => false];
 }
 
 /**

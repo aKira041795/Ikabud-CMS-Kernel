@@ -91,4 +91,35 @@ $h->test(
     'clamping would hide exactly the deviation the owner asked to see'
 );
 
+// ── Shortfall DETECTION must cover every writer, not one of them ────────────────────────────
+// Nine call sites write dl_commissary_product_ledger. Detection used to exist inside only one of
+// them (dl_applyPostedDeliveryCommissaryLedger), so a negative created by the other eight was
+// silent — which is how the integrity panel could report `deviation_events_24h | OK` for a period
+// in which nothing was instrumented. Health inferred from an absence of evidence.
+//
+// The property that makes coverage structural is that detection lives in the CHOKE POINT every
+// writer goes through. Asserted against that function body specifically: if it is moved back out to
+// a call site, or deleted, this fails. Behaviour was probed separately on 2026-11-21 (rolled back):
+// beg 5 + dispatch 50 -> one event at -45, a further dispatch -> a second event at -50, a healthy
+// row -> none, and 0 rows after rollback.
+$deltaStart = strpos($source, 'function dl_applyCommissaryProductLedgerDelta(');
+$deltaBody = $deltaStart === false ? '' : substr($source, $deltaStart, 22000);
+$deltaEnd = strpos($deltaBody, "\n}\n");
+$deltaBody = $deltaEnd === false ? $deltaBody : substr($deltaBody, 0, $deltaEnd);
+$h->test(
+    'stock shortfall is detected inside the ledger writer itself, not at one call site',
+    $deltaBody !== ''
+        && strpos($deltaBody, "'commissary_stock_shortfall'") !== false
+        && preg_match('/\$newRemaining < 0 && \$newRemaining < \$oldRemaining/', $deltaBody) === 1,
+    'detection outside the choke point covers only the call sites somebody remembered'
+);
+$h->test(
+    'the shortfall record names the row and the before/after remaining',
+    $deltaBody !== ''
+        && strpos($deltaBody, "'remaining_qty' => \$oldRemaining") !== false
+        && strpos($deltaBody, "'remaining_qty' => \$newRemaining") !== false
+        && strpos($deltaBody, "'dispatched_delta' => \$dispatchedDelta") !== false,
+    'an event without the numbers cannot be acted on'
+);
+
 $h->done();
