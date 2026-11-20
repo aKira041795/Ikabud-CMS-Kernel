@@ -19,6 +19,10 @@ $kernelBootNsAfterFastPath = hrtime(true);
 // liveness JSON in ~1ms.  Pass ?full=1 for the full kernel-aware payload.
 // Must come before require_once bootstrap.php below.
 require_once __DIR__ . '/../src/helpers/fast-path-health.php';
+// ONE definition of static-asset MIME types and cache policy, shared by all three responders below.
+// Before this, each responder carried its own copy AND its own max-age, so an asset's cache lifetime
+// depended on which code path served it (measured 2026-11-20).
+require_once __DIR__ . '/../src/helpers/static-asset.php';
 
 // ── Ultra-early module uploads static file handler ───────────────────────
 // Serves /assets/modules/<moduleId>/uploads/... directly from disk WITHOUT
@@ -96,34 +100,11 @@ require_once __DIR__ . '/../src/helpers/fast-path-health.php';
     if ($real === false || !str_starts_with($real, $base) || !is_file($real)) {
         return; // not found — fall through to full bootstrap for proper 404
     }
-    $ext   = strtolower(pathinfo($real, PATHINFO_EXTENSION));
-    $types = [
-        'png'  => 'image/png',
-        'jpg'  => 'image/jpeg',
-        'jpeg' => 'image/jpeg',
-        'gif'  => 'image/gif',
-        'webp' => 'image/webp',
-        'svg'  => 'image/svg+xml',
-        'ico'  => 'image/x-icon',
-        'pdf'  => 'application/pdf',
-    ];
-    $ctype = $types[$ext] ?? null;
-    if ($ctype === null) {
+    $ext = strtolower(pathinfo($real, PATHINFO_EXTENSION));
+    if (kernelStaticAssetMimeType($ext) === null) {
         return; // unknown type — let full bootstrap handle it
     }
-    $mtime = (int) @filemtime($real);
-    $fsize = (int) @filesize($real);
-    $etag  = 'W/"' . sha1($real . '|' . $mtime . '|' . $fsize) . '"';
-    header('ETag: ' . $etag);
-    header('Cache-Control: public, max-age=86400, stale-while-revalidate=3600');
-    header('X-Content-Type-Options: nosniff');
-    if (!empty($_SERVER['HTTP_IF_NONE_MATCH']) && trim((string)$_SERVER['HTTP_IF_NONE_MATCH']) === $etag) {
-        http_response_code(304);
-        exit;
-    }
-    header('Content-Type: ' . $ctype);
-    header('Content-Length: ' . $fsize);
-    readfile($real);
+    kernelStaticAssetServe($real, $ext, false);
     exit;
 })();
 
@@ -373,37 +354,7 @@ if ($method === 'GET' && preg_match('#^/assets/modules/([a-zA-Z0-9\-]+)/(.+)$#',
     }
 
     $ext = strtolower(pathinfo($real, PATHINFO_EXTENSION));
-    $types = [
-        'css' => 'text/css; charset=utf-8',
-        'js' => 'application/javascript; charset=utf-8',
-        'mjs' => 'application/javascript; charset=utf-8',
-        'json' => 'application/json; charset=utf-8',
-        'png' => 'image/png',
-        'jpg' => 'image/jpeg',
-        'jpeg' => 'image/jpeg',
-        'gif' => 'image/gif',
-        'svg' => 'image/svg+xml',
-        'webp' => 'image/webp',
-        'ico' => 'image/x-icon',
-        'woff' => 'font/woff',
-        'woff2' => 'font/woff2',
-        'ttf' => 'font/ttf',
-        'otf' => 'font/otf',
-    ];
-    $ctype = $types[$ext] ?? 'application/octet-stream';
-
-    $mtime = (int) @filemtime($real);
-    $etag = 'W/"' . sha1($real . '|' . $mtime . '|' . (string) @filesize($real)) . '"';
-    header('ETag: ' . $etag);
-    header('Cache-Control: public, max-age=3600');
-    if (!empty($_SERVER['HTTP_IF_NONE_MATCH']) && trim((string)$_SERVER['HTTP_IF_NONE_MATCH']) === $etag) {
-        http_response_code(304);
-        exit;
-    }
-
-    header('Content-Type: ' . $ctype);
-    header('Content-Length: ' . (string) filesize($real));
-    readfile($real);
+    kernelStaticAssetServe($real, $ext);
     exit;
 }
 
@@ -429,37 +380,7 @@ if ($method === 'GET' && preg_match('#^/assets/(.+)$#', $uri, $m)) {
     }
 
     $ext = strtolower(pathinfo($real, PATHINFO_EXTENSION));
-    $types = [
-        'css' => 'text/css; charset=utf-8',
-        'js' => 'application/javascript; charset=utf-8',
-        'mjs' => 'application/javascript; charset=utf-8',
-        'json' => 'application/json; charset=utf-8',
-        'png' => 'image/png',
-        'jpg' => 'image/jpeg',
-        'jpeg' => 'image/jpeg',
-        'gif' => 'image/gif',
-        'svg' => 'image/svg+xml',
-        'webp' => 'image/webp',
-        'ico' => 'image/x-icon',
-        'woff' => 'font/woff',
-        'woff2' => 'font/woff2',
-        'ttf' => 'font/ttf',
-        'otf' => 'font/otf',
-    ];
-    $ctype = $types[$ext] ?? 'application/octet-stream';
-
-    $mtime = (int) @filemtime($real);
-    $etag = 'W/"' . sha1($real . '|' . $mtime . '|' . (string) @filesize($real)) . '"';
-    header('ETag: ' . $etag);
-    header('Cache-Control: public, max-age=3600');
-    if (!empty($_SERVER['HTTP_IF_NONE_MATCH']) && trim((string)$_SERVER['HTTP_IF_NONE_MATCH']) === $etag) {
-        http_response_code(304);
-        exit;
-    }
-
-    header('Content-Type: ' . $ctype);
-    header('Content-Length: ' . (string) filesize($real));
-    readfile($real);
+    kernelStaticAssetServe($real, $ext);
     exit;
 }
 

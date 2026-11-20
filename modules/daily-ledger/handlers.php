@@ -2719,6 +2719,11 @@ function dl_maybeAutoCloseBranches(array $branchIds, ?int $actorId = null, ?\Dat
         }
     }
 
+    // ONE read for the whole fleet, before the pass touches each branch. The pass reads a branch's
+    // official start and shift mode per iteration, and without this map that is one statement per
+    // branch per reader (measured 28 + 17 statements on a 28-branch fleet, 2026-11-20).
+    dl_preloadBranchRows();
+
     foreach (array_keys($uniqueBranchIds) as $branchId) {
         dl_maybeAutoCloseBranchDay((int)$branchId, $actorId, $now);
     }
@@ -3038,6 +3043,129 @@ function dl_officialClampFrom(string $from): string
 }
 
 /**
+ * One per-request map of branch rows, so per-branch readers stop querying one row at a time.
+ *
+ * MEASURED 2026-11-20 on /daily-ledger/admin/dashboard (342 queries in 3.4 s, kernel slow_request
+ * attribution with KERNEL_DB_PROFILE on): the SAME branch row was read 28-29 times per page by
+ * separate statements -
+ *   `SELECT official_data_start FROM dl_branches WHERE id = ?`  28x  (dl_branchOfficialStart)
+ *   `SELECT single_shift_mode FROM dl_branches WHERE id = ?`    17x  (dl_branchSingleShiftMode)
+ * each on a 28-branch fleet. A dashboard renders many branches, so "read the branch" must be a map
+ * lookup, not a round trip. Same shape as dl_preloadEffectivePrices(), which fixed a 196x price N+1.
+ *
+ * Three states, and the difference matters:
+ *   - never preloaded      -> dl_branchRow() queries once per id and memoises it
+ *   - fully preloaded      -> a miss means the branch does not exist; NO query is issued
+ *   - partially preloaded  -> a miss falls back to a query (we cannot tell "absent" from "not loaded")
+ */
+function dl_preloadBranchRows(?array $branchIds = null): int
+{
+    $ctx = module();
+    if (!$ctx) {
+        return 0;
+    }
+
+    if (!isset($GLOBALS['_dl_branch_rows']) || !is_array($GLOBALS['_dl_branch_rows'])) {
+        $GLOBALS['_dl_branch_rows'] = [];
+    }
+
+    $ids = [];
+    if ($branchIds !== null) {
+        foreach ($branchIds as $candidate) {
+            $id = (int)$candidate;
+            if ($id > 0) {
+                $ids[$id] = $id;
+            }
+        }
+        $ids = array_values($ids);
+        if ($ids === []) {
+            return 0;
+        }
+    }
+
+    try {
+        if ($ids === []) {
+            // Whole fleet in one statement - the common case for a dashboard or the auto-close pass.
+            $stmt = $ctx->db()->query('SELECT * FROM dl_branches ORDER BY id');
+            $GLOBALS['_dl_branch_rows_all'] = true;
+        } else {
+            // MySQL 5.7-safe placeholder list; ids are cast ints, never interpolated raw.
+            $placeholders = implode(',', array_fill(0, count($ids), '?'));
+            $stmt = $ctx->db()->prepare('SELECT * FROM dl_branches WHERE id IN (' . $placeholders . ') ORDER BY id');
+            $stmt->execute($ids);
+        }
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    } catch (\Throwable $e) {
+        return 0;
+    }
+
+    $loaded = 0;
+    foreach ($rows as $row) {
+        $id = (int)($row['id'] ?? 0);
+        if ($id > 0) {
+            $GLOBALS['_dl_branch_rows'][$id] = $row;
+            $loaded++;
+        }
+    }
+    return $loaded;
+}
+
+/** One branch row, memoised for this request. Null means "no such branch". */
+function dl_branchRow(int $branchId): ?array
+{
+    if ($branchId <= 0) {
+        return null;
+    }
+    if (isset($GLOBALS['_dl_branch_rows'][$branchId]) && is_array($GLOBALS['_dl_branch_rows'][$branchId])) {
+        return $GLOBALS['_dl_branch_rows'][$branchId];
+    }
+    // A full preload already answered this: the row genuinely does not exist.
+    if (!empty($GLOBALS['_dl_branch_rows_all'])) {
+        return null;
+    }
+    $ctx = module();
+    if (!$ctx) {
+        return null;
+    }
+    try {
+        $stmt = $ctx->db()->prepare('SELECT * FROM dl_branches WHERE id = :id LIMIT 1');
+        $stmt->execute([':id' => $branchId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    } catch (\Throwable $e) {
+        return null;
+    }
+    // isset() FIRST: PHP 8 emits "Undefined global variable $_dl_branch_rows" for an unguarded
+    // $GLOBALS['_dl_branch_rows'] read, and this repo treats a warning in error.log as a failure.
+    if (!isset($GLOBALS['_dl_branch_rows']) || !is_array($GLOBALS['_dl_branch_rows'])) {
+        $GLOBALS['_dl_branch_rows'] = [];
+    }
+    $GLOBALS['_dl_branch_rows'][$branchId] = $row;
+    return $row;
+}
+
+/**
+ * Drop a branch from the per-request map after this request WRITES to it.
+ *
+ * Without this the map is a stale read inside the request that changed the row - the same class of
+ * bug the single-shift toggle was already protected from by reading live.
+ */
+function dl_forgetBranchRow(int $branchId): void
+{
+    if ($branchId <= 0) {
+        return;
+    }
+    if (isset($GLOBALS['_dl_branch_rows'][$branchId])) {
+        unset($GLOBALS['_dl_branch_rows'][$branchId]);
+    }
+    // The resolved boundary is memoised separately (branch date ?? global date), so it has to be
+    // dropped here too. A function-static could not be reached from this writer at all - that is
+    // why both memos are plain globals.
+    if (isset($GLOBALS['_dl_branch_official_start'][$branchId])) {
+        unset($GLOBALS['_dl_branch_official_start'][$branchId]);
+    }
+}
+
+/**
  * The first official date for ONE branch: its own setting, else the global one, else null.
  *
  * OWNER 2026-11-20: "let's go further with this feature: per branch specificity". A fleet does not go
@@ -3050,30 +3178,27 @@ function dl_officialClampFrom(string $from): string
  */
 function dl_branchOfficialStart(int $branchId): ?string
 {
-    static $cache = [];
     if ($branchId <= 0) {
         return dl_officialDataStart();
     }
-    if (array_key_exists($branchId, $cache)) {
-        return $cache[$branchId];
+    if (!isset($GLOBALS['_dl_branch_official_start']) || !is_array($GLOBALS['_dl_branch_official_start'])) {
+        $GLOBALS['_dl_branch_official_start'] = [];
+    }
+    if (array_key_exists($branchId, $GLOBALS['_dl_branch_official_start'])) {
+        return $GLOBALS['_dl_branch_official_start'][$branchId];
     }
     $resolved = null;
-    $ctx = module();
-    if ($ctx) {
-        try {
-            $stmt = $ctx->db()->prepare('SELECT official_data_start FROM dl_branches WHERE id = :id LIMIT 1');
-            $stmt->execute([':id' => $branchId]);
-            $own = $stmt->fetchColumn();
-            $own = is_string($own) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $own) ? $own : null;
-            $resolved = $own ?? dl_officialDataStart();
-        } catch (\Throwable $e) {
-            // A read failure must never bend the boundary: fall back to the global setting.
-            $resolved = dl_officialDataStart();
-        }
+    $row = dl_branchRow($branchId);
+    if (is_array($row)) {
+        $own = $row['official_data_start'] ?? null;
+        $own = is_string($own) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $own) ? $own : null;
+        $resolved = $own ?? dl_officialDataStart();
     } else {
+        // A read failure (or a branch that does not exist) must never bend the boundary: fall back
+        // to the global setting rather than to "no boundary".
         $resolved = dl_officialDataStart();
     }
-    $cache[$branchId] = $resolved;
+    $GLOBALS['_dl_branch_official_start'][$branchId] = $resolved;
     return $resolved;
 }
 
@@ -3283,15 +3408,25 @@ function dl_branchSingleShiftMode(int $branchId): bool
         return false;
     }
 
+    // Serve from an explicit preload (dl_preloadBranchRows) when one has run: same value, no round
+    // trip. Without a preload this stays a LIVE read, deliberately - daily_ledger_single_shift_mode_test
+    // asserts a toggle is visible in the same request, and the toggle endpoint does not preload.
+    // Anything that preloads and then WRITES must call dl_forgetBranchRow() (the two writers do).
+    if (isset($GLOBALS['_dl_branch_rows']) && is_array($GLOBALS['_dl_branch_rows'])) {
+        $row = $GLOBALS['_dl_branch_rows'][$branchId] ?? null;
+        if (is_array($row)) {
+            return (int)($row['single_shift_mode'] ?? 0) === 1;
+        }
+        if (!empty($GLOBALS['_dl_branch_rows_all'])) {
+            return false; // fully preloaded, so this branch does not exist
+        }
+    }
+
     try {
         $ctx = module();
         if (!$ctx) {
             return false;
         }
-        // Deliberately NOT cached: this reads live so a toggle takes effect at once
-        // (daily_ledger_single_shift_mode_test asserts the change is visible in the
-        // same request). Report rows do not call it per row - they pass the flag they
-        // already joined into dl_isLastShiftOfDay()/dl_rowIsProvisional().
         $stmt = $ctx->db()->prepare('SELECT single_shift_mode FROM dl_branches WHERE id = :id LIMIT 1');
         $stmt->execute([':id' => $branchId]);
         return (int)$stmt->fetchColumn() === 1;
@@ -24375,6 +24510,8 @@ function dl_applyBranchFlags(\Ikabud\Kernel\Contracts\ModuleDB $db, int $branchI
     foreach ($flags as $key => $value) {
         $after[$key] = $value;
     }
+    // The row changed in this request - drop the memoised copy before anything reads it again.
+    dl_forgetBranchRow($branchId);
     // audit_logs has no reason column (the kernel's audit() does not persist the argument),
     // so the durable evidence is the before/after pair above - both switches, both sides.
     dl_auditLog(
@@ -24438,6 +24575,8 @@ function dl_setBranchOfficialStart($db, int $branchId, $rawValue, ?int $actorId 
     $before = $branch['official_data_start'];
     $db->prepare('UPDATE dl_branches SET official_data_start = :v WHERE id = :id')
         ->execute([':v' => $value, ':id' => $branchId]);
+    // This request just changed the row: drop the memoised copy so any later read sees the write.
+    dl_forgetBranchRow($branchId);
 
     // Only audit a real change, so a modal save that leaves the date alone does not add noise.
     $beforeNorm = ($before === null || $before === '') ? null : (string)$before;

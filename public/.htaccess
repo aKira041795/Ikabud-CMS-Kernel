@@ -59,6 +59,13 @@ Options -Indexes
 # would serve stale script after a deploy. One hour covers a shift's navigation and keeps deploy
 # staleness bounded to an hour. Media gets a week: uploads are stored with a timestamped, unique
 # filename (logo_20260507_212944_d1b0867a.png), so a replaced file arrives as a new URL.
+#
+# SOURCE OF TRUTH: src/helpers/static-asset.php (kernelStaticAssetCacheControl). Files that Apache
+# serves never reach PHP, so this block cannot call that function - it is a deliberate copy of the
+# same three classes, and both must change together. Before it existed, the front controller had three
+# responders each with its OWN max-age (86400 / 3600 / 3600) plus this block, so an asset's lifetime
+# depended on which code path answered. tests/static_asset_policy_test.php pins the PHP side; this
+# block is the Apache side of the same policy.
 <IfModule mod_headers.c>
     <FilesMatch "\.(css|js|mjs)$">
         Header set Cache-Control "public, max-age=3600"
