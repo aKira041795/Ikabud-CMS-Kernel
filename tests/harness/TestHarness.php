@@ -455,10 +455,24 @@ class TestHarness
 
     // ─── Finish ──────────────────────────────────────────────────
 
+    /**
+     * Mark the run as having reached its own end, WITHOUT printing a suite summary.
+     *
+     * The shutdown guard below turns any unfinished run into "SUITE ABORTED" plus exit 1, which
+     * exists because a suite that dies half way must not report success. A CLI REPORT tool built
+     * on this harness is not a suite: it owns its own output and its own exit code. Without this
+     * marker, tools/daily-ledger-integrity-check.php printed a perfectly good report, then
+     * announced SUITE ABORTED and exited 1 -- an operator reading that on a live host cannot tell
+     * a real failure from the harness talking about a lifecycle the tool never joined.
+     */
+    public function markCompleted(): void
+    {
+        $this->completed = true;
+    }
+
     public function done(): void
     {
         $this->completed = true;
-
         $elapsed = round((microtime(true) - $this->startMicrotime) * 1000, 1);
 
         // Run before the total is computed, so a log failure is counted in the tally and not

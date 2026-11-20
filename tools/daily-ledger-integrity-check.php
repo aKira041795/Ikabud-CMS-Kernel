@@ -149,4 +149,8 @@ if (!$quiet) {
     echo $report;
     echo "\nreport: {$outPath}\n";
 }
+// Tell the harness this tool reached its own end. It is a report, not a suite: it prints its own
+// table and owns its exit code. Without this the shutdown guard appends "SUITE ABORTED before the
+// end - treat as FAIL" to a perfectly good report and overrides the exit code with 1.
+$harness->markCompleted();
 exit($attention > 0 ? 1 : 0);
