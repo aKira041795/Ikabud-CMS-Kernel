@@ -165,9 +165,15 @@ foreach ($latest as $key => $r) {
         // hub/product, the last non-negative count is the best statement of what is on the shelf.
         // Otherwise 0 — "we hold nothing we can prove" — which is the only defensible default when
         // the alternative is an impossible negative.
+        //
+        // A count of ZERO is its own case, not a tie with "no count at all": an operator who
+        // physically counted nothing has said something, while an un-entered cell has said nothing.
+        // Collapsing the two made the first run report "108 declared zero" when the database held
+        // 127 zero openings (19 of them backed by a counted zero) — the owner asked about the
+        // difference and had to be answered.
         'opening' => (array_key_exists($key, $lastCount) && $lastCount[$key] >= 0) ? $lastCount[$key] : $opening,
-        'opening_source' => (array_key_exists($key, $lastCount) && $lastCount[$key] >= 0)
-            ? ('last_physical_count:' . $lastCount[$key]) : 'declared_zero',
+        'opening_source' => !array_key_exists($key, $lastCount) ? 'declared_zero'
+            : ($lastCount[$key] > 0 ? ('last_physical_count:' . $lastCount[$key]) : 'counted_zero'),
     ];
 }
 usort($rows, static fn(array $a, array $b): int => $a['bal'] <=> $b['bal']);
@@ -209,8 +215,15 @@ if ($asJson) {
         $cutover !== '' ? $cutover : '<date>');
     printf("      exists, otherwise %d. The old negative balance is written off in the audit trail.\n", $opening);
     $fromCount = 0;
-    foreach ($rows as $r) { if ($r['opening_source'] !== 'declared_zero') { $fromCount++; } }
-    printf("      %d pair(s) open from a recorded count, %d pair(s) open at zero.\n", $fromCount, count($rows) - $fromCount);
+    $countedZero = 0;
+    $declaredZero = 0;
+    foreach ($rows as $r) {
+        if (str_starts_with((string)$r['opening_source'], 'last_physical_count:')) { $fromCount++; }
+        elseif ($r['opening_source'] === 'counted_zero') { $countedZero++; }
+        else { $declaredZero++; }
+    }
+    printf("      %d pair(s) open from a POSITIVE count, %d from a COUNTED ZERO, %d with no count at all.\n",
+        $fromCount, $countedZero, $declaredZero);
     if (!$apply) {
         echo "\nDRY RUN — nothing was written. Re-run with --apply --date=<Y-m-d> --reason=\"...\"\n";
     }
