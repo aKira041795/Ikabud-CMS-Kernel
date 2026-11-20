@@ -7057,6 +7057,200 @@ function dl_upsertCommissaryOutputDeliveryItem(
     return $deliveryId;
 }
 
+/**
+ * Box deduction — a sale consumes boxes, derived and SET, never incremented.
+ *
+ * WHY SET AND NOT INCREMENT (the whole safety of this feature): the cashier sheet is saved per cell,
+ * on blur, and again on every correction. "Withdraw the boxes for the sales I see now" would multiply
+ * boxes with every save cycle - 12 cakes becomes 12, then 24, then 36 boxes gone for one day's baking.
+ * So the row stores `packaging_applied` (what the cake sales ALREADY justified), we compute `usage`
+ * (what they justify now), and write only the difference. A re-save is delta 0. A corrected sale
+ * corrects the box by exactly the correction. Removing a sale gives the boxes back.
+ *
+ * FOUR RULES THAT ARE NOT NEGOTIABLE, all from docs/daily-ledger/box-mapping-spec.md:
+ *
+ * 1. NEVER CLAMP. A short box must not block a sale, and it must not be silently absorbed either: the
+ *    box goes negative and a `packaging_shortfall` event names it. Clamping would hide the shortage
+ *    behind a balance that cannot be true; blocking would stop a till over packaging.
+ * 2. CLOSED DAYS AND FROZEN VARIANCES ARE IMMUTABLE, the same guard dl_repriceProductLedgerRows()
+ *    uses. A closed day's numbers are settled history; the deduction simply does not apply, and
+ *    `packaging_applied` keeps whatever it recorded at the time.
+ * 3. THE DEDUCTION IS AUDITED per product->box with usage and delta, so "why did the boxes move" is
+ *    answerable from the log rather than inferred from a balance.
+ * 4. A BOX ROW'S OWN SALES ARE RECOMPUTED after its withdraw moves, or the box row would carry a sales
+ *    figure that contradicts its own columns.
+ *
+ * @return array{applied:bool,reason?:string,box_product_id?:int,usage?:int,delta?:int,missing?:int}
+ */
+function dl_applyPackagingForSale(
+    $db,
+    int $branchId,
+    int $productId,
+    string $date,
+    string $shift,
+    int $actorId,
+    ?int $sales
+): array {
+    if ($branchId <= 0 || $productId <= 0 || $date === '' || $sales === null) {
+        return ['applied' => false, 'reason' => 'nothing_to_do'];
+    }
+    $shift = ($shift === 'PM') ? 'PM' : 'AM';
+
+    // What box does this product consume, if any? No mapping means no deduction and NO history edit:
+    // boxes already deducted stay deducted, because they physically left the shelf.
+    $mapStmt = $db->prepare(
+        'SELECT p.id, p.name, p.box_product_id, p.units_per_box, b.name AS box_name
+           FROM dl_products p
+           LEFT JOIN dl_products b ON b.id = p.box_product_id
+          WHERE p.id = :pid LIMIT 1'
+    );
+    $mapStmt->execute([':pid' => $productId]);
+    $map = $mapStmt->fetch(PDO::FETCH_ASSOC);
+    if (!$map || $map['box_product_id'] === null || (int)$map['box_product_id'] <= 0) {
+        return ['applied' => false, 'reason' => 'no_mapping'];
+    }
+    $boxProductId = (int)$map['box_product_id'];
+    $unitsPerBox = max(1, (int)($map['units_per_box'] ?? 1));
+
+    // Immutability guard: a closed day or a frozen variance snapshot is settled history.
+    $statusStmt = $db->prepare(
+        'SELECT status FROM dl_ledger_day_status WHERE branch_id = :bid AND ledger_date = :d LIMIT 1'
+    );
+    $statusStmt->execute([':bid' => $branchId, ':d' => $date]);
+    if ((string)($statusStmt->fetchColumn() ?: 'open') === 'closed') {
+        return ['applied' => false, 'reason' => 'day_closed'];
+    }
+    $frozenStmt = $db->prepare(
+        'SELECT EXISTS (
+             SELECT 1 FROM dl_variance_flags
+              WHERE branch_id = :bid AND ledger_date = :d AND frozen_at IS NOT NULL
+         )'
+    );
+    $frozenStmt->execute([':bid' => $branchId, ':d' => $date]);
+    if ((bool)$frozenStmt->fetchColumn()) {
+        return ['applied' => false, 'reason' => 'variance_frozen'];
+    }
+
+    // Ceil, not round: 13 cakes with 12 per box needs TWO boxes, and the second one is opened.
+    $usage = $sales <= 0 ? 0 : (int)ceil($sales / $unitsPerBox);
+
+    $read = $db->prepare(
+        'SELECT id, beg_bal, addtl, withdraw, bal_end, packaging_applied
+           FROM dl_daily_ledger
+          WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d AND shift = :shift
+          LIMIT 1'
+    );
+    $read->execute([':bid' => $branchId, ':pid' => $boxProductId, ':d' => $date, ':shift' => $shift]);
+    $boxRow = $read->fetch(PDO::FETCH_ASSOC);
+    $applied = $boxRow ? (int)($boxRow['packaging_applied'] ?? 0) : 0;
+    $delta = $usage - $applied;
+    if ($delta === 0) {
+        return [
+            'applied' => false,
+            'reason' => 'up_to_date',
+            'box_product_id' => $boxProductId,
+            'usage' => $usage,
+            'delta' => 0,
+        ];
+    }
+
+    if (!$boxRow) {
+        // The box has no row for this branch/day/shift yet. Create it with an explicit zero opening
+        // rather than borrowing the cake's, so the balance stays explainable.
+        $db->prepare(
+            'INSERT INTO dl_daily_ledger
+                (branch_id, product_id, ledger_date, shift, beg_bal, addtl, withdraw, bal_end, sales, packaging_applied, updated_by)
+             VALUES (:bid, :pid, :d, :shift, 0, 0, 0, NULL, NULL, 0, :uid)'
+        )->execute([
+            ':bid' => $branchId,
+            ':pid' => $boxProductId,
+            ':d' => $date,
+            ':shift' => $shift,
+            ':uid' => $actorId > 0 ? $actorId : null,
+        ]);
+        $read->execute([':bid' => $branchId, ':pid' => $boxProductId, ':d' => $date, ':shift' => $shift]);
+        $boxRow = $read->fetch(PDO::FETCH_ASSOC);
+        if (!$boxRow) {
+            return ['applied' => false, 'reason' => 'box_row_unavailable'];
+        }
+    }
+
+    $currentWithdraw = (int)($boxRow['withdraw'] ?? 0);
+    $newWithdraw = $currentWithdraw + $delta;
+    // NEVER clamped. A negative withdraw is not reachable here (delta only grows it downward to 0 when
+    // sales are corrected away), but a box balance driven below zero by real usage IS reachable and is
+    // the honest record: the branch used boxes it did not have on the sheet.
+    $newSales = dl_computeSalesValue(
+        $boxRow['beg_bal'] !== null ? (int)$boxRow['beg_bal'] : null,
+        $boxRow['addtl'] !== null ? (int)$boxRow['addtl'] : null,
+        $newWithdraw,
+        $boxRow['bal_end'] !== null ? (int)$boxRow['bal_end'] : null
+    );
+
+    $db->prepare(
+        'UPDATE dl_daily_ledger
+            SET withdraw = :withdraw, sales = :sales, packaging_applied = :applied,
+                updated_by = :uid, updated_at = CURRENT_TIMESTAMP
+          WHERE id = :id'
+    )->execute([
+        ':withdraw' => $newWithdraw,
+        ':sales' => $newSales,
+        ':applied' => $usage,
+        ':uid' => $actorId > 0 ? $actorId : null,
+        ':id' => (int)$boxRow['id'],
+    ]);
+
+    $begBal = $boxRow['beg_bal'] !== null ? (int)$boxRow['beg_bal'] : 0;
+    $addtl = $boxRow['addtl'] !== null ? (int)$boxRow['addtl'] : 0;
+    $balEnd = $boxRow['bal_end'] !== null ? (int)$boxRow['bal_end'] : null;
+    // The balance the branch can actually see after this deduction. When the ending has not been
+    // counted, the running balance (beg + addtl - withdraw) is the only honest figure available.
+    $balanceAfter = $balEnd !== null ? ($begBal + $addtl - $newWithdraw - $balEnd) : null;
+    $runningBalance = $begBal + $addtl - $newWithdraw;
+
+    dl_auditLog('packaging_auto_deducted', $branchId, 'dl_daily_ledger', (string)$boxRow['id'], [
+        'packaging_applied' => $applied,
+        'withdraw' => $currentWithdraw,
+    ], [
+        'product_id' => $productId,
+        'product' => (string)$map['name'],
+        'box_product_id' => $boxProductId,
+        'box' => (string)($map['box_name'] ?? ''),
+        'date' => $date,
+        'shift' => $shift,
+        'sales' => $sales,
+        'units_per_box' => $unitsPerBox,
+        'usage' => $usage,
+        'delta' => $delta,
+        'withdraw_after' => $newWithdraw,
+        'running_balance_after' => $runningBalance,
+    ]);
+
+    // A short box is named, not hidden and not blocked. Same discipline as the dispatch shortfall.
+    if ($runningBalance < 0) {
+        dl_auditLog('packaging_shortfall', $branchId, 'dl_daily_ledger', (string)$boxRow['id'], null, [
+            'box_product_id' => $boxProductId,
+            'box' => (string)($map['box_name'] ?? ''),
+            'product_id' => $productId,
+            'product' => (string)$map['name'],
+            'date' => $date,
+            'shift' => $shift,
+            'usage' => $usage,
+            'short_units' => -$runningBalance,
+            'note' => 'cake sales consumed more boxes than this branch recorded receiving; '
+                . 'record the box receipt or count the box stock',
+        ]);
+    }
+
+    return [
+        'applied' => true,
+        'box_product_id' => $boxProductId,
+        'usage' => $usage,
+        'delta' => $delta,
+        'missing' => $runningBalance < 0 ? -$runningBalance : 0,
+    ];
+}
+
 function dl_recomputeSales(int $branchId, int $productId, string $date, int $userId, string $shift = 'AM'): void
 {
     try {
@@ -7083,8 +7277,19 @@ function dl_recomputeSales(int $branchId, int $productId, string $date, int $use
             'UPDATE dl_daily_ledger SET sales = :sales, updated_by = :uid, updated_at = CURRENT_TIMESTAMP
              WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d AND shift = :shift'
         )->execute([':sales' => $sales, ':uid' => $userId, ':bid' => $branchId, ':pid' => $productId, ':d' => $date, ':shift' => $shift]);
+
+        // Boxes follow the sale. Derived from the sales just written, so this is idempotent on a
+        // re-save and reverses when a sale is corrected downward.
+        dl_applyPackagingForSale($ctx->db(), $branchId, $productId, $date, $shift, $userId, $sales);
     } catch (\Throwable $e) {
-        // Non-fatal
+        // Non-fatal, exactly as before: the cashier's save must not fail because of packaging.
+        write_log('packaging deduction failed', 'error', [
+            'branch_id' => $branchId,
+            'product_id' => $productId,
+            'date' => $date,
+            'shift' => $shift,
+            'message' => $e->getMessage(),
+        ]);
     }
 }
 
@@ -10056,9 +10261,10 @@ function dl_fetchCashierLedgerRows(\Ikabud\Kernel\Contracts\ModuleDB $db, int $b
 {
     $salesExpr = dl_ledgerSalesQuantitySql('dl');
     $stmt = $db->prepare(
-        'SELECT p.id AS product_id, p.name, p.current_price, p.sort_order, p.pcs_per_pack,
+        'SELECT p.id AS product_id, p.name, p.current_price, p.sort_order, p.pcs_per_pack, p.is_box,
                 COALESCE(dl.beg_bal, 0) AS beg_bal, COALESCE(dl.addtl, 0) AS addtl,
                 COALESCE(dl.withdraw, 0) AS withdraw, dl.bal_end AS bal_end,
+                COALESCE(dl.packaging_applied, 0) AS packaging_applied,
                 ' . $salesExpr . ' AS sales, dl.price_snapshot,
                 COALESCE(am.bal_end, 0) AS am_bal_end,
                 CASE

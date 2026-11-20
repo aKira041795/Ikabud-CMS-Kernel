@@ -192,7 +192,8 @@
     "database/migrations/104_delivery_ledger_effect_append_only.sql",
     "database/migrations/105_delivery_item_substituted_finding_type.sql",
     "database/migrations/106_withdrawal_target_consignee.sql",
-    "database/migrations/107_box_mapping.sql"
+    "database/migrations/107_box_mapping.sql",
+    "database/migrations/108_packaging_applied.sql"
   ],
   "capabilities": {
     "exposes": [

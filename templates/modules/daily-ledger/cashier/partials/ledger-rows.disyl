@@ -1,7 +1,17 @@
 {foreach rows as row}
 <tr data-product-id="{row.product_id}" data-pack="{if row.pcs_per_pack}{row.pcs_per_pack}{else}0{/if}">
     <td class="ledger-num row-num">{loop.index1}</td>
-    <td class="ledger-name product-name">{row.name}</td>
+    <td class="ledger-name product-name">{row.name}
+        {if row.is_box == 1 && row.packaging_applied > 0}
+        <!-- The boxes this row spends are taken by CAKE SALES, not typed in here. Without this note the
+             branch sees its box stock fall with nothing on the sheet explaining it, which is exactly
+             the "traceable not hidden" line the owner set for these fixes. -->
+        <span class="block text-xs text-muted" data-packaging-note
+              title="Boxes deducted automatically because mapped products were sold this shift.">
+            {row.packaging_applied} box(es) used by sales
+        </span>
+        {/if}
+    </td>
     <td class="align-middle text-right">
         <input type="number" class="ledger-cell ledger-input" inputmode="numeric" enterkeyhint="next" min="0"
                data-product="{row.product_id}" data-field="beg_bal"
