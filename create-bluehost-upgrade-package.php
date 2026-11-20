@@ -100,6 +100,11 @@ $appSqlFiles = [
     'database/migrations/007_tenant_module_settings.sql',
     'database/migrations/008_drop_legacy_tables.sql',
     'database/migrations/009_add_superadmin_role.sql',
+    // audit_logs idempotency index (module, action, entity_id). Kernel-owned but TENANT-side: the
+    // table lives in the tenant database, and without this entry the index never ships and every
+    // module's "was this already audited?" guard keeps scanning (measured: 151 ms each, 17 per
+    // auto-close pass). Listed in BOTH bundles for that reason.
+    'database/migrations/026_audit_logs_idempotency_index.sql',
 ];
 
 $controlSqlFiles = [
@@ -122,6 +127,7 @@ $tenantSqlFiles = [
     'database/migrations/006_kernel_workflow_tables.sql',
     'database/migrations/007_kernel_runtime_tables.sql',
     'database/migrations/009_add_superadmin_role.sql',
+    'database/migrations/026_audit_logs_idempotency_index.sql',
 ];
 $tenantSqlFiles = array_merge($tenantSqlFiles, $moduleMigrationFiles);
 
@@ -369,7 +375,24 @@ function buildReadme(string $codeArchiveName): string
         '5. Upload/extract ' . $codeArchiveName . ' over the existing codebase.',
         '6. Preserve the live .env, storage/, and public/uploads/ directories.',
         '7. If Terminal/SSH is available, run php ikabud migrate and php ikabud migrate:control after deploy.',
-        '8. Warm OPcache, once per host, immediately after the files land:',
+        '   Then, for EVERY tenant database, run php ikabud tenant:migrate <tenant_id> -- the kernel',
+        '   artifacts that belong to a tenant DB (audit_logs indexes, runtime tables) are applied there,',
+        '   not by the app-level migrate. Without SSH, importing db/tenant-upgrade.sql per tenant DB',
+        '   does the same work.',
+        '7b. ONE-TIME repair for markers this release stops writing. Dry run first, then apply, per tenant:',
+        '     php modules/daily-ledger/cli/resolve-stale-markers.php --tenant=<id>',
+        '     php modules/daily-ledger/cli/resolve-stale-markers.php --tenant=<id> --apply',
+        '   It closes "shift not finalized" findings whose shift is finalized OR whose products all',
+        '   have their ending, clears the pending stamp left on finalized shifts, and removes the',
+        '   duplicated negative "sales" variance flags. Uploading code alone does NOT clear those rows:',
+        '   they were written by the previous version and only this worker (or the Settings maintenance',
+        '   action, which sweeps the findings but not the duplicate flags) reaches them.',
+        '8. Clear the compiled DiSyL template cache after uploading templates (the design/label fixes',
+        '   live in .disyl files, and a stale compiled artifact keeps rendering the old markup):',
+        '     php ikabud cache:clear   -- then confirm storage/cache is still writable by the web user',
+        '     (chmod 777 storage/cache if it is not; as the CLI user it can land owned by you and every',
+        '     page that needs compiling then 500s).',
+        '9. Warm OPcache, once per host, immediately after the files land:',
         '     php scripts/warm-opcache.php --base=https://your-host.example.com',
         '   Do not skip this. Any PHP restart - this deploy, a host reboot, a PHP upgrade, an idle-pool',
         '   recycle - empties OPcache, and the next visitor then pays to have the framework recompiled',
