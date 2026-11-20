@@ -5575,7 +5575,16 @@ function dl_applyPostedDeliveryCommissaryLedger($db, int $deliveryId, int $actor
         // that drove commissary remainings negative (measured: 3,754 unexplained dispatched on
         // 2026-10-09 for RIZAL-COMMIS1 alone). A NULL shift here now means only that the delivery
         // itself carries no shift, i.e. genuine legacy data, which is untouched by this change.
-        $state = dl_applyCommissaryProductLedgerDelta($db, $originId, (int)$item['product_id'], (string)$head['delivery_date'], 0, (int)$item['quantity'], $actorId, 0, false, $head['production_shift'] ?? null);
+        // captureOfExistingDocument = true: this function applies the ledger for a document that
+        // ALREADY EXISTS and is posted — that is the contract written at the shortfall block below
+        // ("a dispatch is a FACT: goods left, so it is never refused here"). Passing false let the
+        // opening-position guard (which exists to stop a NEW dispatch leaving a hub with no recorded
+        // stock) reach back and refuse the re-application, so an admin who resolved a document's
+        // true origin got a 422 instead of a resolution and the document stayed unresolved forever.
+        // Measured 2026-11-20: daily_ledger_integrity_resolution_test "admin origin resolution
+        // persists and is logged" failed on exactly this, and the refusal was the only app.log
+        // entry in the run. The guard still blocks new outbound movement from an empty hub.
+        $state = dl_applyCommissaryProductLedgerDelta($db, $originId, (int)$item['product_id'], (string)$head['delivery_date'], 0, (int)$item['quantity'], $actorId, 0, false, $head['production_shift'] ?? null, true);
         if (!empty($state['skipped'])) throw new RuntimeException('Resolved origin is not an active commissary.');
         $after = dl_commissaryLedgerSnapshot($db, $originId, (int)$item['product_id'], (string)$head['delivery_date'], $head['production_shift'] ?? null);
         // A dispatch is a FACT: goods left, so it is never refused here. But when the effect drives the

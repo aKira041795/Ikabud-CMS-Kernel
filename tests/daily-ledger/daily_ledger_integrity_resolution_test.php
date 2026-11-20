@@ -19,6 +19,14 @@ app()->tenant()->setTenantId(207);
 $ctx = modulePushContext('daily-ledger');
 $db = $ctx->db();
 
+// This suite builds deliveries for fixture products that have NO recorded stock at the hub, so the
+// opening-position guard (handlers.php, added 2026-11-19) refuses the dispatch half and the global
+// exception handler writes the refusal to app.log. That refusal is the guard doing its job, not a
+// defect in the receiving logic under test — but without this declaration the suite's clean-log
+// check failed on it (measured 2026-11-20: 7/9, the only failure being "app.log was written").
+// Declaring it keeps the noise gate honest instead of disabling it.
+$h->allowLogLines('No opening stock is recorded for this product at this hub');
+
 $origin = 99481; $destination = 99482; $product = 99481;
 $delivery = 994801; $duplicateDelivery = 994802; $date = '2032-04-18';
 $payload = tempnam(sys_get_temp_dir(), 'dl-integrity-');

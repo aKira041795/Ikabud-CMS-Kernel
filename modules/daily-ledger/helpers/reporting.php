@@ -2100,13 +2100,31 @@ function dl_overviewVarianceSignals(DatabaseContract $db, array $filters): array
         return [];
     }
     $marks = implode(',', array_fill(0, count($ids), '?'));
+    // `kind = 'sales'` is a LEGACY mirror: the pre-2026-11-20 producer wrote a second flag whose
+    // variance was the exact negation of the row's real `ending` flag, so one discrepancy was
+    // counted twice and the admin saw both halves of one number. The producer is gone (no call site
+    // passes 'sales' to dl_upsertVarianceFlag), but the historical rows remain.
+    //
+    // The rule counts each discrepancy ONCE — it does NOT drop the kind wholesale. A `sales` row is
+    // skipped only when a REAL flag exists on the same (branch, product, date, shift); a lone
+    // legacy flag still counts, because suppressing it would make an unreviewed flag invisible and
+    // the badge would say "nothing wrong" while a row sits there. Measured 2026-11-20: 85 of 88
+    // legacy rows are mirrors, 3 are lone. The rows are never hidden either way — the variances
+    // screen still lists every one under the visible "Legacy duplicate" badge.
     $stmt = $db->prepare(
-        "SELECT branch_id, COUNT(*) unresolved_variances,
-                COALESCE(SUM(ABS(variance)), 0) absolute_variance
-           FROM dl_variance_flags
-          WHERE ledger_date BETWEEN ? AND ? AND branch_id IN ({$marks})
-            AND resolution_status <> 'corrected'
-          GROUP BY branch_id"
+        "SELECT f.branch_id, COUNT(*) unresolved_variances,
+                COALESCE(SUM(ABS(f.variance)), 0) absolute_variance
+           FROM dl_variance_flags f
+          WHERE f.ledger_date BETWEEN ? AND ? AND f.branch_id IN ({$marks})
+            AND f.resolution_status <> 'corrected'
+            AND NOT (f.kind = 'sales' AND EXISTS (
+                    SELECT 1 FROM dl_variance_flags r
+                     WHERE r.branch_id = f.branch_id
+                       AND r.product_id = f.product_id
+                       AND r.ledger_date = f.ledger_date
+                       AND r.shift <=> f.shift
+                       AND r.kind <> 'sales'))
+          GROUP BY f.branch_id"
     );
     $stmt->execute(array_merge([$filters['date_from'] ?? '', $filters['date_to'] ?? ''], $ids));
     $out = [];
