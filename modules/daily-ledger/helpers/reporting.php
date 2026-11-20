@@ -45,6 +45,17 @@ function dl_reportFilters(array $input, array $user): array
         $dateFrom = $to->modify('-' . (DL_REPORT_MAX_DAYS - 1) . ' days')->format('Y-m-d');
     }
 
+    // THE OFFICIAL DATA START IS A FLOOR ON INTERPRETATION.
+    //
+    // Owner 2026-11-20: "in all data interpretation, summaries, sales, projection and everything, it
+    // will use the date started as the official count. we will then get the honest business health
+    // from there." The pre-boundary rows stay STORED, readable and audited - they are still needed -
+    // but no summary, report or export may total a training period into the business's figures.
+    //
+    // Applied AFTER the max-days shrink above, because that shrink can push the window back across
+    // the boundary; the boundary wins over the window size.
+    $dateFrom = dl_officialClampFrom($dateFrom);
+
     // One presentation-scope consumer for reports, exports, and the Overview. Do not repeat the
     // role predicate or the authorization/scope intersection here: that was how the viewer picker
     // and report data were allowed to disagree.
@@ -80,6 +91,9 @@ function dl_reportFilters(array $input, array $user): array
     return [
         'date_from' => $dateFrom,
         'date_to' => $dateTo,
+        // Surfaced so a screen can say which window it is actually reporting on, instead of silently
+        // shortening a requested range.
+        'official_data_start' => dl_officialDataStart(),
         'branch_id' => $branchId,
         'product_id' => max(0, (int)($input['product_id'] ?? 0)),
         'shift' => $shift,

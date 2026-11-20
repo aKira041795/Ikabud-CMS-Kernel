@@ -15110,6 +15110,9 @@ function handleAdminDashboard(array $params = []): void
     if ($salesFilterDateFrom > $salesFilterDateTo) {
         [$salesFilterDateFrom, $salesFilterDateTo] = [$salesFilterDateTo, $salesFilterDateFrom];
     }
+    // Official data start is the floor for interpretation (owner 2026-11-20). Pre-boundary rows stay
+    // stored and readable; they must not be totalled into the dashboard's business figures.
+    $salesFilterDateFrom = dl_officialClampFrom($salesFilterDateFrom);
 
     $salesFilterBranchId = isset($input['branch_id']) ? (int)$input['branch_id'] : 0;
     if ($salesFilterBranchId > 0 && !in_array($salesFilterBranchId, $accessibleBranchIds, true) && $role !== 'admin') {
@@ -16833,6 +16836,9 @@ function handleAdminSales(array $params = []): void
     $input = $ctx->input();
     $today = dl_businessDate();
     $dateFrom = !empty($input['date_from']) ? (string)$input['date_from'] : $today;
+    // Official data start is the floor for interpretation (owner 2026-11-20): the sales screen reports
+    // the official count, never a training period blended into it.
+    $dateFrom = dl_officialClampFrom($dateFrom);
     $dateTo   = !empty($input['date_to']) ? (string)$input['date_to'] : $today;
     $branchId = !empty($input['branch_id']) ? (int)$input['branch_id'] : null;
     $actionFilter = trim((string)($input['action_filter'] ?? ''));
@@ -18329,6 +18335,9 @@ function handleAdminReconciliation(array $params = []): void
     if ($dateFrom === '') { $dateFrom = date('Y-m-d', strtotime('-13 days')); }
     if ($dateTo === '') { $dateTo = dl_businessDate(); }
     if ($dateFrom > $dateTo) { [$dateFrom, $dateTo] = [$dateTo, $dateFrom]; }
+    // Official data start is the floor for interpretation (owner 2026-11-20); reconciliation is a
+    // summary of the business, so it starts where the business officially starts.
+    $dateFrom = dl_officialClampFrom($dateFrom);
 
     // "Only what needs attention" — unchecked shifts and any shift whose entered figures
     // disagree with the ledger. A shift nothing was recorded for is NOT the same as a
@@ -18565,6 +18574,10 @@ function handleAdminVariances(array $params = []): void
     // Date range (From/To). A legacy single-day ?date= still works and scopes
     // both bounds, so bookmarks and the report deep-links keep behaving.
     [$dateFrom, $dateTo] = dl_varianceDateRange($input);
+    // The variances screen is interpretation, so it starts where the business officially starts
+    // (owner 2026-11-20). Clamped here, not inside dl_varianceDateRange(), which stays a pure parser
+    // with its own contract tests.
+    $dateFrom = dl_officialClampFrom($dateFrom);
     $search   = trim((string)($input['q'] ?? ''));
     $viewMode = $input['view'] ?? ($isSupervisor ? 'grouped' : 'list');
 
