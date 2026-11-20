@@ -5049,6 +5049,26 @@ function dl_commissaryOpeningPositionMissing($db, int $commissaryBranchId, int $
     return $stmt->fetchColumn() === false;
 }
 
+/**
+ * Is this outbound movement a CORRECTION of a document that already existed?
+ *
+ * The opening-position guard exists to stop a human entry creating the first ledger row out of
+ * nothing. It must NOT refuse a correction of an already-posted delivery: the goods were on the
+ * truck, and refusing makes the book disagree with the document the operator was shown.
+ *
+ * RED-TEAM CORRECTION (Claude, 2026-11-20). The first version of this fix asked "does a posted
+ * delivery item exist for this hub/product/date?" and used it to skip the guard. That is WRONG, and
+ * the code proves it: all three direct writers create their delivery BEFORE applying the delta --
+ * dl_recordDailySheetBranchEntry inserts dl_deliveries and dl_delivery_items first, the consignee
+ * entry inserts with status 'posted' first, and dl_upsertCommissaryOutputDeliveryItem inserts the
+ * item first. A document-existence test therefore returns true for exactly the paths the guard was
+ * built to protect, and the guard would have become inert.
+ *
+ * So the bypass is an EXPLICIT opt-in on the writer, defaulting to the guarded behaviour: only the
+ * admin correction of an EXISTING delivery passes it, and only it should. A caller that forgets
+ * keeps the protection; nothing is weakened by omission.
+ */
+
 function dl_applyCommissaryProductLedgerDelta(
     \Ikabud\Kernel\Contracts\DatabaseContract $db,
     int $commissaryBranchId,
@@ -5059,7 +5079,8 @@ function dl_applyCommissaryProductLedgerDelta(
     int $actorId,
     int $wastageDelta = 0,
     bool $rejectNegativeBalance = false,
-    ?string $shift = null
+    ?string $shift = null,
+    bool $captureOfExistingDocument = false
 ): array {
     $shift = $shift === null ? null : dl_normalizeShift($shift);
     if ($commissaryBranchId <= 0 || $productId <= 0 || $ledgerDate === '') {
@@ -5100,6 +5121,7 @@ function dl_applyCommissaryProductLedgerDelta(
         // it is a missing opening position, and recording it as a negative balance poisons every later
         // day. Refused with an instruction the operator can act on, not silently accepted.
         if ($dispatchedDelta > 0 && $producedDelta <= 0 && $wastageDelta <= 0
+            && !$captureOfExistingDocument
             && dl_commissaryOpeningPositionMissing($db, $commissaryBranchId, $productId, $ledgerDate)) {
             throw new \RuntimeException(
                 'No opening stock is recorded for this product at this hub, so it cannot be dispatched yet. '
@@ -16154,6 +16176,14 @@ function handleAdminOverview(array $params = []): void
     $filters = dl_reportFilters(array_merge($input, ['date_from' => $dateFrom, 'date_to' => $dateTo]), $user);
     $filters['pending_rows_mode'] = $pendingRowsMode;
     $branchId = (int)$filters['branch_id'];
+    // dl_reportFilters() CLAMPS date_from to the official boundary, so once it has run the window the
+    // user actually asked for is no longer recoverable. Keep it: the "before official counting"
+    // message must count the rows stored in the REQUESTED range. Counting inside the clamped range
+    // would print "0 row(s) are stored" beside a period that holds thousands (measured: 2026-09-15..
+    // 2026-09-28 clamps to 2026-10-01..2026-09-28, which is empty, while the requested range holds
+    // 4,898 rows).
+    $requestedFrom = $dateFrom;
+    $requestedTo = $dateTo;
     // Adopt the resolved window. When the user supplied From it is already authoritative; when the
     // page defaulted, the boundary decided it (and its own max-day clamp may have shortened it, which
     // the From/To controls then show truthfully instead of the page claiming a range it is not using).
@@ -16184,6 +16214,31 @@ function handleAdminOverview(array $params = []): void
         $salesState = 'pending';
     }
     $accessibleBranchIds = array_values(array_map('intval', $filters['accessible_branch_ids'] ?? [0]));
+
+    // ── "BEFORE OFFICIAL COUNTING BEGAN" ────────────────────────────────────────────────────────
+    // The official-data-start boundary is a FLOOR ON INTERPRETATION, not an assertion that nothing
+    // happened. A range that ends before it therefore has no OFFICIAL figure - but it is not an
+    // empty range, and calling it one is a false statement about the business. Measured 2026-11-20:
+    // 2026-09-15..2026-09-28 holds 4,898 ledger rows and 37,055 units while this page printed
+    // "No sales recorded / No ledger rows in this period". The owner's standing criterion is
+    // "factual and acceptable ... it reflects the true picture of the business ... educate not
+    // confuse. traceable not hidden", so the boundary is NAMED here together with what is actually
+    // stored behind it. $storedRowsBeforeBoundary is read straight from the ledger, never derived
+    // from a completeness helper that has already been clamped to the boundary.
+    $overviewOfficialStart = dl_effectiveStartForView($accessibleBranchIds, $branchId);
+    $beforeOfficialStartRange = $overviewOfficialStart !== null && $overviewOfficialStart !== ''
+        && $dateTo < $overviewOfficialStart;
+    $storedRowsBeforeBoundary = 0;
+    if ($beforeOfficialStartRange && $accessibleBranchIds !== []) {
+        $preMarks = implode(',', array_fill(0, count($accessibleBranchIds), '?'));
+        $preStmt = $ctx->db()->prepare(
+            'SELECT COUNT(*) FROM dl_daily_ledger dl'
+            . " WHERE dl.ledger_date BETWEEN ? AND ? AND dl.branch_id IN ({$preMarks})"
+        );
+        $preStmt->execute(array_merge([$requestedFrom, $requestedTo], $accessibleBranchIds));
+        $storedRowsBeforeBoundary = (int)$preStmt->fetchColumn();
+        $salesState = 'before-boundary';
+    }
 
     // Branch selection narrows the displayed scope. An explicitly requested
     // branch that is not accessible yields an empty scope instead of widening
@@ -16286,10 +16341,14 @@ function handleAdminOverview(array $params = []): void
             'absolute_variance' => $signal['absolute_variance'],
             'has_activity' => $signal['rows_total'] > 0,
             // A pending branch has no measured sale, so the view must not print
-            // PHP 0.00 for it as though that were a result.
-            'sales_state' => $signal['rows_total'] === 0
-                ? 'no-sales'
-                : ($signal['completed'] === 0 ? 'pending' : 'finalized'),
+            // PHP 0.00 for it as though that were a result. A branch in a range that predates the
+            // official boundary has no official figure either, and saying "no sales recorded"
+            // there would claim the branch sold nothing (see the boundary block above).
+            'sales_state' => $beforeOfficialStartRange
+                ? 'before-boundary'
+                : ($signal['rows_total'] === 0
+                    ? 'no-sales'
+                    : ($signal['completed'] === 0 ? 'pending' : 'finalized')),
         ];
     }
 
@@ -16375,7 +16434,16 @@ function handleAdminOverview(array $params = []): void
     $trendDeltaDisplay = ($trendDelta > 0 ? '+' : '') . number_format($trendDelta, 2);
     $trendStateLabel = 'Not yet comparable';
     $trendStateDetail = 'Not yet comparable; the two periods cannot be compared.';
-    if ($trendState === 'no-sales') {
+    if ($beforeOfficialStartRange) {
+        // Deliberately FIRST: every other explanation below would describe an empty period, and the
+        // period is not empty - it is outside the accountable window. Naming the boundary is the
+        // only honest answer, and it has to win over "no sales recorded".
+        $trendState = 'before-boundary';
+        $trendStateLabel = 'Before official counting began';
+        $trendStateDetail = 'This range ends before official counting began (' . $overviewOfficialStart
+            . '), so it carries no official sales figure. ' . number_format($storedRowsBeforeBoundary)
+            . ' ledger row(s) are stored for it and remain readable in the reports.';
+    } elseif ($trendState === 'no-sales') {
         $trendStateLabel = 'No sales recorded';
         $trendStateDetail = 'No sales recorded in this period; there is nothing to compare.';
     } elseif ($trendState === 'pending') {
@@ -16602,6 +16670,11 @@ function handleAdminOverview(array $params = []): void
         'sales_state' => $salesState,
         'pending_ledger_rows' => $completeness['pending'],
         'pending_ledger_rows_locked' => (int)($completeness['pending_locked'] ?? 0),
+        // The boundary itself, and what is stored behind it, so the view can name it instead of
+        // presenting an empty period (see "BEFORE OFFICIAL COUNTING BEGAN" above).
+        'before_official_start' => $beforeOfficialStartRange,
+        'official_start' => (string)($overviewOfficialStart ?? ''),
+        'stored_rows_before_boundary' => $storedRowsBeforeBoundary,
         // The form carries this marker, so the cue can tell a submitted filter
         // from a plain page load where the same defaults are in force.
         'filters_applied' => !empty($input['filters_applied']),

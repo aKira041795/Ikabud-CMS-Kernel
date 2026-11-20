@@ -3857,7 +3857,15 @@ function dl_correctDeliveryByDr($db, array $args): array
                 return;
             }
             if ((string)$delivery['origin_type'] === 'commissary' && (int)$delivery['origin_id'] > 0) {
-                dl_applyCommissaryProductLedgerDelta($db, (int)$delivery['origin_id'], $pid, $deliveryDate, 0, $delta, $actorId, 0, true, $originShift);
+                // $captureOfExistingDocument = true: this is a CORRECTION of a delivery that already
+                // existed and was already posted (the item row is written just above). The goods were
+                // on the truck, so refusing here leaves the book disagreeing with the document the
+                // admin was shown. Measured 2026-11-20: without this, the correction was refused with
+                // "No opening stock is recorded for this product at this hub" and the whole
+                // transaction rolled back (delivery item, receiving line, destination addtl all lost)
+                // - daily_ledger_delivery_sync_test 28/34. The negative the new line creates is still
+                // named by commissary_dispatch_shortfall, never clamped.
+                dl_applyCommissaryProductLedgerDelta($db, (int)$delivery['origin_id'], $pid, $deliveryDate, 0, $delta, $actorId, 0, true, $originShift, true);
             } elseif ($originBranchId > 0) {
                 // A branch ledger has no legacy NULL bucket: its rows are AM/PM.
                 dl_applyLedgerDelta($originBranchId, $pid, $deliveryDate, $delta, $actorId, 'withdraw', $originShift ?? $shift);

@@ -69,8 +69,16 @@ $h->section('the ledger writer refuses on that condition, and only then');
 $source = (string)file_get_contents(dirname(__DIR__, 2) . '/modules/daily-ledger/handlers.php');
 $h->test(
     'the writer calls the check for outbound-only movement',
-    preg_match('/\$dispatchedDelta > 0 && \$producedDelta <= 0 && \$wastageDelta <= 0\s*&& dl_commissaryOpeningPositionMissing\(/', $source) === 1,
-    'production output and wastage must not be caught by it'
+    // BEHAVIOUR, not layout. This used to be one regex requiring the check to be the IMMEDIATE next
+    // condition on the same line; adding a second condition in front of it made the pin fail while
+    // the guard was intact - a false red of exactly the class the analysis calls "verification that
+    // cannot fail" (it failed for the wrong reason). It now asserts the three things that matter:
+    // the outbound-only predicates still gate it, the check is still called, and it is still
+    // fail-closed unless a caller explicitly marks the movement as a capture of an existing document.
+    preg_match('/\$dispatchedDelta > 0 && \$producedDelta <= 0 && \$wastageDelta <= 0/', $source) === 1
+        && preg_match('/dl_commissaryOpeningPositionMissing\(\$db, \$commissaryBranchId, \$productId, \$ledgerDate\)/', $source) === 1
+        && preg_match('/!\$captureOfExistingDocument\s*\n?\s*&&\s*dl_commissaryOpeningPositionMissing\(/', $source) === 1,
+    'production output and wastage must not be caught by it; the check must stay fail-closed by default'
 );
 $h->test(
     'the refusal instructs the operator instead of stranding them',

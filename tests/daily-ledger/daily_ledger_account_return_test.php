@@ -76,9 +76,15 @@ $h->test(
     'client #3: only the office may correct a delivery quantity'
 );
 $h->test(
-    'a DR is required when the return enters a branch',
-    str_contains($tpl, 'Delivery Receipt number is required when returned stock enters a branch'),
-    'branch inventory must not rise without a document'
+    'a return without a DR is accepted — the requirement was removed by owner direction',
+    // This assertion used to require the guard 'Delivery Receipt number is required when returned
+    // stock enters a branch'. Owner direction 2026-11-17 (concern #2) removed it: the no-DR return
+    // IS the shape the client uses. The test kept asserting the deleted rule while the delivered
+    // rule was pinned by tests/daily_ledger_consignee_return_no_dr_test.php - two committed oracles
+    // disagreeing about the same endpoint, which is how a real regression hides in a green-looking
+    // suite. It now pins the DELIVERED rule.
+    !str_contains($tpl, 'Delivery Receipt number is required when returned stock enters a branch'),
+    'the removed guard must not come back; the DR field itself is kept for returns that do have a slip'
 );
 $h->test(
     'an account may only return to the branch that SUPPLIED it',

@@ -157,11 +157,61 @@ $h->test('14-day ranking states its active-only comparison denominator', str_con
 
 $h->section('Comparison visual');
 $pendingText = (string)preg_replace('/\s+/', ' ', html_entity_decode(strip_tags($pendingHtml), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
-// The repaired rule blocks a trend when EITHER period has any pending row, so the
-// original 14-day fixture (2026-09-28..2026-10-11) is correctly non-comparable.
-// The pair below is fully finalized in both 14-day windows and is the genuine
-// comparable case the assertion names.
-$comparable = $render(['scope' => 'ALL', 'period' => '2026-09-15 to 2026-09-28']);
+// The comparable fixture is DISCOVERED, not hard-coded. It used to be
+// '2026-09-15 to 2026-09-28', which was fully finalized on the day it was written; the
+// official-data-start boundary (2026-10-01 for this tenant) now correctly reports that window as
+// "Before official counting began", so the hard-coded pair stopped describing any state the page
+// can produce - the assertion failed without the product being wrong. A fixture whose validity
+// expires with a configuration change is the exact class this suite exists to catch, so it is
+// resolved at run time through the same helpers the handler uses.
+$comparablePeriod = null;
+$comparableProbe = ['rows_total' => 0, 'pending' => 0, 'completed' => 0];
+// The floor the handler itself applies, resolved through the same filter contract.
+$scopeFilters = dl_reportFilters(['scope' => 'ALL'], $overviewUser);
+$officialFloor = dl_effectiveStartForView(
+    array_map('intval', $scopeFilters['accessible_branch_ids'] ?? []),
+    (int)($scopeFilters['branch_id'] ?? 0)
+);
+if ($officialFloor === null || $officialFloor === '') {
+    $officialFloor = (string)($dateCandidates ? min($dateCandidates) : '');
+}
+$allDates = array_values(array_reverse(array_map('strval', $dateCandidates)));
+// Try the widest comparison first, then narrower ones. A 14-day span is preferred because that is
+// the fixture that was written by hand; 7/3/1-day spans keep the comparable state reachable as the
+// business's own pending backlog grows and fewer long windows are fully finalized.
+foreach ([14, 7, 3, 1] as $span) {
+    foreach ($allDates as $anchor) {
+        if ($anchor === '' || $comparablePeriod !== null) {
+            continue;
+        }
+        $windowTo = (new DateTimeImmutable($anchor))->modify('+' . ($span - 1) . ' days')->format('Y-m-d');
+        $windowFrom = $anchor;
+        if ($windowFrom < $officialFloor) {
+            continue;
+        }
+        $currentFilters = dl_reportFilters(['scope' => 'ALL', 'date_from' => $windowFrom, 'date_to' => $windowTo], $overviewUser);
+        $currentComplete = dl_overviewLedgerCompleteness(module()->db(), $currentFilters);
+        if ($currentComplete['rows_total'] === 0 || $currentComplete['pending'] > 0 || $currentComplete['completed'] === 0) {
+            continue;
+        }
+        $priorTo = (new DateTimeImmutable($windowFrom))->modify('-1 day')->format('Y-m-d');
+        $priorFrom = (new DateTimeImmutable($priorTo))->modify('-' . ($span - 1) . ' days')->format('Y-m-d');
+        if ($priorFrom < $officialFloor) {
+            continue;
+        }
+        $priorFilters = dl_reportFilters(['scope' => 'ALL', 'date_from' => $priorFrom, 'date_to' => $priorTo], $overviewUser);
+        $priorComplete = dl_overviewLedgerCompleteness(module()->db(), $priorFilters);
+        if ($priorComplete['rows_total'] === 0 || $priorComplete['pending'] > 0 || $priorComplete['completed'] === 0) {
+            continue;
+        }
+        $comparablePeriod = $windowFrom . ' to ' . $windowTo;
+        $comparableProbe = $currentComplete;
+    }
+    if ($comparablePeriod !== null) {
+        break;
+    }
+}
+$comparable = $comparablePeriod === null ? '' : $render(['scope' => 'ALL', 'period' => $comparablePeriod]);
 $comparableText = (string)preg_replace('/\s+/', ' ', html_entity_decode(strip_tags($comparable), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
 // A discovered period with genuinely pending rows has no honest sales comparison.
 // It must say so with a neutral pending indicator - never a zero or green up.
@@ -177,8 +227,12 @@ $h->test(
 // A period with finalized sales shows a signed delta and a directional indicator.
 $h->test(
     'a comparable period shows a signed delta with a directional visual',
-    preg_match('/delta-indicator delta-(up|down|flat)/', $comparable) === 1
-        && preg_match('/(\+|-)\s*[\d.,]+%/', $comparableText) === 1
+    $comparablePeriod !== null
+        && preg_match('/delta-indicator delta-(up|down|flat)/', $comparable) === 1
+        && preg_match('/(\+|-)\s*[\d.,]+%/', $comparableText) === 1,
+    $comparablePeriod === null
+        ? 'no fully-finalized 14-day pair exists after the official boundary (' . $officialFloor . ') - the comparable state is unreachable on this database'
+        : 'period=' . $comparablePeriod . ' rows=' . $comparableProbe['rows_total']
 );
 
 $h->section('Read-only source guard');
