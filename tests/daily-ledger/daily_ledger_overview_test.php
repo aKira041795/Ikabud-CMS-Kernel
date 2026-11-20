@@ -504,7 +504,10 @@ $h->test(
         && substr_count($aggregateSlice, '->prepare(') === 1
         && str_contains($aggregateSlice, 'GROUP BY dl.branch_id')
         && substr_count($varianceSlice, '->prepare(') === 1
-        && str_contains($varianceSlice, 'GROUP BY branch_id')
+        // The variance scan aliases the table `f` since the legacy-mirror rule added a correlated
+        // EXISTS on the same table (2026-11-21); the point of this check is "one set-based GROUP BY",
+        // not the alias name, so it matches the column with or without a prefix.
+        && preg_match('/GROUP BY (?:[A-Za-z0-9_]+\.)?branch_id/', $varianceSlice) === 1
         && $cardsLoop !== ''
         && !str_contains($cardsLoop, '->prepare('),
     'aggregate calls=' . substr_count($overviewSlice, 'dl_overviewWindowAggregate(')
