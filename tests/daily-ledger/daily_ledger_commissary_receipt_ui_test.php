@@ -220,4 +220,60 @@ $h->test(
         $offeredPairs, $rawPairs, $rawPairs - $offeredPairs, $offeredInactive)
 );
 
+$h->section('the REWORK panel — the half that turns returns into stock');
+
+$reworkBtnPos = strpos($tpl, 'id="rework-btn"');
+$reworkPanelPos = strpos($tpl, 'id="rework-panel"');
+$h->test(
+    'a Rework Returns trigger exists and opens its panel',
+    $reworkBtnPos !== false && str_contains($tpl, 'onclick="openReworkEntry()"'),
+    'without it returns pile up in the holding inventory with no way to convert them'
+);
+$h->test(
+    'the rework panel starts hidden',
+    str_contains($tpl, 'id="rework-panel" style="display: none;'),
+    'an always-open panel covers the sheet'
+);
+$h->test(
+    'the rework POST targets the rework endpoint through the module base path',
+    str_contains($tpl, "window.DL_BASE + '/api/v1/commissary/rework'"),
+    'a doubled prefix 404s and looks like a broken feature'
+);
+$h->test(
+    'it uses the shared write transport with CSRF and bearer token',
+    preg_match("/dlWriteTimeout\(window\.DL_BASE \+ '\/api\/v1\/commissary\/rework'/", $tpl) === 1
+        && preg_match("/'X-CSRF-Token': \(window\.DL_CSRF \|\| ''\)/", $tpl) === 1
+        && preg_match("/'Authorization': \(window\.DL_TOKEN/", $tpl) === 1,
+    'the rework writes stock; it must go through the same guarded transport'
+);
+$h->test(
+    'the rework picker only offers products that actually have items waiting',
+    str_contains($tpl, 'data-awaiting="{r.awaiting}"')
+        && str_contains($tpl, 'data-hub="{r.branch_id}"')
+        && str_contains($tpl, 'onchange="filterReworkInputs()"'),
+    'offering a product with nothing waiting is a form built to produce a refusal'
+);
+$h->test(
+    'the panel states that a returned item is not stock and only the output becomes stock',
+    str_contains($tpl, 'Reworking <span class="font-semibold">consumes</span> the returned items')
+        || str_contains($tpl, 'consumes</span> the returned items'),
+    'the owner rule must be visible on the screen, not only in the API'
+);
+$h->test(
+    'the client refuses reworking a product into itself',
+    str_contains($tpl, 'reworking into itself creates stock from nothing'),
+    'self-rework would create stock out of nothing; the API refuses it and the form should too'
+);
+$h->test(
+    'the handler supplies only positive awaiting quantities',
+    str_contains($handlers, "status = 'awaiting_rework' AND quantity > 0")
+        && str_contains($handlers, "'rework_returns' => \$reworkReturns"),
+    'the panel reads its options from this payload'
+);
+$h->test(
+    'the output picker is the hub-scoped product list, so both sides are hub-valid',
+    str_contains($tpl, 'id="rework-output-product"') && str_contains($tpl, 'data-hubs=",{p.hub_ids | join:\',\'},"'),
+    'reworking into a product the hub does not carry is refused by the API'
+);
+
 $h->done();

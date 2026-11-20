@@ -2127,6 +2127,10 @@
                        the same job in the opposite direction: stock in, stock out, both against a paper
                        document. Gated on the SAME permission as its panel (see the dispatch note below). *}
                     {if can_create_commissary_delivery}<button type="button" class="btn btn-primary btn-sm" id="receive-stock-btn" onclick="openReceiptEntry()" title="Records items pulled out of a branch and sent back for reworking - these are NOT stock until reworked">Record Return (Pullout)</button>{/if}
+                    {* The other half of the return flow. Without it returns pile up in the holding
+                       inventory with no way to convert them: a return becomes stock only when the
+                       PIC says the rework is done (owner 2026-11-21). *}
+                    {if can_create_commissary_delivery}<button type="button" class="btn btn-accent btn-sm" id="rework-btn" onclick="openReworkEntry()" title="Turns returned items into sellable stock by reworking them into another product">Rework Returns</button>{/if}
                     {* Owner request 2026-11-19: an accidental dispatch must be correctable by the person
                        who sent it, while the branch has not received it yet. Sits beside New Delivery
                        because it is the same job on the same day - a load that left and needs fixing. *}
@@ -2936,6 +2940,79 @@
    gated on can_create_commissary_delivery — the SAME gate as its trigger button. A trigger whose
    panel is rendered under a different permission is the 2026-11-09 dead-button defect. *}
 <div id="receipt-backdrop" class="fixed inset-0 z-40 bg-black/40 print-hidden" style="display: none;" onclick="closeReceiptEntry()"></div>
+<div id="rework-backdrop" class="fixed inset-0 z-40 bg-black/40 print-hidden" style="display: none;" onclick="closeReworkEntry()"></div>
+<div class="card" id="rework-panel" style="display: none; position: fixed; z-index: 50; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(48rem, 95vw); max-height: 90vh; overflow: auto;">
+    <div class="card-header">
+        <span>Rework Returned Items</span>
+        <span class="text-sm text-muted ml-3">The moment returned items become sellable stock</span>
+        <button type="button" class="btn btn-accent btn-sm print-hidden" style="margin-left: auto;" onclick="closeReworkEntry()">Close</button>
+    </div>
+    <div class="card-body">
+        <div class="mb-3 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-900">
+            Reworking <span class="font-semibold">consumes</span> the returned items and
+            <span class="font-semibold">creates stock</span> for the product you name as the output.
+            Nothing is converted automatically — this records that the rework actually happened.
+        </div>
+        <div id="rework-status" class="text-sm mb-3" style="min-height: 1.25rem;"></div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+                <label for="rework-hub" class="block text-xs font-semibold text-gray-700 mb-1">Commissary <span class="text-rose-600">*</span></label>
+                <select id="rework-hub" class="form-input" onchange="filterReworkInputs()">
+                    {foreach commissaries as c}
+                    <option value="{c.id}"{if c.id == commissary_id} selected{/if}>{c.name}</option>
+                    {/foreach}
+                </select>
+            </div>
+            <div>
+                <label for="rework-shift" class="block text-xs font-semibold text-gray-700 mb-1">Shift <span class="text-rose-600">*</span></label>
+                <select id="rework-shift" class="form-input">
+                    <option value="AM"{if shift != 'PM'} selected{/if}>AM &mdash; morning</option>
+                    <option value="PM"{if shift == 'PM'} selected{/if}>PM &mdash; afternoon</option>
+                </select>
+            </div>
+            <div class="sm:col-span-2">
+                <label for="rework-input-product" class="block text-xs font-semibold text-gray-700 mb-1">Returned product being reworked <span class="text-rose-600">*</span></label>
+                <select id="rework-input-product" class="form-input" onchange="showReworkAvailable()">
+                    <option value="">Choose a returned product&hellip;</option>
+                    {foreach rework_returns as r}
+                    <option value="{r.product_id}" data-hub="{r.branch_id}" data-awaiting="{r.awaiting}">{r.product_name} &mdash; {r.awaiting} waiting</option>
+                    {/foreach}
+                </select>
+                <p id="rework-available" class="mt-1 text-[11px] text-gray-500">Only products with items waiting to be reworked are listed.</p>
+            </div>
+            <div>
+                <label for="rework-input-qty" class="block text-xs font-semibold text-gray-700 mb-1">Quantity to rework <span class="text-rose-600">*</span></label>
+                <input type="number" id="rework-input-qty" class="form-input" min="1" step="1" placeholder="0">
+            </div>
+            <div>
+                <label for="rework-output-qty" class="block text-xs font-semibold text-gray-700 mb-1">Quantity produced <span class="text-rose-600">*</span></label>
+                <input type="number" id="rework-output-qty" class="form-input" min="1" step="1" placeholder="0">
+            </div>
+            <div class="sm:col-span-2">
+                <label for="rework-output-product" class="block text-xs font-semibold text-gray-700 mb-1">Produces which product <span class="text-rose-600">*</span></label>
+                <select id="rework-output-product" class="form-input">
+                    <option value="">Choose the product that comes out&hellip;</option>
+                    {foreach receipt_products as p}
+                    <option value="{p.id}" data-hubs=",{p.hub_ids | join:','},">{p.name}{if p.sku} &middot; {p.sku}{/if}</option>
+                    {/foreach}
+                </select>
+                <p class="mt-1 text-[11px] text-gray-500">This product's stock increases by the quantity produced. If the rework yields less than it consumed, that loss is real and is recorded as the difference.</p>
+            </div>
+            <div>
+                <label for="rework-date" class="block text-xs font-semibold text-gray-700 mb-1">Business date <span class="text-rose-600">*</span></label>
+                <input type="date" id="rework-date" class="form-input" value="{date}">
+            </div>
+            <div>
+                <label for="rework-note" class="block text-xs font-semibold text-gray-700 mb-1">Note <span class="text-gray-400 font-normal">(optional)</span></label>
+                <input type="text" id="rework-note" class="form-input" maxlength="255" placeholder="e.g. day-old bread into crumb">
+            </div>
+        </div>
+        <div class="mt-4 flex justify-end gap-2">
+            <button type="button" class="btn btn-accent" onclick="closeReworkEntry()">Cancel</button>
+            <button type="button" class="btn btn-primary" id="rework-submit" onclick="submitReworkEntry()">Record Rework</button>
+        </div>
+    </div>
+</div>
 <div class="card" id="receipt-panel" style="display: none; position: fixed; z-index: 50; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(48rem, 95vw); max-height: 90vh; overflow: auto;">
     <div class="card-header">
         <span>Returned Items for Rework</span>
@@ -4286,6 +4363,162 @@
             if (button) { button.disabled = false; button.textContent = 'Record Return'; }
             setReceiptStatus((err && err.message) ? err.message
                 : 'The request did not reach the server. Nothing was booked — try again when the connection is back.', 'error');
+        });
+    }
+
+    // ── REWORK RETURNED ITEMS ─────────────────────────────────────────────────────────────────
+    // The second half of the return flow: a return is not stock, and it becomes stock only here.
+    // The picker offers only products that actually have items waiting, because reworking more
+    // than is waiting is refused by the API.
+    function openReworkEntry() {
+        var panel = document.getElementById('rework-panel');
+        var backdrop = document.getElementById('rework-backdrop');
+        if (panel) { panel.style.display = 'block'; }
+        if (backdrop) { backdrop.style.display = 'block'; }
+        setReworkStatus('', '');
+        filterReworkInputs();
+        var first = document.getElementById('rework-input-qty');
+        if (first) { first.focus(); }
+    }
+
+    function closeReworkEntry() {
+        var panel = document.getElementById('rework-panel');
+        var backdrop = document.getElementById('rework-backdrop');
+        if (panel) { panel.style.display = 'none'; }
+        if (backdrop) { backdrop.style.display = 'none'; }
+    }
+
+    function setReworkStatus(message, kind) {
+        var el = document.getElementById('rework-status');
+        if (!el) { return; }
+        el.textContent = message || '';
+        el.className = 'text-sm mb-3 ' + (kind === 'error' ? 'text-rose-700 font-medium'
+            : (kind === 'ok' ? 'text-emerald-700 font-medium' : 'text-gray-500'));
+    }
+
+    // Hide returned products that did not come back to the chosen hub, and the output products that
+    // hub does not carry. Same rule as the return form: never offer what the API will refuse.
+    function filterReworkInputs() {
+        var hub = document.getElementById('rework-hub');
+        var input = document.getElementById('rework-input-product');
+        var output = document.getElementById('rework-output-product');
+        if (!hub) { return; }
+        var hubId = String(hub.value);
+
+        if (input) {
+            var inputValid = false;
+            for (var i = 0; i < input.options.length; i++) {
+                var o = input.options[i];
+                var h = o.getAttribute('data-hub');
+                if (!h) { continue; }
+                var ok = (h === hubId);
+                o.hidden = !ok;
+                o.disabled = !ok;
+                if (o.selected && ok) { inputValid = true; }
+            }
+            if (!inputValid) { input.value = ''; }
+        }
+        if (output) {
+            var outputValid = false;
+            for (var j = 0; j < output.options.length; j++) {
+                var p = output.options[j];
+                var hubs = p.getAttribute('data-hubs');
+                if (!hubs) { continue; }
+                var allowed = hubs.indexOf(',' + hubId + ',') !== -1;
+                p.hidden = !allowed;
+                p.disabled = !allowed;
+                if (p.selected && allowed) { outputValid = true; }
+            }
+            if (!outputValid) { output.value = ''; }
+        }
+        showReworkAvailable();
+    }
+
+    function showReworkAvailable() {
+        var input = document.getElementById('rework-input-product');
+        var hint = document.getElementById('rework-available');
+        if (!input || !hint) { return; }
+        var opt = input.options[input.selectedIndex];
+        var awaiting = opt ? opt.getAttribute('data-awaiting') : null;
+        hint.textContent = awaiting
+            ? ('Waiting to be reworked at this commissary: ' + awaiting + ' unit(s).')
+            : 'Only products with items waiting to be reworked are listed.';
+    }
+
+    function submitReworkEntry() {
+        var hub = document.getElementById('rework-hub');
+        var shift = document.getElementById('rework-shift');
+        var inputProduct = document.getElementById('rework-input-product');
+        var inputQty = document.getElementById('rework-input-qty');
+        var outputProduct = document.getElementById('rework-output-product');
+        var outputQty = document.getElementById('rework-output-qty');
+        var date = document.getElementById('rework-date');
+        var note = document.getElementById('rework-note');
+        var button = document.getElementById('rework-submit');
+
+        var payload = {
+            commissary_branch_id: hub ? parseInt(hub.value, 10) || 0 : 0,
+            shift: shift ? String(shift.value || 'AM') : 'AM',
+            input_product_id: inputProduct ? parseInt(inputProduct.value, 10) || 0 : 0,
+            input_quantity: inputQty ? parseInt(inputQty.value, 10) || 0 : 0,
+            output_product_id: outputProduct ? parseInt(outputProduct.value, 10) || 0 : 0,
+            output_quantity: outputQty ? parseInt(outputQty.value, 10) || 0 : 0,
+            date: date ? String(date.value || '') : '',
+            note: note ? String(note.value || '').trim() : ''
+        };
+
+        var problems = [];
+        if (!payload.commissary_branch_id) { problems.push('commissary'); }
+        if (!payload.input_product_id) { problems.push('the returned product'); }
+        if (!(payload.input_quantity > 0)) { problems.push('a quantity to rework above zero'); }
+        if (!payload.output_product_id) { problems.push('the product that comes out'); }
+        if (!(payload.output_quantity > 0)) { problems.push('a produced quantity above zero'); }
+        if (!payload.date) { problems.push('business date'); }
+        if (payload.input_product_id && payload.input_product_id === payload.output_product_id) {
+            problems.push('a DIFFERENT output product (reworking into itself creates stock from nothing)');
+        }
+        if (problems.length) {
+            setReworkStatus('Still needed: ' + problems.join(', ') + '.', 'error');
+            return;
+        }
+
+        if (button) { button.disabled = true; button.textContent = 'Recording...'; }
+        setReworkStatus('', '');
+
+        window.dlWriteTimeout(window.DL_BASE + '/api/v1/commissary/rework', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': (window.DL_CSRF || ''),
+                'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
+            },
+            body: JSON.stringify(payload)
+        }, 'This rework').then(function(res) {
+            return res.json().catch(function() {
+                return { ok: false, error: 'The server did not return a readable answer (HTTP ' + res.status + ').' };
+            });
+        }).then(function(data) {
+            if (button) { button.disabled = false; button.textContent = 'Record Rework'; }
+            data = data || {};
+            if (!data.ok) {
+                setReworkStatus(data.error || 'The rework was not recorded.', 'error');
+                return;
+            }
+            setReworkStatus(
+                'Reworked ' + payload.input_quantity + ' into ' + payload.output_quantity
+                + ' unit(s). ' + (data.still_awaiting_rework !== undefined
+                    ? data.still_awaiting_rework + ' unit(s) of that product still waiting.'
+                    : ''), 'ok');
+            if (typeof window.showToast === 'function') {
+                window.showToast('Rework recorded', 'success');
+            }
+            // The output product's stock changed; the sheet behind this panel is stale.
+            window.setTimeout(function() { window.location.reload(); }, 700);
+        }).catch(function(err) {
+            if (button) { button.disabled = false; button.textContent = 'Record Rework'; }
+            setReworkStatus((err && err.message) ? err.message
+                : 'The request did not reach the server. Nothing was recorded — try again.', 'error');
         });
     }
 

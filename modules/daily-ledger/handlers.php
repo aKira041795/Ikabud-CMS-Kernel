@@ -27971,6 +27971,34 @@ function handleAdminCommissary(): void
         }
         $receiptProducts = array_values($receiptProducts);
     }
+
+    // ── What is waiting to be reworked ────────────────────────────────────────────────────────
+    // Plain GROUP BY, no derived table: ModuleDB refuses aliases inside a FROM-clause subquery.
+    // Only products with a positive waiting quantity appear, so the panel can never offer a
+    // rework the API will refuse.
+    $reworkReturns = [];
+    if ($availableCommissaryIds !== []) {
+        $rwMarks = implode(',', array_fill(0, count($availableCommissaryIds), '?'));
+        $rwStmt = $db->prepare(
+            "SELECT commissary_branch_id, product_id, SUM(quantity) AS awaiting
+               FROM dl_commissary_returned_items
+              WHERE status = 'awaiting_rework' AND quantity > 0 AND commissary_branch_id IN ({$rwMarks})
+              GROUP BY commissary_branch_id, product_id
+              ORDER BY commissary_branch_id, product_id"
+        );
+        $rwStmt->execute($availableCommissaryIds);
+        $namesById = [];
+        foreach ($receiptProducts as $rp) { $namesById[(int)$rp['id']] = (string)$rp['name']; }
+        foreach ($rwStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+            $pid = (int)$row['product_id'];
+            $reworkReturns[] = [
+                'branch_id' => (int)$row['commissary_branch_id'],
+                'product_id' => $pid,
+                'product_name' => $namesById[$pid] ?? ('#' . $pid),
+                'awaiting' => (int)$row['awaiting'],
+            ];
+        }
+    }
     // Explicit choice wins when it is available to this actor; an explicit but
     // unavailable id keeps the old All fallback. A URL that carries NO choice at
     // all (fresh open, sidebar link) lands on the first available commissary
@@ -28917,6 +28945,10 @@ function handleAdminCommissary(): void
         // The receipt form's product picker, scoped to products actually assigned to one of the
         // accessible hubs, so the screen cannot offer a choice the API will refuse.
         'receipt_products' => $receiptProducts,
+        // What is actually waiting to be reworked, per hub and product. The rework panel offers
+        // exactly this, because reworking something that is not in the pile is refused by the API
+        // ("Only N unit(s) ... are waiting"). A picker that can produce that error is not a picker.
+        'rework_returns' => $reworkReturns,
         'branch_id' => $selectedBranchId,
         'commissary_id' => $selectedCommissaryId,
         'inventory_rows' => $inventoryRows,
