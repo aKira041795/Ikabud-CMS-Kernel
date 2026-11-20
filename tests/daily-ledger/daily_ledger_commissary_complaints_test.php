@@ -181,6 +181,21 @@ try {
             || substr_count($resolverSrc, 'closed_without_pm_finalize') > 0,
         'the candidate scan must select the TYPE, not one key shape'
     );
+    // ── A stored count must never claim to describe "now" ─────────────────────────────────
+    // The notice is an upsert whose detail is only refreshed when the notice is RAISED again, and
+    // a closed shift is not closed twice, so the number inside the text freezes at raise time.
+    // Measured 2026-11-20: branch 18 / 2026-10-09 PM still read "has 10 product(s) ... no PM
+    // ending count" while 30 lines were still uncounted, and branch 21 / 2026-11-01 PM read "20"
+    // while 25 remained. That is the complaint "unsay pasabot ani?" in its purest form: a real
+    // finding wrapped in a false number. The tense is pinned so it cannot drift back.
+    $h->test(
+        'the stale-count notice is worded as a snapshot, not as the present state',
+        str_contains($handlerSrc, 'had \' . $missing . \' product(s) with movement but no ')
+            && str_contains($handlerSrc, 'when this was raised')
+            && !preg_match('/has \' \. \$missing \. \' product\(s\) with movement but no /', $handlerSrc),
+        'detail is only rewritten on re-raise, so "has N" becomes a false claim as soon as one '
+        . 'more line is counted'
+    );
 } finally {
     $cleanup();
 }

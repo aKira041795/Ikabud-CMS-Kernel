@@ -2880,7 +2880,7 @@ function dl_maybeAutoFinalizeCommissaryPmShift(int $branchId, string $date, ?int
                 'dl_ledger_shift_status',
                 null,
                 $shift . ' shift not finalized',
-                'Commissary #' . $branchId . ' business date ' . $date . ' has ' . $missing . ' product(s) with movement but no ' . $shift . ' ending count. The shift was NOT force-finalized; the day stays open so the counts can be completed. An admin must review.'
+                'Commissary #' . $branchId . ' business date ' . $date . ' had ' . $missing . ' product(s) with movement but no ' . $shift . ' ending count when this was raised. The shift was NOT force-finalized; the day stays open so the counts can be completed. An admin must review.'
             );
             $result['flagged'] = true;
             $result['finalized'] = false;
