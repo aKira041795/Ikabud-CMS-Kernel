@@ -24667,19 +24667,10 @@ function apiUpdateBranch(array $params = []): void
             $sets[] = 'price_group_id = :pg';
             $bind[':pg'] = $priceGroupId;
         }
-        // Per-branch official data start (owner 2026-11-20): blank means INHERIT the global setting,
-        // which is the state every existing branch is in. A real date here wins in BOTH directions -
-        // it can be earlier than the global date (a branch that has been official longer) or later
-        // (one onboarded after the rest of the fleet).
-        if (array_key_exists('official_data_start', $input)) {
-            $ownStart = trim((string)($input['official_data_start'] ?? ''));
-            if ($ownStart !== '' && !dl_isRealDate($ownStart)) {
-                $ctx->json(['ok' => false, 'error' => 'Official data start must be a real date, or blank to inherit.'], 422);
-                return;
-            }
-            $sets[] = 'official_data_start = :official_start';
-            $bind[':official_start'] = $ownStart === '' ? null : $ownStart;
-        }
+        // The per-branch official data start is deliberately NOT written here. It has exactly one writer,
+        // apiSaveBranchOfficialStart(), driven from the Official Data Start setting where the site-wide
+        // date lives (owner 2026-11-20: "whichever is designed"). Two write paths for one accounting
+        // boundary is how the two would eventually disagree - and only one of them is audited.
         // All operating switches were applied above by dl_applyBranchFlags().
         $ctx->db()->prepare('UPDATE dl_branches SET ' . implode(', ', $sets) . ' WHERE id = :id')->execute($bind);
 
