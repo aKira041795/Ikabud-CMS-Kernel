@@ -195,6 +195,8 @@ return [
         // balance nothing ever credited. Office or production-in-charge only, and a supplier
         // document reference is required.
         '/daily-ledger/api/v1/commissary/receipt'        => 'daily-ledger:apiRecordCommissaryReceipt',
+        // Returned items are their own inventory; only the rework output becomes stock.
+        '/daily-ledger/api/v1/commissary/rework'         => 'daily-ledger:apiReworkReturnedItems',
         // Admin only: the explicit delivery sent-vs-received acceptance choice
         '/daily-ledger/api/v1/admin/variances/decide-delivery' => 'daily-ledger:apiResolveDeliveryVariance',
         '/daily-ledger/api/v1/variances/delivery-remark' => 'daily-ledger:apiSaveDeliveryVarianceRemark',

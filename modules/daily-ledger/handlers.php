@@ -53,6 +53,12 @@ if (is_dir(__DIR__ . '/helpers/views')) {
 /** The production balance expression, for use inside SQL. $prefix is '' or 'cpl.'. */
 function dl_productionBalanceSql(string $prefix = ''): string
 {
+    // The DISPATCHABLE balance: beg + produced − dispatched − wastage. Nothing else belongs here.
+    //
+    // A branch return (pullout back to the hub) is deliberately NOT a term: owner direction
+    // 2026-11-21 — "a returned product does not add to the qty of stocks. you cannot redeliver a
+    // returned product for reworking." Returns live in dl_commissary_returned_items until the PIC
+    // reworks them, and only the REWORK OUTPUT may grow stock (as produced_qty of the new product).
     return "({$prefix}beg_qty + {$prefix}produced_qty - {$prefix}dispatched_qty - {$prefix}wastage_qty)";
 }
 
@@ -6395,20 +6401,21 @@ function dl_recordCommissaryReceipt(array $user, array $input): array
         throw new RuntimeException('That product is not assigned to this commissary, so it cannot be received here.', 422);
     }
 
-    // Retry boundary: a replayed request returns the movement it already created.
+    // Retry boundary: a replayed request returns the return it already recorded. The key lives on
+    // the holding inventory, not on dl_production_movements, because a return is not a stock
+    // movement and must not appear in movement reporting (migration 114).
     if ($clientOpId !== '') {
-        $dupStmt = $db->prepare('SELECT id, movement_uuid, quantity FROM dl_production_movements WHERE client_op_id = :coid LIMIT 1');
+        $dupStmt = $db->prepare('SELECT id, quantity, status FROM dl_commissary_returned_items WHERE client_op_id = :coid LIMIT 1');
         $dupStmt->execute([':coid' => $clientOpId]);
         $dup = $dupStmt->fetch(PDO::FETCH_ASSOC) ?: null;
         if ($dup !== null) {
-            $snapshot = dl_commissaryLedgerSnapshot($db, $hubId, $productId, $date, $shift);
             return [
                 'ok' => true,
-                'movement_id' => (int)$dup['id'],
-                'movement_uuid' => (string)$dup['movement_uuid'],
+                'returned_item_id' => (int)$dup['id'],
                 'duplicate' => true,
-                'produced_qty' => 0,
-                'on_hand' => (int)$snapshot['remaining_qty'],
+                'quantity' => (int)$dup['quantity'],
+                'status' => (string)$dup['status'],
+                'note' => 'This return was already recorded — nothing was counted twice.',
             ];
         }
     }
@@ -6419,77 +6426,78 @@ function dl_recordCommissaryReceipt(array $user, array $input): array
         $db->beginTransaction();
     }
     try {
-        $before = dl_commissaryLedgerSnapshot($db, $hubId, $productId, $date, $shift);
-        // +quantity on the inflow column, no dispatch, no wastage. rejectNegativeBalance=false: an
-        // increase cannot drive a column below zero.
-        $state = dl_applyCommissaryProductLedgerDelta($db, $hubId, $productId, $date, $quantity, 0, $actorId, 0, false, $shift);
-        if (!empty($state['skipped'])) {
-            throw new RuntimeException('That commissary is not active, so the receipt cannot be applied.');
-        }
-
-        $movementUuid = dl_generateMovementUuid();
-        $db->prepare(
-            'INSERT INTO dl_production_movements (
-                movement_uuid, client_op_id, movement_type, flow_mode,
-                destination_branch_id, product_id, ledger_date, shift, quantity, dr_number,
-                override_reason, reference_movement_id, source_payload,
-                created_by_id, created_by_role
-             ) VALUES (
-                :uuid, :coid, "purchase", "commissary",
-                :bid, :pid, :ldate, :shift, :qty, :dr,
-                NULL, NULL, :payload,
-                :uid, :role
-             )'
-        )->execute([
-            ':uuid' => $movementUuid,
-            ':coid' => $clientOpId !== '' ? $clientOpId : null,
-            ':bid' => $hubId,
+        // ── A RETURNED ITEM IS NOT STOCK ──────────────────────────────────────────────────────
+        // Owner direction 2026-11-21: "a returned product (pull-out from branches to commis) does
+        // not add to the qty of stocks. you cannot redeliver a returned product for reworking.
+        // therefore this is an inventory of returned items for reworking which will be identified
+        // by PIC as new stocks qty available once done".
+        //
+        // So this writes the HOLDING inventory and touches NO ledger column. The units are not
+        // dispatchable and are absent from every stock figure in the module. Stock is created only
+        // by dl_reworkReturnedItems(), when the PIC converts them into a real product.
+        $sourceBranchId = (int)($input['branch_id'] ?? 0);
+        $deliveryId = (int)($input['delivery_id'] ?? 0);
+        $insert = $db->prepare(
+            'INSERT INTO dl_commissary_returned_items
+                (commissary_branch_id, branch_id, product_id, ledger_date, shift, quantity,
+                 delivery_id, reference, client_op_id, status, remarks, created_by)
+             VALUES (:hub, :branch, :pid, :d, :shift, :qty, :delivery, :ref, :coid, "awaiting_rework", :remarks, :uid)'
+        );
+        $insert->execute([
+            ':hub' => $hubId,
+            ':branch' => $sourceBranchId > 0 ? $sourceBranchId : null,
             ':pid' => $productId,
-            ':ldate' => $date,
+            ':d' => $date,
             ':shift' => $shift,
             ':qty' => $quantity,
-            ':dr' => $reference,
-            ':payload' => json_encode([
-                'supplier' => $supplier,
-                'remarks' => $remarks,
-                'before_on_hand' => (int)$before['remaining_qty'],
-                'after_on_hand' => (int)$before['remaining_qty'] + $quantity,
-                'balance_basis' => 'beg+produced-dispatched-wastage',
-            ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+            ':delivery' => $deliveryId > 0 ? $deliveryId : null,
+            ':ref' => $reference,
+            ':coid' => $clientOpId !== '' ? $clientOpId : null,
+            ':remarks' => ($supplier !== '' ? ('From ' . $supplier . '. ') : '') . ($remarks !== '' ? $remarks : ''),
             ':uid' => $actorId > 0 ? $actorId : null,
-            ':role' => $role !== '' ? $role : 'unknown',
         ]);
-        $movementId = (int)$db->lastInsertId();
+        $returnedItemId = (int)$db->lastInsertId();
+
+        $awaitingStmt = $db->prepare(
+            'SELECT COALESCE(SUM(quantity), 0) FROM dl_commissary_returned_items
+              WHERE commissary_branch_id = :hub AND product_id = :pid AND status = "awaiting_rework"'
+        );
+        $awaitingStmt->execute([':hub' => $hubId, ':pid' => $productId]);
+        $awaitingQty = (int)$awaitingStmt->fetchColumn();
 
         dl_auditLog(
-            'commissary_stock_received',
+            'commissary_return_recorded',
             $hubId,
-            'dl_commissary_product_ledger',
-            $hubId . '-' . $date . '-' . $productId,
-            ['produced_qty' => (int)($state['produced_qty'] ?? 0) - $quantity],
+            'dl_commissary_returned_items',
+            (string)$returnedItemId,
+            null,
             [
-                'produced_qty' => (int)($state['produced_qty'] ?? 0),
+                'product_id' => $productId,
+                'product' => (string)($product['name'] ?? ''),
                 'quantity' => $quantity,
                 'reference' => $reference,
-                'supplier' => $supplier,
+                'source_branch_id' => $sourceBranchId > 0 ? $sourceBranchId : null,
+                'delivery_id' => $deliveryId > 0 ? $deliveryId : null,
                 'shift' => $shift,
-                'movement_id' => $movementId,
-                'movement_uuid' => $movementUuid,
-                'product' => (string)($product['name'] ?? ''),
+                'status' => 'awaiting_rework',
+                'awaiting_rework_qty' => $awaitingQty,
             ]
         );
 
         if ($ownsTxn) {
             $db->commit();
         }
-        $after = dl_commissaryLedgerSnapshot($db, $hubId, $productId, $date, $shift);
         return [
             'ok' => true,
-            'movement_id' => $movementId,
-            'movement_uuid' => $movementUuid,
+            'returned_item_id' => $returnedItemId,
             'duplicate' => false,
-            'produced_qty' => (int)($state['produced_qty'] ?? 0),
-            'on_hand' => (int)$after['remaining_qty'],
+            'quantity' => $quantity,
+            'status' => 'awaiting_rework',
+            'awaiting_rework_qty' => $awaitingQty,
+            // Stated in the response, not just in the UI: this is the property that stops an
+            // operator expecting the returned units to show up as available stock.
+            'note' => 'Recorded as returned items awaiting rework. These units are NOT available '
+                . 'stock and cannot be dispatched; they become stock only when reworked.',
         ];
     } catch (Throwable $e) {
         if ($ownsTxn && $db->inTransaction()) {
@@ -6500,7 +6508,7 @@ function dl_recordCommissaryReceipt(array $user, array $input): array
 }
 
 /**
- * HTTP wrapper: record received (purchased) stock at a hub.
+ * HTTP wrapper: record RETURNED (pullout) items into the rework inventory at a hub.
  */
 function apiRecordCommissaryReceipt(array $params = []): void
 {
@@ -6519,6 +6527,204 @@ function apiRecordCommissaryReceipt(array $params = []): void
     }
 }
 
+/**
+ * REWORK returned items into a sellable product — the moment stock qty is created.
+ *
+ * Owner direction 2026-11-21: return items sit in their own inventory, and "will be identified by
+ * PIC as new stocks qty available once done". So this is the ONLY path by which a returned item may
+ * become stock:
+ *   - the returned units are consumed from dl_commissary_returned_items;
+ *   - the OUTPUT product gains produced_qty in the hub ledger, which is stock that can be dispatched.
+ *
+ * Deliberately NOT automatic. Nothing converts a return into stock on a timer or on receipt: a human
+ * decides that the rework actually happened, and how much came out of it. If a rework yields less
+ * than it consumed, that is the honest outcome — the loss shows up as a smaller produced_qty, and the
+ * consumed returns are marked reworked either way.
+ *
+ * @return array<string,mixed>
+ */
+function dl_reworkReturnedItems(array $user, array $input): array
+{
+    $ctx = module();
+    if (!$ctx) {
+        throw new RuntimeException('Module context unavailable.');
+    }
+    $role = (string)($user['role'] ?? '');
+    if (!in_array($role, ['admin', 'supervisor', 'production_in_charge'], true)) {
+        throw new RuntimeException('Reworking returned items is for the office or the production-in-charge.', 403);
+    }
+
+    $hubId = (int)($input['commissary_branch_id'] ?? 0);
+    $date = trim((string)($input['date'] ?? ''));
+    $shift = dl_normalizeShift((string)($input['shift'] ?? 'AM'));
+    $inputProductId = (int)($input['input_product_id'] ?? 0);
+    $inputQty = (int)($input['input_quantity'] ?? 0);
+    $outputProductId = (int)($input['output_product_id'] ?? 0);
+    $outputQty = (int)($input['output_quantity'] ?? 0);
+    $note = trim((string)($input['note'] ?? ''));
+
+    $missing = [];
+    if ($hubId <= 0) { $missing[] = 'commissary'; }
+    if ($date === '') { $missing[] = 'date'; }
+    if ($inputProductId <= 0) { $missing[] = 'the returned product being reworked'; }
+    if ($inputQty <= 0) { $missing[] = 'a returned quantity above zero'; }
+    if ($outputProductId <= 0) { $missing[] = 'the product produced by the rework'; }
+    if ($outputQty <= 0) { $missing[] = 'a produced quantity above zero'; }
+    if ($missing !== []) {
+        throw new RuntimeException('Required: ' . implode(', ', $missing) . '.', 422);
+    }
+    if ($inputProductId === $outputProductId) {
+        throw new RuntimeException(
+            'A rework must produce a DIFFERENT product. Reworking a product into itself would create stock out of nothing.',
+            422
+        );
+    }
+    if (!dl_isRealDate($date)) {
+        throw new RuntimeException('That is not a real calendar date.', 422);
+    }
+    if (!in_array($hubId, dl_accessibleBranchIds($user), true)) {
+        throw new RuntimeException('That commissary is outside your scope.', 403);
+    }
+    if (dl_getDayStatus($hubId, $date) === 'closed') {
+        throw new RuntimeException('This business date is closed. Reopen the day before recording a rework.', 422);
+    }
+    $db = $ctx->db();
+    dl_assertShiftMutable($db, $hubId, $date, $shift);
+
+    $hubStmt = $db->prepare('SELECT id, name FROM dl_branches WHERE id = :id AND is_commissary = 1 AND is_active = 1');
+    $hubStmt->execute([':id' => $hubId]);
+    if ($hubStmt->fetch(PDO::FETCH_ASSOC) === false) {
+        throw new RuntimeException('Rework is recorded at an active commissary.', 422);
+    }
+    $prodStmt = $db->prepare(
+        'SELECT p.id, p.name FROM dl_products p
+           INNER JOIN dl_branch_products bp ON bp.product_id = p.id AND bp.branch_id = :bid AND bp.is_active = 1
+          WHERE p.id = :pid AND p.is_active = 1'
+    );
+    foreach ([$inputProductId => 'returned', $outputProductId => 'output'] as $pid => $which) {
+        $prodStmt->execute([':bid' => $hubId, ':pid' => $pid]);
+        if ($prodStmt->fetch(PDO::FETCH_ASSOC) === false) {
+            throw new RuntimeException(
+                'The ' . $which . ' product is not assigned to this commissary, so it cannot be used here.',
+                422
+            );
+        }
+    }
+
+    $actorId = dl_getActorUserId($user);
+    $ownsTxn = !$db->inTransaction();
+    if ($ownsTxn) {
+        $db->beginTransaction();
+    }
+    try {
+        // Consume FIFO out of the waiting pile, oldest return first, so the inventory ages honestly.
+        $rows = $db->prepare(
+            'SELECT id, quantity FROM dl_commissary_returned_items
+              WHERE commissary_branch_id = :hub AND product_id = :pid AND status = "awaiting_rework" AND quantity > 0
+              ORDER BY ledger_date ASC, id ASC
+              FOR UPDATE'
+        );
+        $rows->execute([':hub' => $hubId, ':pid' => $inputProductId]);
+        $waiting = $rows->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $available = 0;
+        foreach ($waiting as $r) { $available += (int)$r['quantity']; }
+        if ($available < $inputQty) {
+            throw new RuntimeException(
+                'Only ' . $available . ' unit(s) of that product are waiting to be reworked at this commissary, '
+                . 'but ' . $inputQty . ' were entered. Record the return first if it has not been entered.',
+                422
+            );
+        }
+
+        $markStmt = $db->prepare(
+            'UPDATE dl_commissary_returned_items
+                SET quantity = quantity - :take,
+                    reworked_quantity = reworked_quantity + :take2,
+                    reworked_into_product_id = :out,
+                    reworked_at = CURRENT_TIMESTAMP,
+                    reworked_by = :uid,
+                    status = CASE WHEN quantity - :take3 <= 0 THEN "reworked" ELSE "awaiting_rework" END
+              WHERE id = :id'
+        );
+        $remainingToTake = $inputQty;
+        $consumedIds = [];
+        foreach ($waiting as $r) {
+            if ($remainingToTake <= 0) { break; }
+            $take = min($remainingToTake, (int)$r['quantity']);
+            $markStmt->execute([
+                ':take' => $take, ':take2' => $take, ':take3' => $take,
+                ':out' => $outputProductId, ':uid' => $actorId > 0 ? $actorId : null, ':id' => (int)$r['id'],
+            ]);
+            $consumedIds[] = (int)$r['id'];
+            $remainingToTake -= $take;
+        }
+
+        // The output is real production of a real product — the only place stock qty may grow.
+        $state = dl_applyCommissaryProductLedgerDelta($db, $hubId, $outputProductId, $date, $outputQty, 0, $actorId, 0, false, $shift);
+        if (!empty($state['skipped'])) {
+            throw new RuntimeException('That commissary is not active, so the rework cannot be applied.');
+        }
+
+        $outStmt = $db->prepare('SELECT COALESCE(SUM(quantity), 0) FROM dl_commissary_returned_items WHERE commissary_branch_id = :hub AND product_id = :pid AND status = "awaiting_rework"');
+        $outStmt->execute([':hub' => $hubId, ':pid' => $inputProductId]);
+        $stillWaiting = (int)$outStmt->fetchColumn();
+
+        dl_auditLog(
+            'commissary_rework',
+            $hubId,
+            'dl_commissary_returned_items',
+            implode(',', $consumedIds),
+            null,
+            [
+                'input_product_id' => $inputProductId,
+                'input_quantity' => $inputQty,
+                'output_product_id' => $outputProductId,
+                'output_quantity' => $outputQty,
+                'yield_ratio' => round($outputQty / $inputQty, 4),
+                'still_awaiting_rework' => $stillWaiting,
+                'shift' => $shift,
+                'note' => $note,
+            ]
+        );
+
+        if ($ownsTxn) { $db->commit(); }
+        $after = dl_commissaryLedgerSnapshot($db, $hubId, $outputProductId, $date, $shift);
+        return [
+            'ok' => true,
+            'input_product_id' => $inputProductId,
+            'input_quantity' => $inputQty,
+            'output_product_id' => $outputProductId,
+            'output_quantity' => $outputQty,
+            'produced_qty' => (int)($state['produced_qty'] ?? 0),
+            'output_on_hand' => (int)$after['remaining_qty'],
+            'still_awaiting_rework' => $stillWaiting,
+            'note' => 'The reworked output is now stock for the produced product. The returned units '
+                . 'themselves were never stock and cannot be dispatched.',
+        ];
+    } catch (Throwable $e) {
+        if ($ownsTxn && $db->inTransaction()) {
+            $db->rollBack();
+        }
+        throw $e;
+    }
+}
+
+function apiReworkReturnedItems(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) {
+        http_response_code(500);
+        return;
+    }
+    try {
+        $user = dlCurrentUser(['admin', 'supervisor', 'production_in_charge']);
+        $ctx->json(dl_reworkReturnedItems($user, $ctx->input()));
+    } catch (Throwable $e) {
+        $code = (int)$e->getCode();
+        $ctx->json(['ok' => false, 'error' => $e->getMessage()], in_array($code, [403, 422], true) ? $code : 422);
+    }
+}
+
 function dl_changeProductionLedgerField(array $user, array $input): array
 {
     $ctx = module();
@@ -6528,8 +6734,7 @@ function dl_changeProductionLedgerField(array $user, array $input): array
     $role = (string)($user['role'] ?? '');
     if (!dl_roleHasPermission($role, 'production.override')) {
         throw new \RuntimeException('production.override permission is required.');
-    }
-    $db = $ctx->db();
+    }    $db = $ctx->db();
     $field = (string)($input['field'] ?? '');
     $date = (string)($input['date'] ?? '');
     $commissaryBranchId = (int)($input['commissary_branch_id'] ?? 0);

@@ -99,7 +99,7 @@ foreach ([
 }
 $h->test(
     'the reference field states why it is required',
-    strpos($tpl, 'this is what the office checks the stock against') !== false,
+    strpos($tpl, 'the paper the returned items travelled on') !== false,
     'a required field with no reason gets abandoned at the counter'
 );
 $h->test(
@@ -139,12 +139,12 @@ $h->test(
 );
 $h->test(
     'a successful booking reloads the sheet and says what it did',
-    str_contains($tpl, 'window.location.reload()') && str_contains($tpl, "'Receipt recorded'"),
+    str_contains($tpl, 'window.location.reload()') && str_contains($tpl, "'Return recorded'"),
     'the sheet behind the panel is server-rendered; without the reload the stock looks unbooked'
 );
 $h->test(
     'a duplicate answer is reported as already recorded, not as a new receipt',
-    str_contains($tpl, 'already recorded — nothing was booked twice'),
+    str_contains($tpl, 'already recorded — nothing was counted twice'),
     'silently treating a replay as a success teaches operators to distrust the number'
 );
 

@@ -2126,7 +2126,7 @@
                        the books by the person holding the DR. It sits beside New Delivery because it is
                        the same job in the opposite direction: stock in, stock out, both against a paper
                        document. Gated on the SAME permission as its panel (see the dispatch note below). *}
-                    {if can_create_commissary_delivery}<button type="button" class="btn btn-primary btn-sm" id="receive-stock-btn" onclick="openReceiptEntry()" title="Records stock received at this commissary against a supplier DR / invoice">Receive Stock</button>{/if}
+                    {if can_create_commissary_delivery}<button type="button" class="btn btn-primary btn-sm" id="receive-stock-btn" onclick="openReceiptEntry()" title="Records items pulled out of a branch and sent back for reworking - these are NOT stock until reworked">Record Return (Pullout)</button>{/if}
                     {* Owner request 2026-11-19: an accidental dispatch must be correctable by the person
                        who sent it, while the branch has not received it yet. Sits beside New Delivery
                        because it is the same job on the same day - a load that left and needs fixing. *}
@@ -2938,11 +2938,15 @@
 <div id="receipt-backdrop" class="fixed inset-0 z-40 bg-black/40 print-hidden" style="display: none;" onclick="closeReceiptEntry()"></div>
 <div class="card" id="receipt-panel" style="display: none; position: fixed; z-index: 50; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(48rem, 95vw); max-height: 90vh; overflow: auto;">
     <div class="card-header">
-        <span>Receive Stock</span>
-        <span class="text-sm text-muted ml-3">Stock arriving at this commissary, booked against the supplier's document</span>
+        <span>Returned Items for Rework</span>
+        <span class="text-sm text-muted ml-3">Items a branch pulled out and sent back. They are not stock until reworked.</span>
         <button type="button" class="btn btn-accent btn-sm print-hidden" style="margin-left: auto;" onclick="closeReceiptEntry()">Close</button>
     </div>
     <div class="card-body">
+        <div class="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+            These units are <span class="font-semibold">not available stock</span> and cannot be dispatched.
+            They leave this list — and become stock — only when you rework them into a product.
+        </div>
         <div id="receipt-status" class="text-sm mb-3" style="min-height: 1.25rem;"></div>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
@@ -2979,13 +2983,13 @@
                 <input type="number" id="receipt-qty" class="form-input" min="1" step="1" placeholder="0">
             </div>
             <div class="sm:col-span-2">
-                <label for="receipt-reference" class="block text-xs font-semibold text-gray-700 mb-1">Supplier document reference (DR / invoice) <span class="text-rose-600">*</span></label>
-                <input type="text" id="receipt-reference" class="form-input" maxlength="120" placeholder="e.g. DR-2026-0451">
-                <p class="mt-1 text-[11px] text-gray-500">Required: this is what the office checks the stock against. A receipt without it is an adjustment, not a receipt.</p>
+                <label for="receipt-reference" class="block text-xs font-semibold text-gray-700 mb-1">Pullout document (DR / slip) <span class="text-rose-600">*</span></label>
+                <input type="text" id="receipt-reference" class="form-input" maxlength="120" placeholder="e.g. PO-2026-0451">
+                <p class="mt-1 text-[11px] text-gray-500">Required: the paper the returned items travelled on, so the office can check the return against it.</p>
             </div>
             <div>
-                <label for="receipt-supplier" class="block text-xs font-semibold text-gray-700 mb-1">Supplier <span class="text-gray-400 font-normal">(optional)</span></label>
-                <input type="text" id="receipt-supplier" class="form-input" maxlength="120" placeholder="e.g. Panay Flour">
+                <label for="receipt-supplier" class="block text-xs font-semibold text-gray-700 mb-1">Returning branch <span class="text-gray-400 font-normal">(optional)</span></label>
+                <input type="text" id="receipt-supplier" class="form-input" maxlength="120" placeholder="e.g. Obay">
             </div>
             <div>
                 <label for="receipt-remarks" class="block text-xs font-semibold text-gray-700 mb-1">Remarks <span class="text-gray-400 font-normal">(optional)</span></label>
@@ -2994,7 +2998,7 @@
         </div>
         <div class="mt-4 flex justify-end gap-2">
             <button type="button" class="btn btn-accent" onclick="closeReceiptEntry()">Cancel</button>
-            <button type="button" class="btn btn-primary" id="receipt-submit" onclick="submitReceiptEntry()">Record Receipt</button>
+            <button type="button" class="btn btn-primary" id="receipt-submit" onclick="submitReceiptEntry()">Record Return</button>
         </div>
     </div>
 </div>
@@ -4260,18 +4264,18 @@
                 return { ok: false, error: 'The server did not return a readable answer (HTTP ' + res.status + ').' };
             });
         }).then(function(data) {
-            if (button) { button.disabled = false; button.textContent = 'Record Receipt'; }
+            if (button) { button.disabled = false; button.textContent = 'Record Return'; }
             data = data || {};
             if (!data.ok) {
                 setReceiptStatus(data.error || 'The receipt was not recorded.', 'error');
                 return;
             }
             setReceiptStatus(data.duplicate
-                ? 'This receipt was already recorded — nothing was booked twice.'
+                ? 'This return was already recorded — nothing was counted twice.'
                 : ('Recorded ' + payload.quantity + ' unit(s). On hand now: '
                    + (data.on_hand === undefined || data.on_hand === null ? '—' : data.on_hand) + '.'), 'ok');
             if (typeof window.showToast === 'function') {
-                window.showToast(data.duplicate ? 'Already recorded' : 'Receipt recorded', 'success');
+                window.showToast(data.duplicate ? 'Already recorded' : 'Return recorded', 'success');
             }
             // The sheet behind this panel is server-rendered and now stale: reload so the new stock
             // is visible where the operator is looking, which is the only proof the booking landed.
@@ -4279,7 +4283,7 @@
                 window.setTimeout(function() { window.location.reload(); }, 700);
             }
         }).catch(function(err) {
-            if (button) { button.disabled = false; button.textContent = 'Record Receipt'; }
+            if (button) { button.disabled = false; button.textContent = 'Record Return'; }
             setReceiptStatus((err && err.message) ? err.message
                 : 'The request did not reach the server. Nothing was booked — try again when the connection is back.', 'error');
         });

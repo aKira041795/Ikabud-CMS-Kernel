@@ -53,6 +53,7 @@
     "dl_branch_product_supply_rules",
     "dl_delivery_variance_flags",
     "dl_commissary_product_ledger",
+    "dl_commissary_returned_items",
     "dl_commissary_depletion_backfill",
     "dl_delivery_ledger_effects",
     "dl_consignees",
@@ -195,7 +196,11 @@
     "database/migrations/107_box_mapping.sql",
     "database/migrations/108_packaging_applied.sql",
     "database/migrations/109_branch_official_data_start.sql",
-    "database/migrations/110_purchase_receipt_movement.sql"
+    "database/migrations/110_purchase_receipt_movement.sql",
+    "database/migrations/111_commissary_received_and_rework.sql",
+    "database/migrations/112_reverse_received_into_balance.sql",
+    "database/migrations/113_commissary_returned_items.sql",
+    "database/migrations/114_returned_items_client_op.sql"
   ],
   "capabilities": {
     "exposes": [
