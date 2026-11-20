@@ -196,6 +196,21 @@ try {
         'detail is only rewritten on re-raise, so "has N" becomes a false claim as soon as one '
         . 'more line is counted'
     );
+    // ── A bare count is dismissable; a named list is not ──────────────────────────────────
+    // The owner's report: "PIC does not bother about it as it is not produced at the commis".
+    // Measured 2026-11-20 — the claim is mostly FALSE in aggregate (only 192 of 5,508 ending-less
+    // lines, 3.5%, are products the hub never produces; pass-through lines are counted at 42% vs
+    // 38% for produced ones) but TRUE at the top of the list: of the 8 largest missing lines on
+    // branch 18 / 2026-10-09 PM, 7 passed through and only 1 was produced there. A PIC who reads
+    // the top of a bare "30 products" stamp sees what they do not make and stops reading.
+    // The notice must therefore name the products and state the split.
+    $h->test(
+        'the pending notice names the missing products and their produced/pass-through split',
+        str_contains($handlerSrc, 'Missing: ')
+            && str_contains($handlerSrc, 'were produced here')
+            && str_contains($handlerSrc, 'only passed through'),
+        'an unnamed count lets "we do not produce that here" be the answer to every stamp'
+    );
 } finally {
     $cleanup();
 }

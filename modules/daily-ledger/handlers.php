@@ -2829,6 +2829,52 @@ function dl_maybeAutoFinalizeCommissaryPmShift(int $branchId, string $date, ?int
     $missing = (int)$missingStmt->fetchColumn();
     $result['missing'] = $missing;
 
+    // ── Name the work, and split it by kind ────────────────────────────────────────────────
+    // A bare count is dismissable: "those are products we don't produce at the commissary" is a
+    // free answer to "30 products with no ending", and it is wrong. Measured 2026-11-20 on the
+    // two hubs that still carry stamps: only 192 of 5,508 ending-less lines (3.5%) belong to a
+    // product the hub never produces, and pass-through lines are counted at a HIGHER rate than
+    // produced ones (branch 18: 42% vs 38%; branch 21: 6% vs 9%), so production ownership does
+    // not explain the gap — it is uniform non-counting. Naming the products and stating how many
+    // were produced here turns the stamp into a work list that cannot be answered with "not mine".
+    $missingNames = [];
+    $missingProducedHere = 0;
+    $missingPassedThrough = 0;
+    if ($missing > 0) {
+        $splitStmt = $db->prepare(
+            'SELECT cpl.produced_qty, cpl.dispatched_qty, cpl.beg_qty, cpl.wastage_qty, p.name
+               FROM dl_products p
+               INNER JOIN dl_branch_products bp ON bp.product_id = p.id AND bp.branch_id = :bid AND bp.is_active = 1
+               INNER JOIN dl_commissary_product_ledger cpl
+                       ON cpl.product_id = p.id
+                      AND cpl.commissary_branch_id = :bid2
+                      AND cpl.ledger_date = :d
+                      AND cpl.shift = :shift
+              WHERE p.is_active = 1
+                AND cpl.actual_end_qty IS NULL
+                AND (cpl.beg_qty <> 0 OR cpl.produced_qty <> 0 OR cpl.dispatched_qty <> 0 OR cpl.wastage_qty <> 0)
+              ORDER BY cpl.dispatched_qty DESC, cpl.produced_qty DESC, p.name ASC
+              LIMIT 8'
+        );
+        try {
+            $splitStmt->execute([':bid' => $branchId, ':bid2' => $branchId, ':d' => $date, ':shift' => $shift]);
+            foreach ($splitStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+                $missingProducedHere += ((int)$row['produced_qty'] !== 0) ? 1 : 0;
+                $missingPassedThrough += ((int)$row['produced_qty'] === 0) ? 1 : 0;
+                $missingNames[] = (string)$row['name'];
+            }
+        } catch (Throwable $ignored) {
+            // The notice must never fail the close that raised it; the bare count still stands.
+            $missingNames = [];
+        }
+    }
+    $missingWork = '';
+    if ($missingNames !== []) {
+        $missingWork = ' Missing: ' . implode(', ', array_slice($missingNames, 0, 6))
+            . ($missing > count($missingNames) ? ' and ' . ($missing - count($missingNames)) . ' more' : '')
+            . ' (' . $missingProducedHere . ' of the largest were produced here, ' . $missingPassedThrough . ' only passed through).';
+    }
+
     $ownsTxn = !$db->inTransaction();
     if ($ownsTxn) {
         $db->beginTransaction();
@@ -2880,7 +2926,7 @@ function dl_maybeAutoFinalizeCommissaryPmShift(int $branchId, string $date, ?int
                 'dl_ledger_shift_status',
                 null,
                 $shift . ' shift not finalized',
-                'Commissary #' . $branchId . ' business date ' . $date . ' had ' . $missing . ' product(s) with movement but no ' . $shift . ' ending count when this was raised. The shift was NOT force-finalized; the day stays open so the counts can be completed. An admin must review.'
+                'Commissary #' . $branchId . ' business date ' . $date . ' had ' . $missing . ' product(s) with movement but no ' . $shift . ' ending count when this was raised.' . $missingWork . ' The shift was NOT force-finalized; the day stays open so the counts can be completed. An admin must review.'
             );
             $result['flagged'] = true;
             $result['finalized'] = false;
