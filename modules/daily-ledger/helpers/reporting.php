@@ -1951,15 +1951,48 @@ function dl_overviewLedgerCompleteness(DatabaseContract $db, array $filters): ar
 }
 
 /**
- * Per-branch activity, completeness, and unresolved variance signals for the
- * Business Health view. A missing map entry means no ledger activity, not zero
- * performance. Delivery variances are included because the canonical
- * dl_variance_flags table records them with kind=delivery.
+ * ONE grouped pass over the ledger window, replacing the separate scans the Business Overview used
+ * to make for completeness, per-branch signals, and per-branch official sales.
  *
- * @param array<string,mixed> $filters
- * @return array<int,array{rows_total:int,pending:int,completed:int,unresolved_variances:int,absolute_variance:int}>
+ * WHY THIS EXISTS — measured 2026-11-20 on the 2026-10-01..2026-11-20 window, with the real
+ * helpers (`.ai/probes/probe-overview-attribution.php`):
+ *
+ *     dl_overviewLedgerCompleteness                 214 ms
+ *     dl_overviewBranchSignals                    2,433 ms
+ *     sales per branch (canonical EXISTS expr)     3,472 ms
+ *     dl_overviewOfficialSalesTotal (prior)        2,984 ms
+ *     dl_overviewForecastRows(14d)                 1,438 ms
+ *
+ * Three of those are the same rows, the same joins and the same provisional rule, scanned three
+ * times: 269,554 ledger rows of which 28 of 29 branches match, so `EXPLAIN` reports `type=ALL` and
+ * no index can narrow it. The page therefore cost ~4.4 s in 41 queries, and the cost grew with the
+ * table rather than with the answer (31 branch rows).
+ *
+ * The provisional rule is resolved against the row's own `dl_branches` join (`b.single_shift_mode`)
+ * instead of the canonical predicate's correlated `EXISTS (SELECT 1 FROM dl_branches ...)`. That
+ * substitution is not a guess: it is the one the lifetime block in handleAdminOverview() already
+ * documents, and it was proved identical here — 0 differing cells across 31 branch rows and a gross
+ * amount matching to the cent (`.ai/probes/probe-overview-attribution.php`, "EQUIVALENCE").
+ *
+ * `$officialOnly` reproduces `dl_officialOnlySqlPredicate()`: the caller's "official rows only"
+ * basis applies it to its sales scan, which is why the same figure is returned as both `units` and
+ * `official_units` in that mode.
+ *
+ * THE JOIN HAS NO `COLLATE`, ON PURPOSE — AND IT IS GUARDED. Every other shift join in this module
+ * carries `COLLATE utf8mb4_unicode_ci` because `dl_variance_flags.shift` is `utf8mb4_0900_ai_ci`
+ * while `dl_daily_ledger.shift` is `utf8mb4_unicode_ci`, and mixing them raises error 1267. Here
+ * BOTH sides are `utf8mb4_unicode_ci` (two ENUM('AM','PM') columns created by the same module
+ * migrations), so the COLLATE is semantically a no-op and cost 1,443 ms per scan on the measured
+ * data: the identical query ran 2,345 ms with it and 902 ms without
+ * (`.ai/probes/probe-overview-variants.php`, rows B vs C and D vs E). Removing it is therefore an
+ * optimisation that depends on a schema fact, so
+ * `tests/daily-ledger/daily_ledger_overview_aggregate_test.php` asserts that the two columns share a
+ * collation and fails loudly if a future migration ever diverges them.
+ *
+ * @param array<string,mixed> $filters resolved by dl_reportFilters()
+ * @return array<int,array{rows_total:int,pending:int,completed:int,pending_locked:int,units:int,official_units:int,official_amount:float}>
  */
-function dl_overviewBranchSignals(DatabaseContract $db, array $filters): array
+function dl_overviewWindowAggregate(DatabaseContract $db, array $filters, bool $officialOnly = false): array
 {
     $ids = array_values(array_filter(array_map('intval', $filters['accessible_branch_ids'] ?? []), static fn(int $id): bool => $id > 0));
     if (($filters['branch_id'] ?? 0) > 0) {
@@ -1970,39 +2003,104 @@ function dl_overviewBranchSignals(DatabaseContract $db, array $filters): array
     }
 
     $marks = implode(',', array_fill(0, count($ids), '?'));
-    $bind = array_merge([$filters['date_from'] ?? '', $filters['date_to'] ?? ''], $ids);
-    // pending_locked separates the two kinds of "pending ending" that used to be one number:
-    // one the branch can finish, and one it cannot reach at all. A shift marked `finalized` is
-    // immutable (dl_assertShiftMutable), so a row still lacking bal_end on it can only be completed
-    // after an admin reopens that day. Measured on tenant 203, 2026-10-01..11-20: of 2,804 pending
-    // rows, 631 sat on FINALIZED shifts, 608 of them activity-bearing - the branch worked the
-    // reachable part and the verdict stayed "Incomplete" with no way to learn why.
-    $ledger = $db->prepare(
-        "SELECT dl.branch_id, COUNT(*) rows_total,
-                SUM(CASE WHEN dl.bal_end IS NULL THEN 1 ELSE 0 END) pending,
-                SUM(CASE WHEN dl.bal_end IS NOT NULL THEN 1 ELSE 0 END) completed,
-                SUM(CASE WHEN dl.bal_end IS NULL AND ss.status = 'finalized' THEN 1 ELSE 0 END) pending_locked
-           FROM dl_daily_ledger dl
-           LEFT JOIN dl_ledger_shift_status ss
-             ON ss.branch_id = dl.branch_id AND ss.ledger_date = dl.ledger_date
-            AND ss.shift = dl.shift COLLATE utf8mb4_unicode_ci
-          WHERE dl.ledger_date BETWEEN ? AND ? AND dl.branch_id IN ({$marks})
-          GROUP BY dl.branch_id"
-    );
-    $ledger->execute($bind);
-    $signals = [];
-    foreach ($ledger->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
-        $signals[(int)$row['branch_id']] = [
+    $qty = dl_ledgerSalesQuantitySql('dl');
+    $amount = dl_ledgerSalesAmountSql('dl');
+    // Exact equivalent of dl_provisionalSqlExpr(), with the branch resolved by join.
+    $provisional = "(dl.end_source IN ('derived-from-movements','zero-forced')"
+        . ' OR dl.bal_end IS NULL'
+        . " OR (ss.status IS NULL AND (dl.shift = 'PM' OR (dl.shift = 'AM' AND b.single_shift_mode = 1)))"
+        . " OR (ss.status IS NOT NULL AND ss.status <> 'finalized'))";
+
+    $sql = 'SELECT dl.branch_id,'
+        . ' COUNT(*) AS rows_total,'
+        . ' SUM(CASE WHEN dl.bal_end IS NULL THEN 1 ELSE 0 END) AS pending,'
+        . ' SUM(CASE WHEN dl.bal_end IS NOT NULL THEN 1 ELSE 0 END) AS completed,'
+        . " SUM(CASE WHEN dl.bal_end IS NULL AND ss.status = 'finalized' THEN 1 ELSE 0 END) AS pending_locked,"
+        . ' COALESCE(SUM(' . $qty . '), 0) AS units_all,'
+        . ' COALESCE(SUM(CASE WHEN ' . $provisional . ' THEN 0 ELSE ' . $qty . ' END), 0) AS official_units,'
+        . ' COALESCE(SUM(CASE WHEN ' . $provisional . ' THEN 0 ELSE ' . $amount . ' END), 0) AS official_amount'
+        . ' FROM dl_daily_ledger dl'
+        . ' INNER JOIN dl_branches b ON b.id = dl.branch_id'
+        . ' LEFT JOIN dl_ledger_shift_status ss'
+        . ' ON ss.branch_id = dl.branch_id AND ss.ledger_date = dl.ledger_date'
+        . ' AND ss.shift = dl.shift'
+        . " WHERE dl.ledger_date BETWEEN ? AND ? AND dl.branch_id IN ({$marks})"
+        . ' GROUP BY dl.branch_id';
+    $stmt = $db->prepare($sql);
+    $stmt->execute(array_merge([$filters['date_from'] ?? '', $filters['date_to'] ?? ''], $ids));
+
+    $out = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+        $officialUnits = (int)$row['official_units'];
+        $out[(int)$row['branch_id']] = [
             'rows_total' => (int)$row['rows_total'],
             'pending' => (int)$row['pending'],
-            'pending_locked' => (int)$row['pending_locked'],
             'completed' => (int)$row['completed'],
+            'pending_locked' => (int)$row['pending_locked'],
+            // "Official rows only" applies the provisional predicate to the sales scan itself, so
+            // the inclusive figure and the official figure are the same population in that mode.
+            'units' => $officialOnly ? $officialUnits : (int)$row['units_all'],
+            'official_units' => $officialUnits,
+            'official_amount' => (float)$row['official_amount'],
+        ];
+    }
+    return $out;
+}
+
+/**
+ * Per-branch activity, completeness, and unresolved variance signals for the
+ * Business Health view. A missing map entry means no ledger activity, not zero
+ * performance. Delivery variances are included because the canonical
+ * dl_variance_flags table records them with kind=delivery.
+ *
+ * @param array<string,mixed> $filters
+ * @return array<int,array{rows_total:int,pending:int,completed:int,unresolved_variances:int,absolute_variance:int}>
+ */
+function dl_overviewBranchSignals(DatabaseContract $db, array $filters): array
+{
+    // Composed from the two reads the Business Overview also uses directly, so "complete" cannot
+    // mean one thing here and another on the page. This used to scan the ledger itself, which is
+    // why the Overview paid for the same window three times (see dl_overviewWindowAggregate()).
+    $signals = [];
+    foreach (dl_overviewWindowAggregate($db, $filters, false) as $branchId => $row) {
+        $signals[$branchId] = [
+            'rows_total' => $row['rows_total'],
+            'pending' => $row['pending'],
+            'pending_locked' => $row['pending_locked'],
+            'completed' => $row['completed'],
             'unresolved_variances' => 0,
             'absolute_variance' => 0,
         ];
     }
+    foreach (dl_overviewVarianceSignals($db, $filters) as $branchId => $row) {
+        $signals[$branchId] ??= ['rows_total' => 0, 'pending' => 0, 'pending_locked' => 0, 'completed' => 0, 'unresolved_variances' => 0, 'absolute_variance' => 0];
+        $signals[$branchId]['unresolved_variances'] = $row['unresolved_variances'];
+        $signals[$branchId]['absolute_variance'] = $row['absolute_variance'];
+    }
+    return $signals;
+}
 
-    $variance = $db->prepare(
+/**
+ * Unresolved variance flags for the window, per branch.
+ *
+ * Split out of dl_overviewBranchSignals() because it reads a DIFFERENT table: keeping it inline
+ * meant the Business Overview had to re-scan the ledger to get it, or scan the flags without the
+ * ledger figures. `dl_variance_flags` is a few thousand rows, so this is the cheap half.
+ *
+ * @param array<string,mixed> $filters
+ * @return array<int,array{unresolved_variances:int,absolute_variance:int}>
+ */
+function dl_overviewVarianceSignals(DatabaseContract $db, array $filters): array
+{
+    $ids = array_values(array_filter(array_map('intval', $filters['accessible_branch_ids'] ?? []), static fn(int $id): bool => $id > 0));
+    if (($filters['branch_id'] ?? 0) > 0) {
+        $ids = in_array((int)$filters['branch_id'], $ids, true) ? [(int)$filters['branch_id']] : [];
+    }
+    if ($ids === []) {
+        return [];
+    }
+    $marks = implode(',', array_fill(0, count($ids), '?'));
+    $stmt = $db->prepare(
         "SELECT branch_id, COUNT(*) unresolved_variances,
                 COALESCE(SUM(ABS(variance)), 0) absolute_variance
            FROM dl_variance_flags
@@ -2010,15 +2108,15 @@ function dl_overviewBranchSignals(DatabaseContract $db, array $filters): array
             AND resolution_status <> 'corrected'
           GROUP BY branch_id"
     );
-    $variance->execute($bind);
-    foreach ($variance->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
-        $id = (int)$row['branch_id'];
-        $signals[$id] ??= ['rows_total' => 0, 'pending' => 0, 'pending_locked' => 0, 'completed' => 0, 'unresolved_variances' => 0, 'absolute_variance' => 0];
-        $signals[$id]['unresolved_variances'] = (int)$row['unresolved_variances'];
-        $signals[$id]['absolute_variance'] = (int)$row['absolute_variance'];
+    $stmt->execute(array_merge([$filters['date_from'] ?? '', $filters['date_to'] ?? ''], $ids));
+    $out = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+        $out[(int)$row['branch_id']] = [
+            'unresolved_variances' => (int)$row['unresolved_variances'],
+            'absolute_variance' => (int)$row['absolute_variance'],
+        ];
     }
-
-    return $signals;
+    return $out;
 }
 
 /**

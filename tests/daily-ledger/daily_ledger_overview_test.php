@@ -478,19 +478,39 @@ $handlersSource = (string)file_get_contents($base . '/modules/daily-ledger/handl
 $overviewStart = strpos($handlersSource, 'function handleAdminOverview');
 $overviewEnd = strpos($handlersSource, 'function handleAdminReports');
 $overviewSlice = ($overviewStart !== false && $overviewEnd !== false) ? substr($handlersSource, $overviewStart, $overviewEnd - $overviewStart) : '';
-// The Health view's per-branch aggregation is dl_overviewBranchSignals(); the
-// product helper above is no longer called here because item analytics moved to
-// the Sales report. Preserve the no-N+1 guard by proving the handler asks for
-// the per-branch signals exactly once, and that the helper is itself set-based
-// (two grouped aggregate queries, never one query per branch).
-$branchSignalsStart = strpos($reportingSource, 'function dl_overviewBranchSignals');
-$branchSignalsEnd = strpos($reportingSource, 'function dl_overviewOfficialSalesTotal');
-$branchSignalsSlice = ($branchSignalsStart !== false && $branchSignalsEnd !== false) ? substr($reportingSource, $branchSignalsStart, $branchSignalsEnd - $branchSignalsStart) : '';
+// The Health view's per-branch aggregation is one grouped pass, dl_overviewWindowAggregate();
+// dl_overviewBranchSignals() is now composed from it plus the small variance read. The INTENT of
+// this pin is "no query per branch", so it asserts the aggregate's shape rather than a particular
+// function name: a single prepared grouped statement, and a card loop that prepares nothing.
+// (It previously required dl_overviewBranchSignals to contain exactly two ->prepare() calls, which
+// made naming a refactor a test failure while the no-N+1 property was intact.)
+$sliceBetween = static function (string $src, string $from, string $to): string {
+    $a = strpos($src, $from);
+    if ($a === false) {
+        return '';
+    }
+    $b = strpos($src, $to, $a + strlen($from));
+    return $b === false ? '' : substr($src, $a, $b - $a);
+};
+$aggregateSlice = $sliceBetween($reportingSource, 'function dl_overviewWindowAggregate', 'function dl_overviewBranchSignals');
+$varianceSlice = $sliceBetween($reportingSource, 'function dl_overviewVarianceSignals', 'function dl_overviewOfficialSalesTotal');
+$cardsLoop = $sliceBetween($overviewSlice, 'foreach ($scopedBranches as $br)', '$netSetting');
 $h->test(
-    'handler calls the per-branch helper once (no per-branch loop)',
-    substr_count($overviewSlice, 'dl_overviewBranchSignals(') === 1
-        && substr_count($branchSignalsSlice, '->prepare(') === 2
-        && str_contains($branchSignalsSlice, 'GROUP BY branch_id')
+    'the overview aggregates per branch in one set-based pass, never one query per branch',
+    // Exactly TWO calls, both set-based: the selected window and the previous period the trend card
+    // compares against. Two windows are two scans; what must never happen is one scan PER BRANCH,
+    // which is what the card-loop check below proves.
+    substr_count($overviewSlice, 'dl_overviewWindowAggregate(') === 2
+        && substr_count($aggregateSlice, '->prepare(') === 1
+        && str_contains($aggregateSlice, 'GROUP BY dl.branch_id')
+        && substr_count($varianceSlice, '->prepare(') === 1
+        && str_contains($varianceSlice, 'GROUP BY branch_id')
+        && $cardsLoop !== ''
+        && !str_contains($cardsLoop, '->prepare('),
+    'aggregate calls=' . substr_count($overviewSlice, 'dl_overviewWindowAggregate(')
+        . ' aggregate prepares=' . substr_count($aggregateSlice, '->prepare(')
+        . ' variance prepares=' . substr_count($varianceSlice, '->prepare(')
+        . ' card-loop prepares=' . substr_count($cardsLoop, '->prepare(')
 );
 $h->test('overview reuses canonical sales SQL helpers', str_contains($reportingSource, "dl_ledgerSalesQuantitySql('dl')") && str_contains($reportingSource, "dl_ledgerSalesAmountSql('dl')"));
 $h->test('overview SQL avoids MySQL 8-only constructs', stripos($overviewSlice, ' OVER(') === false && stripos($overviewSlice, ' OVER (') === false && preg_match('/\bWITH\s+[a-z_]+\s+AS\s*\(/i', $overviewSlice) !== 1 && stripos($overviewSlice, 'JSON_TABLE') === false);

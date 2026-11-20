@@ -16190,15 +16190,45 @@ function handleAdminOverview(array $params = []): void
     $dateFrom = (string)$filters['date_from'];
     $dateTo = (string)$filters['date_to'];
     $periodValue = $dateFrom === $dateTo ? $dateFrom : $dateFrom . ' to ' . $dateTo;
-    // One per-branch pass also supplies scope completeness; querying the same ledger window again
-    // for totals added latency and could only reproduce these sums.
-    $branchSignals = dl_overviewBranchSignals($ctx->db(), $filters);
-    $completeness = [
-        'rows_total' => array_sum(array_column($branchSignals, 'rows_total')),
-        'pending' => array_sum(array_column($branchSignals, 'pending')),
-        'pending_locked' => array_sum(array_column($branchSignals, 'pending_locked')),
-        'completed' => array_sum(array_column($branchSignals, 'completed')),
-    ];
+    // ONE grouped pass supplies completeness, per-branch signals AND per-branch official sales.
+    // They used to be three scans of the same 269k-row table with the same joins and the same
+    // provisional rule - 214 ms + 2,433 ms + 3,472 ms measured on 2026-11-20 - and the extra passes
+    // could only reproduce sums the first one already had. Equivalence to the old scans is proved
+    // cell-by-cell across 30 window/scope/basis cases in `.ai/probes/probe-overview-aggregate-diff.php`.
+    $overviewAggregate = dl_overviewWindowAggregate($ctx->db(), $filters, $pendingRowsMode === 'exclude');
+    $branchSignals = [];
+    $branchSalesMap = [];
+    $completeness = ['rows_total' => 0, 'pending' => 0, 'pending_locked' => 0, 'completed' => 0];
+    foreach ($overviewAggregate as $aggBranchId => $aggRow) {
+        $branchSignals[$aggBranchId] = [
+            'rows_total' => $aggRow['rows_total'],
+            'pending' => $aggRow['pending'],
+            'pending_locked' => $aggRow['pending_locked'],
+            'completed' => $aggRow['completed'],
+            'unresolved_variances' => 0,
+            'absolute_variance' => 0,
+        ];
+        $completeness['rows_total'] += $aggRow['rows_total'];
+        $completeness['pending'] += $aggRow['pending'];
+        $completeness['pending_locked'] += $aggRow['pending_locked'];
+        $completeness['completed'] += $aggRow['completed'];
+        // `total_units` is the basis-aware figure: "official rows only" applies the provisional
+        // predicate to the sales scan itself, which is why the aggregate reports the same population
+        // for units and official_units in that mode. Reproduced exactly from the old inline query.
+        $branchSalesMap[$aggBranchId] = [
+            'total_units' => $aggRow['units'],
+            'official_units' => $aggRow['official_units'],
+            'total_amount' => $aggRow['official_amount'],
+        ];
+    }
+    foreach (dl_overviewVarianceSignals($ctx->db(), $filters) as $varBranchId => $varRow) {
+        $branchSignals[$varBranchId] ??= [
+            'rows_total' => 0, 'pending' => 0, 'pending_locked' => 0, 'completed' => 0,
+            'unresolved_variances' => 0, 'absolute_variance' => 0,
+        ];
+        $branchSignals[$varBranchId]['unresolved_variances'] = $varRow['unresolved_variances'];
+        $branchSignals[$varBranchId]['absolute_variance'] = $varRow['absolute_variance'];
+    }
     // Completeness of the period's ledger: the ranked tables drop pending rows, so an
     // all-pending day is empty. Report that as unfinished reporting, never as zero sales.
     $reportingPending = $completeness['pending'] > 0 && $completeness['completed'] === 0;
@@ -16225,6 +16255,12 @@ function handleAdminOverview(array $params = []): void
     // confuse. traceable not hidden", so the boundary is NAMED here together with what is actually
     // stored behind it. $storedRowsBeforeBoundary is read straight from the ledger, never derived
     // from a completeness helper that has already been clamped to the boundary.
+    // dl_effectiveStartForView() walks every branch through dl_branchOfficialStart() -> dl_branchRow(),
+    // and dl_branchRow() issues ONE SELECT per branch when nothing is preloaded. On an admin scope of
+    // 83 branches that was 82 extra queries on every Overview view, added by this boundary block and
+    // found by comparing the page's query count (41 -> 123) against its branch count. One preload
+    // answers all of them.
+    dl_preloadBranchRows($accessibleBranchIds);
     $overviewOfficialStart = dl_effectiveStartForView($accessibleBranchIds, $branchId);
     $beforeOfficialStartRange = $overviewOfficialStart !== null && $overviewOfficialStart !== ''
         && $dateTo < $overviewOfficialStart;
@@ -16271,39 +16307,13 @@ function handleAdminOverview(array $params = []): void
     // Product rankings and Pareto remain available on Reports. This health view
     // deliberately stops its drill-down at branch.
 
-    // Sales per branch for the period.
+// Sales per branch for the period are already in $branchSalesMap from the single pass above;
+    // only the day-status read remains, which is a small keyed lookup on a 2.3k-row table.
     $grandUnits = 0;
     $grandAmount = 0.0;
     $dayStatuses = [];
-    $branchSalesMap = [];
     if ($scopedBranchIds !== []) {
         $branchPlaceholders = implode(',', array_fill(0, count($scopedBranchIds), '?'));
-        $salesSql =
-            'SELECT dl.branch_id, b.name AS branch_name,
-                    COALESCE(SUM(' . dl_ledgerSalesQuantitySql('dl') . '), 0) AS total_units,
-                    COALESCE(SUM(CASE WHEN ' . dl_provisionalSqlExpr('dl', 'ss') . ' THEN 0 ELSE ' . dl_ledgerSalesQuantitySql('dl') . ' END), 0) AS official_units,
-                    COALESCE(SUM(CASE WHEN ' . dl_provisionalSqlExpr('dl', 'ss') . ' THEN 0 ELSE ' . dl_ledgerSalesAmountSql('dl') . ' END), 0) AS total_amount,
-                    COUNT(DISTINCT dl.product_id) AS product_count
-             FROM dl_daily_ledger dl
-             INNER JOIN dl_branches b ON b.id = dl.branch_id
-             LEFT JOIN dl_ledger_shift_status ss
-                    ON ss.branch_id = dl.branch_id AND ss.ledger_date = dl.ledger_date
-                   AND ss.shift = dl.shift COLLATE utf8mb4_unicode_ci
-             WHERE dl.ledger_date BETWEEN ? AND ? AND dl.branch_id IN (' . $branchPlaceholders . ')';
-        $salesBind = array_merge([$dateFrom, $dateTo], $scopedBranchIds);
-        if ($pendingRowsMode === 'exclude') {
-            // Units and the amount BESIDE them must describe one population. The amount has always been
-            // official-only; the units used the pending predicate alone, which removed nothing (a
-            // pending row's quantity is NULL) - so the card showed 102,615 inclusive units labelled
-            // "official, finalized rows" beside an official amount. Sol: F2.
-            $salesSql .= dl_officialOnlySqlPredicate('dl', 'ss');
-        }
-        $salesSql .= ' GROUP BY dl.branch_id, b.name, b.sort_order ORDER BY ' . dl_entityOrderBySql('b.');
-        $salesStmt = $ctx->db()->prepare($salesSql);
-        $salesStmt->execute($salesBind);
-        foreach ($salesStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
-            $branchSalesMap[(int)$row['branch_id']] = $row;
-        }
 
         // Day status per branch for the end date.
         $statusStmt = $ctx->db()->prepare("SELECT branch_id, status FROM dl_ledger_day_status WHERE ledger_date = ? AND branch_id IN ({$branchPlaceholders})");
@@ -16395,8 +16405,21 @@ function handleAdminOverview(array $params = []): void
     $priorFilters = $filters;
     $priorFilters['date_from'] = $priorFrom->format('Y-m-d');
     $priorFilters['date_to'] = $priorTo->format('Y-m-d');
-    $priorAmount = dl_overviewOfficialSalesTotal($ctx->db(), $priorFilters);
-    $priorCompleteness = dl_overviewLedgerCompleteness($ctx->db(), $priorFilters);
+    // ONE pass for the previous period too, instead of a completeness scan plus a separate
+    // official-total scan (measured 2,869 ms together with the join COLLATE). The aggregate's
+    // official_amount ignores every provisional row by construction - a pending row has bal_end
+    // NULL, which the provisional rule already covers - so it is the same numerator the old
+    // dl_overviewOfficialSalesTotal() produced, without dl_overviewPendingPredicate() needing to be
+    // appended as a second removal of the same rows.
+    $priorAggregate = dl_overviewWindowAggregate($ctx->db(), $priorFilters, $pendingRowsMode === 'exclude');
+    $priorAmount = 0.0;
+    $priorCompleteness = ['rows_total' => 0, 'pending' => 0, 'completed' => 0];
+    foreach ($priorAggregate as $priorRow) {
+        $priorAmount += $priorRow['official_amount'];
+        $priorCompleteness['rows_total'] += $priorRow['rows_total'];
+        $priorCompleteness['pending'] += $priorRow['pending'];
+        $priorCompleteness['completed'] += $priorRow['completed'];
+    }
     // A comparison is honest only when BOTH periods are fully finalized and carry a
     // meaningful sales baseline. An empty baseline, a pending baseline, or any
     // pending rows in either period cannot support an authoritative percentage, so
