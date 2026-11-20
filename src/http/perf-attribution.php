@@ -384,7 +384,8 @@ if (!function_exists('kernelPerfProbeRequestAttribution')) {
         ];
 
         if (!empty($_ENV['KERNEL_DB_PROFILE'])) {
-            $shapes = $GLOBALS['kernel_perf_request_attribution']['db']['shapes'] ?? null;
+            $state = $GLOBALS['kernel_perf_request_attribution'] ?? null;
+            $shapes = is_array($state['db']['shapes'] ?? null) ? $state['db']['shapes'] : null;
             if (is_array($shapes)) {
                 uasort($shapes, static fn(array $a, array $b): int => $b['n'] <=> $a['n']);
                 $top = [];
@@ -392,6 +393,24 @@ if (!function_exists('kernelPerfProbeRequestAttribution')) {
                     $top[] = $agg['n'] . 'x ' . $agg['ms'] . 'ms :: ' . $shape;
                 }
                 $summary['db']['top'] = $top;
+            }
+
+            // By COUNT is not enough. A page whose time sits in ONE runaway statement shows nothing
+            // here: measured 2026-11-20, /daily-ledger/admin/overview spent 13.5 s of DB time and the
+            // eight most frequent shapes accounted for 0.5 s of it, so the culprit was invisible and
+            // the investigation stalled on a list that looked complete. The slowest statements are
+            // collected already (`db.slowest`, top 5 by ms) - emit them too, so a single heavy query
+            // can be seen without attaching a profiler.
+            $slowest = is_array($state['db']['slowest'] ?? null) ? $state['db']['slowest'] : [];
+            $slowList = [];
+            foreach ($slowest as $row) {
+                if (!is_array($row)) {
+                    continue;
+                }
+                $slowList[] = round((float)($row['ms'] ?? 0), 1) . 'ms :: ' . (string)($row['sql'] ?? '');
+            }
+            if ($slowList !== []) {
+                $summary['db']['slowest'] = $slowList;
             }
         }
 

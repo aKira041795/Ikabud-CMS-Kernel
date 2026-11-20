@@ -89,10 +89,15 @@ function dl_reportFilters(array $input, array $user): array
     // established branch's official history. Queries that carry dl_branches can be exact instead by
     // comparing against dl_officialStartSqlExpr('b') per row.
     $branchStarts = [];
-    foreach ($accessible as $branchId) {
-        $start = dl_branchOfficialStart((int)$branchId);
+    // $scopedBranch is deliberately NOT named $branchId. This loop used to reuse $branchId, which
+    // silently overwrote the requested branch three lines above: with `?branch_id=8` the function
+    // returned whatever branch happened to be LAST in $accessible (measured 2026-11-20: input 8,
+    // returned 58/LABASON), so every report, export and the Health view ignored the branch filter
+    // and showed the same branch no matter what was selected.
+    foreach ($accessible as $scopedBranch) {
+        $start = dl_branchOfficialStart((int)$scopedBranch);
         if ($start !== null) {
-            $branchStarts[(int)$branchId] = $start;
+            $branchStarts[(int)$scopedBranch] = $start;
         }
     }
     $earliestStart = $branchStarts === [] ? null : min($branchStarts);

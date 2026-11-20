@@ -15894,7 +15894,17 @@ function handleAdminOverview(array $params = []): void
     // canonical pair ($dateFrom/$dateTo); no other period value is retained.
     $hasFromInput = !empty($input['date_from']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)$input['date_from']);
     $hasToInput = !empty($input['date_to']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)$input['date_to']);
-    $dateFrom = $hasFromInput ? (string)$input['date_from'] : $today;
+    // DEFAULT PERIOD = THE OFFICIAL HISTORY, never a single day.
+    //
+    // Owner 2026-11-20: "recheck the business data start as i check health view, resolved to november 20
+    // ... settings is on october 1". The page opened on From=To=today, so a whole-business Health view
+    // presented ONE day's figures as if they were the business, and contradicted the boundary the rest
+    // of the module honours. An unrequested range now starts where official counting starts.
+    //
+    // Seeded to 1970 so dl_reportFilters() resolves the per-scope boundary itself (it is the one
+    // consumer that knows the per-branch starts and applies them as a floor); the resolved value is
+    // read back below. An explicit range from the user always wins.
+    $dateFrom = $hasFromInput ? (string)$input['date_from'] : '1970-01-01';
     $dateTo = $hasToInput ? (string)$input['date_to'] : $today;
     // A URL bookmarked before the range control still uses the old single `period`
     // field. It resolves through the SAME canonical pair, and only when neither date
@@ -15932,6 +15942,12 @@ function handleAdminOverview(array $params = []): void
     $filters = dl_reportFilters(array_merge($input, ['date_from' => $dateFrom, 'date_to' => $dateTo]), $user);
     $filters['pending_rows_mode'] = $pendingRowsMode;
     $branchId = (int)$filters['branch_id'];
+    // Adopt the resolved window. When the user supplied From it is already authoritative; when the
+    // page defaulted, the boundary decided it (and its own max-day clamp may have shortened it, which
+    // the From/To controls then show truthfully instead of the page claiming a range it is not using).
+    $dateFrom = (string)$filters['date_from'];
+    $dateTo = (string)$filters['date_to'];
+    $periodValue = $dateFrom === $dateTo ? $dateFrom : $dateFrom . ' to ' . $dateTo;
     // One per-branch pass also supplies scope completeness; querying the same ledger window again
     // for totals added latency and could only reproduce these sums.
     $branchSignals = dl_overviewBranchSignals($ctx->db(), $filters);
