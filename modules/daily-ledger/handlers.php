@@ -3105,6 +3105,23 @@ function dl_officialStartSqlExpr(string $branchAlias): string
 }
 
 /**
+ * The single effective start a SCREEN should reason about: the chosen branch's own date when the view is
+ * narrowed to one branch, otherwise the earliest start among the branches in scope.
+ *
+ * Exists so no screen re-derives "is there a boundary and which one" inline - that is exactly how the
+ * variances default view and the Overview lifetime totals ended up still predicating on the SITE-WIDE
+ * date while the rest of the module had moved to per-branch (owner 2026-11-20: everything must stay "in
+ * harmony, synced, honest and stable").
+ */
+function dl_effectiveStartForView(array $branchIds, int $selectedBranchId): ?string
+{
+    if ($selectedBranchId > 0) {
+        return dl_branchOfficialStart($selectedBranchId);
+    }
+    return dl_effectiveStartForBranches($branchIds);
+}
+
+/**
  * The clamp a screen should actually apply.
  *
  * When the view is narrowed to ONE branch, that branch's own date is exact and must be used - a branch
@@ -4373,8 +4390,10 @@ function dl_suggestCommissaryBeginning($db, int $commissaryBranchId, int $produc
 {
     // Official data start: a beginning ON/AFTER the boundary must not be seeded
     // from pre-boundary counts or movements. Within the training period the
-    // suggestion keeps reading that history unchanged.
-    $officialStart = dl_officialDataStart();
+    // suggestion keeps reading that history unchanged. PER BRANCH (owner 2026-11-20): the boundary that
+    // matters here is THIS commissary's, or a hub that went official later would still be seeded from
+    // its own training period whenever the site-wide date was earlier.
+    $officialStart = dl_branchOfficialStart($commissaryBranchId);
     $floorSql = '';
     $floorBind = [];
     if ($officialStart !== null && $ledgerDate >= $officialStart) {
@@ -4437,8 +4456,9 @@ function dl_fetchCommissaryBeginningSuggestions(
         );
     } else {
         // Official data start: the AM suggestion must not reach back into a
-        // training period when the sheet date is on/after the boundary.
-        $officialStart = dl_officialDataStart();
+        // training period when the sheet date is on/after the boundary. Per branch: this commissary's
+        // own boundary.
+        $officialStart = dl_branchOfficialStart($commissaryBranchId);
         $floorSql = ($officialStart !== null && $ledgerDate >= $officialStart)
             ? ' AND ledger_date >= :official_floor'
             : '';
@@ -10355,8 +10375,9 @@ function dl_autoCarryBeginnings(\Ikabud\Kernel\Contracts\ModuleDB $db, int $bran
     $prevDate = (new \DateTimeImmutable($ledgerDate))->modify('-1 day')->format('Y-m-d');
     // Official data start: a beginning must never be carried ACROSS the boundary
     // (the previous date predates official records, so its ending is not a
-    // reference). Within the training period the handoff still works.
-    $officialStart = dl_officialDataStart();
+    // reference). Within the training period the handoff still works. PER BRANCH (owner 2026-11-20):
+    // this branch's own date, so a shop that went official later is not seeded from its training period.
+    $officialStart = dl_branchOfficialStart($branchId);
     $mayCarryPrev = ($officialStart === null || $ledgerDate < $officialStart || $prevDate >= $officialStart) ? 1 : 0;
 
     // `cur.id IS NULL` is the whole safety rule: the row must not exist. One placeholder per
@@ -14143,8 +14164,9 @@ function dl_carryCashierBeginnings(array $user, array $input): array
 
     $prevDate = (new \DateTimeImmutable($date))->modify('-1 day')->format('Y-m-d');
     // Official data start: the same rule as the automatic carry — no beginning is
-    // seeded from a date before the boundary (within the training period it works).
-    $officialStart = dl_officialDataStart();
+    // seeded from a date before the boundary (within the training period it works). PER BRANCH
+    // (owner 2026-11-20): this branch's own date.
+    $officialStart = dl_branchOfficialStart($branchId);
     $mayCarryPrev = ($officialStart === null || $date < $officialStart || $prevDate >= $officialStart) ? 1 : 0;
     $sourceStmt = $db->prepare(
         "SELECT p.id AS product_id,
@@ -15951,7 +15973,10 @@ function handleAdminOverview(array $params = []): void
                 . ' AND ss.shift = dl.shift COLLATE utf8mb4_unicode_ci'
                 . ' WHERE dl.branch_id IN (' . $lifetimeMarks . ')';
             $lifetimeBind = $lifetimeIds;
-            $lifetimeOfficialStart = dl_officialDataStart();
+            // PER BRANCH: the same boundary the lifetime window was clamped to above, not the site-wide
+            // date - predicating on the global here would re-admit a branch's pre-start rows that the
+            // window clamp had already excluded whenever a branch started LATER than the global date.
+            $lifetimeOfficialStart = dl_effectiveStartForView($lifetimeIds, (int)($filters['branch_id'] ?? 0));
             if ($lifetimeOfficialStart !== null) {
                 $lifetimeSql .= ' AND dl.ledger_date >= ?';
                 $lifetimeBind[] = $lifetimeOfficialStart;
@@ -18819,7 +18844,8 @@ function handleAdminVariances(array $params = []): void
     // boundary, so a training period's flags never present as current
     // accountability. An explicit range is honoured as chosen and labelled —
     // deliberate navigation into history stays readable.
-    $officialStart = dl_officialDataStart();
+    // PER BRANCH: the chosen branch's own date, else the earliest in scope.
+    $officialStart = dl_effectiveStartForView(dl_adminViewBranchIds($user, $input), (int)($input['branch_id'] ?? 0));
     $hasExplicitRange = ($dateFrom !== '' || $dateTo !== '');
     if ($officialStart !== null && !$hasExplicitRange) {
         $whereScope .= ' AND vf.ledger_date >= :official_start';
