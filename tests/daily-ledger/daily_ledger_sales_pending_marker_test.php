@@ -265,19 +265,61 @@ $h->test('the sales list path annotates rows with the canonical label',
     'handlers.php does not call dl_salesRowStatusLabel() — rows reach the view unlabelled');
 
 // ---------------------------------------------------------------------------
-// Section C — permanence guard: the SQL copy of the predicate must agree with the PHP one
+// Section C — permanence guard: the SQL twin must agree with the PHP rule
 // ---------------------------------------------------------------------------
-// Measured divergence on 2026-10-05 was 0 (2976 vs 2976), because AM shift rows are only
-// ever 'finalized' or absent, so the SQL's extra "shift = 'PM'" guard is currently inert.
-// It is inert by luck of the data, not by construction — this pins it.
-$divergent = (int)$db->query("SELECT COUNT(*) FROM dl_daily_ledger dl
+// THIS USED TO BE A PROXY, AND THE PROXY LIED. The old version counted rows with
+// `shift <> 'PM'` sitting on an existing, unfinalized shift row, on the assumption recorded here
+// that "AM shift rows are only ever 'finalized' or absent". That assumption stopped holding when
+// the 2026-11-20 repair reopened shifts: 3,544 AM rows with recorded endings then sat on OPEN AM
+// shifts, the proxy count went non-zero, and the failure read
+//   "3544 row(s) where PHP says provisional and the SQL expression says official"
+// which was simply false — both implementations call those rows provisional, because an open
+// shift is not signed off. A guard that describes its own subject wrongly is worse than no guard:
+// it sent a chase after a non-existent divergence.
+//
+// Measured properly on 2026-11-21 with dl_provisionalSqlExpr() against dl_rowIsProvisional() over
+// all 269,558 rows: PHP provisional 21,477, SQL provisional 21,477, **divergence 0**.
+//
+// The real comparison now runs against one representative row per distinct CASE TYPE (branch,
+// shift, shift status, end_source, ending presence), which covers every branch of both rules
+// without scanning a quarter of a million rows on every run.
+$strata = $db->query("SELECT MIN(dl.id) AS id
+    FROM dl_daily_ledger dl
     LEFT JOIN dl_ledger_shift_status ss
            ON ss.branch_id = dl.branch_id AND ss.ledger_date = dl.ledger_date
           AND ss.shift = dl.shift COLLATE utf8mb4_unicode_ci
-    WHERE dl.bal_end IS NOT NULL AND dl.shift <> 'PM'
-      AND ss.status IS NOT NULL AND ss.status <> 'finalized'")->fetchColumn();
-$h->test('the SQL provisional expression still agrees with dl_rowIsProvisional()', $divergent === 0,
-    $divergent . ' row(s) where PHP says provisional and the SQL expression says official');
+    LEFT JOIN dl_branches b ON b.id = dl.branch_id
+    GROUP BY dl.branch_id, COALESCE(dl.shift, '~none~'), COALESCE(ss.status, '~none~'),
+             COALESCE(dl.end_source, '~none~'), (dl.bal_end IS NULL), COALESCE(b.single_shift_mode, -1)")->fetchAll(PDO::FETCH_COLUMN) ?: [];
+$expr = dl_provisionalSqlExpr('dl', 'ss');
+$cmp = $db->prepare("SELECT dl.id, dl.branch_id, dl.shift, dl.bal_end, dl.end_source,
+                            ss.status AS shift_status, b.single_shift_mode AS branch_single_shift_mode,
+                            ($expr) AS sql_provisional
+                       FROM dl_daily_ledger dl
+                       LEFT JOIN dl_ledger_shift_status ss
+                              ON ss.branch_id = dl.branch_id AND ss.ledger_date = dl.ledger_date
+                             AND ss.shift = dl.shift COLLATE utf8mb4_unicode_ci
+                       LEFT JOIN dl_branches b ON b.id = dl.branch_id
+                      WHERE dl.id = :id");
+$divergent = 0;
+$divergentIds = [];
+foreach ($strata as $id) {
+    $cmp->execute([':id' => (int)$id]);
+    $row = $cmp->fetch(PDO::FETCH_ASSOC);
+    if (!$row) { continue; }
+    if (dl_rowIsProvisional($row) !== ((int)$row['sql_provisional'] === 1)) {
+        $divergent++;
+        if (count($divergentIds) < 5) {
+            $divergentIds[] = $row['id'] . '(shift=' . var_export($row['shift'], true)
+                . ',status=' . var_export($row['shift_status'], true) . ')';
+        }
+    }
+}
+$h->test('dl_provisionalSqlExpr() agrees with dl_rowIsProvisional() on every case type',
+    $divergent === 0,
+    $divergent . ' of ' . count($strata) . ' case type(s) disagree between the PHP rule and the SQL '
+    . 'expression: ' . implode(', ', $divergentIds)
+    . ' — the two are documented as needing lockstep, so a disagreement means one side was changed alone');
 
 // ---------------------------------------------------------------------------
 // Section D — no fixture rows were created; nothing to clean up.
