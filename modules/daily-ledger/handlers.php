@@ -107,9 +107,14 @@ function dl_accountabilityAuditGuard(
     ?int $branchId = null
 ): void {
     try {
+        // Existence, not cardinality: the guard asks whether the audit row LANDED, and COUNT forces
+        // the server to aggregate every match. SELECT 1 ... LIMIT 1 stops at the first row, which is
+        // the same answer for a fraction of the work (measured: this shape cost ~151 ms per call on
+        // 37,749 audit rows before the (module, action, entity_id) index, database/migrations/026).
         $stmt = $db->prepare(
-            'SELECT COUNT(*) FROM audit_logs
-              WHERE module = :module AND action = :action AND entity_type = :entity_type AND entity_id = :entity_id'
+            'SELECT 1 FROM audit_logs
+              WHERE module = :module AND action = :action AND entity_type = :entity_type AND entity_id = :entity_id
+              LIMIT 1'
         );
         $stmt->execute([
             ':module' => 'daily-ledger',
@@ -117,7 +122,7 @@ function dl_accountabilityAuditGuard(
             ':entity_type' => $entityType,
             ':entity_id' => $entityId,
         ]);
-        $found = (int)$stmt->fetchColumn() > 0;
+        $found = $stmt->fetchColumn() !== false;
     } catch (\Throwable $e) {
         // A broken audit TRAIL must not break the stock write either: the read
         // failure is reported below, never thrown.
@@ -2412,11 +2417,12 @@ function dl_autoCloseBranchDayAt($ctx, int $branchId, string $date, array $setti
                     $notify->execute([':bid' => $branchId, ':d' => $date, ':shift' => $endShift]);
 
                     $auditStmt = $db->prepare(
-                        'SELECT COUNT(*) FROM audit_logs
-                          WHERE module = "daily-ledger" AND action = "auto_close_day" AND entity_id = :eid'
+                        'SELECT 1 FROM audit_logs
+                          WHERE module = "daily-ledger" AND action = "auto_close_day" AND entity_id = :eid
+                          LIMIT 1'
                     );
                     $auditStmt->execute([':eid' => "{$branchId}-{$date}-{$endShift}"]);
-                    if ((int)$auditStmt->fetchColumn() === 0) {
+                    if ($auditStmt->fetchColumn() === false) {
                         dl_auditLog('auto_close_day', $branchId, 'dl_ledger_shift_status', "{$branchId}-{$date}-{$endShift}", null, [
                             'status' => 'deferred_pending_endings',
                             'source' => 'auto_close_cutoff',
@@ -2452,11 +2458,12 @@ function dl_autoCloseBranchDayAt($ctx, int $branchId, string $date, array $setti
                     $notify->execute([':bid' => $branchId, ':d' => $date, ':shift' => $endShift]);
 
                     $auditStmt = $db->prepare(
-                        'SELECT COUNT(*) FROM audit_logs
-                          WHERE module = "daily-ledger" AND action = "auto_close_day" AND entity_id = :eid'
+                        'SELECT 1 FROM audit_logs
+                          WHERE module = "daily-ledger" AND action = "auto_close_day" AND entity_id = :eid
+                          LIMIT 1'
                     );
                     $auditStmt->execute([':eid' => "{$branchId}-{$date}-{$endShift}"]);
-                    if ((int)$auditStmt->fetchColumn() === 0) {
+                    if ($auditStmt->fetchColumn() === false) {
                         dl_auditLog('auto_close_day', $branchId, 'dl_ledger_shift_status', "{$branchId}-{$date}-{$endShift}", null, [
                             'status' => 'closed_without_pm_finalize',
                             'source' => 'auto_close_cutoff_sweep',
@@ -2510,6 +2517,9 @@ function dl_autoCloseBranchDayAt($ctx, int $branchId, string $date, array $setti
              ON DUPLICATE KEY UPDATE status = \'closed\', closed_by = VALUES(closed_by), closed_at = CURRENT_TIMESTAMP'
         );
         $stmt->execute([':bid' => $branchId, ':d' => $date, ':uid' => $closeActorId]);
+        // The preloaded day-status map (when the fleet pass supplied one) must not answer with the
+        // status this statement just replaced.
+        dl_forgetDayStatus($branchId, $date);
 
         dl_auditLog('auto_close_day', $branchId, 'dl_ledger_day_status', "{$branchId}-{$date}", null, [
             'status' => 'closed',
@@ -2600,30 +2610,38 @@ function dl_maybeAutoCloseBranchDay(int $branchId, ?int $actorId = null, ?\DateT
     // candidates still open, so a capped remainder is selected and drained on
     // the next pass.
     $maxOlderClosedPerPass = 7;
-    try {
-        $select = $ctx->db()->prepare(
-            "SELECT ledger_date
-               FROM dl_ledger_day_status
-              WHERE branch_id = :bid
-                AND status = 'open'
-                AND ledger_date < :yesterday
-                AND reopened_at IS NULL
-              ORDER BY ledger_date ASC
-              LIMIT :cap"
-        );
-        $select->bindValue(':bid', $branchId, PDO::PARAM_INT);
-        $select->bindValue(':yesterday', $closeDate);
-        $select->bindValue(':cap', $maxOlderClosedPerPass, PDO::PARAM_INT);
-        $select->execute();
-        $staleDates = $select->fetchAll(PDO::FETCH_COLUMN) ?: [];
-    } catch (\Throwable $e) {
-        // A selection failure must not take the page down; the yesterday close
-        // has already committed. Report and skip this pass's sweep.
-        write_log('daily-ledger sweep selection failed', 'error', [
-            'branch_id' => $branchId,
-            'error' => $e->getMessage(),
-        ]);
-        $staleDates = [];
+    $staleDates = null;
+    if (isset($GLOBALS['_dl_day_status_stale']) && is_array($GLOBALS['_dl_day_status_stale'])) {
+        // Preloaded by dl_maybeAutoCloseBranches(): the per-branch cap is already applied in PHP, in
+        // the same order the SQL LIMIT would have produced. No second read for this branch.
+        $staleDates = array_values($GLOBALS['_dl_day_status_stale'][$branchId] ?? []);
+    }
+    if ($staleDates === null) {
+        try {
+            $select = $ctx->db()->prepare(
+                "SELECT ledger_date
+                   FROM dl_ledger_day_status
+                  WHERE branch_id = :bid
+                    AND status = 'open'
+                    AND ledger_date < :yesterday
+                    AND reopened_at IS NULL
+                  ORDER BY ledger_date ASC
+                  LIMIT :cap"
+            );
+            $select->bindValue(':bid', $branchId, PDO::PARAM_INT);
+            $select->bindValue(':yesterday', $closeDate);
+            $select->bindValue(':cap', $maxOlderClosedPerPass, PDO::PARAM_INT);
+            $select->execute();
+            $staleDates = $select->fetchAll(PDO::FETCH_COLUMN) ?: [];
+        } catch (\Throwable $e) {
+            // A selection failure must not take the page down; the yesterday close
+            // has already committed. Report and skip this pass's sweep.
+            write_log('daily-ledger sweep selection failed', 'error', [
+                'branch_id' => $branchId,
+                'error' => $e->getMessage(),
+            ]);
+            $staleDates = [];
+        }
     }
 
     foreach ($staleDates as $date) {
@@ -2723,6 +2741,14 @@ function dl_maybeAutoCloseBranches(array $branchIds, ?int $actorId = null, ?\Dat
     // official start and shift mode per iteration, and without this map that is one statement per
     // branch per reader (measured 28 + 17 statements on a 28-branch fleet, 2026-11-20).
     dl_preloadBranchRows();
+
+    // Same for day-status state: yesterday's status plus every branch's stale open days in ONE
+    // statement (measured: two statements PER BRANCH to learn most branches have nothing to do).
+    $settingsForDate = dl_closeOfDaySettings();
+    $passTimezone = new \DateTimeZone($settingsForDate['operating_timezone']);
+    $passCloseDate = (new \DateTimeImmutable(dl_businessDate($now->setTimezone($passTimezone))))
+        ->modify('-1 day')->format('Y-m-d');
+    dl_preloadDayStatusState(array_keys($uniqueBranchIds), $passCloseDate, 7);
 
     foreach (array_keys($uniqueBranchIds) as $branchId) {
         dl_maybeAutoCloseBranchDay((int)$branchId, $actorId, $now);
@@ -2828,11 +2854,12 @@ function dl_maybeAutoFinalizeCommissaryPmShift(int $branchId, string $date, ?int
             )->execute([':bid' => $branchId, ':d' => $date, ':shift' => $shift]);
 
             $auditStmt = $db->prepare(
-                'SELECT COUNT(*) FROM audit_logs
-                  WHERE module = "daily-ledger" AND action = "auto_close_shift" AND entity_id = :eid'
+                'SELECT 1 FROM audit_logs
+                  WHERE module = "daily-ledger" AND action = "auto_close_shift" AND entity_id = :eid
+                  LIMIT 1'
             );
             $auditStmt->execute([':eid' => "{$branchId}-{$date}-{$shift}"]);
-            if ((int)$auditStmt->fetchColumn() === 0) {
+            if ($auditStmt->fetchColumn() === false) {
                 dl_auditLog('auto_close_shift', $branchId, 'dl_ledger_shift_status', "{$branchId}-{$date}-{$shift}", null, [
                     'status' => 'closed_without_pm_finalize',
                     'source' => 'auto_finalize_pm_commissary',
@@ -2933,6 +2960,19 @@ function dl_getBranchName(int $branchId): string
 
 function dl_getDayStatus(int $branchId, string $date): string
 {
+    // A preloaded map answers the one date it was loaded for. Anything else must go to the database:
+    // an absent key is only "open" when we KNOW the whole fleet/date set was loaded, because a row
+    // simply does not exist then. This is the difference between a correct answer and a guess.
+    if (isset($GLOBALS['_dl_day_status']) && is_array($GLOBALS['_dl_day_status'])) {
+        $scope = (string)($GLOBALS['_dl_day_status_scope'] ?? '');
+        if ($scope !== '' && $date === $scope) {
+            $key = $branchId . '|' . $date;
+            return array_key_exists($key, $GLOBALS['_dl_day_status'])
+                ? (string)$GLOBALS['_dl_day_status'][$key]
+                : 'open';
+        }
+    }
+
     $ctx = module();
     if (!$ctx) return 'open';
 
@@ -2940,6 +2980,161 @@ function dl_getDayStatus(int $branchId, string $date): string
     $stmt->execute([':bid' => $branchId, ':d' => $date]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
     return $row ? (string)$row['status'] : 'open';
+}
+
+/**
+ * Read the day-status state the auto-close pass needs for a WHOLE fleet in ONE statement.
+ *
+ * MEASURED 2026-11-20 (tenant 207, 28 active branches, KERNEL_DB_PROFILE on): a dashboard view that
+ * triggered the pass issued 278 statements taking ~2.7 s of measured DB time, and the top shapes were
+ *   27x  SELECT status FROM dl_ledger_day_status WHERE branch_id = ? AND ledger_date = ?
+ *   27x  SELECT ledger_date ... status='open' AND ledger_date < yesterday ... LIMIT 7
+ * i.e. two round trips per branch to learn that most branches have nothing to do. Each statement is
+ * sub-millisecond in MySQL (20 runs in 0.32 s including client start), so the cost is the ROUND TRIPS.
+ * On a caught-up fleet this preload turns 54 statements into 1, and the pass then issues no reads at
+ * all for branches that need no work.
+ *
+ * MySQL 5.7 has no window functions, so the per-branch "oldest 7 stale open days" cap is applied in
+ * PHP: rows arrive ordered by branch then date, which is exactly the order the SQL LIMIT would have
+ * produced. Semantics are preserved, not approximated.
+ *
+ * $beforeDate is the pass's "yesterday": a row for that date is loaded whatever its status (that is
+ * what dl_getDayStatus answers), while stale candidates are necessarily earlier and still open.
+ */
+function dl_preloadDayStatusState(array $branchIds, string $beforeDate, int $staleCapPerBranch = 7): int
+{
+    $ctx = module();
+    if (!$ctx || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $beforeDate)) {
+        return 0;
+    }
+
+    $ids = [];
+    foreach ($branchIds as $candidate) {
+        $id = (int)$candidate;
+        if ($id > 0) {
+            $ids[$id] = $id;
+        }
+    }
+    $ids = array_values($ids);
+    if ($ids === []) {
+        return 0;
+    }
+    $staleCapPerBranch = max(0, $staleCapPerBranch);
+
+    // Mark the scope BEFORE the query so a failure leaves no half-believed map behind.
+    $GLOBALS['_dl_day_status'] = [];
+    $GLOBALS['_dl_day_status_scope'] = $beforeDate;
+    $GLOBALS['_dl_day_status_stale'] = [];
+
+    // ids are cast ints; placeholders only. Bounded by the branch count, not by request input.
+    $placeholders = implode(',', array_fill(0, count($ids), '?'));
+    $sql = 'SELECT branch_id, ledger_date, status, reopened_at'
+        . ' FROM dl_ledger_day_status'
+        . ' WHERE branch_id IN (' . $placeholders . ')'
+        . '   AND (ledger_date = ?'
+        . "        OR (status = 'open' AND ledger_date < ? AND reopened_at IS NULL))"
+        . ' ORDER BY branch_id ASC, ledger_date ASC'
+        . ' LIMIT 5000';
+
+    try {
+        $stmt = $ctx->db()->prepare($sql);
+        $bind = $ids;
+        $bind[] = $beforeDate;
+        $bind[] = $beforeDate;
+        $stmt->execute($bind);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    } catch (\Throwable $e) {
+        // A preload that fails is not a correctness problem: the map is empty and the scope is set,
+        // which would make dl_getDayStatus answer 'open' for every branch. Drop the scope entirely so
+        // every reader falls back to its own query instead.
+        unset($GLOBALS['_dl_day_status'], $GLOBALS['_dl_day_status_scope'], $GLOBALS['_dl_day_status_stale']);
+        return 0;
+    }
+
+    $loaded = 0;
+    foreach ($rows as $row) {
+        $bid = (int)($row['branch_id'] ?? 0);
+        $date = (string)($row['ledger_date'] ?? '');
+        if ($bid <= 0 || $date === '') {
+            continue;
+        }
+        $GLOBALS['_dl_day_status'][$bid . '|' . $date] = (string)($row['status'] ?? 'open');
+        $loaded++;
+    }
+
+    $GLOBALS['_dl_day_status_stale'] = dl_staleDatesFromRows($rows, $beforeDate, $staleCapPerBranch);
+
+    return $loaded;
+}
+
+/**
+ * The per-branch "oldest N stale open days" selection, applied to rows already fetched.
+ *
+ * Pure on purpose: this is the ONE thing the fleet preload has to reproduce from the SQL it replaced
+ * (`... status='open' AND ledger_date < ? AND reopened_at IS NULL ORDER BY ledger_date ASC LIMIT cap`),
+ * and MySQL 5.7 has no window functions to express "top N per group" in one statement. Extracted from
+ * the preload so a test can feed it more than `cap` rows for one branch and assert the cap, the order
+ * and the reopened_at exclusion WITHOUT writing fixtures into the ledger.
+ *
+ * Rows are expected in (branch_id, ledger_date ASC) order, which is what the preload's ORDER BY
+ * produces - so "first cap rows seen for a branch" IS the SQL's LIMIT.
+ *
+ * @param array<int,array<string,mixed>> $rows
+ * @return array<int,array<int,string>> branch id => stale dates, oldest first, at most $cap
+ */
+function dl_staleDatesFromRows(array $rows, string $beforeDate, int $cap): array
+{
+    if ($cap <= 0 || $beforeDate === '') {
+        return [];
+    }
+    $stale = [];
+    foreach ($rows as $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+        $bid = (int)($row['branch_id'] ?? 0);
+        $date = (string)($row['ledger_date'] ?? '');
+        if ($bid <= 0 || $date === '') {
+            continue;
+        }
+        if ($date >= $beforeDate || (string)($row['status'] ?? '') !== 'open' || ($row['reopened_at'] ?? null) !== null) {
+            continue;
+        }
+        $list = $stale[$bid] ?? [];
+        if (count($list) < $cap) {
+            $list[] = $date;
+            $stale[$bid] = $list;
+        }
+    }
+    return $stale;
+}
+
+/**
+ * Drop ONE day-status key after this request writes it.
+ *
+ * Same rule as dl_forgetBranchRow(): a preloaded map must never answer with the value the same
+ * request just replaced. Only the touched key is dropped (plus that date from the stale list), so
+ * the remaining branches keep their saved round trips.
+ */
+function dl_forgetDayStatus(int $branchId, string $date): void
+{
+    if ($branchId <= 0 || $date === '') {
+        return;
+    }
+    if (isset($GLOBALS['_dl_day_status'][$branchId . '|' . $date])) {
+        unset($GLOBALS['_dl_day_status'][$branchId . '|' . $date]);
+    }
+    if (isset($GLOBALS['_dl_day_status_stale'][$branchId]) && is_array($GLOBALS['_dl_day_status_stale'][$branchId])) {
+        $remaining = array_values(array_filter(
+            $GLOBALS['_dl_day_status_stale'][$branchId],
+            static fn($d) => (string)$d !== $date
+        ));
+        if ($remaining === []) {
+            unset($GLOBALS['_dl_day_status_stale'][$branchId]);
+        } else {
+            $GLOBALS['_dl_day_status_stale'][$branchId] = $remaining;
+        }
+    }
 }
 
 /**
@@ -15250,6 +15445,8 @@ function apiCloseDay(array $params = []): void
              ON DUPLICATE KEY UPDATE status = \'closed\', closed_by = :uid2, closed_at = CURRENT_TIMESTAMP'
         );
         $stmt->execute([':bid' => $branchId, ':d' => $date, ':uid' => $userId, ':uid2' => $userId]);
+        // Never let a preloaded day-status map answer with the value this write just replaced.
+        dl_forgetDayStatus($branchId, $date);
 
         // Owner decision 2026-10-23: "Auto-accept after a window. if a day closes,
         // then it's auto-accepted." A paper capture waits for the production
@@ -15300,6 +15497,9 @@ function dl_reopenDayService($db, int $branchId, string $date, int $userId): voi
          WHERE branch_id = :bid AND ledger_date = :d'
     );
     $stmt->execute([':uid' => $userId, ':bid' => $branchId, ':d' => $date]);
+    // A reopened day must not be served from a preloaded map that says 'closed', and it must not
+    // linger in the stale-open-days list the sweep works from.
+    dl_forgetDayStatus($branchId, $date);
 
     // Reopening a day deliberately reopens both shift lifecycles so locked
     // finalized sales can be corrected under an audited override.

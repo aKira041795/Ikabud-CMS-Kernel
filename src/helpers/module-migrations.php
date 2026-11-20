@@ -73,6 +73,11 @@ function tenantSafeKernelMigrationArtifacts(?string $entryModuleId = null): arra
         '017_audit_logs_actor_module.sql' => BASE_PATH . '/database/migrations/017_audit_logs_actor_module.sql',
         '018_audit_logs_actor_columns_ensure.sql' => BASE_PATH . '/database/migrations/018_audit_logs_actor_columns_ensure.sql',
         '019_kernel_password_resets.sql' => BASE_PATH . '/database/migrations/019_kernel_password_resets.sql',
+        // Composite index behind every module's "was this already audited?" guard. Without it the
+        // lookup filtered on the low-cardinality `module` column and read action/entity_id from each
+        // row: measured at ~151 ms per call, 17 calls per auto-close pass on a 37,749-row table.
+        // Idempotent (information_schema guard), so it is safe on an install that already has it.
+        '026_audit_logs_idempotency_index.sql' => BASE_PATH . '/database/migrations/026_audit_logs_idempotency_index.sql',
     ];
 
     if (!tenantEntryModuleUsesKernelUsers($entryModuleId)) {
