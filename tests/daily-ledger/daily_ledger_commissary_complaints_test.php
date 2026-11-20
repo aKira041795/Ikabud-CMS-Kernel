@@ -211,6 +211,18 @@ try {
             && str_contains($handlerSrc, 'only passed through'),
         'an unnamed count lets "we do not produce that here" be the answer to every stamp'
     );
+    // ── A sale moves stock, so it must make a row owe an ending ───────────────────────────
+    // The branch activity predicate (dl_ledgerActivitySql) asked "did stock move?" and listed
+    // addtl, withdraw and beg_bal — but NOT sales. A row whose only event was a sale was therefore
+    // not activity-bearing, so the day-ending gate never asked for its ending and the shift could
+    // close with a NULL there. 0 such rows existed on 2026-11-21, so nothing was broken yet; the
+    // hole was simply open, and it is the same shape that starts negative stock.
+    $h->test(
+        'selling stock makes a ledger row owe an ending',
+        str_contains($handlerSrc, 'function dl_ledgerActivitySql')
+            && preg_match('/function dl_ledgerActivitySql.*?return.*?\.sales <> 0/s', $handlerSrc) === 1,
+        'a sale that does not make the row activity-bearing lets a shift close on a NULL ending'
+    );
 } finally {
     $cleanup();
 }

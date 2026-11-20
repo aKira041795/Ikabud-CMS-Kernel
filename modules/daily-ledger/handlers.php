@@ -8426,7 +8426,18 @@ function dl_lockShiftStatusRow($db, int $branchId, string $date, string $shift):
 function dl_ledgerActivitySql(string $alias): string
 {
     $a = preg_replace('/[^A-Za-z0-9_]/', '', $alias);
-    return "({$a}.beg_bal <> 0 OR {$a}.addtl <> 0 OR {$a}.withdraw <> 0)";
+    // `sales` was MISSING from this predicate. It asked "did stock move?" and forgot the one event
+    // that moves stock without touching addtl/withdraw: a sale. A row whose only event was a sale
+    // was therefore not activity-bearing, so the day-ending gate never asked for its ending and it
+    // could close on a NULL. Measured 2026-11-21 on tenant 207: 0 such rows exist today, so this
+    // fixes a hole rather than a live incident — but it is the exact shape that opens the moment a
+    // product is sold from a zero-carrying row, which is also how negative stock begins.
+    //
+    // `beg_bal` deliberately STAYS. Dropping it was tried and reverted the same day: the day-ending
+    // suite encodes the contract that a carried opening must be counted even when nothing moved
+    // (fixture beg_bal=5, bal_end=NULL, sales=NULL -> the day must stay open). That is an
+    // accounting-policy decision for the owner, not something to change under a test's feet.
+    return "({$a}.sales <> 0 OR {$a}.addtl <> 0 OR {$a}.withdraw <> 0 OR {$a}.beg_bal <> 0)";
 }
 
 /**
