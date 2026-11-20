@@ -9181,6 +9181,10 @@ function dl_recomputeVariancesForDay(int $branchId, string $date, bool $touchNex
     if (!$ctx) return;
     $db = $ctx->db();
 
+    // Whether WE arrived inside somebody else's transaction decides what a lock conflict
+    // means, so it has to be captured before the first statement runs.
+    $insideCallerTransaction = $db->inTransaction();
+
     try {
         $ledgerStmt = $db->prepare(
             'SELECT product_id, shift, beg_bal, addtl, withdraw, bal_end
@@ -9317,6 +9321,21 @@ function dl_recomputeVariancesForDay(int $branchId, string $date, bool $touchNex
             dl_recomputeVariancesForDay($branchId, $next, false);
         }
     } catch (\Throwable $e) {
+        // A 1213/1205 discards the WHOLE transaction, not just the statement that raised it.
+        // Swallowing it here let the caller carry on and call commit() on a transaction InnoDB
+        // had already thrown away: measured on the live site 2026-11-16, request
+        // 81effc554895a4f3 logged "variance recompute failed (1213 Deadlock)" and then, one line
+        // later, "apiSaveLedgerField failed: There is no active transaction" - so the cashier lost
+        // the value they had just typed, even though dl_runWithDeadlockRetry was sitting one frame
+        // up waiting for exactly this error and never saw it.
+        //
+        // Rethrowing is not enough on its own to be safe: this function is also called with no
+        // transaction open (the maintenance sweep, the recompute endpoints), where the failure is
+        // genuinely local and swallowing it keeps one bad day from blocking the rest. So surface it
+        // only when we were inside a transaction and that transaction is no longer there.
+        if ($insideCallerTransaction && !$db->inTransaction()) {
+            throw $e;
+        }
         write_log('daily-ledger variance recompute failed', 'error', [
             'branch_id' => $branchId,
             'ledger_date' => $date,
