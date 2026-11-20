@@ -40,50 +40,48 @@ $render = static function (array $query): string {
     return (string)ob_get_clean();
 };
 
-// Discover a stable pending period through the same actor scope, filter contract, and
-// completeness helper as handleAdminOverview(). The date query only supplies candidates;
-// dl_overviewLedgerCompleteness() decides whether each candidate has the required state.
-$overviewUser = dlCurrentUser(['admin', 'supervisor', 'auditor', 'viewer']);
-$pendingPeriod = null;
-$pendingCompleteness = ['rows_total' => 0, 'pending' => 0, 'completed' => 0];
-$latestPeriodWithAnyPending = null;
-$latestAnyPendingCompleteness = $pendingCompleteness;
-$dateCandidates = module()->db()->query('SELECT DISTINCT ledger_date FROM dl_daily_ledger ORDER BY ledger_date DESC')->fetchAll(PDO::FETCH_COLUMN) ?: [];
-foreach ($dateCandidates as $candidate) {
-    $candidate = (string)$candidate;
-    $candidateFilters = dl_reportFilters([
-        'scope' => 'ALL',
-        'date_from' => $candidate,
-        'date_to' => $candidate,
-    ], $overviewUser);
-    $candidateFilters['pending_rows_mode'] = dl_overviewPendingRowsMode(null);
-    $candidateCompleteness = dl_overviewLedgerCompleteness(module()->db(), $candidateFilters);
-    if ($candidateCompleteness['pending'] <= 0) {
-        continue;
-    }
-    if ($latestPeriodWithAnyPending === null) {
-        $latestPeriodWithAnyPending = $candidate;
-        $latestAnyPendingCompleteness = $candidateCompleteness;
-    }
-    if ($candidateCompleteness['completed'] === 0) {
-        $pendingPeriod = $candidate;
-        $pendingCompleteness = $candidateCompleteness;
-        break;
-    }
-}
-// Retain the latest genuinely pending period as a diagnostic fallback. The explicit
-// completed===0 premise below still fails rather than pretending it can render the
-// all-pending headline when no all-pending period remains in the fixture.
-if ($pendingPeriod === null && $latestPeriodWithAnyPending !== null) {
-    $pendingPeriod = $latestPeriodWithAnyPending;
-    $pendingCompleteness = $latestAnyPendingCompleteness;
-}
-$pendingDetail = $pendingPeriod === null
-    ? 'period=(none) pending=0 completed=0; no period with pending ledger rows exists; fixture must be re-anchored'
-    : "period={$pendingPeriod} rows_total={$pendingCompleteness['rows_total']} pending={$pendingCompleteness['pending']} completed={$pendingCompleteness['completed']}";
-$h->detail('Pending-state anchor: ' . $pendingDetail);
-$pendingHtml = $pendingPeriod === null ? '' : $render(['scope' => 'ALL', 'period' => $pendingPeriod]);
+// HERMETIC ANCHORS, NOT A LOTTERY.
+//
+// This block used to DISCOVER a pending period by scanning the live ledger for a date whose rows
+// were all pending. That made the suite a function of the database's current contents: it passed on
+// 2026-11-20 at 15/15 and failed an hour later at 13/15 with no code change, because the newest date
+// had acquired finalized rows (rows_total=5076 pending=1475 completed=3601). A test that cannot
+// distinguish "the feature broke" from "the data moved" is the class this whole review exists to
+// remove. It now WRITES the two states it needs on synthetic ids and deletes them in a finally.
+$anchorBranch = 99795;   // has activity and an ending-less row -> the all-pending period
+$silentBranch = 99796;   // active, assigned, no ledger rows at all -> the silent branch
+$anchorProduct = 99797;
+$pendingPeriod = '2033-02-07';
+$anchorDb = module()->db();
+$anchorCleanup = static function () use ($anchorDb, $anchorBranch, $silentBranch, $anchorProduct, $pendingPeriod): void {
+    $anchorDb->prepare('DELETE FROM dl_daily_ledger WHERE branch_id IN (?, ?)')->execute([$anchorBranch, $silentBranch]);
+    $anchorDb->prepare('DELETE FROM dl_ledger_shift_status WHERE branch_id IN (?, ?)')->execute([$anchorBranch, $silentBranch]);
+    $anchorDb->prepare('DELETE FROM dl_ledger_day_status WHERE branch_id IN (?, ?)')->execute([$anchorBranch, $silentBranch]);
+    $anchorDb->prepare('DELETE FROM dl_variance_flags WHERE branch_id IN (?, ?)')->execute([$anchorBranch, $silentBranch]);
+    $anchorDb->prepare('DELETE FROM dl_branch_products WHERE branch_id IN (?, ?) OR product_id = ?')->execute([$anchorBranch, $silentBranch, $anchorProduct]);
+    $anchorDb->prepare('DELETE FROM dl_products WHERE id = ?')->execute([$anchorProduct]);
+    $anchorDb->prepare('DELETE FROM dl_branches WHERE id IN (?, ?)')->execute([$anchorBranch, $silentBranch]);
+};
+$anchorCleanup();
+$anchorDb->prepare('INSERT INTO dl_branches (id, code, name, default_supply_mode, is_commissary, is_active) VALUES (?, ?, ?, ?, 0, 1)')
+    ->execute([$anchorBranch, 'ANCHOR-P', 'Anchor Pending Branch', 'commissary_supplied']);
+    $anchorDb->prepare('INSERT INTO dl_branches (id, code, name, default_supply_mode, is_commissary, is_active) VALUES (?, ?, ?, ?, 0, 1)')
+        ->execute([$silentBranch, 'ANCHOR-S', 'Anchor Silent Branch', 'commissary_supplied']);
+    $anchorDb->prepare('INSERT INTO dl_products (id, sku, name, current_price, sort_order, is_active) VALUES (?, ?, ?, 10, 0, 1)')
+        ->execute([$anchorProduct, 'ANCHOR-P1', 'Anchor Product']);
+    $anchorDb->prepare('INSERT INTO dl_branch_products (branch_id, product_id, is_active) VALUES (?, ?, 1)')->execute([$anchorBranch, $anchorProduct]);
+    $anchorDb->prepare('INSERT INTO dl_branch_products (branch_id, product_id, is_active) VALUES (?, ?, 1)')->execute([$silentBranch, $anchorProduct]);
+    // Movement with no ending: the period is ALL pending, which is the state being asserted.
+    $anchorDb->prepare('INSERT INTO dl_daily_ledger (branch_id, product_id, ledger_date, shift, price_snapshot, beg_bal, addtl, withdraw, bal_end, sales) VALUES (?, ?, ?, ?, 10, 10, 0, 0, NULL, NULL)')
+        ->execute([$anchorBranch, $anchorProduct, $pendingPeriod, 'PM']);
 
+    $overviewUser = dlCurrentUser(['admin', 'supervisor', 'auditor', 'viewer']);
+    $anchorFilters = dl_reportFilters(['scope' => 'ALL', 'date_from' => $pendingPeriod, 'date_to' => $pendingPeriod], $overviewUser);
+    $anchorFilters['pending_rows_mode'] = dl_overviewPendingRowsMode(null);
+    $pendingCompleteness = dl_overviewLedgerCompleteness(module()->db(), $anchorFilters);
+    $pendingDetail = "period={$pendingPeriod} rows_total={$pendingCompleteness['rows_total']} pending={$pendingCompleteness['pending']} completed={$pendingCompleteness['completed']}";
+    $h->detail('Pending-state anchor (hermetic): ' . $pendingDetail);
+    $pendingHtml = $render(['scope' => 'ALL', 'period' => $pendingPeriod]);
 $h->section('Owner contract');
 $html = $render(['scope' => 'ALL']);
 // Measure the primary bar ITSELF. Counting every control before the first </form> also
@@ -166,51 +164,46 @@ $pendingText = (string)preg_replace('/\s+/', ' ', html_entity_decode(strip_tags(
 // resolved at run time through the same helpers the handler uses.
 $comparablePeriod = null;
 $comparableProbe = ['rows_total' => 0, 'pending' => 0, 'completed' => 0];
-// The floor the handler itself applies, resolved through the same filter contract.
-$scopeFilters = dl_reportFilters(['scope' => 'ALL'], $overviewUser);
-$officialFloor = dl_effectiveStartForView(
-    array_map('intval', $scopeFilters['accessible_branch_ids'] ?? []),
-    (int)($scopeFilters['branch_id'] ?? 0)
+// HERMETIC comparable pair, for the same reason as the pending anchor above. This used to search
+// the live ledger for two fully-finalized 14-day windows, which meant the assertion's reachability
+// depended on the business's own pending backlog: it found nothing once more days carried unpaid
+// endings, and the failure said "the comparable state is unreachable on this database" - true, and
+// useless. Two synthetic finalized days make the state reachable by construction.
+$comparableFrom = '2033-03-01';
+$comparableTo = '2033-03-02';
+$finalizedRow = $anchorDb->prepare(
+    'INSERT INTO dl_daily_ledger (branch_id, product_id, ledger_date, shift, price_snapshot, beg_bal, addtl, withdraw, bal_end, sales)
+     VALUES (?, ?, ?, ?, 10, 10, 0, 0, 7, 3)'
 );
-if ($officialFloor === null || $officialFloor === '') {
-    $officialFloor = (string)($dateCandidates ? min($dateCandidates) : '');
+$finalizedRow->execute([$anchorBranch, $anchorProduct, $comparableFrom, 'AM']);
+$finalizedRow->execute([$anchorBranch, $anchorProduct, $comparableTo, 'AM']);
+foreach ([$comparableFrom, $comparableTo] as $finalizedDate) {
+    $anchorDb->prepare("INSERT INTO dl_ledger_shift_status (branch_id, ledger_date, shift, status) VALUES (?, ?, 'AM', 'finalized')")
+        ->execute([$anchorBranch, $finalizedDate]);
 }
-$allDates = array_values(array_reverse(array_map('strval', $dateCandidates)));
-// Try the widest comparison first, then narrower ones. A 14-day span is preferred because that is
-// the fixture that was written by hand; 7/3/1-day spans keep the comparable state reachable as the
-// business's own pending backlog grows and fewer long windows are fully finalized.
-foreach ([14, 7, 3, 1] as $span) {
-    foreach ($allDates as $anchor) {
-        if ($anchor === '' || $comparablePeriod !== null) {
-            continue;
-        }
-        $windowTo = (new DateTimeImmutable($anchor))->modify('+' . ($span - 1) . ' days')->format('Y-m-d');
-        $windowFrom = $anchor;
-        if ($windowFrom < $officialFloor) {
-            continue;
-        }
-        $currentFilters = dl_reportFilters(['scope' => 'ALL', 'date_from' => $windowFrom, 'date_to' => $windowTo], $overviewUser);
-        $currentComplete = dl_overviewLedgerCompleteness(module()->db(), $currentFilters);
-        if ($currentComplete['rows_total'] === 0 || $currentComplete['pending'] > 0 || $currentComplete['completed'] === 0) {
-            continue;
-        }
-        $priorTo = (new DateTimeImmutable($windowFrom))->modify('-1 day')->format('Y-m-d');
-        $priorFrom = (new DateTimeImmutable($priorTo))->modify('-' . ($span - 1) . ' days')->format('Y-m-d');
-        if ($priorFrom < $officialFloor) {
-            continue;
-        }
-        $priorFilters = dl_reportFilters(['scope' => 'ALL', 'date_from' => $priorFrom, 'date_to' => $priorTo], $overviewUser);
-        $priorComplete = dl_overviewLedgerCompleteness(module()->db(), $priorFilters);
-        if ($priorComplete['rows_total'] === 0 || $priorComplete['pending'] > 0 || $priorComplete['completed'] === 0) {
-            continue;
-        }
-        $comparablePeriod = $windowFrom . ' to ' . $windowTo;
-        $comparableProbe = $currentComplete;
-    }
-    if ($comparablePeriod !== null) {
-        break;
-    }
+// The previous period the page compares against: 2033-02-27..2033-02-28, also finalized, with a
+// DIFFERENT quantity so the comparison is a real movement rather than a zero delta. A zero delta
+// renders as `delta-flat` with `0.0%` and NO sign by design (the template prefixes '+' only above
+// zero), so an equal pair cannot exercise the signed-delta assertion at all.
+$priorPair = ['2033-02-27', '2033-02-28'];
+$priorRow = $anchorDb->prepare(
+    'INSERT INTO dl_daily_ledger (branch_id, product_id, ledger_date, shift, price_snapshot, beg_bal, addtl, withdraw, bal_end, sales)
+     VALUES (?, ?, ?, ?, 10, 10, 0, 0, 5, 5)'
+);
+foreach ($priorPair as $priorDate) {
+    $priorRow->execute([$anchorBranch, $anchorProduct, $priorDate, 'AM']);
+    $anchorDb->prepare("INSERT INTO dl_ledger_shift_status (branch_id, ledger_date, shift, status) VALUES (?, ?, 'AM', 'finalized')")
+        ->execute([$anchorBranch, $priorDate]);
 }
+$comparableFilters = dl_reportFilters(['scope' => 'ALL', 'date_from' => $comparableFrom, 'date_to' => $comparableTo], $overviewUser);
+$comparableProbe = dl_overviewLedgerCompleteness(module()->db(), $comparableFilters);
+$priorProbeFilters = dl_reportFilters(['scope' => 'ALL', 'date_from' => $priorPair[0], 'date_to' => $priorPair[1]], $overviewUser);
+$priorProbe = dl_overviewLedgerCompleteness(module()->db(), $priorProbeFilters);
+if ($comparableProbe['rows_total'] > 0 && $comparableProbe['pending'] === 0
+    && $priorProbe['rows_total'] > 0 && $priorProbe['pending'] === 0 && $priorProbe['completed'] > 0) {
+    $comparablePeriod = $comparableFrom . ' to ' . $comparableTo;
+}
+$h->detail('Comparable anchor (hermetic): current=' . json_encode($comparableProbe) . ' prior=' . json_encode($priorProbe));
 $comparable = $comparablePeriod === null ? '' : $render(['scope' => 'ALL', 'period' => $comparablePeriod]);
 $comparableText = (string)preg_replace('/\s+/', ' ', html_entity_decode(strip_tags($comparable), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
 // A discovered period with genuinely pending rows has no honest sales comparison.
@@ -242,4 +235,5 @@ $source = (string)file_get_contents($base . '/modules/daily-ledger/handlers.php'
 $slice = ($overviewStart !== false && $overviewEnd !== false) ? substr($source, $overviewStart, $overviewEnd - $overviewStart) : '';
 $h->test('health handler contains no business-data write statement', preg_match('/\b(INSERT|UPDATE|DELETE|REPLACE)\b\s+(?:INTO\s+|FROM\s+)?dl_/i', $slice) !== 1);
 
+$anchorCleanup();
 $h->done();

@@ -43,6 +43,28 @@ $add = static function (string $key, string $status, string $detail) use (&$find
     $findings[$key] = ['status' => $status, 'detail' => $detail];
 };
 
+// 0. Test residue — suites insert their synthetic branches ACTIVE, so they walk into the checks
+//    below and print as if they were hubs. Measured 2026-11-20: `reconcile_hub_99162`,
+//    `reconcile_hub_99601` and `reconcile_hub_997125` were in this report, and 55 fixture-shaped
+//    branches were still active. Reporting them AS residue is the point: a suite that forgets to
+//    clean up should be visible, not disguised as a branch with a reconciliation problem.
+try {
+    $residue = $db->query(
+        "SELECT COUNT(*) FROM dl_branches
+          WHERE is_active = 1
+            AND (code LIKE 'T-%' OR code LIKE 'OFF-%' OR code LIKE 'PC-%'
+                 OR code LIKE 'GAP-%' OR code LIKE 'BOUND-%' OR code LIKE 'AF-%'
+                 OR code LIKE 'AGG-%' OR code LIKE 'GATE-%')"
+    )->fetchColumn();
+    $residue = (int)$residue;
+    $add('test_residue', $residue > 0 ? 'ATTENTION' : 'OK',
+        $residue . ' active branch(es) carry a test-fixture code prefix. '
+        . 'They are test scaffolding, not businesses: deactivate them so they stop appearing as hubs, '
+        . 'and fix the suite that left them active.');
+} catch (Throwable $e) {
+    $add('test_residue', 'INFO', 'not checked: ' . $e->getMessage());
+}
+
 // 1. Negative balances — the symptom that took seven weeks to be believed.
 $hubs = array_map('intval', $db->query(
     'SELECT id FROM dl_branches WHERE is_commissary = 1 AND is_active = 1'

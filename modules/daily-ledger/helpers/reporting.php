@@ -2019,7 +2019,7 @@ function dl_overviewWindowAggregate(DatabaseContract $db, array $filters, bool $
         . ' COALESCE(SUM(' . $qty . '), 0) AS units_all,'
         . ' COALESCE(SUM(CASE WHEN ' . $provisional . ' THEN 0 ELSE ' . $qty . ' END), 0) AS official_units,'
         . ' COALESCE(SUM(CASE WHEN ' . $provisional . ' THEN 0 ELSE ' . $amount . ' END), 0) AS official_amount'
-        . ' FROM dl_daily_ledger dl'
+        . ' FROM dl_daily_ledger dl FORCE INDEX (idx_dl_branch_date)'
         . ' INNER JOIN dl_branches b ON b.id = dl.branch_id'
         . ' LEFT JOIN dl_ledger_shift_status ss'
         . ' ON ss.branch_id = dl.branch_id AND ss.ledger_date = dl.ledger_date'
