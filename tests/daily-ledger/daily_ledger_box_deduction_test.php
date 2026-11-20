@@ -190,6 +190,52 @@ try {
         $box['sales'] !== null && (int)$box['sales'] === $expectedSales,
         json_encode($box) . ' expected=' . $expectedSales
     );
+
+    // ── 10. OWNER SCENARIO: box qty was never updated, a mapped cake still sells ──────────
+    // "what happens if qty of boxes was not updated and there's a sale of a cake mapped to the box?"
+    // -> the sale is ALLOWED, the box goes negative, and the shortage is named. Never blocked.
+    $db->exec("DELETE FROM dl_daily_ledger WHERE branch_id = {$branchId} AND product_id = {$boxId} AND ledger_date = '{$date}'");
+    $db->exec("DELETE FROM dl_daily_ledger WHERE branch_id = {$branchId} AND product_id = {$plainId} AND ledger_date = '{$date}'");
+    $db->exec("UPDATE dl_daily_ledger SET beg_bal = 50, bal_end = NULL, withdraw = 0 WHERE branch_id = {$branchId} AND product_id = {$cakeId} AND ledger_date = '{$date}' AND shift = 'AM'");
+    $shortBefore = $auditCount('packaging_shortfall');
+    $r = $applySales(9);                       // 9 cakes sold, box never received
+    $box = $readBox();
+    chk(
+        'a sale still goes through when the box quantity was never updated (not blocked)',
+        ($r['applied'] ?? false) === true,
+        json_encode($r)
+    );
+    chk(
+        'the box row is created and carries the deduction',
+        (int)($box['withdraw'] ?? 0) === 9 && (int)($box['packaging_applied'] ?? 0) === 9,
+        json_encode($box)
+    );
+    chk('the shortage is named rather than stopping the sale', $auditCount('packaging_shortfall') === $shortBefore + 1);
+
+    // ── 11. a box row that is CREATED must carry the previous shift's stock, not 0 ────────
+    // Otherwise a box holding 40 from yesterday would appear short the moment a cake sells today.
+    $db->exec("DELETE FROM dl_daily_ledger WHERE branch_id = {$branchId} AND product_id = {$boxId} AND ledger_date = '{$date}'");
+    $prevDate = (new DateTimeImmutable($date))->modify('-1 day')->format('Y-m-d');
+    $db->exec("DELETE FROM dl_daily_ledger WHERE branch_id = {$branchId} AND product_id = {$boxId} AND ledger_date = '{$prevDate}'");
+    $db->prepare(
+        'INSERT INTO dl_daily_ledger (branch_id, product_id, ledger_date, shift, beg_bal, addtl, withdraw, bal_end, sales, packaging_applied)
+         VALUES (:b, :p, :d, \'PM\', 40, 0, 0, 40, NULL, 0)'
+    )->execute([':b' => $branchId, ':p' => $boxId, ':d' => $prevDate]);
+    $db->exec("UPDATE dl_daily_ledger SET withdraw = 0, packaging_applied = 0 WHERE branch_id = {$branchId} AND product_id = {$cakeId} AND ledger_date = '{$date}' AND shift = 'AM'");
+    $shortBefore2 = $auditCount('packaging_shortfall');
+    $r = $applySales(4);                       // 4 cakes, box carried 40 from yesterday
+    $box = $readBox();
+    chk(
+        'a created box row opens at the carried stock, not at zero',
+        (int)($box['beg_bal'] ?? -1) === 40,
+        json_encode($box)
+    );
+    chk(
+        'no false shortfall when the box actually had stock',
+        $auditCount('packaging_shortfall') === $shortBefore2,
+        json_encode($box)
+    );
+    $db->exec("DELETE FROM dl_daily_ledger WHERE branch_id = {$branchId} AND product_id = {$boxId} AND ledger_date = '{$prevDate}'");
 } finally {
     $cleanup();
 }

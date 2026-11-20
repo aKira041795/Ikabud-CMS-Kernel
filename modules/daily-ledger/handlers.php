@@ -7058,6 +7058,46 @@ function dl_upsertCommissaryOutputDeliveryItem(
 }
 
 /**
+ * The opening a box row would have if the sheet had created it: PM takes today's AM ending, AM takes
+ * yesterday's PM ending and falls back to yesterday's AM, and anything absent is 0.
+ *
+ * This exists because dl_applyPackagingForSale() may have to CREATE the box's row when a cake sells
+ * before anyone has touched the box on the sheet. Writing 0 there would be a lie whenever the box
+ * carries stock from the previous shift: the deduction would land on an opening of nothing and report
+ * a shortfall the branch never had. Same CASE as dl_autoCarryBeginnings(), which owns this rule.
+ */
+function dl_packagingOpeningFor($db, int $branchId, int $productId, string $date, string $shift): int
+{
+    if ($branchId <= 0 || $productId <= 0 || $date === '') {
+        return 0;
+    }
+    $shift = ($shift === 'PM') ? 'PM' : 'AM';
+    $prevDate = (new \DateTimeImmutable($date))->modify('-1 day')->format('Y-m-d');
+    $stmt = $db->prepare(
+        "SELECT CASE
+                    WHEN :isPm = 1 THEN (
+                        SELECT bal_end FROM dl_daily_ledger
+                         WHERE branch_id = :b1 AND product_id = :p1 AND ledger_date = :d1 AND shift = 'AM' LIMIT 1
+                    )
+                    ELSE COALESCE(
+                        (SELECT bal_end FROM dl_daily_ledger
+                          WHERE branch_id = :b2 AND product_id = :p2 AND ledger_date = :dp1 AND shift = 'PM' LIMIT 1),
+                        (SELECT bal_end FROM dl_daily_ledger
+                          WHERE branch_id = :b3 AND product_id = :p3 AND ledger_date = :dp2 AND shift = 'AM' LIMIT 1)
+                    )
+                END AS opening"
+    );
+    $stmt->execute([
+        ':isPm' => $shift === 'PM' ? 1 : 0,
+        ':b1' => $branchId, ':p1' => $productId, ':d1' => $date,
+        ':b2' => $branchId, ':p2' => $productId, ':dp1' => $prevDate,
+        ':b3' => $branchId, ':p3' => $productId, ':dp2' => $prevDate,
+    ]);
+    $opening = $stmt->fetchColumn();
+    return $opening === false || $opening === null ? 0 : (int)$opening;
+}
+
+/**
  * Box deduction — a sale consumes boxes, derived and SET, never incremented.
  *
  * WHY SET AND NOT INCREMENT (the whole safety of this feature): the cashier sheet is saved per cell,
@@ -7155,17 +7195,21 @@ function dl_applyPackagingForSale(
     }
 
     if (!$boxRow) {
-        // The box has no row for this branch/day/shift yet. Create it with an explicit zero opening
-        // rather than borrowing the cake's, so the balance stays explainable.
+        // The box has no row for this branch/day/shift yet - the cake sold before anyone touched the
+        // box on the sheet. Open it with the SAME carried opening the sheet would have given it, never
+        // a flat 0: a box that ended 40 yesterday must start today at 40, or the deduction lands on
+        // nothing and reports a shortfall the branch never had.
+        $opening = dl_packagingOpeningFor($db, $branchId, $boxProductId, $date, $shift);
         $db->prepare(
             'INSERT INTO dl_daily_ledger
                 (branch_id, product_id, ledger_date, shift, beg_bal, addtl, withdraw, bal_end, sales, packaging_applied, updated_by)
-             VALUES (:bid, :pid, :d, :shift, 0, 0, 0, NULL, NULL, 0, :uid)'
+             VALUES (:bid, :pid, :d, :shift, :beg, 0, 0, NULL, NULL, 0, :uid)'
         )->execute([
             ':bid' => $branchId,
             ':pid' => $boxProductId,
             ':d' => $date,
             ':shift' => $shift,
+            ':beg' => $opening,
             ':uid' => $actorId > 0 ? $actorId : null,
         ]);
         $read->execute([':bid' => $branchId, ':pid' => $boxProductId, ':d' => $date, ':shift' => $shift]);
