@@ -1456,6 +1456,7 @@
                                         <div class="mt-1 text-[11px] text-gray-500">
                                             <span x-text="issue.receiver_name"></span> · <span x-text="issue.receiver_remarked_at"></span>
                                         </div>
+                                        {if can_answer_delivery_issues}
                                         <div class="mt-2 flex flex-col gap-2 sm:flex-row">
                                             <input type="text" class="form-input mt-0 w-full text-sm" maxlength="500"
                                                    placeholder="Your explanation, e.g. 6 ang na-load sa truck"
@@ -1466,6 +1467,14 @@
                                                     x-text="savingId === issue.id ? 'Sending...' : 'Reply'">
                                             </button>
                                         </div>
+                                        {else}
+                                        {* The API requires a user assigned to the sending branch, because a reply is
+                                           that branch's own words. Offering the box to anyone else produced a 403 on a
+                                           control that looked usable (measured 2026-11-21). Say why instead. *}
+                                        <div class="mt-2 rounded-md border border-gray-200 bg-gray-50 px-2 py-1.5 text-[11px] text-gray-600">
+                                            Only a user assigned to this commissary can answer this. Ask the PIC of this hub, or an admin assigned here, to reply.
+                                        </div>
+                                        {/if}
                                     </div>
                                 </template>
                             </div>

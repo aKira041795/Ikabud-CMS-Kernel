@@ -280,4 +280,39 @@ try {
 $left = (int)$db->query("SELECT COUNT(*) FROM dl_deliveries WHERE id IN ({$deliveryAdmin},{$deliveryBranch})")->fetchColumn();
 $h->test('cleanup removed the delivery fixtures', $left === 0);
 
+// ── The reply-to-a-delivery-issue control must never be offered to someone who cannot use it ──
+// Found 2026-11-21 while answering a real notice on the commissary page: logged in as
+// SHIELA_BAINA · ADMIN, the banner said "1 waiting for your answer" and the reply box was right
+// there, but the POST returned 403 ("This page is not open to your role") because `admin` was not
+// in the endpoint's role list. After adding admin, a SECOND guard still refused — the endpoint
+// requires a dl_user_branches row for the sending side, because a reply is that branch's own words.
+// The role gate was genuinely wrong; the assignment gate is right. So the UI now withholds the
+// composer and states the reason, instead of offering a control that fails.
+$h->section('answering a delivery issue is offered only where it can succeed');
+$handlerSrc = (string)file_get_contents($base . '/modules/daily-ledger/handlers.php');
+$commissaryTpl = (string)file_get_contents($base . '/templates/modules/daily-ledger/admin/commissary.disyl');
+$h->test(
+    'an admin may answer a delivery issue',
+    str_contains($handlerSrc, "dlCurrentUser(['cashier', 'supervisor', 'production_in_charge', 'admin'])"),
+    'admin is the office; it must not be refused by the endpoint that renders a control to it'
+);
+$h->test(
+    'the endpoint still requires the actor to be assigned to that side of the delivery',
+    str_contains($handlerSrc, 'Only a user assigned to the branch on this side may write this remark'),
+    'a reply represents the branch\'s own words — that provenance guard is deliberate and must stay'
+);
+$h->test(
+    'the page computes whether the current user can answer for this hub',
+    str_contains($handlerSrc, "'can_answer_delivery_issues' => \$canAnswerDeliveryIssues")
+        && str_contains($handlerSrc, 'SELECT 1 FROM dl_user_branches WHERE user_id = :u AND branch_id = :b'),
+    'without it the view cannot know whether to render the composer'
+);
+$h->test(
+    'the composer is withheld, with the reason, when the user cannot answer',
+    str_contains($commissaryTpl, '{if can_answer_delivery_issues}')
+        && str_contains($commissaryTpl, 'Only a user assigned to this commissary can answer this')
+        && str_contains($commissaryTpl, '{else}'),
+    'a reply box that 403s on submit is the 2026-11-09 dead-button defect'
+);
+
 $h->done();

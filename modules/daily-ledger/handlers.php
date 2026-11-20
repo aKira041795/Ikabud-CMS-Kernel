@@ -24190,7 +24190,13 @@ function apiSaveDeliveryVarianceRemark(array $params = []): void
 {
     $ctx = module();
     if (!$ctx) { http_response_code(500); return; }
-    $user = dlCurrentUser(['cashier', 'supervisor', 'production_in_charge']);
+    // `admin` belongs in this list. The banner and the reply box render on the admin's own
+    // commissary page (dl_pendingDeliveryIssues is built for whatever role opens /admin/commissary),
+    // so an admin who clicks Reply was being refused with "This page is not open to your role" —
+    // the same dead-control defect as 2026-11-09, one layer down. Measured 2026-11-21: logged in as
+    // SHIELA_BAINA · ADMIN, the reply POST returned 403 while the notice said "1 waiting for your
+    // answer". An admin answering on the hub's behalf is exactly the case the office needs.
+    $user = dlCurrentUser(['cashier', 'supervisor', 'production_in_charge', 'admin']);
     $input = $ctx->input();
     $varianceId = (int)($input['variance_id'] ?? 0);
     $side = trim((string)($input['side'] ?? ''));
@@ -28890,6 +28896,17 @@ function handleAdminCommissary(): void
     if ($selectedCommissaryId > 0) {
         $pendingDeliveryIssues = dl_pendingDeliveryIssues($db, (int)$selectedCommissaryId, 8);
     }
+    // Can THIS user answer for this hub? The endpoint requires a dl_user_branches row for the
+    // sending side, because a reply is the branch's own words. Rendering the reply box anyway meant
+    // an admin who is not assigned here clicked Reply and got a 403 — measured 2026-11-21 while the
+    // notice read "1 waiting for your answer". The notice stays visible (it is information); only
+    // the control the user cannot use is withheld, with the reason stated in its place.
+    $canAnswerDeliveryIssues = false;
+    if ($selectedCommissaryId > 0) {
+        $membership = $db->prepare('SELECT 1 FROM dl_user_branches WHERE user_id = :u AND branch_id = :b LIMIT 1');
+        $membership->execute([':u' => (int)($user['id'] ?? 0), ':b' => (int)$selectedCommissaryId]);
+        $canAnswerDeliveryIssues = $membership->fetchColumn() !== false;
+    }
     // A correction made at the receiving branch MOVED this branch's figures. Production must be able
     // to read why without hunting the variance page, so the notice is server-rendered here too.
     $productionNotices = ['rows' => [], 'total' => 0, 'heading' => ''];
@@ -28901,6 +28918,7 @@ function handleAdminCommissary(): void
         'page_title' => 'Commissary',
         'base_url' => dlGetBaseUrl(),
         'pending_delivery_issues' => $pendingDeliveryIssues,
+        'can_answer_delivery_issues' => $canAnswerDeliveryIssues,
         'pending_delivery_issue_count' => count($pendingDeliveryIssues),
         'production_notices' => $productionNotices['rows'],
         'production_notice_total' => $productionNotices['total'],
