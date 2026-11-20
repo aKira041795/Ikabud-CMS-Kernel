@@ -239,6 +239,7 @@ function dlResolveFinalizedPendingFlags(DatabaseContract $db, int $limit = 500):
         // in place, which is the "gisolve na namo pero naa gihapon ang pending" report. (b) is the same
         // predicate the finding is raised with, so the two can never disagree about what "solved" means.
         $settled = false;
+        $settledBy = '';
         try {
             if ($shift === null) {
                 // Day-level: settled when the day itself is closed (nobody can owe an ending after that),
@@ -247,22 +248,27 @@ function dlResolveFinalizedPendingFlags(DatabaseContract $db, int $limit = 500):
                 $dayStmt->execute([':b' => $branchId, ':d' => $date]);
                 if ((string)($dayStmt->fetchColumn() ?: '') === 'closed') {
                     $settled = true;
+                    $settledBy = 'the day is closed';
                 } else {
-                    $openShifts = 0;
                     $shiftStatusStmt = $db->prepare(
                         'SELECT COUNT(*) FROM dl_ledger_shift_status
                           WHERE branch_id = :b AND ledger_date = :d AND shift IN (\'AM\',\'PM\') AND status <> \'finalized\''
                     );
                     $shiftStatusStmt->execute([':b' => $branchId, ':d' => $date]);
-                    $openShifts = (int)$shiftStatusStmt->fetchColumn();
-                    $settled = $openShifts === 0;
+                    if ((int)$shiftStatusStmt->fetchColumn() === 0) {
+                        $settled = true;
+                        $settledBy = 'every shift of the day is finalized';
+                    }
                 }
             } else {
                 $statusStmt = $db->prepare(
                     'SELECT status FROM dl_ledger_shift_status WHERE branch_id = :b AND ledger_date = :d AND shift = :s LIMIT 1'
                 );
                 $statusStmt->execute([':b' => $branchId, ':d' => $date, ':s' => $shift]);
-                $settled = ((string)($statusStmt->fetchColumn() ?: '')) === 'finalized';
+                if (((string)($statusStmt->fetchColumn() ?: '')) === 'finalized') {
+                    $settled = true;
+                    $settledBy = 'the shift is finalized';
+                }
             }
         } catch (\Throwable $e) {
             continue;
@@ -304,6 +310,11 @@ function dlResolveFinalizedPendingFlags(DatabaseContract $db, int $limit = 500):
                     $missingStmt->execute([':b1' => $branchId, ':b2' => $branchId, ':d' => $date, ':s' => $shift]);
                 }
                 $settled = ((int)$missingStmt->fetchColumn()) === 0;
+                if ($settled) {
+                    $settledBy = $shift === null
+                        ? 'no shift of that day still owes an ending'
+                        : 'every product still active for this branch has its ending';
+                }
             } catch (\Throwable $e) {
                 continue;
             }
@@ -312,8 +323,38 @@ function dlResolveFinalizedPendingFlags(DatabaseContract $db, int $limit = 500):
             continue; // genuinely still owed: leave the finding alone
         }
 
+        // The reason must be TRUE, not reassuring. The predicate above counts products still ACTIVE for
+        // the branch, because an inactive product cannot be given an ending on the sheet. MEASURED
+        // 2026-11-20 on the live dump: 93 findings settle that way while raw movement rows (products
+        // since deactivated) still lack an ending. Closing them is right - nobody can act on them - but
+        // the audit line must not claim everything has an ending when it does not, so the residual is
+        // carried into the reason by name and count.
+        $reason = $settledBy;
+        try {
+            $rawStmt = $db->prepare(
+                'SELECT COUNT(*)
+                   FROM dl_commissary_product_ledger cpl
+                  WHERE cpl.commissary_branch_id = :b
+                    AND cpl.ledger_date = :d'
+                . ($shift === null ? '' : ' AND cpl.shift = :s')
+                . ' AND cpl.actual_end_qty IS NULL'
+                . '   AND (cpl.beg_qty <> 0 OR cpl.produced_qty <> 0 OR cpl.dispatched_qty <> 0 OR cpl.wastage_qty <> 0)'
+            );
+            $rawBind = [':b' => $branchId, ':d' => $date];
+            if ($shift !== null) {
+                $rawBind[':s'] = $shift;
+            }
+            $rawStmt->execute($rawBind);
+            $rawGap = (int)$rawStmt->fetchColumn();
+        } catch (\Throwable $e) {
+            $rawGap = 0;
+        }
+        if ($rawGap > 0) {
+            $reason .= '; ' . $rawGap . ' movement row(s) belong to products no longer active for this branch and cannot be entered on the sheet';
+        }
+
         if (function_exists('dl_resolveIntegrityNotification')
-            && dl_resolveIntegrityNotification($db, $key, 'every activity-bearing product now has its ending', $branchId, $date, $shift)) {
+            && dl_resolveIntegrityNotification($db, $key, $reason, $branchId, $date, $shift)) {
             $resolved++;
         }
     }

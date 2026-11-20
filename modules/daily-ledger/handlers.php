@@ -5287,7 +5287,7 @@ function dl_resolveIntegrityNotification($db, string $aggregateKey, string $reas
     }
 
     try {
-        $findStmt = $db->prepare('SELECT id, finding_type, title FROM dl_integrity_notifications WHERE aggregate_key = :k LIMIT 1');
+        $findStmt = $db->prepare('SELECT * FROM dl_integrity_notifications WHERE aggregate_key = :k LIMIT 1');
         $findStmt->execute([':k' => $aggregateKey]);
         $row = $findStmt->fetch(PDO::FETCH_ASSOC);
         if (!is_array($row)) {
@@ -5295,13 +5295,12 @@ function dl_resolveIntegrityNotification($db, string $aggregateKey, string $reas
         }
         $notificationId = (int)$row['id'];
 
-        // Recipients first: the FK cascade may not exist on every install, and an orphan recipient
-        // row would keep the item reachable in a user's inbox query.
-        $db->prepare('DELETE FROM dl_integrity_notification_recipients WHERE notification_id = :id')
-            ->execute([':id' => $notificationId]);
-        $db->prepare('DELETE FROM dl_integrity_notifications WHERE id = :id')
-            ->execute([':id' => $notificationId]);
-
+        // EVIDENCE FIRST, THEN REMOVE - and only if the evidence landed.
+        //
+        // The first version deleted the row and then wrote the audit line, and dl_auditLog() swallows
+        // its own exceptions, so a failed audit write left the finding deleted with no trail at all:
+        // the one outcome an "unresolved evidence" operation must never produce. The finding's own
+        // columns are copied into the audit row, so what was removed survives the removal.
         dl_auditLog(
             'integrity_notification_resolved',
             $branchId !== null ? (int)$branchId : null,
@@ -5310,6 +5309,9 @@ function dl_resolveIntegrityNotification($db, string $aggregateKey, string $reas
             [
                 'finding_type' => (string)($row['finding_type'] ?? ''),
                 'title' => (string)($row['title'] ?? ''),
+                'detail' => (string)($row['detail'] ?? ''),
+                'finding_count' => (int)($row['finding_count'] ?? 0),
+                'raised_at' => (string)($row['raised_at'] ?? ''),
                 'state' => 'open',
             ],
             [
@@ -5319,6 +5321,28 @@ function dl_resolveIntegrityNotification($db, string $aggregateKey, string $reas
                 'shift' => $shift,
             ]
         );
+
+        // The audit row must be provably present before the finding goes.
+        $landedStmt = $db->prepare(
+            'SELECT 1 FROM audit_logs
+              WHERE module = \'daily-ledger\' AND action = \'integrity_notification_resolved\' AND entity_id = :eid
+              LIMIT 1'
+        );
+        $landedStmt->execute([':eid' => $aggregateKey]);
+        if ($landedStmt->fetchColumn() === false) {
+            write_log('daily-ledger integrity notification NOT removed: its audit trail did not land', 'error', [
+                'aggregate_key' => $aggregateKey,
+                'reason' => $reason,
+            ]);
+            return false;
+        }
+
+        // Recipients first: the FK cascade may not exist on every install, and an orphan recipient
+        // row would keep the item reachable in a user's inbox query.
+        $db->prepare('DELETE FROM dl_integrity_notification_recipients WHERE notification_id = :id')
+            ->execute([':id' => $notificationId]);
+        $db->prepare('DELETE FROM dl_integrity_notifications WHERE id = :id')
+            ->execute([':id' => $notificationId]);
 
         return true;
     } catch (\Throwable $e) {
