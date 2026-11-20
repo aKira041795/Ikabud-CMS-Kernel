@@ -82,7 +82,12 @@ try {
     // A/d2/PM with a DERIVED ending: 5 - 2 = 3 units, provisional by end_source.
     $ins->execute([$branchA, $prod2, $d2, 'PM', 25, 5, 0, 0, 2, null, 'derived-from-movements']);
     // A pending-ending row: bal_end NULL, counts as pending and contributes no quantity or money.
-    $ins->execute([$branchA, $prod2, $d2, 'AM', 25, 5, 0, 0, null, null, null]);
+    // The withdrawal is 1 on purpose: since the owner rule of 2026-11-21 a row with no addition, no
+    // withdrawal and no sale owes no hand-typed ending (it settles to its carried beginning), so a
+    // beg-only row is no longer "pending". The quantity expression returns NULL wherever bal_end is
+    // NULL (dl_ledgerSalesQuantitySql), so adding a withdrawal here cannot shift any money or units
+    // in this fixture — it only keeps the row genuinely owed.
+    $ins->execute([$branchA, $prod2, $d2, 'AM', 25, 5, 0, 1, null, null, null]);
     // Branch B: no shift-status rows at all, ending present -> 5 - 0 = 5 units, provisional.
     $ins->execute([$branchB, $prod1, $d1, 'PM', 10, 5, 0, 0, 0, null, null]);
 

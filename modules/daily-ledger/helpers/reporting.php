@@ -2013,9 +2013,17 @@ function dl_overviewWindowAggregate(DatabaseContract $db, array $filters, bool $
 
     $sql = 'SELECT dl.branch_id,'
         . ' COUNT(*) AS rows_total,'
-        . ' SUM(CASE WHEN dl.bal_end IS NULL THEN 1 ELSE 0 END) AS pending,'
+        // "Pending" must mean "an ending a human still owes", not "a NULL in the column".
+        //
+        // Since the owner rule of 2026-11-21 a row with no addition, no withdrawal and no sale owes
+        // NO hand-typed ending — it settles to its carried beginning via dl_deriveIdleEndings(). A raw
+        // `bal_end IS NULL` count therefore reported work that nobody has to do: the Overview said
+        // 2,845 endings awaited finalization while the day-ending gate demanded 1,047. Two surfaces
+        // disagreeing about how much work is outstanding is exactly the kind of dishonesty this view
+        // exists to avoid, so both now use the same activity predicate the gate uses.
+        . ' SUM(CASE WHEN dl.bal_end IS NULL AND ' . dl_ledgerActivitySql('dl') . ' THEN 1 ELSE 0 END) AS pending,'
         . ' SUM(CASE WHEN dl.bal_end IS NOT NULL THEN 1 ELSE 0 END) AS completed,'
-        . " SUM(CASE WHEN dl.bal_end IS NULL AND ss.status = 'finalized' THEN 1 ELSE 0 END) AS pending_locked,"
+        . " SUM(CASE WHEN dl.bal_end IS NULL AND ss.status = 'finalized' AND " . dl_ledgerActivitySql('dl') . ' THEN 1 ELSE 0 END) AS pending_locked,'
         . ' COALESCE(SUM(' . $qty . '), 0) AS units_all,'
         . ' COALESCE(SUM(CASE WHEN ' . $provisional . ' THEN 0 ELSE ' . $qty . ' END), 0) AS official_units,'
         . ' COALESCE(SUM(CASE WHEN ' . $provisional . ' THEN 0 ELSE ' . $amount . ' END), 0) AS official_amount'

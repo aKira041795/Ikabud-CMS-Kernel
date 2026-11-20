@@ -72,7 +72,11 @@ $anchorDb->prepare('INSERT INTO dl_branches (id, code, name, default_supply_mode
     $anchorDb->prepare('INSERT INTO dl_branch_products (branch_id, product_id, is_active) VALUES (?, ?, 1)')->execute([$anchorBranch, $anchorProduct]);
     $anchorDb->prepare('INSERT INTO dl_branch_products (branch_id, product_id, is_active) VALUES (?, ?, 1)')->execute([$silentBranch, $anchorProduct]);
     // Movement with no ending: the period is ALL pending, which is the state being asserted.
-    $anchorDb->prepare('INSERT INTO dl_daily_ledger (branch_id, product_id, ledger_date, shift, price_snapshot, beg_bal, addtl, withdraw, bal_end, sales) VALUES (?, ?, ?, ?, 10, 10, 0, 0, NULL, NULL)')
+    // The withdrawal of 1 makes this a row that genuinely OWES an ending. Since the owner rule of
+    // 2026-11-21 a row with no addition, no withdrawal and no sale is idle and settles to its
+    // carried beginning, so a beg-only row is no longer "pending" and would render no pending card.
+    // The quantity expression is NULL wherever bal_end is NULL, so this cannot move any money.
+    $anchorDb->prepare('INSERT INTO dl_daily_ledger (branch_id, product_id, ledger_date, shift, price_snapshot, beg_bal, addtl, withdraw, bal_end, sales) VALUES (?, ?, ?, ?, 10, 10, 0, 1, NULL, NULL)')
         ->execute([$anchorBranch, $anchorProduct, $pendingPeriod, 'PM']);
 
     $overviewUser = dlCurrentUser(['admin', 'supervisor', 'auditor', 'viewer']);
