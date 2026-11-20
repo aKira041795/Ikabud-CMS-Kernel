@@ -272,9 +272,17 @@ class Cache
         
         try {
             $file = $this->getCacheFile($instanceId, $key);
-            
-            $data = file_get_contents($file);
-            if (!$data) {
+
+            // Suppressed, then classified: has() ran a moment ago, so a file that is gone now was
+            // deleted between the check and the read - a concurrent purge or expiry, which is a miss,
+            // not corruption. Without this, every such race wrote "file_get_contents(...): Failed to
+            // open stream: No such file or directory" into error.log (measured 2026-10-13).
+            $data = @file_get_contents($file);
+            if ($data === false && !is_file($file)) {
+                $this->incrementStat('misses');
+                return null;
+            }
+            if ($data === false || $data === '') {
                 // Corrupted cache file
                 @unlink($file);
                 $this->incrementStat('errors');

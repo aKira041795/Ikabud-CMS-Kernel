@@ -224,7 +224,9 @@ final class HarppPushService
         curl_exec($curl);
         $status = (int)curl_getinfo($curl, CURLINFO_HTTP_CODE);
         $error = curl_error($curl);
-        curl_close($curl);
+        // curl_close() is deprecated as of PHP 8.5 and has done nothing since 8.0: the handle is a
+        // plain object now and is released when it goes out of scope. Calling it only produced a
+        // deprecation line in storage/logs/error.log on every push.
         if ($status === 0 && $error !== '') throw new \RuntimeException('Push transport failed: ' . $error);
         return $status;
     }
@@ -368,7 +370,10 @@ final class HarppPushService
         $serverPublic = $this->decodeB64($this->publicFromDetails($serverDetails));
         $clientKey = openssl_pkey_get_public($this->publicKeyPem($clientPublic));
         if ($clientKey === false || !function_exists('openssl_pkey_derive')) throw new \RuntimeException('OpenSSL ECDH support is required for Web Push.');
-        $sharedSecret = openssl_pkey_derive($clientKey, $serverPrivate, 32);
+        // No length argument: it is deprecated on PHP 8.5 (either ignored or silently truncating).
+        // On P-256 the derived secret is already 32 bytes, which is what the check below requires,
+        // so dropping the argument keeps the value identical.
+        $sharedSecret = openssl_pkey_derive($clientKey, $serverPrivate);
         if (!is_string($sharedSecret) || strlen($sharedSecret) !== 32) throw new \RuntimeException('Unable to derive Web Push encryption secret.');
 
         $keyInfo = "WebPush: info\0" . $clientPublic . $serverPublic;

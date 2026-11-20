@@ -2252,13 +2252,17 @@ function dlCsvResponse(string $filename, array $headers, array $rows): never
         throw new RuntimeException('Unable to open CSV output stream.');
     }
 
-    fputcsv($stream, $headers);
+    // The $escape argument is spelled out because PHP 8.4 deprecates relying on its default, and a
+    // deprecation notice per fputcsv() call was landing in storage/logs/error.log on every export
+    // (measured 2026-10-13/14 on the live site, 8 to 30 lines per export). '\\' is the current
+    // default, so the file's bytes are unchanged - only the notice stops.
+    fputcsv($stream, $headers, ',', '"', '\\');
     foreach ($rows as $row) {
         $ordered = [];
         foreach ($headers as $header) {
             $ordered[] = $row[$header] ?? '';
         }
-        fputcsv($stream, $ordered);
+        fputcsv($stream, $ordered, ',', '"', '\\');
     }
 
     fclose($stream);
