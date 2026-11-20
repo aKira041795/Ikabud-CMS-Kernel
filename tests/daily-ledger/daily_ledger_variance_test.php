@@ -1108,5 +1108,13 @@ $db->execute('UPDATE dl_branches SET is_commissary = :v WHERE id = :b', [':v' =>
 unset($GLOBALS['_dl_branch_rows'], $GLOBALS['_dl_branch_rows_all']);
 $db->execute('DELETE FROM dl_variance_flags WHERE branch_id = :b AND ledger_date IN (:d1, :d2)', [':b' => $coBranch, ':d1' => $coDate, ':d2' => '2030-03-03']);
 $db->execute('DELETE FROM dl_daily_ledger WHERE branch_id = :b AND ledger_date IN (:d1, :d2)', [':b' => $coBranch, ':d1' => $coDate, ':d2' => '2030-03-03']);
+// The fixture branch is left ACTIVE by this suite, which put `T-COM` in the operator's integrity
+// report as if it were a real hub. Leave the tree as it was found: the report now has a
+// `test_residue` check, and a check that always says ATTENTION is a check people learn to skip.
+$db->execute('DELETE FROM dl_branch_products WHERE branch_id = :b', [':b' => $coBranch]);
+$db->execute('DELETE FROM dl_daily_ledger WHERE branch_id = :b', [':b' => $coBranch]);
+$db->execute('DELETE FROM dl_variance_flags WHERE branch_id = :b', [':b' => $coBranch]);
+$db->execute('DELETE FROM dl_branches WHERE id = :b', [':b' => $coBranch]);
+unset($GLOBALS['_dl_branch_rows'], $GLOBALS['_dl_branch_rows_all']);
 
 $h->done();

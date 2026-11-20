@@ -194,7 +194,8 @@
     "database/migrations/106_withdrawal_target_consignee.sql",
     "database/migrations/107_box_mapping.sql",
     "database/migrations/108_packaging_applied.sql",
-    "database/migrations/109_branch_official_data_start.sql"
+    "database/migrations/109_branch_official_data_start.sql",
+    "database/migrations/110_purchase_receipt_movement.sql"
   ],
   "capabilities": {
     "exposes": [

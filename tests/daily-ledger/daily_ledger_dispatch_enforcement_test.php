@@ -77,9 +77,16 @@ try {
     $reversed=dl_commissaryLedgerSnapshot($db,$origin,$product,$date);
 
     $h->section('enforced commissary debit and reversal');
-    $h->test('posting debits dispatched 4→11 and remaining 26→19 (revert leaves both unchanged)', $before['dispatched_qty']===4 && $before['remaining_qty']===26 && $before['calc_variance']===-6 && $after['dispatched_qty']===11 && $after['remaining_qty']===19 && $after['calc_variance']===1, json_encode([$before,$after]));
+    // BASIS CORRECTION 2026-11-20. These expected 26 and 19, which is
+    // `produced - dispatched - wastage` - the GENERATED remaining_qty, which OMITS beg_qty. This
+    // fixture carries 20 units of opening stock, so the old numbers were short by exactly 20 while
+    // the MOVEMENT (-7) was always right. The snapshot now reports the balance the rest of the
+    // module uses and that calc_variance is generated from - beg + produced - dispatched - wastage
+    // - so 26/19 became 46/39. The delta assertions are unchanged; only the absolute basis moved,
+    // and it moved to the one the ledger itself computes. The old numbers asserted the defect.
+    $h->test('posting debits dispatched 4→11 and remaining 46→39 (revert leaves both unchanged)', $before['dispatched_qty']===4 && $before['remaining_qty']===46 && $before['calc_variance']===-6 && $after['dispatched_qty']===11 && $after['remaining_qty']===39 && $after['calc_variance']===1, json_encode([$before,$after]));
     $h->test('retry applies the item effect once (revert doubles dispatched to 18)', $first['applied']===1 && $retry['applied']===0 && $afterRetry===$after, json_encode([$first,$retry,$afterRetry]));
-    $h->test('void automatically restores dispatched 11→4 and remaining 19→26 (revert leaves ledger wrong)', !empty($void['body']['ok']) && $reversed['dispatched_qty']===4 && $reversed['remaining_qty']===26 && $reversed['calc_variance']===-6, $void['raw'].' '.json_encode($reversed));
+    $h->test('void automatically restores dispatched 11→4 and remaining 39→46 (revert leaves ledger wrong)', !empty($void['body']['ok']) && $reversed['dispatched_qty']===4 && $reversed['remaining_qty']===46 && $reversed['calc_variance']===-6, $void['raw'].' '.json_encode($reversed));
 
     $h->section('auto-production delivery uses the same durable reversal');
     $db->prepare('INSERT INTO dl_production_runs (ledger_date,product_id,baker_name,run_type,primary_input_qty,primary_input_type,yield_qty,dr_number,destination_branch_id,recorded_by) VALUES (?, ?, "Fixture Baker", "regular", 1, "kilo", 6, ?, ?, 1)')->execute([$date,$product,$autoDr,$destination]);

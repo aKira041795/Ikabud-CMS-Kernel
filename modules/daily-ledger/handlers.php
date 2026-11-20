@@ -5468,14 +5468,51 @@ function dl_raiseIntegrityNotification($db, string $key, string $type, ?int $bra
     return $notificationId;
 }
 
-function dl_commissaryLedgerSnapshot($db, int $branchId, int $productId, string $date): array
+/**
+ * Before/after evidence for a commissary movement, read from the SAME shift bucket the movement
+ * touched.
+ *
+ * TWO DEFECTS THIS FIXES, both of which made the shortfall alarm unreliable:
+ *
+ * 1. It returned the generated `remaining_qty`, and migration 037 defines that as
+ *    `produced - dispatched - wastage` — it OMITS `beg_qty`. The module's real balance everywhere
+ *    else is `beg + produced - dispatched - wastage` (dl_productionBalance(),
+ *    dl_commissaryOnHandByProduct(), calc_variance). So on any line carrying opening stock this
+ *    snapshot understated the balance by the whole opening, and the shortfall test below fired on
+ *    lines that were healthy in fact. Measured shape: beg 10, produced 0, dispatched 4 -> the old
+ *    snapshot said -4 (alarm) while the true balance was +6 (fine). That is a false alarm on a PIC,
+ *    which is exactly the kind of noise that teaches operators to ignore the alarm.
+ *
+ * 2. It filtered on ledger_date ONLY and took `LIMIT 1`. Two shifts share a date, so the before/
+ *    after figures - and the `dl_delivery_ledger_effects` columns written from them - could be the
+ *    OTHER shift's row. The caller now passes the shift the delta was applied with (including the
+ *    legacy NULL bucket), so the snapshot and the write always address one row.
+ *
+ * `balance_basis` is returned so an audit reader can tell which formula produced a number.
+ */
+function dl_commissaryLedgerSnapshot($db, int $branchId, int $productId, string $date, ?string $shift = null): array
 {
-    $stmt = $db->prepare('SELECT dispatched_qty, remaining_qty, calc_variance FROM dl_commissary_product_ledger WHERE commissary_branch_id = :b AND product_id = :p AND ledger_date = :d LIMIT 1');
-    $stmt->execute([':b' => $branchId, ':p' => $productId, ':d' => $date]);
+    $sql = 'SELECT beg_qty, produced_qty, dispatched_qty, wastage_qty, calc_variance
+              FROM dl_commissary_product_ledger
+             WHERE commissary_branch_id = :b AND product_id = :p AND ledger_date = :d';
+    $bind = [':b' => $branchId, ':p' => $productId, ':d' => $date];
+    if ($shift !== null) {
+        // `<=>` because the legacy bucket is a real NULL, not 'no filter'.
+        $sql .= ' AND shift <=> :s';
+        $bind[':s'] = $shift;
+    }
+    $sql .= ' LIMIT 1';
+    $stmt = $db->prepare($sql);
+    $stmt->execute($bind);
     $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+    $beg = (int)($row['beg_qty'] ?? 0);
+    $produced = (int)($row['produced_qty'] ?? 0);
+    $dispatched = (int)($row['dispatched_qty'] ?? 0);
+    $wastage = (int)($row['wastage_qty'] ?? 0);
     return [
-        'dispatched_qty' => (int)($row['dispatched_qty'] ?? 0),
-        'remaining_qty' => (int)($row['remaining_qty'] ?? 0),
+        'dispatched_qty' => $dispatched,
+        'remaining_qty' => $beg + $produced - $dispatched - $wastage,
+        'balance_basis' => 'beg+produced-dispatched-wastage',
         'calc_variance' => array_key_exists('calc_variance', $row) && $row['calc_variance'] !== null ? (int)$row['calc_variance'] : null,
     ];
 }
@@ -5531,7 +5568,7 @@ function dl_applyPostedDeliveryCommissaryLedger($db, int $deliveryId, int $actor
         $exists = $db->prepare('SELECT effect_status FROM dl_delivery_ledger_effects WHERE delivery_item_id = :id AND effect_status = "applied" FOR UPDATE');
         $exists->execute([':id' => (int)$item['id']]);
         if ($exists->fetchColumn() !== false) continue;
-        $before = dl_commissaryLedgerSnapshot($db, $originId, (int)$item['product_id'], (string)$head['delivery_date']);
+        $before = dl_commissaryLedgerSnapshot($db, $originId, (int)$item['product_id'], (string)$head['delivery_date'], $head['production_shift'] ?? null);
         // Apply the dispatch to the shift bucket the delivery belongs to. Omitting the shift wrote
         // it to the legacy NULL bucket instead, where the AM/PM-keyed Daily Sheet cannot see it,
         // while the same physical dispatch was also recorded in its shift bucket — a double count
@@ -5540,7 +5577,7 @@ function dl_applyPostedDeliveryCommissaryLedger($db, int $deliveryId, int $actor
         // itself carries no shift, i.e. genuine legacy data, which is untouched by this change.
         $state = dl_applyCommissaryProductLedgerDelta($db, $originId, (int)$item['product_id'], (string)$head['delivery_date'], 0, (int)$item['quantity'], $actorId, 0, false, $head['production_shift'] ?? null);
         if (!empty($state['skipped'])) throw new RuntimeException('Resolved origin is not an active commissary.');
-        $after = dl_commissaryLedgerSnapshot($db, $originId, (int)$item['product_id'], (string)$head['delivery_date']);
+        $after = dl_commissaryLedgerSnapshot($db, $originId, (int)$item['product_id'], (string)$head['delivery_date'], $head['production_shift'] ?? null);
         // A dispatch is a FACT: goods left, so it is never refused here. But when the effect drives the
         // balance negative the ledger is now describing stock that was never recorded as received, and
         // that is precisely how 82 products reached -36,851 units at RIZAL-COMMIS (2026-11-19). Silent
@@ -5612,9 +5649,9 @@ function dl_reversePostedDeliveryCommissaryLedger($db, int $deliveryId, int $act
     $reversed = 0;
     foreach ($rows as $effect) {
         if ((string)$effect['effect_status'] !== 'applied') continue;
-        $before = dl_commissaryLedgerSnapshot($db, (int)$effect['commissary_branch_id'], (int)$effect['product_id'], (string)$effect['ledger_date']);
+        $before = dl_commissaryLedgerSnapshot($db, (int)$effect['commissary_branch_id'], (int)$effect['product_id'], (string)$effect['ledger_date'], $deliveryShift);
         dl_applyCommissaryProductLedgerDelta($db, (int)$effect['commissary_branch_id'], (int)$effect['product_id'], (string)$effect['ledger_date'], 0, -((int)$effect['quantity']), $actorId, 0, true, $deliveryShift);
-        $after = dl_commissaryLedgerSnapshot($db, (int)$effect['commissary_branch_id'], (int)$effect['product_id'], (string)$effect['ledger_date']);
+        $after = dl_commissaryLedgerSnapshot($db, (int)$effect['commissary_branch_id'], (int)$effect['product_id'], (string)$effect['ledger_date'], $deliveryShift);
         $db->prepare('UPDATE dl_delivery_ledger_effects SET effect_status = "reversed", reversed_by = :u, reversed_at = NOW(), reverse_before_dispatched_qty = :bd, reverse_after_dispatched_qty = :ad, reverse_before_remaining_qty = :br, reverse_after_remaining_qty = :ar WHERE id = :id AND effect_status = "applied"')
             ->execute([':u' => $actorId ?: null, ':bd' => $before['dispatched_qty'], ':ad' => $after['dispatched_qty'], ':br' => $before['remaining_qty'], ':ar' => $after['remaining_qty'], ':id' => (int)$effect['id']]);
         dl_auditLog('delivery_ledger_reversed', (int)$effect['commissary_branch_id'], 'dl_delivery_ledger_effects', (string)$effect['id'], $before,
@@ -6167,6 +6204,221 @@ function dl_recordProductionAdditionBatch(array $user, array $input, array $line
  * No reverse movement — the stored field moves before → after and is logged.
  * production.override and a reason are required (S7b §3 invariants).
  */
+/**
+ * Record stock that ARRIVED at a hub — a purchase receipt.
+ *
+ * WHY THIS EXISTS. The hub ledger has exactly ONE inflow column and only two writers that credit
+ * it: production output and saleable returns. Bought-in goods (softdrinks, Wilkins, coffee, candle
+ * sticks, boxes) have neither, so dispatching them debits a balance nothing ever credits. Measured
+ * on tenant 207 at 2026-11-20: 56 of the 128 products carrying a negative hub balance had NEVER had
+ * a single production entry. `direct_purchase` has existed as a supply CLASSIFICATION since
+ * migration 023 but had no writer at all — the module could describe a purchased product and never
+ * record its arrival.
+ *
+ * The receipt credits the ledger through the SAME delta primitive every other movement uses, and
+ * writes a `dl_production_movements` row with movement_type "purchase" carrying the supplier
+ * document in `dr_number`. That movement row is what keeps the record honest: the arithmetic has
+ * one inflow column, and the purchase-vs-production distinction lives in the movement, never in a
+ * second balance column. A dedicated `received_qty` would mean altering two STORED GENERATED
+ * columns on a shared-hosting deploy — the one change that can silently corrupt every balance
+ * reader if a step lands out of order.
+ *
+ * Deliberately NOT idempotent by quantity: the same supplier document may legitimately arrive in
+ * two drops. The caller's `idempotency_key` is the retry boundary (client_op_id is UNIQUE), so a
+ * replayed request returns the original movement instead of crediting twice.
+ *
+ * @return array{ok:bool,movement_id:int,movement_uuid:string,duplicate:bool,produced_qty:int,on_hand:int}
+ */
+function dl_recordCommissaryReceipt(array $user, array $input): array
+{
+    $ctx = module();
+    if (!$ctx) {
+        throw new RuntimeException('Module context unavailable.');
+    }
+    $role = (string)($user['role'] ?? '');
+    if (!in_array($role, ['admin', 'supervisor', 'production_in_charge'], true)) {
+        throw new RuntimeException('Recording received stock is for the office or the production-in-charge.', 403);
+    }
+
+    $hubId = (int)($input['commissary_branch_id'] ?? 0);
+    $productId = (int)($input['product_id'] ?? 0);
+    $date = trim((string)($input['date'] ?? ''));
+    $shift = dl_normalizeShift((string)($input['shift'] ?? 'AM'));
+    $quantity = (int)($input['quantity'] ?? 0);
+    $reference = trim((string)($input['reference'] ?? ''));
+    $supplier = trim((string)($input['supplier'] ?? ''));
+    $remarks = trim((string)($input['remarks'] ?? ''));
+    $clientOpId = trim((string)($input['idempotency_key'] ?? ''));
+
+    $missing = [];
+    if ($hubId <= 0) { $missing[] = 'hub'; }
+    if ($productId <= 0) { $missing[] = 'product'; }
+    if ($date === '') { $missing[] = 'date'; }
+    if ($quantity <= 0) { $missing[] = 'a quantity above zero'; }
+    // The supplier document is the whole point: a receipt with no reference is an adjustment
+    // wearing a receipt's name, and the office cannot check it against anything.
+    if ($reference === '') { $missing[] = 'the supplier document reference (DR / invoice)'; }
+    if ($missing !== []) {
+        throw new RuntimeException('Required: ' . implode(', ', $missing) . '.', 422);
+    }
+    if (!dl_isRealDate($date)) {
+        throw new RuntimeException('That is not a real calendar date.', 422);
+    }
+
+    $db = $ctx->db();
+
+    $hubStmt = $db->prepare('SELECT id, name FROM dl_branches WHERE id = :id AND is_commissary = 1 AND is_active = 1');
+    $hubStmt->execute([':id' => $hubId]);
+    $hub = $hubStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    if ($hub === null) {
+        throw new RuntimeException('Received stock is recorded at an active commissary.', 422);
+    }
+    if (!in_array($hubId, dl_accessibleBranchIds($user), true)) {
+        throw new RuntimeException('That commissary is outside your scope.', 403);
+    }
+
+    // A closed day is read-only for everyone; the office reopens it first, exactly as every other
+    // correction path requires. Saying so up front beats a write that fails halfway.
+    if (dl_getDayStatus($hubId, $date) === 'closed') {
+        throw new RuntimeException('This business date is closed. Reopen the day before recording a receipt.', 422);
+    }
+    dl_assertShiftMutable($db, $hubId, $date, $shift);
+
+    $productStmt = $db->prepare(
+        'SELECT p.id, p.name, p.sku FROM dl_products p
+           INNER JOIN dl_branch_products bp ON bp.product_id = p.id AND bp.branch_id = :bid AND bp.is_active = 1
+          WHERE p.id = :pid AND p.is_active = 1'
+    );
+    $productStmt->execute([':bid' => $hubId, ':pid' => $productId]);
+    $product = $productStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    if ($product === null) {
+        throw new RuntimeException('That product is not assigned to this commissary, so it cannot be received here.', 422);
+    }
+
+    // Retry boundary: a replayed request returns the movement it already created.
+    if ($clientOpId !== '') {
+        $dupStmt = $db->prepare('SELECT id, movement_uuid, quantity FROM dl_production_movements WHERE client_op_id = :coid LIMIT 1');
+        $dupStmt->execute([':coid' => $clientOpId]);
+        $dup = $dupStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+        if ($dup !== null) {
+            $snapshot = dl_commissaryLedgerSnapshot($db, $hubId, $productId, $date, $shift);
+            return [
+                'ok' => true,
+                'movement_id' => (int)$dup['id'],
+                'movement_uuid' => (string)$dup['movement_uuid'],
+                'duplicate' => true,
+                'produced_qty' => 0,
+                'on_hand' => (int)$snapshot['remaining_qty'],
+            ];
+        }
+    }
+
+    $actorId = dl_getActorUserId($user);
+    $ownsTxn = !$db->inTransaction();
+    if ($ownsTxn) {
+        $db->beginTransaction();
+    }
+    try {
+        $before = dl_commissaryLedgerSnapshot($db, $hubId, $productId, $date, $shift);
+        // +quantity on the inflow column, no dispatch, no wastage. rejectNegativeBalance=false: an
+        // increase cannot drive a column below zero.
+        $state = dl_applyCommissaryProductLedgerDelta($db, $hubId, $productId, $date, $quantity, 0, $actorId, 0, false, $shift);
+        if (!empty($state['skipped'])) {
+            throw new RuntimeException('That commissary is not active, so the receipt cannot be applied.');
+        }
+
+        $movementUuid = dl_generateMovementUuid();
+        $db->prepare(
+            'INSERT INTO dl_production_movements (
+                movement_uuid, client_op_id, movement_type, flow_mode,
+                destination_branch_id, product_id, ledger_date, shift, quantity, dr_number,
+                override_reason, reference_movement_id, source_payload,
+                created_by_id, created_by_role
+             ) VALUES (
+                :uuid, :coid, "purchase", "commissary",
+                :bid, :pid, :ldate, :shift, :qty, :dr,
+                NULL, NULL, :payload,
+                :uid, :role
+             )'
+        )->execute([
+            ':uuid' => $movementUuid,
+            ':coid' => $clientOpId !== '' ? $clientOpId : null,
+            ':bid' => $hubId,
+            ':pid' => $productId,
+            ':ldate' => $date,
+            ':shift' => $shift,
+            ':qty' => $quantity,
+            ':dr' => $reference,
+            ':payload' => json_encode([
+                'supplier' => $supplier,
+                'remarks' => $remarks,
+                'before_on_hand' => (int)$before['remaining_qty'],
+                'after_on_hand' => (int)$before['remaining_qty'] + $quantity,
+                'balance_basis' => 'beg+produced-dispatched-wastage',
+            ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+            ':uid' => $actorId > 0 ? $actorId : null,
+            ':role' => $role !== '' ? $role : 'unknown',
+        ]);
+        $movementId = (int)$db->lastInsertId();
+
+        dl_auditLog(
+            'commissary_stock_received',
+            $hubId,
+            'dl_commissary_product_ledger',
+            $hubId . '-' . $date . '-' . $productId,
+            ['produced_qty' => (int)($state['produced_qty'] ?? 0) - $quantity],
+            [
+                'produced_qty' => (int)($state['produced_qty'] ?? 0),
+                'quantity' => $quantity,
+                'reference' => $reference,
+                'supplier' => $supplier,
+                'shift' => $shift,
+                'movement_id' => $movementId,
+                'movement_uuid' => $movementUuid,
+                'product' => (string)($product['name'] ?? ''),
+            ]
+        );
+
+        if ($ownsTxn) {
+            $db->commit();
+        }
+        $after = dl_commissaryLedgerSnapshot($db, $hubId, $productId, $date, $shift);
+        return [
+            'ok' => true,
+            'movement_id' => $movementId,
+            'movement_uuid' => $movementUuid,
+            'duplicate' => false,
+            'produced_qty' => (int)($state['produced_qty'] ?? 0),
+            'on_hand' => (int)$after['remaining_qty'],
+        ];
+    } catch (Throwable $e) {
+        if ($ownsTxn && $db->inTransaction()) {
+            $db->rollBack();
+        }
+        throw $e;
+    }
+}
+
+/**
+ * HTTP wrapper: record received (purchased) stock at a hub.
+ */
+function apiRecordCommissaryReceipt(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) {
+        http_response_code(500);
+        return;
+    }
+    try {
+        $user = dlCurrentUser(['admin', 'supervisor', 'production_in_charge']);
+        $result = dl_recordCommissaryReceipt($user, $ctx->input());
+        $ctx->json($result);
+    } catch (Throwable $e) {
+        $code = (int)$e->getCode();
+        $ctx->json(['ok' => false, 'error' => $e->getMessage()], in_array($code, [403, 422], true) ? $code : 422);
+    }
+}
+
 function dl_changeProductionLedgerField(array $user, array $input): array
 {
     $ctx = module();
@@ -29600,7 +29852,7 @@ function apiCommissaryDispatch(): void
 
         $ledgerEffect = dl_applyPostedDeliveryCommissaryLedger($db, $deliveryId, $actorId);
         foreach ($resultItems as &$resultItem) {
-            $snapshot = dl_commissaryLedgerSnapshot($db, $primaryCommissaryId, (int)$resultItem['product_id'], $ledgerDate);
+            $snapshot = dl_commissaryLedgerSnapshot($db, $primaryCommissaryId, (int)$resultItem['product_id'], $ledgerDate, $dispatchShift ?? null);
             $resultItem['remaining_qty'] = $snapshot['remaining_qty'];
         }
         unset($resultItem);

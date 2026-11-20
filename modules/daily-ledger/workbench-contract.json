@@ -120,6 +120,7 @@
                 "/daily-ledger/api/v1/admin/settings/permissions",
                 "/daily-ledger/api/v1/admin/settings/prune-notifications",
                 "/daily-ledger/api/v1/admin/variances/update",
+                "/daily-ledger/api/v1/commissary/receipt",
                 "/daily-ledger/api/v1/admin/variances/decide-delivery",
                 "/daily-ledger/api/v1/variances/delivery-remark",
                 "/daily-ledger/api/v1/auth/forgot-password",

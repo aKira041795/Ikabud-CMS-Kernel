@@ -190,6 +190,11 @@ return [
 
         // Admin: variance status
         '/daily-ledger/api/v1/admin/variances/update'    => 'daily-ledger:apiUpdateVarianceStatus',
+        // Stock that ARRIVED at a hub (bought-in goods). The ledger has one inflow column and, until
+        // this route existed, no writer for a purchase: dispatching a bought-in product debited a
+        // balance nothing ever credited. Office or production-in-charge only, and a supplier
+        // document reference is required.
+        '/daily-ledger/api/v1/commissary/receipt'        => 'daily-ledger:apiRecordCommissaryReceipt',
         // Admin only: the explicit delivery sent-vs-received acceptance choice
         '/daily-ledger/api/v1/admin/variances/decide-delivery' => 'daily-ledger:apiResolveDeliveryVariance',
         '/daily-ledger/api/v1/variances/delivery-remark' => 'daily-ledger:apiSaveDeliveryVarianceRemark',
