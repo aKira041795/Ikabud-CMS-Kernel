@@ -355,7 +355,12 @@ dl_recomputeVariancesForDay($branchId, $testDate, false);
 $endFlag = dl_t_flag($db, $branchId, $pA, $testDate, 'ending', 'AM');
 $salesFlag = dl_t_flag($db, $branchId, $pA, $testDate, 'sales', 'AM');
 $h->test('ending-above-supply produces ending kind', is_array($endFlag) && (int)$endFlag['variance'] === 5 && (int)$endFlag['expected_end_bal'] === 10 && (int)$endFlag['recorded_end_bal'] === 15 && (int)$endFlag['current_beg_bal'] === 10 && (int)$endFlag['addtl'] === 0 && (int)$endFlag['withdraw'] === 0);
-$h->test('ending-above-supply produces negative raw sales kind', is_array($salesFlag) && (int)$salesFlag['variance'] === -5 && (int)$salesFlag['current_beg_bal'] === 10 && (int)$salesFlag['addtl'] === 0 && (int)$salesFlag['withdraw'] === 0);
+// ONE discrepancy is ONE finding. A mirrored 'sales' flag used to be written alongside every
+// 'ending' flag with the opposite sign; measured on tenant 207, 678 of 678 were an exact negation
+// of an 'ending' row on the same key, and they were the negative numbers owners were asking about
+// (2026-11-20: "naay negative nga variance"). The direction is already carried by
+// expected_end_bal vs recorded_end_bal on the 'ending' row.
+$h->test('ending-above-supply no longer writes a mirrored negative sales flag', dl_t_flag($db, $branchId, $pA, $testDate, 'sales', 'AM') === null);
 $h->test('save order cannot overwrite identity (overnight still AM)', ($ov = dl_t_flag($db, $branchId, $pA, $testDate, 'overnight', 'AM')) !== null);
 
 // Restore AM end to 5 and verify handoff recompute (D→D+1 propagation).
@@ -404,9 +409,8 @@ $h->test('pre-enhancement anomaly has no flags before recompute', dl_t_flag($db,
 
 dl_recomputeVariancesForDay($branchId, $histDate, false);
 $histEnd = dl_t_flag($db, $branchId, 99064, $histDate, 'ending', 'AM');
-$histSales = dl_t_flag($db, $branchId, 99064, $histDate, 'sales', 'AM');
 $h->test('beginning-lesser-than-ending surfaces ending variance', is_array($histEnd) && (int)$histEnd['variance'] === 32 && (int)$histEnd['expected_end_bal'] === -10 && (int)$histEnd['recorded_end_bal'] === 22 && (int)$histEnd['current_beg_bal'] === 10 && (int)$histEnd['addtl'] === 0 && (int)$histEnd['withdraw'] === 20);
-$h->test('beginning-lesser-than-ending surfaces negative raw sales', is_array($histSales) && (int)$histSales['variance'] === -32);
+$h->test('beginning-lesser-than-ending writes no mirrored negative sales flag', dl_t_flag($db, $branchId, 99064, $histDate, 'sales', 'AM') === null);
 
 // Self-healing view refresh must surface the anomaly from a no-flag state on an
 // OPEN day, and must NOT mutate a CLOSED (frozen) day.
@@ -1035,5 +1039,74 @@ $h->test(
     'the repair worker never derives or freezes variances',
     !str_contains($repairSrc, 'dl_recomputeVariancesForDay(') && !str_contains($repairSrc, 'dl_freezeVarianceFlags(')
 );
+
+// ─── Commissary production complaints (owner relay, 2026-11-20) ─────────────────────────────────
+// 1. "walay mo appear nga variances kung ang beginning ug ending dili mag tugma" - a SHORTFALL at a
+//    production hub used to be silently treated as sales, so a mismatch produced no flag at all.
+// 2. "naay negative nga variance bisag zero na ang beginning..." - the overnight carry was computed
+//    from a beginning NOBODY RECORDED (NULL folded to 0) against yesterday's ending.
+$coDate = '2030-03-04';
+$coProduct = 99081;
+$coBranch = $branchId;
+
+// An earlier section deletes the branch fixture, so this block recreates its own. The suite's
+// reserved 99xxx range keeps it out of real data.
+$db->execute('DELETE FROM dl_daily_ledger WHERE branch_id = :b', [':b' => $coBranch]);
+$db->execute('DELETE FROM dl_variance_flags WHERE branch_id = :b', [':b' => $coBranch]);
+$db->execute('DELETE FROM dl_branch_products WHERE branch_id = :b', [':b' => $coBranch]);
+$db->execute('DELETE FROM dl_branches WHERE id = :b', [':b' => $coBranch]);
+$db->execute('DELETE FROM dl_products WHERE id = :p', [':p' => $coProduct]);
+$db->prepare(
+    'INSERT INTO dl_branches (id, code, name, address, default_supply_mode, is_commissary, is_active)
+     VALUES (:id, :code, :name, :addr, :mode, 0, 1)'
+)->execute([':id' => $coBranch, ':code' => 'T-COM', ':name' => 'Commi Rule Branch', ':addr' => 'Test', ':mode' => 'self_managed']);
+$db->prepare(
+    'INSERT INTO dl_products (id, sku, name, current_price, sort_order, is_active)
+     VALUES (:id, :sku, :name, :price, :sort, 1)'
+)->execute([':id' => $coProduct, ':sku' => 'COM-A', ':name' => 'Commi Rule Product', ':price' => 10.0, ':sort' => 0]);
+$db->execute('INSERT INTO dl_branch_products (branch_id, product_id, is_active) VALUES (:b, :p, 1)', [':b' => $coBranch, ':p' => $coProduct]);
+
+$originalCommissary = (int)$db->query('SELECT is_commissary FROM dl_branches WHERE id = ' . $coBranch)->fetchColumn();
+
+// Selling branch: a shortfall IS sales, so no flag (unchanged rule).
+$db->execute('UPDATE dl_branches SET is_commissary = 0 WHERE id = :b', [':b' => $coBranch]);
+unset($GLOBALS['_dl_branch_rows'], $GLOBALS['_dl_branch_rows_all']);
+dl_t_ledger($db, $coBranch, $coProduct, $coDate, 'AM', 10, 2, 4, 6); // expected 8, recorded 6
+dl_recomputeVariancesForDay($coBranch, $coDate, false);
+$h->test(
+    'a selling branch still treats a shortfall as sales (no ending flag)',
+    dl_t_flag($db, $coBranch, $coProduct, $coDate, 'ending', 'AM') === null
+);
+
+// Commissary: the same shortfall is unexplained stock, and must be flagged.
+$db->execute('UPDATE dl_branches SET is_commissary = 1 WHERE id = :b', [':b' => $coBranch]);
+unset($GLOBALS['_dl_branch_rows'], $GLOBALS['_dl_branch_rows_all']);
+dl_recomputeVariancesForDay($coBranch, $coDate, false);
+$coShort = dl_t_flag($db, $coBranch, $coProduct, $coDate, 'ending', 'AM');
+$h->test(
+    'a commissary shortfall is flagged as a variance, not silently called sales',
+    is_array($coShort) && (int)$coShort['variance'] === -2 && (int)$coShort['expected_end_bal'] === 8 && (int)$coShort['recorded_end_bal'] === 6
+);
+
+// "naay negative nga variance bisag zero na ang beginning, additional, withdraw ug actual balance":
+// the row's four inputs are all zero and an overnight flag still appears. That flag is LEGITIMATE -
+// yesterday ended at 9 and today opens at 0, so nine units are unaccounted for - and the finding must
+// therefore carry yesterday's ending (prev_bal_end) so the screen can say WHICH two numbers disagree.
+// A flag that shows a bare -9 invites exactly the "nganong naay variance nga zero man tanan" question.
+$db->execute('DELETE FROM dl_variance_flags WHERE branch_id = :b', [':b' => $coBranch]);
+$db->execute('DELETE FROM dl_daily_ledger WHERE branch_id = :b', [':b' => $coBranch]);
+dl_t_ledger($db, $coBranch, $coProduct, '2030-03-03', 'PM', 0, 0, 0, 9);
+dl_t_ledger($db, $coBranch, $coProduct, $coDate, 'AM', 0, 0, 0, 0);
+dl_recomputeVariancesForDay($coBranch, $coDate, false);
+$coOv = dl_t_flag($db, $coBranch, $coProduct, $coDate, 'overnight', 'AM');
+$h->test(
+    'an all-zero day is flagged only against yesterday, and the flag names both numbers',
+    is_array($coOv) && (int)$coOv['variance'] === -9 && (int)$coOv['prev_bal_end'] === 9 && (int)$coOv['current_beg_bal'] === 0
+);
+
+$db->execute('UPDATE dl_branches SET is_commissary = :v WHERE id = :b', [':v' => $originalCommissary, ':b' => $coBranch]);
+unset($GLOBALS['_dl_branch_rows'], $GLOBALS['_dl_branch_rows_all']);
+$db->execute('DELETE FROM dl_variance_flags WHERE branch_id = :b AND ledger_date IN (:d1, :d2)', [':b' => $coBranch, ':d1' => $coDate, ':d2' => '2030-03-03']);
+$db->execute('DELETE FROM dl_daily_ledger WHERE branch_id = :b AND ledger_date IN (:d1, :d2)', [':b' => $coBranch, ':d1' => $coDate, ':d2' => '2030-03-03']);
 
 $h->done();

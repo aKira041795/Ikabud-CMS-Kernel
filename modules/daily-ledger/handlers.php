@@ -2898,6 +2898,40 @@ function dl_maybeAutoFinalizeCommissaryPmShift(int $branchId, string $date, ?int
                 ]);
                 dl_auditLog('finalize_production_shift', $branchId, 'dl_ledger_shift_status', "{$branchId}-{$date}-{$shift}", ['status' => 'open'], ['status' => 'finalized']);
             }
+            // OWNER REPORT 2026-11-20 (commissary production): "kaning pending sa production bisan
+            // gisolve na daw nila dili daw mawala" / "dili mawala ang nakatatak nga pending sa commi
+            // bisag na okay na ang ledger". The stamp and the finding that created it were WRITE-ONCE:
+            // `pending_notified_at` was set when endings were owed and never cleared, and the
+            // `closed_without_pm_finalize` notification had no way to close, so the operator completed
+            // the counts and the screen still said pending. Measured on tenant 207: 653 open
+            // notifications of that type, 0 resolved.
+            //
+            // The condition that raised them no longer holds once every activity-bearing product has
+            // its ending, so the derived markers go WITH it: the stamp is cleared and the finding is
+            // removed by dl_resolveIntegrityNotification() (which audits what it removed). The record
+            // of the flag itself stays in audit_logs, so nothing is erased from the trail.
+            $db->prepare(
+                'UPDATE dl_ledger_shift_status
+                    SET pending_notified_at = NULL
+                  WHERE branch_id = :bid AND ledger_date = :d AND shift = :shift'
+            )->execute([':bid' => $branchId, ':d' => $date, ':shift' => $shift]);
+            dl_resolveIntegrityNotification(
+                $db,
+                'closed_without_pm_finalize-' . strtolower($shift) . '-' . $branchId . '-' . $date,
+                'shift finalized: every activity-bearing product now has a ' . $shift . ' ending',
+                $branchId,
+                $date,
+                $shift
+            );
+            // The day-level deferral raises its own key from dl_maybeAutoCloseBranchDay().
+            dl_resolveIntegrityNotification(
+                $db,
+                'pending_endings-day-' . $branchId . '-' . $date,
+                'day finalized: the ' . $shift . ' endings it was waiting for are recorded',
+                $branchId,
+                $date,
+                $shift
+            );
             $result['finalized'] = true;
         }
 
@@ -3358,6 +3392,22 @@ function dl_forgetBranchRow(int $branchId): void
     if (isset($GLOBALS['_dl_branch_official_start'][$branchId])) {
         unset($GLOBALS['_dl_branch_official_start'][$branchId]);
     }
+}
+
+/**
+ * Is this branch a commissary (a production hub) rather than a selling branch?
+ *
+ * Uses the per-request branch map from dl_branchRow(), so asking once per product/day costs nothing
+ * beyond the one row it already holds. Missing row or missing column reads as "not a commissary",
+ * which keeps the selling-branch rules intact on any install mid-migration.
+ */
+function dl_branchIsCommissary(int $branchId): bool
+{
+    if ($branchId <= 0) {
+        return false;
+    }
+    $row = dl_branchRow($branchId);
+    return is_array($row) && (int)($row['is_commissary'] ?? 0) === 1;
 }
 
 /**
@@ -5072,11 +5122,33 @@ function dl_applyCommissaryProductLedgerDelta(
     // when the caller opts in, a delta that would drive any recorded column
     // below zero is refused so the stored ledger cannot disagree with the figure
     // the operator was shown.
-    if ($rejectNegativeBalance
-        && ($currentProduced + $producedDelta < 0
-            || $currentDispatched + $dispatchedDelta < 0
-            || $currentWastage + $wastageDelta < 0)) {
-        throw new \RuntimeException('Cannot record a negative ledger balance for this product on this date.', 422);
+    //
+    // OWNER REPORT 2026-11-20 (commissary): "naay times dili ka minus kay nakatatak nga 'cannot record
+    // negative ledger balance for this product on this date', unsay pasabot ani?" The rule is right;
+    // the message was useless - it named no column, no number, and no action, so the operator could
+    // only guess. It now says WHICH figure would go below zero, what it holds now, and what to do
+    // (correct the other figure first, or record the missing stock).
+    if ($rejectNegativeBalance) {
+        $wouldGoNegative = [];
+        if ($currentProduced + $producedDelta < 0) {
+            $wouldGoNegative[] = 'produced ' . $currentProduced . ' → ' . ($currentProduced + $producedDelta);
+        }
+        if ($currentDispatched + $dispatchedDelta < 0) {
+            $wouldGoNegative[] = 'dispatched ' . $currentDispatched . ' → ' . ($currentDispatched + $dispatchedDelta);
+        }
+        if ($currentWastage + $wastageDelta < 0) {
+            $wouldGoNegative[] = 'wastage ' . $currentWastage . ' → ' . ($currentWastage + $wastageDelta);
+        }
+        if ($wouldGoNegative !== []) {
+            throw new \RuntimeException(
+                'That change would take a recorded figure below zero on ' . $ledgerDate
+                . ' (product #' . $productId . '): ' . implode(', ', $wouldGoNegative) . '. '
+                . 'A recorded quantity cannot be reduced past what is already booked. '
+                . 'Correct the figure that was over-recorded first, or record the missing stock '
+                . 'as an addition, then make this change.',
+                422
+            );
+        }
     }
     $newProduced = max(0, $currentProduced + $producedDelta);
     $newDispatched = max(0, $currentDispatched + $dispatchedDelta);
@@ -5195,6 +5267,71 @@ function dl_respondThenFlushMail(array $payload, int $status = 200): void
 }
 
 /** Record one integrity finding and address it to active admins/supervisors with authority over the branch. */
+/**
+ * Remove an integrity finding whose CONDITION no longer holds, and leave a record of doing so.
+ *
+ * The table has no status column: a finding that was raised lived forever, so the 653
+ * `closed_without_pm_finalize` rows on tenant 207 still showed as pending long after the shifts were
+ * finalized and the endings were keyed. An inbox item whose cause is gone is not history - it is a
+ * false statement about the present - so it is removed. What must not be lost is that it WAS raised:
+ * that evidence belongs in audit_logs and is written here before the delete.
+ *
+ * Returns whether anything was removed, so a caller can avoid an audit row when there was nothing
+ * open (the common case on a caught-up day).
+ */
+function dl_resolveIntegrityNotification($db, string $aggregateKey, string $reason, ?int $branchId = null, ?string $ledgerDate = null, ?string $shift = null): bool
+{
+    $aggregateKey = trim($aggregateKey);
+    if ($aggregateKey === '') {
+        return false;
+    }
+
+    try {
+        $findStmt = $db->prepare('SELECT id, finding_type, title FROM dl_integrity_notifications WHERE aggregate_key = :k LIMIT 1');
+        $findStmt->execute([':k' => $aggregateKey]);
+        $row = $findStmt->fetch(PDO::FETCH_ASSOC);
+        if (!is_array($row)) {
+            return false; // nothing open: no delete, no audit noise
+        }
+        $notificationId = (int)$row['id'];
+
+        // Recipients first: the FK cascade may not exist on every install, and an orphan recipient
+        // row would keep the item reachable in a user's inbox query.
+        $db->prepare('DELETE FROM dl_integrity_notification_recipients WHERE notification_id = :id')
+            ->execute([':id' => $notificationId]);
+        $db->prepare('DELETE FROM dl_integrity_notifications WHERE id = :id')
+            ->execute([':id' => $notificationId]);
+
+        dl_auditLog(
+            'integrity_notification_resolved',
+            $branchId !== null ? (int)$branchId : null,
+            'dl_integrity_notifications',
+            $aggregateKey,
+            [
+                'finding_type' => (string)($row['finding_type'] ?? ''),
+                'title' => (string)($row['title'] ?? ''),
+                'state' => 'open',
+            ],
+            [
+                'state' => 'resolved',
+                'reason' => $reason,
+                'ledger_date' => $ledgerDate,
+                'shift' => $shift,
+            ]
+        );
+
+        return true;
+    } catch (\Throwable $e) {
+        // A missing table on an un-migrated tenant, or a concurrent delete: never let bookkeeping
+        // about a notification break the operation that resolved it.
+        write_log('daily-ledger integrity notification resolve failed', 'error', [
+            'aggregate_key' => $aggregateKey,
+            'error' => $e->getMessage(),
+        ]);
+        return false;
+    }
+}
+
 function dl_raiseIntegrityNotification($db, string $key, string $type, ?int $branchId, ?string $entityType, ?int $entityId, string $title, string $detail = '', bool $email = false, array $extraBranchRoles = []): ?int
 {
     // ON DUPLICATE KEY UPDATE, not INSERT IGNORE. aggregate_key is UNIQUE and finding_count exists
@@ -9089,16 +9226,31 @@ function dl_recomputeVariancesForDay(int $branchId, string $date, bool $touchNex
             }
 
             // overnight (AM) — AM beg vs prior recorded ending.
-            if ($am !== null && isset($prevEnd[$pid])) {
-                $beg = $am['beg_bal'] !== null ? (int)$am['beg_bal'] : 0;
+            //
+            // OWNER REPORT 2026-11-20: "naay negative nga variance bisag zero na ang beginning,
+            // additional, withdraw ug actual balance". The flag is CORRECT - yesterday ended at 9 and
+            // today opens at 0, so nine units are unaccounted for - but the screen showed a bare
+            // negative number with no statement of what it was compared against, which is why it read
+            // as an error. The finding already carries prev_bal_end; the guard below keeps the
+            // comparison honest for any row whose beginning was never written (the column is NOT NULL,
+            // so this only matters for imported/legacy rows, where a NULL folded to 0 used to be
+            // compared against yesterday as though it were a recorded opening).
+            $amBegRecorded = $am !== null && $am['beg_bal'] !== null;
+            if ($am !== null && $amBegRecorded && isset($prevEnd[$pid])) {
+                $beg = (int)$am['beg_bal'];
                 dl_upsertVarianceFlag($db, $branchId, $pid, $date, 'overnight', 'AM', $beg - $prevEnd[$pid], $prevEnd[$pid], $beg, $beg, $prevEnd[$pid], (int)$am['addtl'], (int)$am['withdraw']);
             }
 
             // handoff (PM) — PM beg vs AM ending, both recorded.
-            if ($pm !== null && $am !== null && $am['bal_end'] !== null) {
-                $pmBeg = $pm['beg_bal'] !== null ? (int)$pm['beg_bal'] : 0;
+            if ($pm !== null && $pm['beg_bal'] !== null && $am !== null && $am['bal_end'] !== null) {
+                $pmBeg = (int)$pm['beg_bal'];
                 dl_upsertVarianceFlag($db, $branchId, $pid, $date, 'handoff', 'PM', $pmBeg - (int)$am['bal_end'], (int)$am['bal_end'], $pmBeg, $pmBeg, (int)$am['bal_end'], (int)$pm['addtl'], (int)$pm['withdraw']);
             }
+
+            // A commissary branch moves stock by DISPATCH, not by ledger sales, so a shortfall between
+            // expected and counted stock is an unexplained discrepancy - not a sale. Measure that once
+            // per product/day; it is a property of the branch, not of the row.
+            $isCommissaryBranch = null;
 
             foreach ([['row' => $am, 'shift' => 'AM'], ['row' => $pm, 'shift' => 'PM']] as $pair) {
                 $row = $pair['row'];
@@ -9111,10 +9263,27 @@ function dl_recomputeVariancesForDay(int $branchId, string $date, bool $touchNex
                 $end = (int)$row['bal_end'];
                 $expected = $beg + $add - $wdr;
                 $over = $end - $expected;       // ending above supply
-                $rawSales = $expected - $end;   // negative raw sales
+                if ($isCommissaryBranch === null) {
+                    $isCommissaryBranch = dl_branchIsCommissary($branchId);
+                }
                 if ($over > 0) {
                     dl_upsertVarianceFlag($db, $branchId, $pid, $date, 'ending', $pair['shift'], $over, $expected, $end, $beg, null, (int)$row['addtl'], (int)$row['withdraw']);
-                    dl_upsertVarianceFlag($db, $branchId, $pid, $date, 'sales', $pair['shift'], $rawSales, $expected, $end, $beg, null, (int)$row['addtl'], (int)$row['withdraw']);
+                    // The mirrored 'sales' flag that used to be written here is GONE.
+                    //
+                    // It recorded the same event a second time with the opposite sign. Measured on tenant
+                    // 207 (2026-11-20): 678 of 678 'sales' flags were an exact negation of an 'ending'
+                    // flag on the same branch/product/date/shift, and every one of them was the negative
+                    // number the users were asking about - "naay negative nga variance". One discrepancy
+                    // is one finding; its direction is already carried by expected_end_bal vs
+                    // recorded_end_bal on the 'ending' row.
+                } elseif ($over < 0 && $isCommissaryBranch) {
+                    // OWNER REPORT 2026-11-20: "walay mo appear nga variances kung ang beginning ug
+                    // ending dili mag tugma". A shortfall was silently treated as sales, which is right
+                    // for a branch that sells through the ledger and wrong for a commissary that does
+                    // not: its stock leaves by dispatch, so a counted balance BELOW beg+addtl-withdraw is
+                    // unexplained until somebody explains it. Flagged with the true sign, and the flag
+                    // carries expected vs recorded so the direction is readable.
+                    dl_upsertVarianceFlag($db, $branchId, $pid, $date, 'ending', $pair['shift'], $over, $expected, $end, $beg, null, (int)$row['addtl'], (int)$row['withdraw']);
                 }
             }
         }
@@ -17966,7 +18135,6 @@ function apiPruneIntegrityNotifications(array $params = []): void
         ] + dlPruneSummary($db, $retentionDays));
         return;
     }
-
     $tenantId = (int)(app()->tenant()->current() ?? 0);
     $lock = dlPruneAcquireLock($tenantId);
     if ($lock === null) {
@@ -17980,6 +18148,13 @@ function apiPruneIntegrityNotifications(array $params = []): void
     @set_time_limit(120);
 
     try {
+        // Settled findings first: a "shift not finalized" notification whose shift IS finalized is not
+        // an orphan to prune later, it is a false statement now. Closing these runs here so the
+        // operator's own maintenance action clears the pending badge they are complaining about.
+        $settled = function_exists('dlResolveFinalizedPendingFlags')
+            ? dlResolveFinalizedPendingFlags($db, 500)
+            : ['checked' => 0, 'resolved' => 0];
+
         $deleted = 0;
         $rounds = 0;
         for ($i = 0; $i < $batches; $i++) {
@@ -18002,6 +18177,9 @@ function apiPruneIntegrityNotifications(array $params = []): void
                 'retention_days' => $retentionDays,
             ]);
         }
+        if (($settled['resolved'] ?? 0) > 0) {
+            write_log('daily-ledger settled findings closed', 'info', $settled);
+        }
 
         $ctx->json([
             'ok' => true,
@@ -18010,6 +18188,10 @@ function apiPruneIntegrityNotifications(array $params = []): void
             'deleted' => $deleted,
             'rounds' => $rounds,
             'candidates' => $candidates,
+            // Findings closed because their SHIFT is finalized: the pending badge those operators
+            // reported came from exactly these rows.
+            'settled_checked' => (int)($settled['checked'] ?? 0),
+            'settled_resolved' => (int)($settled['resolved'] ?? 0),
         ] + $counts);
     } catch (Throwable $e) {
         write_log('daily-ledger integrity notification prune failed', 'error', [

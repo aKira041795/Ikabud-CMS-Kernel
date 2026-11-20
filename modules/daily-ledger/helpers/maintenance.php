@@ -164,3 +164,117 @@ function dlPruneReleaseLock($handle): void
         fclose($handle);
     }
 }
+
+/**
+ * Close every "shift not finalized" finding whose shift is NOW finalized.
+ *
+ * MEASURED 2026-11-20 (tenant 207): 653 `closed_without_pm_finalize` notifications were still open
+ * while the shifts they named had long since been finalized, because nothing ever closed a finding.
+ * The operator's words: "dilis mawala ang nakatatak nga pending bisag na okay na ang ledger".
+ *
+ * The fix in the finalize path clears the marker for every date it touches, but a date nobody opens
+ * again keeps its stale marker forever, so the backlog needs its own bounded sweep. Idempotent: it
+ * re-reads the shift status each run and only closes what is genuinely settled.
+ *
+ * @return array{checked:int,resolved:int}
+ */
+function dlResolveFinalizedPendingFlags(DatabaseContract $db, int $limit = 500): array
+{
+    $limit = max(1, min(5000, $limit));
+    $checked = 0;
+    $resolved = 0;
+
+    try {
+        $stmt = $db->prepare(
+            "SELECT n.aggregate_key, n.branch_id
+               FROM dl_integrity_notifications n
+              WHERE n.finding_type = 'closed_without_pm_finalize'
+                AND n.aggregate_key LIKE 'closed_without_pm_finalize-%'
+              ORDER BY n.id
+              LIMIT " . $limit
+        );
+        $stmt->execute();
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    } catch (\Throwable $e) {
+        return ['checked' => 0, 'resolved' => 0];
+    }
+
+    // aggregate_key shape: closed_without_pm_finalize-<shift>-<branch>-<date>
+    foreach ($rows as $row) {
+        $key = (string)($row['aggregate_key'] ?? '');
+        if (preg_match('/^closed_without_pm_finalize-([a-z]+)-(\d+)-(\d{4}-\d{2}-\d{2})$/', $key, $m) !== 1) {
+            continue;
+        }
+        $checked++;
+        $shift = strtoupper($m[1]);
+        $branchId = (int)$m[2];
+        $date = $m[3];
+
+        // TWO ways a "shift not finalized" finding stops being true, and the second is the one the
+        // operators are actually fixing:
+        //
+        //   (a) the shift is finalized, or
+        //   (b) every activity-bearing product on that date/shift now HAS its ending count.
+        //
+        // MEASURED 2026-11-20 on tenant 207: of 653 open findings, 604 had NO shift-status row at all
+        // (status NULL) while ZERO movement rows still lacked an ending - the counts were complete and
+        // the finding was still on the screen. A resolver keyed only on (a) leaves exactly that backlog
+        // in place, which is the "gisolve na namo pero naa gihapon ang pending" report. (b) is the same
+        // predicate the finding is raised with, so the two can never disagree about what "solved" means.
+        $settled = false;
+        try {
+            $statusStmt = $db->prepare(
+                'SELECT status FROM dl_ledger_shift_status WHERE branch_id = :b AND ledger_date = :d AND shift = :s LIMIT 1'
+            );
+            $statusStmt->execute([':b' => $branchId, ':d' => $date, ':s' => $shift]);
+            $status = (string)($statusStmt->fetchColumn() ?: '');
+            $settled = $status === 'finalized';
+        } catch (\Throwable $e) {
+            continue;
+        }
+
+        if (!$settled) {
+            try {
+                $missingStmt = $db->prepare(
+                    'SELECT COUNT(*)
+                       FROM dl_products p
+                       INNER JOIN dl_branch_products bp ON bp.product_id = p.id AND bp.branch_id = :b1 AND bp.is_active = 1
+                       LEFT JOIN dl_commissary_product_ledger cpl
+                              ON cpl.product_id = p.id
+                             AND cpl.commissary_branch_id = :b2
+                             AND cpl.ledger_date = :d
+                             AND cpl.shift = :s
+                      WHERE p.is_active = 1
+                        AND cpl.id IS NOT NULL
+                        AND cpl.actual_end_qty IS NULL
+                        AND (cpl.beg_qty <> 0 OR cpl.produced_qty <> 0 OR cpl.dispatched_qty <> 0 OR cpl.wastage_qty <> 0)'
+                );
+                $missingStmt->execute([':b1' => $branchId, ':b2' => $branchId, ':d' => $date, ':s' => $shift]);
+                $settled = ((int)$missingStmt->fetchColumn()) === 0;
+            } catch (\Throwable $e) {
+                continue;
+            }
+        }
+        if (!$settled) {
+            continue; // genuinely still owed: leave the finding alone
+        }
+
+        if (function_exists('dl_resolveIntegrityNotification')
+            && dl_resolveIntegrityNotification($db, $key, 'every activity-bearing product now has its ending', $branchId, $date, $shift)) {
+            $resolved++;
+        }
+    }
+
+    // A finalized shift must not keep the stamp that says it was never finalized.
+    try {
+        $db->prepare(
+            'UPDATE dl_ledger_shift_status
+                SET pending_notified_at = NULL
+              WHERE status = \'finalized\' AND pending_notified_at IS NOT NULL'
+        )->execute();
+    } catch (\Throwable $e) {
+        // Column or table mid-migration: the notifications above are the user-visible part.
+    }
+
+    return ['checked' => $checked, 'resolved' => $resolved];
+}

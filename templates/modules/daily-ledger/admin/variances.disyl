@@ -1223,7 +1223,7 @@
                one already selected, so the control never shows a value that is not in it).
                A settled kind therefore stops appearing in the picker. *}
             {if visible_kind_counts.overnight > 0 || kind_filter == 'overnight'}
-            <option value="overnight" {if kind_filter == 'overnight'}selected{/if}>Overnight (AM)</option>
+            <option value="overnight" {if kind_filter == 'overnight'}selected{/if}>Opening vs yesterday&rsquo;s ending</option>
             {/if}
             {if visible_kind_counts.handoff > 0 || kind_filter == 'handoff'}
             <option value="handoff" {if kind_filter == 'handoff'}selected{/if}>Handoff (PM)</option>
@@ -1379,7 +1379,9 @@
                                 <div class="text-xs text-gray-400">Product #{v.product_id}</div>
                             </td>
                             <td>
-                                <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset {if v.kind == 'overnight'}bg-sky-50 text-sky-700 ring-sky-200{/if}{if v.kind == 'handoff'}bg-violet-50 text-violet-700 ring-violet-200{/if}{if v.kind == 'ending'}bg-rose-50 text-rose-700 ring-rose-200{/if}{if v.kind == 'sales'}bg-orange-50 text-orange-700 ring-orange-200{/if}">{v.kind}</span>
+                                {* Plain language, not the raw kind: `overnight` alone does not say WHAT was
+                                   compared, which is how a correct flag read as an error to the operators. *}
+                                <span title="{v.kind}" class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset {if v.kind == 'overnight'}bg-sky-50 text-sky-700 ring-sky-200{/if}{if v.kind == 'handoff'}bg-violet-50 text-violet-700 ring-violet-200{/if}{if v.kind == 'ending'}bg-rose-50 text-rose-700 ring-rose-200{/if}{if v.kind == 'sales'}bg-orange-50 text-orange-700 ring-orange-200{/if}">{if v.kind == 'overnight'}Opening vs yesterday &rsquo;s ending{/if}{if v.kind == 'handoff'}PM opening vs AM ending{/if}{if v.kind == 'ending'}Counted vs expected{/if}{if v.kind == 'sales'}Legacy duplicate{/if}</span>
                             </td>
                             <td class="text-sm text-gray-500">{if v.shift}{v.shift}{else}—{/if}</td>
                             <td class="text-right text-sm">{if v.current_beg_bal !== null}{v.current_beg_bal}{else}—{/if}</td>
@@ -1541,7 +1543,7 @@
                                 {if v.product_sku}<span class="text-xs text-gray-400 ml-1">({v.product_sku})</span>{/if}
                             </td>
                             <td>
-                                <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset {if v.kind == 'overnight'}bg-sky-50 text-sky-700 ring-sky-200{/if}{if v.kind == 'handoff'}bg-violet-50 text-violet-700 ring-violet-200{/if}{if v.kind == 'ending'}bg-rose-50 text-rose-700 ring-rose-200{/if}{if v.kind == 'sales'}bg-orange-50 text-orange-700 ring-orange-200{/if}">{v.kind}</span>
+                                <span title="{v.kind}" class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset {if v.kind == 'overnight'}bg-sky-50 text-sky-700 ring-sky-200{/if}{if v.kind == 'handoff'}bg-violet-50 text-violet-700 ring-violet-200{/if}{if v.kind == 'ending'}bg-rose-50 text-rose-700 ring-rose-200{/if}{if v.kind == 'sales'}bg-orange-50 text-orange-700 ring-orange-200{/if}">{if v.kind == 'overnight'}Opening vs yesterday &rsquo;s ending{/if}{if v.kind == 'handoff'}PM opening vs AM ending{/if}{if v.kind == 'ending'}Counted vs expected{/if}{if v.kind == 'sales'}Legacy duplicate{/if}</span>
                             </td>
                             <td class="text-sm text-gray-500">{if v.shift}{v.shift}{else}—{/if}</td>
                             <td class="text-right text-sm">{if v.current_beg_bal !== null}{v.current_beg_bal}{else}—{/if}</td>
