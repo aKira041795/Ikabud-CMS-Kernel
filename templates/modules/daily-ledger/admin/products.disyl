@@ -2,19 +2,10 @@
 
 {block head}
 <style>
-    .product-modal {
-        max-width: 58rem;
-        border-radius: 3px;
-        padding: 0;
-        overflow: hidden;
-    }
-    .product-modal__header {
-        border-bottom: 1px solid rgb(229 231 235);
-        padding: 1rem 1.25rem;
-    }
-    .product-modal__body {
-        padding: 1.25rem;
-    }
+    /* The sheet shell (.product-modal, __header, __body, __actions) lives in layouts/app.disyl, shared
+       with the branch sheets. This file used to repeat it without the height cap and without the
+       scrolling body - the same drift the branch modal had, which is why a phone showed a 1361px
+       dialog whose title sat far above the viewport top. Only product-specific styling stays here. */
     .product-modal__grid {
         display: grid;
         gap: 1rem 1.25rem;
@@ -47,10 +38,14 @@
         margin-top: 0;
         border-top: 1px solid rgb(229 231 235);
         padding: .875rem 1.25rem;
+        background: #F8F9FA;
     }
     @media (max-width: 767px) {
         .product-modal__grid {
             grid-template-columns: 1fr;
+        }
+        .product-modal__actions {
+            padding: .75rem 1rem;
         }
     }
     .category-manager { max-width: 52rem; }

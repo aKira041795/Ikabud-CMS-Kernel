@@ -69,11 +69,9 @@
 
         .text-muted { color: rgb(71 85 105); }
 
-        .modal-overlay { position: fixed; inset: 0; z-index: 300; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,.4); padding: 1rem; }
-        .modal-overlay.show { display: flex; }
-        .modal { width: 100%; max-width: 32rem; border-radius: 3px; background: #F8F9FA; color: rgb(15 23 42); padding: 1.5rem; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); border: 1px solid rgba(0,0,0,0.05); }
-        .modal h3 { margin-bottom: 1rem; font-size: 1rem; font-weight: 600; color: rgb(15 23 42); }
-        .modal-actions { margin-top: 1.5rem; display: flex; align-items: center; justify-content: flex-end; gap: .5rem; }
+        /* The modal shell lives ONLY in layouts/app.disyl. A byte-identical copy used to sit here, which
+           meant the shared responsive fix could miss this screen entirely - the same drift that produced
+           the unreachable Save button. One definition, one behaviour. */
 
         .card .text-gray-500,
         .card .text-gray-600,

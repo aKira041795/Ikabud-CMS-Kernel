@@ -106,11 +106,62 @@
 
         .text-muted { color: rgb(71 85 105); }
 
-        .modal-overlay { position: fixed; inset: 0; z-index: 300; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,.4); padding: 1rem; }
+        /* ─── Modal shell: reachable at ANY viewport height ────────────────────────────────────────
+           Owner 2026-11-20: "ensure modal is mobile/screen size friendly", then "inspect all other
+           modal and responsive styling". With align-items:center and no overflow the overlay did not
+           scroll, so a modal taller than the screen had its top AND its action row outside the
+           viewport - measured in a browser test where the Save button reported "element is outside of
+           the viewport" and could only be clicked through JS.
+           Fix is structural and applies to every modal in the module at once:
+             - the OVERLAY scrolls (overscroll contained so the page behind does not move),
+             - modal content is top-aligned, so a tall dialog starts at the top instead of clipping,
+             - margin:auto keeps a SHORT dialog vertically centred in the free space. */
+        .modal-overlay { position: fixed; inset: 0; z-index: 300; display: none; align-items: flex-start; justify-content: center; background: rgba(0,0,0,.4); padding: 1rem; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
         .modal-overlay.show { display: flex; }
-        .modal { width: 100%; max-width: 32rem; border-radius: 3px; background: #F8F9FA; color: rgb(15 23 42); padding: 1.5rem; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); border: 1px solid rgba(0,0,0,0.05); }
+        .modal { width: 100%; max-width: 32rem; border-radius: 3px; background: #F8F9FA; color: rgb(15 23 42); padding: 1.5rem; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); border: 1px solid rgba(0,0,0,0.05); margin: auto;
+                 /* A plain dialog is capped rather than growing past the screen: measured on a phone, the
+                    Users dialogs were 765px tall in a 740px viewport, so their title sat above the top edge.
+                    Capped, the dialog stays on screen and scrolls its own content. */
+                 max-height: calc(100vh - 2rem); max-height: calc(100dvh - 2rem); overflow-y: auto; }
         .modal h3 { margin-bottom: 1rem; font-size: 1rem; font-weight: 600; color: rgb(15 23 42); }
         .modal-actions { margin-top: 1.5rem; display: flex; align-items: center; justify-content: flex-end; gap: .5rem; }
+
+        /* ─── Sheet modal: a dialog with its own header / body / action rows ──────────────────────
+           These rules used to live in admin/branches.disyl ONLY, while admin/settings.disyl used the
+           same markup without them and compensated with an inline max-height:70vh. Same class, two
+           behaviours - so the shell belongs here, where one definition governs every sheet.
+           The header and the action row stay put and the BODY is the only thing that scrolls, which is
+           what keeps Save/Close reachable at any screen height. min-height:0 is required: without it a
+           flex child refuses to shrink below its content and the scroll region becomes the whole page.
+           The `branch-modal` name is kept because both consumers are branch screens (branch edit,
+           consignee, area, and the branch operating switches). */
+        .branch-modal,
+        .product-modal { max-width: 58rem; border-radius: 3px; padding: 0; display: flex; flex-direction: column; max-height: calc(100vh - 2rem); max-height: calc(100dvh - 2rem); }
+        .branch-modal__header,
+        .product-modal__header { border-bottom: 1px solid rgb(229 231 235); padding: 1rem 1.25rem; flex: 0 0 auto; }
+        .branch-modal__body,
+        .product-modal__body { padding: 1.25rem; flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+        .branch-modal__actions,
+        .product-modal__actions { flex: 0 0 auto; }
+
+        /* Phone sizing: iOS Safari zooms the page when a focused field is under 16px and the shared
+           .form-input is 12px, which made every dialog zoom-and-clip on a phone. Actions become
+           full-width, thumb-height targets instead of two small buttons at the right edge. */
+        @media (max-width: 767px) {
+            .modal-overlay { padding: .5rem; }
+            .modal { padding: 1rem; max-width: 100%; }
+            .modal .form-input,
+            .modal .form-select,
+            .modal textarea { font-size: 1rem; }
+            .modal-actions { flex-wrap: wrap; }
+            .modal-actions .btn { flex: 1 1 auto; min-height: 2.75rem; }
+            .branch-modal { max-width: 100%; }
+            .branch-modal__header { padding: .875rem 1rem; }
+            .branch-modal__body { padding: 1rem; }
+            .product-modal { max-width: 100%; }
+            .product-modal__header { padding: .875rem 1rem; }
+            .product-modal__body { padding: 1rem; }
+        }
 
         .card .text-gray-500,
         .card .text-gray-600,

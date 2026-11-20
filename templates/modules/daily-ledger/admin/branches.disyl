@@ -2,19 +2,9 @@
 
 {block head}
 <style>
-    .branch-modal {
-        max-width: 58rem;
-        border-radius: 3px;
-        padding: 0;
-        overflow: hidden;
-    }
-    .branch-modal__header {
-        border-bottom: 1px solid rgb(229 231 235);
-        padding: 1rem 1.25rem;
-    }
-    .branch-modal__body {
-        padding: 1.25rem;
-    }
+    /* The modal shell (.branch-modal, __header, __body, __actions sizing) lives in
+       layouts/app.disyl so admin/settings.disyl - which uses the same markup - gets identical
+       behaviour. Only what is genuinely branch-specific stays here. */
     .branch-modal__grid {
         display: grid;
         gap: 1rem 1.25rem;
@@ -47,10 +37,14 @@
         margin-top: 0;
         border-top: 1px solid rgb(229 231 235);
         padding: .875rem 1.25rem;
+        background: #F8F9FA;
     }
     @media (max-width: 767px) {
         .branch-modal__grid {
             grid-template-columns: 1fr;
+        }
+        .branch-modal__actions {
+            padding: .75rem 1rem;
         }
     }
 </style>

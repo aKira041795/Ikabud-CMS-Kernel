@@ -218,9 +218,17 @@
     <div class="modal branch-modal" style="max-width: 1100px; width: 95%;">
         <div class="branch-modal__header">
             <h3 class="mb-1">Branch operating switches</h3>
-            <p class="text-sm text-gray-500">Two separate stories, two separate columns. <strong>No paper DR</strong> = stock the branch already had but never wrote down (missed or undercounted): branch-wide, and at a branch where it is ON the cashier and supervisor may use it, off neither may; admin always may. <strong>Own production</strong> = the branch MAKES the item, so no supplier DR exists: tick <em>Makes it</em> per product, and it works whether or not No paper DR is on. Neither column grants the other. Paper DR itself is always available. Shift mode can only change before the branch's first ledger row of the business day.</p>
+            <p class="text-sm text-gray-500">Two separate stories, two separate columns. Neither grants the other.</p>
         </div>
-        <div class="branch-modal__body" style="max-height: 70vh; overflow-y: auto;">
+        <div class="branch-modal__body">
+            {* The full explanation is a collapsible INSIDE the scroll region, not part of the header.
+               Measured on a 360x640 phone: as header text it consumed 389px and left the branch table
+               59px of usable height - the modal was technically reachable and practically unusable.
+               Collapsed here it costs one line, and the detail is still one tap away (complete, compact). *}
+            <details class="mb-3 text-sm text-gray-600">
+                <summary class="cursor-pointer font-semibold text-gray-700">What these switches mean</summary>
+                <p class="mt-2"><strong>No paper DR</strong> = stock the branch already had but never wrote down (missed or undercounted): branch-wide, and at a branch where it is ON the cashier and supervisor may use it, off neither may; admin always may. <strong>Own production</strong> = the branch MAKES the item, so no supplier DR exists: tick <em>Makes it</em> per product, and it works whether or not No paper DR is on. Neither column grants the other. Paper DR itself is always available. Shift mode can only change before the branch's first ledger row of the business day.</p>
+            </details>
             <div class="flex flex-wrap items-center gap-3 mb-3">
                 {* One control decides how far a switch change reaches. The switch columns are
                    the only checkboxes: a tick is both the value and the selection, so there is
@@ -281,9 +289,11 @@
                     </tbody>
                 </table>
             </div>
-            <div class="flex justify-end mt-4">
-                <button type="button" class="btn btn-accent" onclick="closeBranchSwitches()">Close</button>
-            </div>
+        </div>
+        {* A real actions row, not a button parked at the bottom of the scroll region: the table is
+           long, so Close has to be on screen without scrolling the branch list first. *}
+        <div class="modal-actions branch-modal__actions">
+            <button type="button" class="btn btn-accent" onclick="closeBranchSwitches()">Close</button>
         </div>
     </div>
 </div>
