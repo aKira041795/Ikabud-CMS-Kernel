@@ -8426,18 +8426,73 @@ function dl_lockShiftStatusRow($db, int $branchId, string $date, string $shift):
 function dl_ledgerActivitySql(string $alias): string
 {
     $a = preg_replace('/[^A-Za-z0-9_]/', '', $alias);
-    // `sales` was MISSING from this predicate. It asked "did stock move?" and forgot the one event
-    // that moves stock without touching addtl/withdraw: a sale. A row whose only event was a sale
-    // was therefore not activity-bearing, so the day-ending gate never asked for its ending and it
-    // could close on a NULL. Measured 2026-11-21 on tenant 207: 0 such rows exist today, so this
-    // fixes a hole rather than a live incident — but it is the exact shape that opens the moment a
-    // product is sold from a zero-carrying row, which is also how negative stock begins.
+    // "Did anything HAPPEN on this row?" — not "does this row have numbers on it".
     //
-    // `beg_bal` deliberately STAYS. Dropping it was tried and reverted the same day: the day-ending
-    // suite encodes the contract that a carried opening must be counted even when nothing moved
-    // (fixture beg_bal=5, bal_end=NULL, sales=NULL -> the day must stay open). That is an
-    // accounting-policy decision for the owner, not something to change under a test's feet.
-    return "({$a}.sales <> 0 OR {$a}.addtl <> 0 OR {$a}.withdraw <> 0 OR {$a}.beg_bal <> 0)";
+    // OWNER RULE (2026-11-21): a row with no addition, no withdrawal and no sale owes NO
+    // hand-typed ending. Cashiers encode from the paper report and only touch rows that carry
+    // data; making them type a zero for a product nobody touched buys nothing and costs the time
+    // that should go to the rows that matter. Measured on tenant 207 the day the rule changed:
+    // of 3,483 branch rows the gate demanded an ending for, **2,436 (70%) had nothing happen at
+    // all**, across 25 branches. The demand drops to 1,047.
+    //
+    // `beg_bal` is therefore DROPPED: a carried opening is a carried figure, not an event. It is
+    // present on every product that ever held stock, which is why it made idle rows look busy.
+    // The ending still gets a value — dl_deriveIdleEndings() settles it to the carried beginning —
+    // so `bal_end` is never NULL on a settled shift and the next day's carry still has a source.
+    //
+    // `sales` is ADDED. It was missing entirely: a row whose only event was a sale was not
+    // activity-bearing, so a shift could close on a NULL ending there. 0 such rows existed on
+    // 2026-11-21, so this closed a hole rather than an incident, but it is the shape that starts
+    // negative stock.
+    //
+    // What this costs, stated plainly: a blank on an untouched row is now indistinguishable from
+    // "counted and it matched". Shrinkage on stock nobody touched stops being discovered — and it
+    // is real: 686 open variance flags already sat on no-movement, no-sales rows the day this
+    // changed. The count SURVIVES as information (the variances screen still shows counted rows),
+    // it just no longer blocks a shift.
+    return "({$a}.sales <> 0 OR {$a}.addtl <> 0 OR {$a}.withdraw <> 0)";
+}
+
+/**
+ * Settle the ending of every IDLE row of a shift: nothing was sold, added or withdrawn, so the
+ * ending is mechanically the carried beginning and there is nothing for a cashier to count.
+ *
+ * This is the complement of the owner rule in dl_ledgerActivitySql(): that predicate stops
+ * DEMANDING a typed ending, and this keeps `bal_end` from staying NULL. NULL is not "zero" in this
+ * ledger — the next day's carry reads the previous ending, and a NULL there is what breaks the
+ * chain. Writing the derived number keeps both properties at once: no busywork for the cashier, and
+ * a complete chain for the ledger.
+ *
+ * `end_source = 'derived-no-movement'` keeps the two kinds of ending distinguishable in audit: a
+ * number a human counted, and a number that followed from the row. Deliberately NOT
+ * `derived-from-movements`, which already means something else (computed from a movement while a
+ * count existed).
+ *
+ * Runs BEFORE the day-ending gate on purpose: a row it settles can never be reported as missing.
+ * Only NULL endings are touched, so a cashier count is never overwritten.
+ *
+ * @return int rows settled
+ */
+function dl_deriveIdleEndings($db, int $branchId, string $date, ?string $shift): int
+{
+    $sql = 'UPDATE dl_daily_ledger
+               SET bal_end = COALESCE(beg_bal, 0),
+                   end_source = \'derived-no-movement\',
+                   end_settled_at = CURRENT_TIMESTAMP
+             WHERE branch_id = :bid
+               AND ledger_date = :d
+               AND bal_end IS NULL
+               AND COALESCE(sales, 0) = 0
+               AND COALESCE(addtl, 0) = 0
+               AND COALESCE(withdraw, 0) = 0';
+    $bind = [':bid' => $branchId, ':d' => $date];
+    if ($shift !== null && $shift !== '') {
+        $sql .= ' AND shift <=> :shift';
+        $bind[':shift'] = $shift;
+    }
+    $stmt = $db->prepare($sql);
+    $stmt->execute($bind);
+    return (int)$stmt->rowCount();
 }
 
 /**
@@ -9446,6 +9501,16 @@ function dl_isFullyManualDay($db, int $branchId, string $date): bool
  */
 function dl_finalizeDayEndingShiftCore($db, int $branchId, string $date, string $endShift, ?int $actorId, string $source = 'manual'): array
 {
+    // Settle the idle rows BEFORE asking what is missing, so the gate can never report a row whose
+    // ending is already determined (owner rule 2026-11-21: no movement and no sales = nothing to
+    // count). Order matters: without this the corrected gate would still be right, but the ledger
+    // would carry NULL endings on idle rows and the next day's carry would have no source.
+    try {
+        dl_deriveIdleEndings($db, $branchId, $date, $endShift);
+    } catch (Throwable $ignored) {
+        // Never block a close on the settle pass; the gate below still protects what DID move.
+    }
+
     $missing = dl_shiftMissingEndings($db, $branchId, $date, $endShift);
     // The commissary sheet owes its OWN endings, entered by its own role, and this gate never asked
     // it. Finalizing the shift on the cashier answer alone stamped `finalized` over PIC cells that

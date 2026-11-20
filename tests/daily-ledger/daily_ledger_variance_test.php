@@ -444,13 +444,29 @@ $db->execute('DELETE FROM dl_ledger_shift_status WHERE branch_id = :b', [':b' =>
 $db->execute('DELETE FROM dl_daily_ledger WHERE branch_id = :b AND ledger_date = :d', [':b' => $branchId, ':d' => $testDate]);
 
 // Product B has no PM ending → missing list should include B only (A has one, C inactive).
+// B carries a WITHDRAWAL on purpose: since the owner rule of 2026-11-21 a row with no addition, no
+// withdrawal and no sale owes no hand-typed ending (it settles to its carried beginning), so a
+// beg-only row can no longer demonstrate that an uncounted product blocks a finalize. Real movement
+// keeps the row owing an ending under both the old rule and the new one.
 dl_t_ledger($db, $branchId, $pA, $testDate, 'PM', 5, 0, 0, 9);
-dl_t_ledger($db, $branchId, $pB, $testDate, 'PM', 20, 0, 0, null);
+dl_t_ledger($db, $branchId, $pB, $testDate, 'PM', 20, 0, 1, null);
 $missing = dl_shiftMissingEndings($db, $branchId, $testDate, 'PM');
 $missingIds = array_map('intval', array_column($missing, 'product_id'));
 $h->test('missing endings lists PM-uncounted active product', in_array($pB, $missingIds, true));
 $h->test('missing endings excludes products with a PM ending', !in_array($pA, $missingIds, true));
 $h->test('missing endings excludes inactive products', !in_array($pC, $missingIds, true));
+
+// ── OWNER RULE 2026-11-21: an idle row owes no ending ─────────────────────────────────────
+// "Cashiers will just encode from paper report the rows that have data... why bother putting an
+// entry of zero on rows with no movement. it eats time." A row with no addition, no withdrawal and
+// no sale is IDLE: its ending is mechanically the carried beginning, so leaving it blank must not
+// be reported as a missing ending, and must not block a shift. The row that DID move (pB, one
+// withdrawal) must still owe one — otherwise the rule would have switched the gate off entirely.
+dl_t_ledger($db, $branchId, $pA, $testDate, 'PM', 5, 0, 0, null);           // idle: beg only
+$idleScan = array_map('intval', array_column(dl_shiftMissingEndings($db, $branchId, $testDate, 'PM'), 'product_id'));
+$h->test('an idle row (no sale, no movement, no ending) is NOT reported as missing', !in_array($pA, $idleScan, true));
+$h->test('a row that actually moved still owes an ending', in_array($pB, $idleScan, true));
+dl_t_ledger($db, $branchId, $pA, $testDate, 'PM', 5, 0, 0, 9);              // restore for later sections
 
 // Not finalized yet → assertShiftMutable does not throw.
 $notFinalized = true;

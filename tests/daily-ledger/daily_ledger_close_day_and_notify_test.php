@@ -178,7 +178,11 @@ try {
     $db->execute('DELETE FROM dl_variance_flags WHERE branch_id = :b AND ledger_date = :d', [':b' => $BRANCH, ':d' => $date]);
     // A moved product whose ending was never recorded → genuine pending.
     $db->execute(
-        'INSERT INTO dl_daily_ledger (branch_id, product_id, ledger_date, shift, beg_bal, bal_end, sales) VALUES (:b, :p, :d, "PM", 5, NULL, NULL)',
+        // `withdraw` is 1 on purpose: since the owner rule of 2026-11-21 a row with NO movement and
+        // NO sales owes no hand-typed ending (its ending settles to the carried beginning), so a
+        // fixture carrying only beg_bal can no longer exercise the deferral this suite exists to
+        // test. Real movement keeps the row owing an ending under both the old and the new rule.
+        'INSERT INTO dl_daily_ledger (branch_id, product_id, ledger_date, shift, beg_bal, withdraw, bal_end, sales) VALUES (:b, :p, :d, "PM", 5, 1, NULL, NULL)',
         [':b' => $BRANCH, ':p' => $P_MOVED, ':d' => $date]
     );
 
@@ -399,7 +403,7 @@ try {
     );
     // ...and this one still owes its PM ending, so it cannot be auto-finalized.
     $db->execute(
-        'INSERT INTO dl_daily_ledger (branch_id, product_id, ledger_date, shift, beg_bal, bal_end, sales) VALUES (:b, :p, :d, "PM", 5, NULL, NULL)',
+        'INSERT INTO dl_daily_ledger (branch_id, product_id, ledger_date, shift, beg_bal, withdraw, bal_end, sales) VALUES (:b, :p, :d, "PM", 5, 1, NULL, NULL)',
         [':b' => $BRANCH, ':p' => $P_MOVED, ':d' => $staleDate]
     );
 
