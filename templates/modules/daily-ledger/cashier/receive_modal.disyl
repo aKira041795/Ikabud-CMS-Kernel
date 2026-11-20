@@ -70,6 +70,9 @@
                     <template x-if="errorMsg">
                         <div class="mb-3 rounded-md bg-rose-50 p-3 text-sm text-rose-700" x-text="errorMsg"></div>
                     </template>
+                    <template x-if="boundaryNote">
+                        <div class="mb-3 rounded-md bg-sky-50 p-3 text-sm text-sky-900" x-text="boundaryNote" data-boundary-note></div>
+                    </template>
 
                     <div class="mb-4 rounded-lg border border-slate-200 bg-white p-3">
                         <div class="mb-3 rounded-lg bg-emerald-700 px-3 py-2 text-sm font-semibold text-white shadow-sm">
@@ -722,6 +725,9 @@ function receiveModal() {
         loading: false,
         busyKey: '',
         errorMsg: '',
+        // Explained rather than silent: when the official data start hides unreceived deliveries from
+        // before it, the operator is told how many and why, instead of wondering where the DR went.
+        boundaryNote: '',
         deliveries: [],
         drFilter: '',
         paperOpen: false,
@@ -1472,6 +1478,12 @@ function receiveModal() {
                 this.loading = false;
                 this.deliveries = (data && data.ok) ? (data.deliveries || []) : [];
                 this.recentReasons = (data && data.recent_reasons) ? data.recent_reasons : [];
+                var excluded = (data && data.pre_official_start_excluded) ? parseInt(data.pre_official_start_excluded, 10) : 0;
+                this.boundaryNote = (data && data.official_data_start && excluded > 0)
+                    ? excluded + ' unreceived delivery item(s) dated before the official data start ('
+                      + data.official_data_start + ') are not listed. They belong to the opening position, '
+                      + 'not to a receipt recorded after it.'
+                    : '';
                 this.prefillReceivingShift(this.deliveries);
                 if (data && !data.ok) this.errorMsg = data.error || 'Failed to load deliveries.';
             }.bind(this))

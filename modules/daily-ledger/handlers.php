@@ -12557,6 +12557,17 @@ function apiGetIncomingDeliveries(array $params = []): void
 
     $drFilter = isset($_GET['dr_number']) ? trim((string)$_GET['dr_number']) : '';
 
+    // Unreceived deliveries dated before the official data start are NOT pending accountability.
+    // Measured 2026-11-20 on tenant 207 with the boundary unset: 3,080 posted-but-unreceived
+    // deliveries from 2026-09/10 and 20,250 delivery DRs never received from 2026-08/09/10 sat in this
+    // list with no lower bound at all - the query had none, so they stayed 'pending' forever and a
+    // later receipt would add stock on TOP of an opening position that already counted it.
+    //
+    // The exclusion is READ-TIME and reversible: clear the setting and they come back. Nothing is
+    // deleted, and the count is reported below so the shorter list explains itself.
+    $officialStart = dl_officialDataStart();
+    $officialStartSql = $officialStart !== null ? ' AND cw.ledger_date >= :official_start' : '';
+
     $sql = 'SELECT cw.id, cw.dr_number, cw.ledger_date, cw.shift AS production_shift, NULL AS declared_receiving_shift,
                    cw.quantity, cw.branch_id AS origin_branch_id,
                    ob.name AS origin_branch_name, cw.product_id, p.name AS product_name,
@@ -12575,11 +12586,13 @@ function apiGetIncomingDeliveries(array $params = []): void
             WHERE cw.target_branch_id = :bid
               AND cw.withdrawal_type = \'delivery\'
               AND cw.received_at IS NULL'
+        . $officialStartSql
         . ($drFilter !== '' ? ' AND cw.dr_number = :dr_filter' : '')
         . ' ORDER BY cw.ledger_date DESC, cw.dr_number, cw.id';
     $stmt = $ctx->db()->prepare($sql);
     $bind = [':bid' => $branchId];
     if ($drFilter !== '') $bind[':dr_filter'] = $drFilter;
+    if ($officialStart !== null) $bind[':official_start'] = $officialStart;
     $stmt->execute($bind);
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
@@ -12642,9 +12655,11 @@ function apiGetIncomingDeliveries(array $params = []): void
                             SELECT 1 FROM dl_branch_receivings br
                             WHERE br.delivery_id = d.id AND br.status <> "voided"
                         )'
+            . ($officialStart !== null ? ' AND d.delivery_date >= :official_start_formal' : '')
             . ($drFilter !== '' ? ' AND d.dr_number = :dr_filter' : '')
             . ' ORDER BY d.delivery_date DESC, d.dr_number, d.id';
         $formalBind = [':bid' => $branchId];
+        if ($officialStart !== null) $formalBind[':official_start_formal'] = $officialStart;
         if ($drFilter !== '') $formalBind[':dr_filter'] = $drFilter;
         $formalStmt = $ctx->db()->prepare($formalSql);
         $formalStmt->execute($formalBind);
@@ -12722,7 +12737,37 @@ function apiGetIncomingDeliveries(array $params = []): void
         if ($reason !== '') { $recentReasons[] = $reason; }
     }
 
-    $ctx->json(['ok' => true, 'deliveries' => $deliveries, 'recent_reasons' => $recentReasons]);
+    // Say how much the boundary is holding back, so a shorter pending list is explained rather than
+    // mysterious. These items are not deleted and not voided: they predate the official start, so
+    // their stock belongs to the opening position, not to a receipt recorded after it.
+    $preBoundaryExcluded = 0;
+    if ($officialStart !== null) {
+        $exclStmt = $ctx->db()->prepare(
+            "SELECT
+                (SELECT COUNT(*) FROM dl_cashier_withdrawals cw
+                  WHERE cw.target_branch_id = :b1 AND cw.withdrawal_type = 'delivery'
+                    AND cw.received_at IS NULL AND cw.ledger_date < :s1)
+              + (SELECT COUNT(*) FROM dl_deliveries d
+                  WHERE d.destination_type = 'branch' AND d.destination_id = :b2
+                    AND d.status = 'posted' AND COALESCE(d.receipt_required, 1) = 1
+                    AND d.delivery_date < :s2
+                    AND NOT EXISTS (SELECT 1 FROM dl_branch_receivings br
+                                     WHERE br.delivery_id = d.id AND br.status <> 'voided'))"
+        );
+        $exclStmt->execute([
+            ':b1' => $branchId, ':s1' => $officialStart,
+            ':b2' => $branchId, ':s2' => $officialStart,
+        ]);
+        $preBoundaryExcluded = (int)$exclStmt->fetchColumn();
+    }
+
+    $ctx->json([
+        'ok' => true,
+        'deliveries' => $deliveries,
+        'recent_reasons' => $recentReasons,
+        'official_data_start' => $officialStart,
+        'pre_official_start_excluded' => $preBoundaryExcluded,
+    ]);
 }
 
 /**
