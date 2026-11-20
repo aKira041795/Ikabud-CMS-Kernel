@@ -28287,19 +28287,11 @@ function handleAdminCommissary(): void
     $dispatchBranchStmt->execute($dispatchBranchBind);
     $dispatchBranches = $dispatchBranchStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-    // A consignee is a legitimate pull-out source too, and it is NOT a branch: dl_consignees is its
-    // own table assigned to a commissary (owner 2026-11-18: "the branch or consignee the pullout is
-    // set from"). Scoped the same way as dispatch branches so the selector cannot offer a consignee
-    // this commissary does not serve.
-    $pulloutConsignees = [];
-    if (dl_isConsigneeEnabled() && $selectedCommissaryId > 0) {
-        $consigneeSql = 'SELECT c.id, c.name, c.code FROM dl_consignees c'
-            . ' WHERE c.is_active = 1 AND c.assigned_commissary_id = :cid'
-            . ' ORDER BY c.sort_order, c.name';
-        $consigneeStmt = $db->prepare($consigneeSql);
-        $consigneeStmt->execute([':cid' => $selectedCommissaryId]);
-        $pulloutConsignees = $consigneeStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-    }
+    // The consignee pull-out source query lived here (owner 2026-11-18: "the branch or consignee the
+    // pullout is set from"). It is gone with the pullout type in the commissary entry modal (owner
+    // 2026-11-21, "we have two button for pullout"): pullouts are recorded once, against the returns
+    // panel, and the selector it fed no longer exists. It also carried 0 rows across all history, so
+    // nothing is lost -- and it stops being a query on every load of this page.
 
     // ── Tab 1: Inventory (commissary product ledger) ──
     $inventorySql = "SELECT cpl.commissary_branch_id,
@@ -29162,7 +29154,6 @@ function handleAdminCommissary(): void
         'can_view_production_variance' => $role === 'admin',
         'branches' => $branches,
         'dispatch_branches' => $dispatchBranches,
-        'pullout_consignees' => $pulloutConsignees,
         'commissaries' => $commissaries,
         // The receipt form's product picker, scoped to products actually assigned to one of the
         // accessible hubs, so the screen cannot offer a choice the API will refuse.
