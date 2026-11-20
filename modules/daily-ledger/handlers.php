@@ -8167,6 +8167,48 @@ function dl_shiftMissingEndings($db, int $branchId, string $date, string $shift)
 }
 
 /**
+ * The PRODUCTION sheet's equivalent of dl_shiftMissingEndings(): active products whose commissary
+ * row for this shift carries movement but no ending.
+ *
+ * WHY THIS DID NOT EXIST — and what it cost. The day-ending finalize gate only asked the CASHIER
+ * ledger whether endings were owed. A commissary's PIC sheet has its own endings, entered by its own
+ * role, and nothing on the day-close path consulted it. So a day could be closed, the shift stamped
+ * `finalized`, and dl_assertShiftMutable then made those ending cells read-only — the PIC could no
+ * longer enter them and only an admin reopen could free them.
+ *
+ * Measured 2026-11-20 on tenant 207: of 6,091 commissary lines with no ending, **2,794 sat on a
+ * FINALIZED shift and 2,238 of those carried real movement** (2,299 PM across 42 hub-days, 93 AM
+ * across 3). That is the single largest mechanical reason the count coverage never recovers: the
+ * rows were not neglected, they were LOCKED.
+ *
+ * The predicate is deliberately the same one dl_maybeAutoFinalizeCommissaryPmShift() and
+ * apiFinalizeProductionPmShift() already use — an activity-bearing row with a NULL ending — so
+ * "complete" cannot mean one thing in the auto-finalizer, another in the manual PM endpoint, and a
+ * third in the day-close gate. A product with no movement is not a gap.
+ */
+function dl_shiftMissingCommissaryEndings($db, int $branchId, string $date, string $shift): array
+{
+    $shift = dl_normalizeShift($shift);
+    $stmt = $db->prepare(
+        'SELECT p.id AS product_id, p.name, p.sku
+           FROM dl_products p
+           INNER JOIN dl_branch_products bp ON bp.product_id = p.id AND bp.branch_id = :bid AND bp.is_active = 1
+           LEFT JOIN dl_commissary_product_ledger cpl
+                  ON cpl.product_id = p.id
+                 AND cpl.commissary_branch_id = :bid2
+                 AND cpl.ledger_date = :d
+                 AND cpl.shift = :shift
+          WHERE p.is_active = 1
+            AND cpl.id IS NOT NULL
+            AND cpl.actual_end_qty IS NULL
+            AND (cpl.beg_qty <> 0 OR cpl.produced_qty <> 0 OR cpl.dispatched_qty <> 0 OR cpl.wastage_qty <> 0)
+          ORDER BY p.sort_order, p.name'
+    );
+    $stmt->execute([':bid' => $branchId, ':bid2' => $branchId, ':d' => $date, ':shift' => $shift]);
+    return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+}
+
+/**
  * Every activity-bearing, ending-less ledger row that would be STRANDED by
  * hiding a product: one that still sits on an ACTIONABLE date. Under the
  * owner-approved OPTION A scope a row blocks ONLY while an operator can still
@@ -9087,6 +9129,16 @@ function dl_isFullyManualDay($db, int $branchId, string $date): bool
 function dl_finalizeDayEndingShiftCore($db, int $branchId, string $date, string $endShift, ?int $actorId, string $source = 'manual'): array
 {
     $missing = dl_shiftMissingEndings($db, $branchId, $date, $endShift);
+    // The commissary sheet owes its OWN endings, entered by its own role, and this gate never asked
+    // it. Finalizing the shift on the cashier answer alone stamped `finalized` over PIC cells that
+    // were still empty, and dl_assertShiftMutable then made them unenterable — only an admin reopen
+    // could free them. Measured 2026-11-20 on tenant 207: 2,238 activity-bearing commissary lines
+    // with no ending sat on FINALIZED shifts, and the repair CLI could not see them because its
+    // candidate scan joined dl_daily_ledger only. apiFinalizeProductionPmShift() already refuses
+    // this on its own path; the day-close path is the one that had no gate.
+    foreach (dl_shiftMissingCommissaryEndings($db, $branchId, $date, $endShift) as $row) {
+        $missing[] = $row + ['sheet' => 'commissary'];
+    }
     if ($missing !== []) {
         return ['finalized' => false, 'missing' => $missing];
     }
@@ -9809,6 +9861,14 @@ function dl_varianceIntegritySummary($db, array $commissaryIds, string $dateFrom
         'forced' => 0,
         'not_counted' => 0,
         'counted_pct' => 0,
+        // Activity split (see the comment on the provenance query below).
+        'activity_rows_total' => 0,
+        'counted_with_movement' => 0,
+        'not_counted_with_movement' => 0,
+        'counted_pct_activity' => 0,
+        'idle_rows_total' => 0,
+        'counted_idle' => 0,
+        'not_counted_idle' => 0,
         'variance_abs_counted' => 0,
         'variance_abs_all' => 0,
         'net_variance_counted' => 0,
@@ -9830,6 +9890,14 @@ function dl_varianceIntegritySummary($db, array $commissaryIds, string $dateFrom
     if ($to !== null) { $dateSql .= ' AND ledger_date <= :dto'; $bind[':dto'] = $to; }
 
     // One pass over the hub ledger: who actually counted, and what the variance is worth in each state.
+    //
+    // The activity split matters for HONESTY, not decoration. Of the 6,091 lines this reported as
+    // "never counted" on tenant 207 at 2026-11-20, 583 carried no movement at all (every one of
+    // beg/produced/dispatched/wastage was zero) - those are projection placeholders, not missing
+    // counts - while 1,482 endings sat on lines where nothing moved, which demonstrate diligence
+    // poorly. Reporting one blended percentage let an owner read "67% uncounted" as either better or
+    // worse than it is. Of the lines that ACTUALLY MOVED, only a minority were counted; that is the
+    // number a control conversation should start from.
     $stmt = $db->prepare(
         "SELECT CASE
                     WHEN actual_end_qty IS NULL THEN 'not_counted'
@@ -9837,29 +9905,51 @@ function dl_varianceIntegritySummary($db, array $commissaryIds, string $dateFrom
                     WHEN end_source = 'derived-from-movements' THEN 'derived'
                     ELSE 'forced'
                 END AS provenance,
+                CASE WHEN (COALESCE(beg_qty,0) <> 0 OR COALESCE(produced_qty,0) <> 0
+                          OR COALESCE(dispatched_qty,0) <> 0 OR COALESCE(wastage_qty,0) <> 0)
+                     THEN 1 ELSE 0 END AS has_movement,
                 COUNT(*) AS rows_n,
                 SUM(ABS(COALESCE(calc_variance, 0))) AS abs_var,
                 SUM(COALESCE(calc_variance, 0)) AS net_var
            FROM dl_commissary_product_ledger
           WHERE commissary_branch_id IN ({$inList}){$dateSql}
-          GROUP BY provenance"
+          GROUP BY provenance, has_movement"
     );
     $stmt->execute($bind);
     foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
         $key = (string)$row['provenance'];
         $n = (int)$row['rows_n'];
+        $moved = (int)$row['has_movement'] === 1;
         $summary['rows_total'] += $n;
+        // ACCUMULATE, never assign: the query now returns each provenance TWICE (movement / no
+        // movement), so `$summary[$key] = $n` would let the idle half overwrite the busy half and
+        // silently halve the counted figure - measured 3,268 -> 1,794 the moment the split was added.
         if (isset($summary[$key])) {
-            $summary[$key] = $n;
+            $summary[$key] += $n;
+        }
+        if ($moved) {
+            $summary['activity_rows_total'] += $n;
+            if ($key === 'counted') {
+                $summary['counted_with_movement'] += $n;
+            } elseif ($key === 'not_counted') {
+                $summary['not_counted_with_movement'] += $n;
+            }
+        } else {
+            $summary['idle_rows_total'] += $n;
+            $summary['counted_idle'] += $key === 'counted' ? $n : 0;
+            $summary['not_counted_idle'] += $key === 'not_counted' ? $n : 0;
         }
         $summary['variance_abs_all'] += (int)$row['abs_var'];
         if ($key === 'counted') {
-            $summary['variance_abs_counted'] = (int)$row['abs_var'];
-            $summary['net_variance_counted'] = (int)$row['net_var'];
+            $summary['variance_abs_counted'] += (int)$row['abs_var'];
+            $summary['net_variance_counted'] += (int)$row['net_var'];
         }
     }
     if ($summary['rows_total'] > 0) {
         $summary['counted_pct'] = (int)round(($summary['counted'] / $summary['rows_total']) * 100);
+    }
+    if ($summary['activity_rows_total'] > 0) {
+        $summary['counted_pct_activity'] = (int)round(($summary['counted_with_movement'] / $summary['activity_rows_total']) * 100);
     }
 
     // Negative balances are a SEPARATE subject: they cannot be a variance (the expectation is negative
@@ -15555,13 +15645,27 @@ function apiFinalizePmShift(array $params = []): void
         if (!$result['finalized']) {
             $missing = $result['missing'];
             $ctx->db()->rollBack();
+            // Name WHICH sheet owes the ending. Before this, an operator on the branch ledger was
+            // told "complete all PM ending counts" for rows only the PIC can see and enter, which is
+            // unactionable and reads as a system fault.
+            $onCommissary = count(array_filter($missing, static fn(array $m): bool => ($m['sheet'] ?? '') === 'commissary'));
+            $message = count($missing) . ' active product(s) are missing ' . ($endShift === 'AM' ? 'an ' : 'a ') . $endShift . ' ending count.';
+            if ($onCommissary > 0) {
+                $message .= ' ' . $onCommissary . ' of them are on the PRODUCTION sheet (commissary), not the branch ledger — the PIC must enter those.';
+            }
             header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Complete all ' . $endShift . ' ending counts first.', 'type' => 'error']]));
             $ctx->json([
                 'ok' => false,
                 'code' => $endShift . '_ENDING_MISSING',
-                'error' => count($missing) . ' active product(s) are missing ' . ($endShift === 'AM' ? 'an ' : 'a ') . $endShift . ' ending count.',
+                'error' => $message,
+                'missing_on_commissary' => $onCommissary,
                 'missing_products' => array_map(static function (array $m): array {
-                    return ['product_id' => (int)$m['product_id'], 'name' => (string)$m['name'], 'sku' => (string)($m['sku'] ?? '')];
+                    return [
+                        'product_id' => (int)$m['product_id'],
+                        'name' => (string)$m['name'],
+                        'sku' => (string)($m['sku'] ?? ''),
+                        'sheet' => (string)($m['sheet'] ?? 'branch'),
+                    ];
                 }, $missing),
             ], 422);
             return;

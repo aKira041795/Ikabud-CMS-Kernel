@@ -143,22 +143,63 @@ try {
     $candidateStmt->execute($candidateBind);
     $candidates = $candidateStmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
 
+    // SECOND source. The module has two ledgers and this scan only joined one of them, so a
+    // finalized shift that owed PRODUCTION endings was never even a candidate. Measured 2026-11-20
+    // on tenant 207: 2,238 activity-bearing commissary lines with no ending sat on finalized shifts,
+    // invisible to this repair - it reported "nothing to reopen" for exactly the rows it exists to
+    // free. Merged by shift-day so a shift owing both kinds is counted once.
+    $commissarySql =
+        "SELECT st.branch_id, st.ledger_date, st.shift, COUNT(*) AS pending_rows
+           FROM dl_ledger_shift_status st
+           JOIN dl_commissary_product_ledger cpl
+             ON cpl.commissary_branch_id = st.branch_id AND cpl.ledger_date = st.ledger_date
+            AND cpl.shift = st.shift COLLATE utf8mb4_unicode_ci
+          WHERE st.status = 'finalized'
+            AND cpl.actual_end_qty IS NULL
+            AND (cpl.beg_qty <> 0 OR cpl.produced_qty <> 0 OR cpl.dispatched_qty <> 0 OR cpl.wastage_qty <> 0)";
+    $commissaryBind = [];
+    if ($dateFrom !== '') {
+        $commissarySql .= ' AND st.ledger_date >= :from';
+        $commissaryBind[':from'] = $dateFrom;
+    }
+    if ($dateTo !== '') {
+        $commissarySql .= ' AND st.ledger_date <= :to';
+        $commissaryBind[':to'] = $dateTo;
+    }
+    $commissarySql .= ' GROUP BY st.branch_id, st.ledger_date, st.shift';
+    $commissaryStmt = $db->prepare($commissarySql);
+    $commissaryStmt->execute($commissaryBind);
+    $merged = [];
+    foreach (array_merge($candidates, $commissaryStmt->fetchAll(\PDO::FETCH_ASSOC) ?: []) as $row) {
+        $key = $row['branch_id'] . '|' . $row['ledger_date'] . '|' . dl_normalizeShift((string)$row['shift']);
+        if (!isset($merged[$key])) {
+            $merged[$key] = $row;
+        } else {
+            $merged[$key]['pending_rows'] = (int)$merged[$key]['pending_rows'] + (int)$row['pending_rows'];
+        }
+    }
+    $candidates = array_values($merged);
+
     // Authoritative filter: the same predicate the finalize gate uses, so "complete" cannot mean
-    // two different things in the gate and in the repair.
+    // two different things in the gate and in the repair. BOTH sheets, because the finalize gate now
+    // asks both (dl_finalizeDayEndingShiftCore).
     $work = [];
     foreach ($candidates as $row) {
         $branchId = (int)$row['branch_id'];
         $date = (string)$row['ledger_date'];
         $shift = dl_normalizeShift((string)$row['shift']);
         $missing = dl_shiftMissingEndings($db, $branchId, $date, $shift);
-        if ($missing === []) {
+        $missingCommissary = dl_shiftMissingCommissaryEndings($db, $branchId, $date, $shift);
+        if ($missing === [] && $missingCommissary === []) {
             continue;
         }
         $work[] = [
             'branch_id' => $branchId,
             'ledger_date' => $date,
             'shift' => $shift,
-            'owed' => count($missing),
+            'owed' => count($missing) + count($missingCommissary),
+            'owed_branch' => count($missing),
+            'owed_commissary' => count($missingCommissary),
             'candidate_rows' => (int)$row['pending_rows'],
             'day_status' => (string)(dl_getDayStatus($branchId, $date) ?: 'open'),
         ];
@@ -301,8 +342,23 @@ try {
     $recountSql .= ' GROUP BY st.branch_id, st.ledger_date, st.shift';
     $recountStmt = $db->prepare($recountSql);
     $recountStmt->execute($recountBind);
+    $recountKeys = [];
     foreach ($recountStmt->fetchAll(\PDO::FETCH_ASSOC) ?: [] as $row) {
-        if (dl_shiftMissingEndings($db, (int)$row['branch_id'], (string)$row['ledger_date'], dl_normalizeShift((string)$row['shift'])) !== []) {
+        $recountKeys[$row['branch_id'] . '|' . $row['ledger_date'] . '|' . dl_normalizeShift((string)$row['shift'])] = $row;
+    }
+    // The same second source the candidate scan now uses, so "after" cannot under-report what
+    // "before" was able to see.
+    $recountStmt2 = $db->prepare($commissarySql);
+    $recountStmt2->execute($commissaryBind);
+    foreach ($recountStmt2->fetchAll(\PDO::FETCH_ASSOC) ?: [] as $row) {
+        $recountKeys[$row['branch_id'] . '|' . $row['ledger_date'] . '|' . dl_normalizeShift((string)$row['shift'])] = $row;
+    }
+    foreach ($recountKeys as $row) {
+        $bid = (int)$row['branch_id'];
+        $d = (string)$row['ledger_date'];
+        $sh = dl_normalizeShift((string)$row['shift']);
+        if (dl_shiftMissingEndings($db, $bid, $d, $sh) !== []
+            || dl_shiftMissingCommissaryEndings($db, $bid, $d, $sh) !== []) {
             $remaining++;
         }
     }

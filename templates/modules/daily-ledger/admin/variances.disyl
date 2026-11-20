@@ -1171,6 +1171,21 @@
             <span class="font-semibold">{variance_integrity.not_counted}</span> lines were never counted at all.
             A small count percentage means the variance below describes a fraction of the business, not all of it.
         </p>
+        {if variance_integrity.activity_rows_total > 0}
+        <!-- Split by whether the line actually MOVED. A line where nothing was received, produced,
+             dispatched or wasted is a placeholder: having no ending on it proves nothing either way,
+             and a counted ending on it proves little. Blending both into one percentage let the same
+             figure read as better or worse than it is, so the lines that carry stock are stated on
+             their own. -->
+        <p class="mt-1">
+            Of those, <span class="font-semibold">{variance_integrity.activity_rows_total}</span> lines actually
+            moved stock; <span class="font-semibold">{variance_integrity.counted_with_movement}</span> of them
+            ({variance_integrity.counted_pct_activity}%) were counted and
+            <span class="font-semibold">{variance_integrity.not_counted_with_movement}</span> were not.
+            The remaining <span class="font-semibold">{variance_integrity.idle_rows_total}</span> lines had no
+            movement at all, so an ending on them is bookkeeping rather than evidence.
+        </p>
+        {/if}
         {if variance_integrity.negative_products > 0}
         <p class="mt-2">
             Separately, <span class="font-semibold">{variance_integrity.negative_products} product(s)</span> carry a
