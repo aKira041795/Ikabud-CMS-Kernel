@@ -3007,7 +3007,24 @@ function dl_officialDataStart(bool $refresh = false): ?string
 function dl_normalizeOfficialStart($value): string
 {
     $raw = trim((string)$value);
-    return preg_match('/^\d{4}-\d{2}-\d{2}$/', $raw) ? $raw : '';
+    return dl_isRealDate($raw) ? $raw : '';
+}
+
+/**
+ * Is this a REAL calendar date?
+ *
+ * The digits-only pattern /^\d{4}-\d{2}-\d{2}$/ accepts 2026-13-45, which MySQL then rejects - measured
+ * 2026-11-20: the per-branch endpoint answered HTTP 500 with an HTML error page instead of a 422. An
+ * officialness boundary is not a place to guess, so the value is round-tripped through the date parser
+ * and must come back identical.
+ */
+function dl_isRealDate(string $value): bool
+{
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
+        return false;
+    }
+    $parsed = \DateTimeImmutable::createFromFormat('!Y-m-d', $value);
+    return $parsed !== false && $parsed->format('Y-m-d') === $value;
 }
 
 /** The later of $from and the official data start (unchanged when unset or empty). */
@@ -3018,6 +3035,132 @@ function dl_officialClampFrom(string $from): string
         return $from;
     }
     return $from < $official ? $official : $from;
+}
+
+/**
+ * The first official date for ONE branch: its own setting, else the global one, else null.
+ *
+ * OWNER 2026-11-20: "let's go further with this feature: per branch specificity". A fleet does not go
+ * live on one day: a shop onboarded in November must not inherit October, and a shop official since
+ * September must not lose September because a newer branch joined later. So the branch's own date
+ * WINS in both directions - it can tighten the global floor and it can loosen it.
+ *
+ * NULL means "no boundary for this branch" (neither set), which is today's behaviour when the global
+ * setting is empty.
+ */
+function dl_branchOfficialStart(int $branchId): ?string
+{
+    static $cache = [];
+    if ($branchId <= 0) {
+        return dl_officialDataStart();
+    }
+    if (array_key_exists($branchId, $cache)) {
+        return $cache[$branchId];
+    }
+    $resolved = null;
+    $ctx = module();
+    if ($ctx) {
+        try {
+            $stmt = $ctx->db()->prepare('SELECT official_data_start FROM dl_branches WHERE id = :id LIMIT 1');
+            $stmt->execute([':id' => $branchId]);
+            $own = $stmt->fetchColumn();
+            $own = is_string($own) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $own) ? $own : null;
+            $resolved = $own ?? dl_officialDataStart();
+        } catch (\Throwable $e) {
+            // A read failure must never bend the boundary: fall back to the global setting.
+            $resolved = dl_officialDataStart();
+        }
+    } else {
+        $resolved = dl_officialDataStart();
+    }
+    $cache[$branchId] = $resolved;
+    return $resolved;
+}
+
+/** The per-branch floor applied to a single known branch's date window. */
+function dl_branchClampFrom(int $branchId, string $from): string
+{
+    $start = dl_branchOfficialStart($branchId);
+    if ($start === null || $from === '') {
+        return $from;
+    }
+    return $from < $start ? $start : $from;
+}
+
+/**
+ * SQL that evaluates a branch-aware official start for a query that has dl_branches joined.
+ *
+ * Returns an expression, not a predicate, so callers keep their own comparison operator:
+ *     AND dl.ledger_date >= ' . dl_officialStartSqlExpr('b') . '
+ * A branch row with no own date falls back to the global setting; an unset global becomes '1970-01-01',
+ * i.e. no boundary, which is the module's long-standing "empty = no boundary" rule.
+ *
+ * $branchAlias must be a hard-coded alias from the caller (never user input) - this concatenates SQL.
+ */
+function dl_officialStartSqlExpr(string $branchAlias): string
+{
+    $global = dl_officialDataStart();
+    $fallback = $global !== null ? "'" . $global . "'" : "'1970-01-01'";
+    return 'COALESCE(' . $branchAlias . '.official_data_start, ' . $fallback . ')';
+}
+
+/**
+ * The clamp a screen should actually apply.
+ *
+ * When the view is narrowed to ONE branch, that branch's own date is exact and must be used - a branch
+ * onboarded in November should see November on its own reports even though the fleet has been official
+ * since October. When the view spans the fleet, the earliest branch start is the safe floor (see
+ * dl_clampFromForBranches()). Falling back to the global setting is handled inside
+ * dl_branchOfficialStart().
+ */
+function dl_clampFromForView(string $from, array $branchIds, int $selectedBranchId): string
+{
+    if ($selectedBranchId > 0) {
+        return dl_branchClampFrom($selectedBranchId, $from);
+    }
+    return dl_clampFromForBranches($from, $branchIds);
+}
+
+/**
+ * Earliest effective start across a branch set, as a clamp for a fleet-wide window.
+ *
+ * The fleet-wide screens (dashboard, sales, variances, reconciliation) can be filtered to one branch or
+ * show all of them, and their windows are scalars. Using the EARLIEST branch start keeps every branch's
+ * official history visible; a branch that started later is simply not narrowed here, which is the safe
+ * direction. Screens that carry dl_branches per row should use dl_officialStartSqlExpr() to be exact.
+ */
+function dl_clampFromForBranches(string $from, array $branchIds): string
+{
+    $earliest = dl_effectiveStartForBranches($branchIds);
+    if ($earliest === null || $from === '') {
+        return $from;
+    }
+    return $from < $earliest ? $earliest : $from;
+}
+
+/**
+ * The EARLIEST effective start across a branch set - the conservative floor for a cross-branch summary
+ * that cannot evaluate the boundary per row.
+ *
+ * Earliest, not latest, on purpose: the narrower choice would silently hide an established branch's
+ * official history because a newer branch started later. This floor can only ever be too LOOSE for the
+ * newer branches, never wrongly tight, and queries that carry dl_branches can be exact instead by using
+ * dl_officialStartSqlExpr().
+ */
+function dl_effectiveStartForBranches(array $branchIds): ?string
+{
+    $starts = [];
+    foreach ($branchIds as $id) {
+        $start = dl_branchOfficialStart((int)$id);
+        if ($start !== null) {
+            $starts[] = $start;
+        }
+    }
+    if ($starts === []) {
+        return null;
+    }
+    sort($starts);
+    return $starts[0];
 }
 
 /** Whether a report window lies entirely before the official data start. */
@@ -12557,15 +12700,16 @@ function apiGetIncomingDeliveries(array $params = []): void
 
     $drFilter = isset($_GET['dr_number']) ? trim((string)$_GET['dr_number']) : '';
 
-    // Unreceived deliveries dated before the official data start are NOT pending accountability.
+    // Unreceived deliveries dated before this BRANCH's official start are NOT pending accountability.
     // Measured 2026-11-20 on tenant 207 with the boundary unset: 3,080 posted-but-unreceived
     // deliveries from 2026-09/10 and 20,250 delivery DRs never received from 2026-08/09/10 sat in this
     // list with no lower bound at all - the query had none, so they stayed 'pending' forever and a
     // later receipt would add stock on TOP of an opening position that already counted it.
     //
-    // The exclusion is READ-TIME and reversible: clear the setting and they come back. Nothing is
-    // deleted, and the count is reported below so the shorter list explains itself.
-    $officialStart = dl_officialDataStart();
+    // The boundary is the BRANCH's own (owner 2026-11-20: per branch specificity), falling back to the
+    // global setting. The exclusion is READ-TIME and reversible: clear the dates and they come back.
+    // Nothing is deleted, and the count is reported below so the shorter list explains itself.
+    $officialStart = dl_branchOfficialStart($branchId);
     $officialStartSql = $officialStart !== null ? ' AND cw.ledger_date >= :official_start' : '';
 
     $sql = 'SELECT cw.id, cw.dr_number, cw.ledger_date, cw.shift AS production_shift, NULL AS declared_receiving_shift,
@@ -15110,9 +15254,10 @@ function handleAdminDashboard(array $params = []): void
     if ($salesFilterDateFrom > $salesFilterDateTo) {
         [$salesFilterDateFrom, $salesFilterDateTo] = [$salesFilterDateTo, $salesFilterDateFrom];
     }
-    // Official data start is the floor for interpretation (owner 2026-11-20). Pre-boundary rows stay
-    // stored and readable; they must not be totalled into the dashboard's business figures.
-    $salesFilterDateFrom = dl_officialClampFrom($salesFilterDateFrom);
+    // Official data start is the floor for interpretation (owner 2026-11-20), PER BRANCH. Pre-boundary
+    // rows stay stored and readable; they must not be totalled into the dashboard's business figures.
+    // The fleet-wide window takes the earliest branch start, so no branch loses its official history.
+    $salesFilterDateFrom = dl_clampFromForView($salesFilterDateFrom, dl_adminViewBranchIds($user, $input), (int)($input['branch_id'] ?? 0));
 
     $salesFilterBranchId = isset($input['branch_id']) ? (int)$input['branch_id'] : 0;
     if ($salesFilterBranchId > 0 && !in_array($salesFilterBranchId, $accessibleBranchIds, true) && $role !== 'admin') {
@@ -15765,8 +15910,9 @@ function handleAdminOverview(array $params = []): void
     if ($db !== null) {
         $lifetimeFilters = $filters;
         // Lifetime totals start at the official data start when one is set: the
-        // "all periods" figures are an accountability surface, not an archive scan.
-        $lifetimeFilters['date_from'] = dl_officialClampFrom('1970-01-01');
+        // "all periods" figures are an accountability surface, not an archive scan. Per branch
+        // (owner 2026-11-20): the EARLIEST start among the branches in scope, so an established
+        // branch is not cut down to a newer branch's first day.
         $lifetimeFilters['date_to'] = $dateTo;
 
         $lifetimeIds = array_values(array_filter(
@@ -15778,6 +15924,10 @@ function handleAdminOverview(array $params = []): void
                 ? [(int)$filters['branch_id']]
                 : [];
         }
+        // Lifetime totals are an accountability surface, not an archive scan, so they start at the
+        // official data start - PER BRANCH (owner 2026-11-20). Placed after $lifetimeIds so a branch
+        // filter narrows the floor to that branch's own date instead of the fleet's earliest.
+        $lifetimeFilters['date_from'] = dl_clampFromForView('1970-01-01', $lifetimeIds, (int)($filters['branch_id'] ?? 0));
         if ($lifetimeIds !== []) {
             $lifetimeMarks = implode(',', array_fill(0, count($lifetimeIds), '?'));
             // One single-quoted string, no escape sequences: single quotes do not interpret \n, so
@@ -16836,9 +16986,9 @@ function handleAdminSales(array $params = []): void
     $input = $ctx->input();
     $today = dl_businessDate();
     $dateFrom = !empty($input['date_from']) ? (string)$input['date_from'] : $today;
-    // Official data start is the floor for interpretation (owner 2026-11-20): the sales screen reports
-    // the official count, never a training period blended into it.
-    $dateFrom = dl_officialClampFrom($dateFrom);
+    // Official data start is the floor for interpretation (owner 2026-11-20), per branch: the sales
+    // screen reports the official count, never a training period blended into it.
+    $dateFrom = dl_clampFromForView($dateFrom, dl_adminViewBranchIds($user, $input), (int)($input['branch_id'] ?? 0));
     $dateTo   = !empty($input['date_to']) ? (string)$input['date_to'] : $today;
     $branchId = !empty($input['branch_id']) ? (int)$input['branch_id'] : null;
     $actionFilter = trim((string)($input['action_filter'] ?? ''));
@@ -17299,6 +17449,29 @@ function handleAdminSettings(array $params = []): void
 
     $role = (string)($user['role'] ?? '');
     $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
+    // Per-branch official dates, emitted AT the setting itself (owner 2026-11-20) so an admin sets the
+    // whole fleet's first official day in one place instead of opening every branch modal. Blank means
+    // the branch inherits the site-wide date, and `effective` shows what that resolves to.
+    $officialBranchRows = [];
+    try {
+        $obStmt = module()->db()->query(
+            'SELECT id, code, name, official_data_start FROM dl_branches
+              WHERE is_active = 1 ORDER BY sort_order, name'
+        );
+        foreach ($obStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $obRow) {
+            $own = $obRow['official_data_start'] !== null && $obRow['official_data_start'] !== ''
+                ? (string)$obRow['official_data_start'] : '';
+            $officialBranchRows[] = [
+                'id' => (int)$obRow['id'],
+                'code' => (string)$obRow['code'],
+                'name' => (string)$obRow['name'],
+                'own_start' => $own,
+                'effective' => $own !== '' ? $own : (dl_officialDataStart() ?? ''),
+            ];
+        }
+    } catch (\Throwable $e) {
+        write_log('daily-ledger settings: branch official start list failed', 'error', ['message' => $e->getMessage()]);
+    }
     echo dlRender('modules/daily-ledger/admin/settings.disyl', [
         'page_title' => 'Daily Ledger Settings',
         'user_name' => $userName,
@@ -17306,6 +17479,7 @@ function handleAdminSettings(array $params = []): void
         'current_page' => 'settings',
         'base_url' => dlGetBaseUrl(),
         'dl_token' => (string)kernelCookie(dlCookieName(), ''),
+        'branch_official_starts' => $officialBranchRows,
         'perm_supervisor_ledger_override' => in_array('ledger.override', $permissions['supervisor'] ?? [], true),
         'perm_supervisor_production_override' => in_array('production.override', $permissions['supervisor'] ?? [], true),
         'perm_supervisor_delivery_edit' => in_array('delivery.edit', $permissions['supervisor'] ?? [], true),
@@ -18335,9 +18509,9 @@ function handleAdminReconciliation(array $params = []): void
     if ($dateFrom === '') { $dateFrom = date('Y-m-d', strtotime('-13 days')); }
     if ($dateTo === '') { $dateTo = dl_businessDate(); }
     if ($dateFrom > $dateTo) { [$dateFrom, $dateTo] = [$dateTo, $dateFrom]; }
-    // Official data start is the floor for interpretation (owner 2026-11-20); reconciliation is a
-    // summary of the business, so it starts where the business officially starts.
-    $dateFrom = dl_officialClampFrom($dateFrom);
+    // Official data start is the floor for interpretation (owner 2026-11-20), per branch; reconciliation
+    // is a summary of the business, so it starts where the business officially starts.
+    $dateFrom = dl_clampFromForView($dateFrom, dl_adminViewBranchIds($user, $input), (int)($branchId ?? 0));
 
     // "Only what needs attention" — unchecked shifts and any shift whose entered figures
     // disagree with the ledger. A shift nothing was recorded for is NOT the same as a
@@ -18575,9 +18749,9 @@ function handleAdminVariances(array $params = []): void
     // both bounds, so bookmarks and the report deep-links keep behaving.
     [$dateFrom, $dateTo] = dl_varianceDateRange($input);
     // The variances screen is interpretation, so it starts where the business officially starts
-    // (owner 2026-11-20). Clamped here, not inside dl_varianceDateRange(), which stays a pure parser
-    // with its own contract tests.
-    $dateFrom = dl_officialClampFrom($dateFrom);
+    // (owner 2026-11-20), per branch. Clamped here, not inside dl_varianceDateRange(), which stays a
+    // pure parser with its own contract tests.
+    $dateFrom = dl_clampFromForView($dateFrom, dl_adminViewBranchIds($user, $input), (int)($input['branch_id'] ?? 0));
     $search   = trim((string)($input['q'] ?? ''));
     $viewMode = $input['view'] ?? ($isSupervisor ? 'grouped' : 'list');
 
@@ -24198,6 +24372,77 @@ function dl_applyBranchFlags(\Ikabud\Kernel\Contracts\ModuleDB $db, int $branchI
  * R7: single_shift_mode may only change BEFORE the branch's first ledger row for the current
  * business date. Flipping mid-day orphans the carry-forward chain (PM bal_end -> next AM beg_bal).
  */
+/**
+ * POST /daily-ledger/api/v1/admin/branches/official-start
+ *
+ * Set ONE branch's first official date, from the Official Data Start setting (owner 2026-11-20:
+ * "emit the specificity at the Official Data Start so admin can set by branch").
+ *
+ * Kept separate from apiUpdateBranch on purpose: that endpoint requires name/address and rewrites the
+ * whole branch record, which is far too much authority for changing a single date on a settings row.
+ * Here exactly one column moves, the value is validated as a real date or blank (= inherit), and the
+ * change is audited with before/after so "why is this branch's history shorter" is answerable.
+ */
+function apiSaveBranchOfficialStart(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) {
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => 'Module context unavailable']);
+        return;
+    }
+    $user = dlCurrentUser(['admin']);
+    $db = $ctx->db();
+    $input = $ctx->input();
+
+    $branchId = (int)($input['branch_id'] ?? 0);
+    if ($branchId <= 0) {
+        $ctx->json(['ok' => false, 'error' => 'branch_id is required.'], 422);
+        return;
+    }
+    if (!array_key_exists('official_data_start', $input)) {
+        $ctx->json(['ok' => false, 'error' => 'official_data_start is required (blank to inherit).'], 422);
+        return;
+    }
+    $raw = trim((string)($input['official_data_start'] ?? ''));
+    if ($raw !== '' && !dl_isRealDate($raw)) {
+        $ctx->json([
+            'ok' => false,
+            'code' => 'OFFICIAL_START_INVALID',
+            'error' => 'Official data start must be a real date, or blank to inherit the site-wide one.',
+        ], 422);
+        return;
+    }
+
+    $stmt = $db->prepare('SELECT id, name, official_data_start FROM dl_branches WHERE id = :id LIMIT 1');
+    $stmt->execute([':id' => $branchId]);
+    $branch = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$branch) {
+        $ctx->json(['ok' => false, 'error' => 'Branch not found.'], 404);
+        return;
+    }
+
+    $before = $branch['official_data_start'];
+    $value = $raw === '' ? null : $raw;
+    $db->prepare('UPDATE dl_branches SET official_data_start = :v WHERE id = :id')
+        ->execute([':v' => $value, ':id' => $branchId]);
+
+    dl_auditLog('branch_official_start_changed', $branchId, 'dl_branches', (string)$branchId, [
+        'official_data_start' => $before,
+    ], [
+        'official_data_start' => $value,
+        'branch' => (string)$branch['name'],
+        'inherits_global' => $value === null ? dl_officialDataStart() : null,
+    ]);
+
+    $ctx->json([
+        'ok' => true,
+        'branch_id' => $branchId,
+        'official_data_start' => $value,
+        'effective' => dl_branchOfficialStart($branchId),
+    ]);
+}
+
 function apiUpdateBranchFlags(array $params = []): void
 {
     $ctx = module();
@@ -24421,6 +24666,19 @@ function apiUpdateBranch(array $params = []): void
         if ($priceGroupId !== null || array_key_exists('price_group_id', $input)) {
             $sets[] = 'price_group_id = :pg';
             $bind[':pg'] = $priceGroupId;
+        }
+        // Per-branch official data start (owner 2026-11-20): blank means INHERIT the global setting,
+        // which is the state every existing branch is in. A real date here wins in BOTH directions -
+        // it can be earlier than the global date (a branch that has been official longer) or later
+        // (one onboarded after the rest of the fleet).
+        if (array_key_exists('official_data_start', $input)) {
+            $ownStart = trim((string)($input['official_data_start'] ?? ''));
+            if ($ownStart !== '' && !dl_isRealDate($ownStart)) {
+                $ctx->json(['ok' => false, 'error' => 'Official data start must be a real date, or blank to inherit.'], 422);
+                return;
+            }
+            $sets[] = 'official_data_start = :official_start';
+            $bind[':official_start'] = $ownStart === '' ? null : $ownStart;
         }
         // All operating switches were applied above by dl_applyBranchFlags().
         $ctx->db()->prepare('UPDATE dl_branches SET ' . implode(', ', $sets) . ' WHERE id = :id')->execute($bind);

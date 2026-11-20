@@ -131,6 +131,50 @@
             <p class="mt-2 text-sm text-gray-500">Set this when an earlier month was a testing/training period. Records before this date stay stored, readable and audited, but are excluded from accountability views: the unreviewed variance queue, the lifetime totals, and beginning carry suggestions. Leave empty for no boundary (everything counts).</p>
         </div>
     </div>
+    <div class="card-body border-top" style="border-top:1px solid rgb(203 213 225);">
+        <h3 class="text-sm font-semibold text-gray-900 mb-1">Per branch</h3>
+        <p class="text-sm text-gray-500 mb-3">
+            A branch that went live on a different day sets its own date here and overrides the site-wide
+            one &mdash; earlier <em>or</em> later. Blank means it follows the site-wide date above.
+        </p>
+        <div id="branch-official-status" class="hidden mb-3 rounded-lg px-4 py-3 text-sm" role="status" aria-live="polite"></div>
+        {if branch_official_starts | length == 0}
+        <p class="text-sm text-gray-500">No active branches.</p>
+        {else}
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm" data-branch-official-table>
+                <thead>
+                    <tr class="text-left text-gray-500 border-b border-gray-200">
+                        <th class="py-2 pr-3">Branch</th>
+                        <th class="py-2 pr-3 whitespace-nowrap">Its own first official date</th>
+                        <th class="py-2 pr-3 whitespace-nowrap">Counts from</th>
+                        <th class="py-2 pr-3"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {foreach branch_official_starts as ob}
+                    <tr class="border-b border-gray-100" data-branch-row data-branch-id="{ob.id}">
+                        <td class="py-2 pr-3">
+                            <span class="font-medium text-gray-900">{ob.name}</span>
+                            <span class="text-xs text-gray-500 ml-2">{ob.code}</span>
+                        </td>
+                        <td class="py-2 pr-3">
+                            <input type="date" class="form-input sm:w-48" value="{ob.own_start}"
+                                   data-branch-official-start aria-label="First official date for {ob.name}">
+                        </td>
+                        <td class="py-2 pr-3 text-gray-600 whitespace-nowrap" data-branch-effective>
+                            {if ob.effective}{ob.effective}{else}<span class="text-gray-400">no boundary</span>{/if}
+                        </td>
+                        <td class="py-2 pr-3">
+                            <button type="button" class="btn btn-primary btn-sm" data-branch-save>Save</button>
+                        </td>
+                    </tr>
+                    {/foreach}
+                </tbody>
+            </table>
+        </div>
+        {/if}
+    </div>
 </div>
 
 <div class="card mb-6">
@@ -1483,5 +1527,54 @@
         updateBrandAssetPreview('logo', (document.getElementById('logo-url') || {}).value || '');
         updateBrandAssetPreview('favicon', (document.getElementById('favicon-url') || {}).value || '');
     });
+
+    // ─── Per-branch official data start ────────────────────────────────────────────────────
+    // One row, one Save. A date change here silently redefines what a branch counts as official, so it
+    // is a deliberate per-branch action with its own confirmation rather than a bulk sweep - and the
+    // server audits who moved it and from what.
+    (function () {
+        var status = document.getElementById('branch-official-status');
+        function say(kind, message) {
+            if (!status) return;
+            status.className = 'mb-3 rounded-lg px-4 py-3 text-sm ' + (kind === 'ok'
+                ? 'border border-emerald-200 bg-emerald-50 text-emerald-900'
+                : 'border border-red-200 bg-red-50 text-red-900');
+            status.textContent = message;
+            status.classList.remove('hidden');
+        }
+        document.querySelectorAll('[data-branch-save]').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var row = btn.closest('[data-branch-row]');
+                if (!row) return;
+                var id = row.getAttribute('data-branch-id');
+                var input = row.querySelector('[data-branch-official-start]');
+                btn.disabled = true;
+                fetch('{base_url}/api/v1/admin/branches/official-start', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'Authorization': window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : ''
+                    },
+                    body: JSON.stringify({ branch_id: parseInt(id, 10), official_data_start: input.value || '' })
+                })
+                .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
+                .then(function (res) {
+                    btn.disabled = false;
+                    if (res.ok && res.body && res.body.ok) {
+                        var eff = row.querySelector('[data-branch-effective]');
+                        if (eff) eff.textContent = res.body.effective || 'no boundary';
+                        say('ok', 'Saved. This branch counts from ' + (res.body.effective || 'no boundary') + '.');
+                        return;
+                    }
+                    say('error', (res.body && res.body.error) || 'Could not save the branch date.');
+                })
+                .catch(function () {
+                    btn.disabled = false;
+                    say('error', 'Could not reach the server. The branch date was not saved.');
+                });
+            });
+        });
+    })();
 </script>
 {/block}

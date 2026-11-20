@@ -174,6 +174,7 @@ return [
         '/daily-ledger/api/v1/admin/branches'            => 'daily-ledger:apiCreateBranch',
         '/daily-ledger/api/v1/admin/branches/update'     => 'daily-ledger:apiUpdateBranch',
         '/daily-ledger/api/v1/admin/branches/flags'      => 'daily-ledger:apiUpdateBranchFlags',
+        '/daily-ledger/api/v1/admin/branches/official-start' => 'daily-ledger:apiSaveBranchOfficialStart',
         '/daily-ledger/api/v1/admin/areas'               => 'daily-ledger:apiCreateArea',
         '/daily-ledger/api/v1/admin/areas/update'        => 'daily-ledger:apiUpdateArea',
         '/daily-ledger/api/v1/admin/consignees'          => 'daily-ledger:apiSaveConsignee',
