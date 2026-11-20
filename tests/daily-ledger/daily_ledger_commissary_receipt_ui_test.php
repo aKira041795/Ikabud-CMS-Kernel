@@ -157,7 +157,7 @@ $h->test(
 );
 $h->test(
     'the picker is filtered when the hub changes',
-    str_contains($tpl, 'onchange="filterReceiptProducts()"')
+    str_contains($tpl, 'onchange="filterReceiptProducts(); buildReceiptSources()"')
         && str_contains($tpl, 'function filterReceiptProducts()'),
     'a form that offers products the API refuses exists only to produce an error message'
 );
@@ -274,6 +274,129 @@ $h->test(
     'the output picker is the hub-scoped product list, so both sides are hub-valid',
     str_contains($tpl, 'id="rework-output-product"') && str_contains($tpl, 'data-hubs=",{p.hub_ids | join:\',\'},"'),
     'reworking into a product the hub does not carry is refused by the API'
+);
+
+// ── FUSED PULLOUT → RETURN ───────────────────────────────────────────────────────────────────
+// Owner direction 2026-11-21: "fuse record pullout and record return (pullout) contextually".
+// A branch pullout ALREADY creates a delivery addressed to the hub, so the hub should confirm that
+// document rather than retype it. Measured the same day: 613 such deliveries (55,785 units) to hubs
+// 18 and 21, and ZERO in the returns pile — the retyping is why.
+$h->test(
+    'the return panel asks what is being recorded, instead of assuming it must be typed',
+    str_contains($tpl, 'id="receipt-source"') && str_contains($tpl, 'onchange="applyReceiptSource()"'),
+    'without a source selector the branch document and a retyped copy are indistinguishable'
+);
+$h->test(
+    'the typed fields are separable from the pullout block, so the two do not compete',
+    str_contains($tpl, 'id="receipt-manual-fields"') && str_contains($tpl, 'id="receipt-pullout-block"'),
+    'both blocks visible at once is the overlap this fusion removes'
+);
+$h->test(
+    'a recorded branch pullout is the DEFAULT source, not the fallback',
+    str_contains($tpl, "sel.value = firstAllowed !== null ? firstAllowed : 'manual';")
+        && str_contains($tpl, "<option value=\"manual\" data-hub=\"\" data-lines=\"\">Type it in"),
+    'defaulting to the typed form is what left 613 pullouts unconfirmed'
+);
+$h->test(
+    'the pullout options are scoped to the selected hub',
+    str_contains($tpl, 'var allowed = (optHub === hubId);')
+        && str_contains($tpl, 'data-hub="{ip.destination_id}"')
+        && str_contains($handlers, "'destination_id' => (int)\$h['destination_id'],"),
+    "another hub's pullout is not this hub's to confirm"
+);
+$h->test(
+    'the pullout list is rendered by DiSyL, not assembled from JSON inside a script block',
+    !str_contains($tpl, '{json_encode(inbound_pullouts)}')
+        && str_contains($tpl, '{foreach inbound_pullouts as ip}'),
+    'a DiSyL tag inside a script block is emitted literally and silently yields an empty picker'
+);
+$h->test(
+    'choosing a pullout submits its delivery id and sends no product, quantity or reference',
+    str_contains($tpl, 'payload.delivery_id = deliveryId;')
+        && str_contains($tpl, 'delete payload.product_id;')
+        && str_contains($tpl, 'delete payload.quantity;')
+        && str_contains($tpl, 'delete payload.reference;'),
+    'sending a typed product alongside a delivery id would let the two disagree'
+);
+$h->test(
+    'the handler refuses a pullout addressed to a different commissary',
+    str_contains($handlers, "(int)\$head['destination_id'] !== \$hubId")
+        && str_contains($handlers, "'That pullout was sent to a different commissary.'"),
+    'a refusal that names the reason beats a silently wrong pile'
+);
+$h->test(
+    'confirming a pullout writes to the returns pile and never to the ledger',
+    str_contains($handlers, 'function dl_recordInboundPulloutReturn')
+        && str_contains($handlers, 'INSERT INTO dl_commissary_returned_items')
+        && !str_contains($handlers, 'dl_applyCommissaryProductLedgerDelta($user, $hubId, $pid'),
+    'owner rule: a returned item is not stock — rework is the only thing that creates stock'
+);
+$h->test(
+    'confirming the same pullout twice adds nothing',
+    str_contains($handlers, 'WHERE delivery_id = :d AND product_id = :p')
+        && str_contains($handlers, "'duplicate' => \$written === 0 && \$already > 0"),
+    'a double click must not double the rework pile'
+);
+$h->test(
+    'hubs already confirmed pullouts are excluded in SQL, so the limit counts outstanding work',
+    str_contains($handlers, 'd.id NOT IN (SELECT delivery_id FROM dl_commissary_returned_items WHERE delivery_id IS NOT NULL)'),
+    'filtering after the LIMIT lets finished work eat the quota and starve a hub'
+);
+$h->test(
+    'the inbound pullout query runs per hub, not once with a global limit',
+    str_contains($handlers, 'foreach ($availableCommissaryIds as $hubForPullouts)')
+        && str_contains($handlers, 'AND d.destination_id = :hub'),
+    'measured 2026-11-21: the 40 most recent pullouts were all one hub, so the other hub saw none'
+);
+
+$h->section('One pullout button, not two');
+
+/*
+ * Owner 2026-11-21: "we have two button for pullout".
+ *
+ * The page carried two ways to record stock arriving at the hub FROM a branch, and they disagreed
+ * about what the arrival is. "Record pull-out" posted withdrawal_type=pullout with a target hub,
+ * which reaches dl_persistPulloutReturnToCommissary and credits the hub's stock ledger -- 2,180
+ * such rows carrying 35,045 units were credited as saleable. The returns panel parks the same
+ * arrival as awaiting-rework stock that the PIC must identify first.
+ *
+ * The owner's rule ("a returned product does not add to the qty of stocks") makes the returns panel
+ * correct, so the pullout type is gone from the commissary entry modal. These assertions exist
+ * because the cost of re-adding it is silent: the button comes back, somebody uses the familiar one,
+ * and returned goods quietly become dispatchable stock again.
+ */
+$h->test(
+    'the commissary entry modal no longer offers a pullout type',
+    !preg_match('/<option value="pullout">\s*Pull-out\s*<\/option>/', $tpl),
+    'pullout credits the hub stock ledger through dl_persistPulloutReturnToCommissary; returns must not'
+);
+$h->test(
+    'the branch/consignee source selector is gone with the pullout type',
+    !str_contains($tpl, 'id="commissary-entry-source"')
+        && !str_contains($tpl, 'id="commissary-entry-source-wrap"'),
+    'it only ever applied to a pullout, and its consignee half carried 0 rows across all history'
+);
+$h->test(
+    'no button is labelled "Record pull-out" any more',
+    !preg_match('/>\s*Record pull-out\s*</i', $tpl),
+    'a button whose label promises a pullout it can no longer record is the trap, not the fix'
+);
+$h->test(
+    'exactly one control records a hub-side pullout',
+    substr_count($tpl, 'onclick="openReceiptEntry()"') === 1,
+    'two entry points for one event is how the two stock models coexisted'
+);
+$h->test(
+    'the surviving pullout control is the returns panel, and it is gated on the delivery permission',
+    preg_match('/id="receive-stock-btn"[^>]*onclick="openReceiptEntry\(\)"/', $tpl) === 1
+        && preg_match('/\{if can_create_commissary_delivery\}<button[^>]*id="receive-stock-btn"/', $tpl) === 1,
+    'an ungated entry point writes a permission-refused POST and reads as a broken page'
+);
+$h->test(
+    'charges and damaged-to-rework keep their own entry, so consolidation loses no capability',
+    str_contains($tpl, '<option value="charge">Charges</option>')
+        && str_contains($tpl, '<option value="other">Other &mdash; damaged product to be reworked</option>'),
+    'charge carried 4,032 rows; removing it with the pullout type would delete a live path'
 );
 
 $h->done();

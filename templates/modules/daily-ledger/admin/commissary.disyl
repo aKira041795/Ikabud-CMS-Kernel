@@ -2119,7 +2119,19 @@
                 {if shift_status != 'finalized'}<button type="button" class="btn btn-primary btn-sm" onclick="openProductionAdditionModal()">Record Addition</button>{/if}
                 {* `btn-secondary` is NOT defined in this template - the button rendered with no colour.
                    `btn-accent` is the file's own token for a secondary action (see the style block). *}
-                {if shift_status != 'finalized'}<button type="button" class="btn btn-accent btn-sm" onclick="openCommissaryEntryModal()">Record pull-out</button>{/if}
+                {* Owner 2026-11-21: "we have two button for pullout". It did. "Record pull-out" here and
+                   "Record Return (Pullout)" beside New Delivery both recorded stock arriving at the hub
+                   FROM a branch, and they disagreed about what that arrival IS: this one credited the
+                   hub's stock ledger through dl_persistPulloutReturnToCommissary, while the returns panel
+                   parks it as awaiting-rework stock the PIC must identify first. The owner's rule -- a
+                   returned product does not add to the qty of stocks -- makes the returns panel the
+                   correct one, so the pullout type is gone from this modal. The two entries left are
+                   NOT pullouts and keep their own button: Charges (4,032 rows) and Other (damaged
+                   product to be reworked, which writes the loss off at the branch and adds nothing at
+                   the hub, so it already matches the rule). Renamed because a button called "Record
+                   pull-out" that can no longer record a pullout is the kind of label the owner has
+                   called out before. *}
+                {if shift_status != 'finalized'}<button type="button" class="btn btn-accent btn-sm" onclick="openCommissaryEntryModal()">Record Charges / Damaged</button>{/if}
                 {if shift == 'PM' && shift_status != 'finalized'}<button type="button" class="btn btn-accent btn-sm" id="finalize-production-pm" onclick="finalizeProductionPm()">Close PM Shift</button>{/if}
                 {if can_view_production_management && shift_status == 'finalized'}<button type="button" class="btn btn-accent btn-sm" onclick="reopenProductionShift()">Reopen Shift</button>{/if}
                 {if can_close_day && day_status != 'closed'}<button type="button" class="btn btn-accent btn-sm" id="production-close-day" onclick="closeProductionDay()">Close Day</button>{/if}
@@ -2507,43 +2519,24 @@
          mechanism is inert. It can return if yield profiles are ever configured. -->
     {* Owner 2026-11-18: "ang mga commissary pabutangan ug pull-out, charges ... ug other, kanang
        other para na sa mga product nga na damage nga ila himuon ug laing product. kana lng 3."
-       Exactly three types, mirroring the cashier modal rather than inventing a second interaction.
-       "Other" carries a written reason because the type name alone says nothing reviewable. *}
+       "Other" carries a written reason because the type name alone says nothing reviewable.
+       Owner 2026-11-21 removed the third type: pullout here was a SECOND button for the event the
+       returns panel already owns, and the two disagreed about whether the arrival is stock. The
+       modal keeps Charges and Other. *}
     <div id="commissary-entry-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 p-4 print-hidden" role="dialog" aria-modal="true" aria-labelledby="commissary-entry-title">
         <div class="card w-full max-w-lg">
-            <div class="card-header"><span id="commissary-entry-title">Pull-out / Charges / Other &mdash; {date}</span></div>
+            <div class="card-header"><span id="commissary-entry-title">Charges / Other &mdash; {date}</span></div>
             <div class="card-body pb-2">
                 <div class="form-group">
                     <label class="form-label">Type <span class="text-rose-500">*</span></label>
                     <select id="commissary-entry-type" class="form-input" onchange="syncCommissaryEntryFields()">
-                        <option value="pullout">Pull-out</option>
                         <option value="charge">Charges</option>
                         <option value="other">Other &mdash; damaged product to be reworked</option>
                     </select>
                 </div>
-                {* Owner 2026-11-18: "still need the branch or consignee the pullout is set from".
-                   A consignee is not a branch (dl_consignees is its own table), so the value carries
-                   its kind: branch:<id> -> target_branch_id, consignee:<id> -> target_consignee_id. *}
-                <div class="form-group" id="commissary-entry-source-wrap">
-                    <label class="form-label">Pull-out from <span class="text-rose-500">*</span></label>
-                    <select id="commissary-entry-source" class="form-input">
-                        <option value="">-- Select branch or consignee --</option>
-                        {if (dispatch_branches | count) > 0}
-                        <optgroup label="Branches">
-                            {foreach dispatch_branches as option}
-                            <option value="branch:{option.id}">{option.name}</option>
-                            {/foreach}
-                        </optgroup>
-                        {/if}
-                        {if (pullout_consignees | count) > 0}
-                        <optgroup label="Consignees">
-                            {foreach pullout_consignees as option}
-                            <option value="consignee:{option.id}">{option.name}{if option.code} ({option.code}){/if}</option>
-                            {/foreach}
-                        </optgroup>
-                        {/if}
-                    </select>
-                </div>
+                {* The branch/consignee source selector was removed with the pullout type (owner
+                   2026-11-21). It only ever applied to a pullout, and the consignee half carried 0
+                   rows across the whole history -- the returns panel owns pullouts now. *}
                 <div class="form-group">
                     <label class="form-label">Product <span class="text-rose-500">*</span></label>
                     <select id="commissary-entry-product" class="form-input"></select>
@@ -3037,7 +3030,7 @@
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
                 <label for="receipt-hub" class="block text-xs font-semibold text-gray-700 mb-1">Commissary <span class="text-rose-600">*</span></label>
-                <select id="receipt-hub" class="form-input" onchange="filterReceiptProducts()">
+                <select id="receipt-hub" class="form-input" onchange="filterReceiptProducts(); buildReceiptSources()">
                     {foreach commissaries as c}
                     <option value="{c.id}"{if c.id == commissary_id} selected{/if}>{c.name}</option>
                     {/foreach}
@@ -3050,6 +3043,33 @@
                     <option value="PM"{if shift == 'PM'} selected{/if}>PM &mdash; afternoon</option>
                 </select>
             </div>
+            <div class="sm:col-span-2">
+                <label for="receipt-source" class="block text-xs font-semibold text-gray-700 mb-1">What are you recording? <span class="text-rose-600">*</span></label>
+                <select id="receipt-source" class="form-input" onchange="applyReceiptSource()">
+                    {foreach inbound_pullouts as ip}
+                    <option value="pullout:{ip.delivery_id}" data-hub="{ip.destination_id}" data-lines="receipt-pl-{ip.delivery_id}">{ip.dr_number} &mdash; {ip.origin_name} ({ip.units} unit(s), {ip.delivery_date})</option>
+                    {/foreach}
+                    <option value="manual" data-hub="" data-lines="">Type it in &mdash; no pullout was recorded for this return</option>
+                </select>
+                <p id="receipt-source-hint" class="mt-1 text-[11px] text-gray-500"></p>
+            </div>
+            <div class="sm:col-span-2" id="receipt-pullout-block" style="display: none;">
+                {foreach inbound_pullouts as ip}
+                <div class="receipt-pullout-detail" id="receipt-pl-{ip.delivery_id}" data-hub="{ip.destination_id}" style="display: none;">
+                    <div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                        <div class="text-xs text-slate-600">{ip.dr_number} from {ip.origin_name} on {ip.delivery_date} &mdash; {ip.units} unit(s) in total.</div>
+                        <ul class="mt-2 text-sm text-slate-800 list-disc pl-5">
+                            {foreach ip.lines as ln}
+                            <li>{ln.product_name} &mdash; {ln.quantity}</li>
+                            {/foreach}
+                        </ul>
+                    </div>
+                </div>
+                {/foreach}
+                <p class="mt-1 text-[11px] text-gray-500">These are the products and quantities the branch put on that pullout. Nothing is retyped and nothing here is editable.</p>
+            </div>
+        </div>
+        <div id="receipt-manual-fields" class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
             <div class="sm:col-span-2">
                 <label for="receipt-product" class="block text-xs font-semibold text-gray-700 mb-1">Product <span class="text-rose-600">*</span></label>
                 <select id="receipt-product" class="form-input">
@@ -3342,8 +3362,6 @@
         });
         var qty = document.getElementById('commissary-entry-qty');
         if (qty) qty.value = '1';
-        var source = document.getElementById('commissary-entry-source');
-        if (source) source.value = '';
         var reason = document.getElementById('commissary-entry-reason');
         if (reason) reason.value = '';
         var status = document.getElementById('commissary-entry-status');
@@ -3364,9 +3382,6 @@
         var typeEl = document.getElementById('commissary-entry-type');
         var wrap = document.getElementById('commissary-entry-reason-wrap');
         if (typeEl && wrap) wrap.classList.toggle('hidden', typeEl.value !== 'other');
-        // A pull-out is the only type that has a source: it is stock set FROM a branch or consignee.
-        var sourceWrap = document.getElementById('commissary-entry-source-wrap');
-        if (typeEl && sourceWrap) sourceWrap.classList.toggle('hidden', typeEl.value !== 'pullout');
     }
 
     function submitCommissaryEntry() {
@@ -3381,12 +3396,6 @@
         var pid = parseInt(productEl.value || '0', 10) || 0;
         var qty = parseInt(qtyEl.value || '0', 10);
         var reason = reasonEl ? reasonEl.value.trim() : '';
-        var sourceEl = document.getElementById('commissary-entry-source');
-        var sourceValue = sourceEl ? sourceEl.value : '';
-        if (type === 'pullout' && !sourceValue) {
-            if (status) status.textContent = 'Select the branch or consignee the pull-out is set from.';
-            return;
-        }
         if (!pid) { if (status) status.textContent = 'Select a product.'; return; }
         if (!qty || qty < 1) { if (status) status.textContent = 'Quantity must be at least 1.'; return; }
         // "Other" means damaged stock being reworked; without the words nobody can review it later.
@@ -3410,15 +3419,9 @@
 
             lines: [{ product_id: pid, quantity: qty }]
         };
-        if (type === 'pullout' && sourceValue) {
-            var parts = sourceValue.split(':');
-            var sourceId = parseInt(parts[1] || '0', 10) || 0;
-            if (parts[0] === 'branch') payload.header.target_branch_id = sourceId;
-            else if (parts[0] === 'consignee') payload.header.target_consignee_id = sourceId;
-        }
         productionJson('{base_url}/api/v1/cashier/ledger/withdrawals', payload).then(function () {
             closeCommissaryEntryModal();
-            showToast(type === 'other' ? 'Other entry recorded' : (type === 'charge' ? 'Charges recorded' : 'Pull-out recorded'), 'success');
+            showToast(type === 'other' ? 'Other entry recorded' : 'Charges recorded', 'success');
             setTimeout(function() { window.refreshMainContent(); }, 500);
         }).catch(function (error) {
             if (status) status.textContent = error.message || 'Save failed';
@@ -4251,8 +4254,61 @@
         if (backdrop) { backdrop.style.display = 'block'; }
         setReceiptStatus('', '');
         filterReceiptProducts();
+        // Fused flow: if a branch has already recorded a pullout for this hub, that IS the return.
+        // Offering the typed form first is what produced 613 pullouts nobody confirmed.
+        buildReceiptSources();
         var qty = document.getElementById('receipt-qty');
         if (qty) { qty.focus(); }
+    }
+
+    // The pullouts recorded by the branches, scoped to the hub chosen in this panel. A pullout the
+    // hub already confirmed is not rendered at all (the handler drops it), because re-confirming
+    // finished work is a no-op that reads like a failure.
+    function buildReceiptSources() {
+        var hub = document.getElementById('receipt-hub');
+        var sel = document.getElementById('receipt-source');
+        if (!hub || !sel) { return; }
+        var hubId = String(parseInt(hub.value, 10) || 0);
+        var firstAllowed = null;
+        for (var i = 0; i < sel.options.length; i++) {
+            var opt = sel.options[i];
+            var optHub = opt.getAttribute('data-hub');
+            if (!optHub) { continue; }                     // the manual option always stays
+            var allowed = (optHub === hubId);
+            opt.hidden = !allowed;
+            opt.disabled = !allowed;
+            if (allowed && firstAllowed === null) { firstAllowed = opt.value; }
+        }
+        // A waiting branch pullout is the default, because it is the documented one. The typed
+        // form is the fallback, not the other way round.
+        var current = sel.value;
+        var currentOption = sel.querySelector('option[value="' + current + '"]');
+        if (!currentOption || currentOption.disabled) {
+            sel.value = firstAllowed !== null ? firstAllowed : 'manual';
+        }
+        applyReceiptSource();
+    }
+
+    function applyReceiptSource() {
+        var sel = document.getElementById('receipt-source');
+        var manualBox = document.getElementById('receipt-manual-fields');
+        var pulloutBox = document.getElementById('receipt-pullout-block');
+        var hint = document.getElementById('receipt-source-hint');
+        if (!sel) { return; }
+        var opt = sel.options[sel.selectedIndex] || null;
+        var isPullout = opt ? String(opt.value).indexOf('pullout:') === 0 : false;
+        if (manualBox) { manualBox.style.display = isPullout ? 'none' : ''; }
+        if (pulloutBox) { pulloutBox.style.display = isPullout ? '' : 'none'; }
+        if (hint) {
+            hint.textContent = isPullout
+                ? 'Confirming the pullout the branch already recorded. Its products and quantities are used as they were sent.'
+                : 'Use this only when the return did not arrive as a recorded pullout.';
+        }
+        var wanted = isPullout && opt ? String(opt.getAttribute('data-lines') || '') : '';
+        var details = document.querySelectorAll('.receipt-pullout-detail');
+        for (var i = 0; i < details.length; i++) {
+            details[i].style.display = (wanted && details[i].id === wanted) ? '' : 'none';
+        }
     }
 
     function closeReceiptEntry() {
@@ -4292,6 +4348,7 @@
 
     function submitReceiptEntry() {
         var hub = document.getElementById('receipt-hub');
+        var source = document.getElementById('receipt-source');
         var product = document.getElementById('receipt-product');
         var date = document.getElementById('receipt-date');
         var shift = document.getElementById('receipt-shift');
@@ -4300,6 +4357,10 @@
         var supplier = document.getElementById('receipt-supplier');
         var remarks = document.getElementById('receipt-remarks');
         var button = document.getElementById('receipt-submit');
+
+        var sourceValue = source ? String(source.value || 'manual') : 'manual';
+        var isPullout = sourceValue.indexOf('pullout:') === 0;
+        var deliveryId = isPullout ? (parseInt(sourceValue.split(':')[1], 10) || 0) : 0;
 
         var payload = {
             commissary_branch_id: hub ? parseInt(hub.value, 10) || 0 : 0,
@@ -4316,17 +4377,28 @@
         // "Required: hub, product, ..." and makes the operator re-read their own form.
         var problems = [];
         if (!payload.commissary_branch_id) { problems.push('commissary'); }
-        if (!payload.product_id) { problems.push('product'); }
-        if (!payload.date) { problems.push('business date'); }
-        if (!(payload.quantity > 0)) { problems.push('a quantity above zero'); }
-        if (!payload.reference) { problems.push('the supplier document reference'); }
+        if (isPullout) {
+            // The pullout carries its own products, quantities and document number, so none of
+            // them are the operator's to supply.
+            if (!deliveryId) { problems.push('a recorded pullout'); }
+            payload.delivery_id = deliveryId;
+            delete payload.product_id;
+            delete payload.quantity;
+            delete payload.reference;
+            delete payload.supplier;
+        } else {
+            if (!payload.product_id) { problems.push('product'); }
+            if (!payload.date) { problems.push('business date'); }
+            if (!(payload.quantity > 0)) { problems.push('a quantity above zero'); }
+            if (!payload.reference) { problems.push('the supplier document reference'); }
+        }
         if (problems.length) {
             setReceiptStatus('Still needed: ' + problems.join(', ') + '.', 'error');
             return;
         }
 
         // Stable per attempt, so a double click or a retried request cannot book the stock twice.
-        payload.idempotency_key = 'receipt-' + payload.commissary_branch_id + '-' + payload.date + '-'
+        payload.idempotency_key = 'receipt-' + payload.commissary_branch_id + '-' + (isPullout ? ('d' + deliveryId) : payload.date) + '-'
             + (window.crypto && window.crypto.randomUUID ? window.crypto.randomUUID()
                : String(Date.now()) + '-' + Math.random().toString(36).slice(2));
 
@@ -4358,8 +4430,12 @@
             }
             setReceiptStatus(data.duplicate
                 ? 'This return was already recorded — nothing was counted twice.'
-                : ('Recorded ' + payload.quantity + ' unit(s). On hand now: '
-                   + (data.on_hand === undefined || data.on_hand === null ? '—' : data.on_hand) + '.'), 'ok');
+                : (isPullout
+                   ? ('Confirmed ' + (data.items_recorded || 0) + ' product(s), '
+                      + (data.units_recorded || 0) + ' unit(s) from ' + (data.dr_number || 'the pullout')
+                      + '. They are waiting in the rework pile — not stock until reworked.')
+                   : ('Recorded ' + payload.quantity + ' unit(s). On hand now: '
+                      + (data.on_hand === undefined || data.on_hand === null ? '—' : data.on_hand) + '.')), 'ok');
             if (typeof window.showToast === 'function') {
                 window.showToast(data.duplicate ? 'Already recorded' : 'Return recorded', 'success');
             }

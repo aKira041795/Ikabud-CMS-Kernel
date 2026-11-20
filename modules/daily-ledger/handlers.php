@@ -6356,6 +6356,21 @@ function dl_recordCommissaryReceipt(array $user, array $input): array
     $remarks = trim((string)($input['remarks'] ?? ''));
     $clientOpId = trim((string)($input['idempotency_key'] ?? ''));
 
+    // ── FUSED PATH: the branch already recorded the pullout ──────────────────────────────────
+    // Owner direction 2026-11-21: "fuse record pullout and record return (pullout) contextually".
+    // A cashier recording a pullout already creates a delivery addressed TO this hub, and the hub
+    // was then asked to retype the same products and quantities into a separate form — so it never
+    // happened: measured the same day, 613 inbound pullout deliveries existed to hubs 18 and 21
+    // carrying 55,785 units, and ZERO were in the returns inventory.
+    //
+    // So when the caller names an inbound pullout delivery, this records ITS items. Nothing is
+    // retyped, the products and quantities are the ones the sending branch actually put on the
+    // document, and the two halves of one event can no longer disagree.
+    $inboundDeliveryId = (int)($input['delivery_id'] ?? 0);
+    if ($inboundDeliveryId > 0 && $hubId > 0) {
+        return dl_recordInboundPulloutReturn($user, $hubId, $inboundDeliveryId, $clientOpId);
+    }
+
     $missing = [];
     if ($hubId <= 0) { $missing[] = 'hub'; }
     if ($productId <= 0) { $missing[] = 'product'; }
@@ -6723,6 +6738,129 @@ function apiReworkReturnedItems(array $params = []): void
         $code = (int)$e->getCode();
         $ctx->json(['ok' => false, 'error' => $e->getMessage()], in_array($code, [403, 422], true) ? $code : 422);
     }
+}
+
+/**
+ * Record the items of an INBOUND PULLOUT DELIVERY into the rework inventory.
+ *
+ * The fused half of the return flow. A branch pullout already creates a delivery addressed to this
+ * hub; asking the hub to retype it produced 613 unreceived pullouts carrying 55,785 units. This
+ * reads the delivery's own items instead, so the hub's holding inventory is exactly what the
+ * sending branch documented.
+ *
+ * It records NOTHING as stock — the units stay in dl_commissary_returned_items until a PIC reworks
+ * them (owner rule 2026-11-21). Idempotent on (delivery_id, product_id): re-confirming the same
+ * delivery adds nothing.
+ *
+ * @return array<string,mixed>
+ */
+function dl_recordInboundPulloutReturn(array $user, int $hubId, int $deliveryId, string $clientOpId = ''): array
+{
+    $ctx = module();
+    if (!$ctx) {
+        throw new RuntimeException('Module context unavailable.');
+    }
+    $db = $ctx->db();
+
+    $headStmt = $db->prepare(
+        'SELECT d.id, d.dr_number, d.delivery_date, d.status, d.origin_id, d.destination_id, b.name AS origin_name
+           FROM dl_deliveries d
+           LEFT JOIN dl_branches b ON b.id = d.origin_id
+          WHERE d.id = :id LIMIT 1'
+    );
+    $headStmt->execute([':id' => $deliveryId]);
+    $head = $headStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    if ($head === null) {
+        throw new RuntimeException('That pullout delivery was not found.', 422);
+    }
+    if ((int)$head['destination_id'] !== $hubId) {
+        throw new RuntimeException('That pullout was sent to a different commissary.', 422);
+    }
+    if ((string)$head['status'] !== 'posted') {
+        throw new RuntimeException('Only a posted pullout can be confirmed at the commissary.', 422);
+    }
+
+    $itemStmt = $db->prepare('SELECT product_id, quantity FROM dl_delivery_items WHERE delivery_id = :id ORDER BY id');
+    $itemStmt->execute([':id' => $deliveryId]);
+    $items = $itemStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    if ($items === []) {
+        throw new RuntimeException('That pullout delivery has no products on it.', 422);
+    }
+
+    $existsStmt = $db->prepare(
+        'SELECT id FROM dl_commissary_returned_items WHERE delivery_id = :d AND product_id = :p LIMIT 1'
+    );
+    $insert = $db->prepare(
+        'INSERT INTO dl_commissary_returned_items
+            (commissary_branch_id, branch_id, product_id, ledger_date, shift, quantity,
+             delivery_id, reference, client_op_id, status, remarks, created_by)
+         VALUES (:hub, :branch, :pid, :d, NULL, :qty, :delivery, :ref, :coid, "awaiting_rework", :remarks, :uid)'
+    );
+
+    $actorId = dl_getActorUserId($user);
+    $reference = (string)($head['dr_number'] ?? ('PULLOUT-' . $deliveryId));
+    $written = 0;
+    $already = 0;
+    $units = 0;
+    $ownsTxn = !$db->inTransaction();
+    if ($ownsTxn) { $db->beginTransaction(); }
+    try {
+        foreach ($items as $item) {
+            $pid = (int)$item['product_id'];
+            $qty = (int)$item['quantity'];
+            if ($pid <= 0 || $qty <= 0) { continue; }
+            $existsStmt->execute([':d' => $deliveryId, ':p' => $pid]);
+            if ($existsStmt->fetchColumn() !== false) { $already++; continue; }
+            $insert->execute([
+                ':hub' => $hubId,
+                ':branch' => (int)$head['origin_id'],
+                ':pid' => $pid,
+                ':d' => (string)$head['delivery_date'],
+                ':qty' => $qty,
+                ':delivery' => $deliveryId,
+                ':ref' => $reference,
+                ':coid' => $clientOpId !== '' ? ($clientOpId . '-' . $pid) : null,
+                ':remarks' => 'Confirmed from ' . (string)($head['origin_name'] ?? 'branch') . ' pullout',
+                ':uid' => $actorId > 0 ? $actorId : null,
+            ]);
+            $written++;
+            $units += $qty;
+        }
+        dl_auditLog(
+            'commissary_pullout_return_confirmed',
+            $hubId,
+            'dl_commissary_returned_items',
+            (string)$deliveryId,
+            null,
+            [
+                'delivery_id' => $deliveryId,
+                'dr_number' => $reference,
+                'origin_branch_id' => (int)$head['origin_id'],
+                'items_recorded' => $written,
+                'items_already_recorded' => $already,
+                'units' => $units,
+                'note' => 'Confirmed from the branch pullout; held awaiting rework, not stock.',
+            ]
+        );
+        if ($ownsTxn) { $db->commit(); }
+    } catch (Throwable $e) {
+        if ($ownsTxn && $db->inTransaction()) { $db->rollBack(); }
+        throw $e;
+    }
+
+    return [
+        'ok' => true,
+        'delivery_id' => $deliveryId,
+        'dr_number' => $reference,
+        'origin_branch' => (string)($head['origin_name'] ?? ''),
+        'items_recorded' => $written,
+        'items_already_recorded' => $already,
+        'units_recorded' => $units,
+        'duplicate' => $written === 0 && $already > 0,
+        'status' => 'awaiting_rework',
+        'note' => 'Recorded from the branch pullout as returned items awaiting rework. These units '
+            . 'are NOT available stock; they become stock only when reworked.',
+    ];
 }
 
 function dl_changeProductionLedgerField(array $user, array $input): array
@@ -27996,12 +28134,78 @@ function handleAdminCommissary(): void
         $namesById = [];
         foreach ($receiptProducts as $rp) { $namesById[(int)$rp['id']] = (string)$rp['name']; }
         foreach ($rwStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
-            $pid = (int)$row['product_id'];
+            $pid = (int)($row['product_id'] ?? 0);
             $reworkReturns[] = [
                 'branch_id' => (int)$row['commissary_branch_id'],
                 'product_id' => $pid,
                 'product_name' => $namesById[$pid] ?? ('#' . $pid),
                 'awaiting' => (int)$row['awaiting'],
+            ];
+        }
+    }
+
+    // ── Pullouts the branches have ALREADY recorded, waiting for this hub to confirm them ────
+    // Owner direction 2026-11-21: "fuse record pullout and record return (pullout) contextually".
+    // A branch pullout creates a delivery addressed to the hub; the hub was then asked to retype
+    // it. It did not: 613 such deliveries (55,785 units) existed and none were in the pile. These
+    // are offered so the PIC confirms what the branch documented instead of retyping it.
+    $inboundPullouts = [];
+    if ($availableCommissaryIds !== []) {
+        // One query PER HUB. A single global LIMIT silently starved the second hub: measured on
+        // 2026-11-21, the 40 most recent inbound pullouts were all hub 18's, so hub 21's picker
+        // rendered 40 options and not one of them was usable.
+        //
+        // Deliveries already confirmed are excluded in SQL (not after the fact) so the LIMIT counts
+        // outstanding work rather than being eaten by finished work.
+        $ipStmt = $db->prepare(
+            "SELECT d.id AS delivery_id, d.dr_number, d.delivery_date, d.destination_id, d.origin_id, b.name AS origin_name
+               FROM dl_deliveries d
+               INNER JOIN dl_branches b ON b.id = d.origin_id AND b.is_commissary = 0
+              WHERE d.status = 'posted' AND d.destination_id = :hub
+                AND d.id NOT IN (SELECT delivery_id FROM dl_commissary_returned_items WHERE delivery_id IS NOT NULL)
+              ORDER BY d.delivery_date DESC, d.id DESC
+              LIMIT 30"
+        );
+        $ipHeads = [];
+        foreach ($availableCommissaryIds as $hubForPullouts) {
+            $ipStmt->execute([':hub' => (int)$hubForPullouts]);
+            foreach ($ipStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $h) { $ipHeads[] = $h; }
+        }
+
+        $ipItems = [];
+        $ipIds = [];
+        foreach ($ipHeads as $h) { $ipIds[] = (int)$h['delivery_id']; }
+        if ($ipIds !== []) {
+            $ipItemMarks = implode(',', array_fill(0, count($ipIds), '?'));
+            $ipItemStmt = $db->prepare(
+                "SELECT di.delivery_id, di.product_id, di.quantity, p.name AS product_name
+                   FROM dl_delivery_items di
+                   LEFT JOIN dl_products p ON p.id = di.product_id
+                  WHERE di.delivery_id IN ({$ipItemMarks})
+                  ORDER BY di.delivery_id, di.id"
+            );
+            $ipItemStmt->execute($ipIds);
+            foreach ($ipItemStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $ir) {
+                $ipItems[(int)$ir['delivery_id']][] = [
+                    'product_name' => (string)($ir['product_name'] ?? ('#' . (int)$ir['product_id'])),
+                    'quantity' => (int)$ir['quantity'],
+                ];
+            }
+        }
+        foreach ($ipHeads as $h) {
+            $did = (int)$h['delivery_id'];
+            if (($ipItems[$did] ?? []) === []) { continue; }
+            $unitTotal = 0;
+            foreach ($ipItems[$did] as $it) { $unitTotal += $it['quantity']; }
+            $inboundPullouts[] = [
+                'delivery_id' => $did,
+                'dr_number' => (string)($h['dr_number'] ?? ('#' . $did)),
+                'delivery_date' => (string)($h['delivery_date'] ?? ''),
+                'destination_id' => (int)$h['destination_id'],
+                'origin_branch_id' => (int)$h['origin_id'],
+                'origin_name' => (string)($h['origin_name'] ?? ''),
+                'units' => $unitTotal,
+                'lines' => $ipItems[$did],
             ];
         }
     }
@@ -28967,6 +29171,9 @@ function handleAdminCommissary(): void
         // exactly this, because reworking something that is not in the pile is refused by the API
         // ("Only N unit(s) ... are waiting"). A picker that can produce that error is not a picker.
         'rework_returns' => $reworkReturns,
+        // Pullouts a branch has already recorded and this hub has not confirmed yet. The return
+        // form offers these first: the branch's own document is the source, not a retyped copy.
+        'inbound_pullouts' => $inboundPullouts,
         'branch_id' => $selectedBranchId,
         'commissary_id' => $selectedCommissaryId,
         'inventory_rows' => $inventoryRows,
