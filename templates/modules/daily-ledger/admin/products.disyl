@@ -74,11 +74,13 @@
 <div class="mb-4 border-b border-gray-200">
     <nav class="flex gap-1" aria-label="Products sections" data-products-tabs>
         <a href="{base_url}/admin/products" data-tab-products {if tab == 'assignment' || tab == 'consignee_assignment'}onclick="return pickerLeaveAssignment(event, this.href)"{/if}
-           class="rounded-t px-4 py-2 text-sm font-semibold {if tab == 'assignment' || tab == 'consignee_assignment'}text-gray-500 hover:text-gray-700{else}border-b-2 border-indigo-600 text-indigo-700{/if}">Products</a>
+           class="rounded-t px-4 py-2 text-sm font-semibold {if tab == 'assignment' || tab == 'consignee_assignment' || tab == 'box_mapping'}text-gray-500 hover:text-gray-700{else}border-b-2 border-indigo-600 text-indigo-700{/if}">Products</a>
         <a href="{base_url}/admin/products?tab=assignment" data-tab-assignment {if tab == 'assignment' || tab == 'consignee_assignment'}onclick="return pickerLeaveAssignment(event, this.href)"{/if}
            class="rounded-t px-4 py-2 text-sm font-semibold {if tab == 'assignment'}border-b-2 border-indigo-600 text-indigo-700{else}text-gray-500 hover:text-gray-700{/if}">Show in Branches</a>
         {if consignee_enabled}<a href="{base_url}/admin/products?tab=consignee_assignment" data-tab-consignee-assignment {if tab == 'assignment' || tab == 'consignee_assignment'}onclick="return pickerLeaveAssignment(event, this.href)"{/if}
            class="rounded-t px-4 py-2 text-sm font-semibold {if tab == 'consignee_assignment'}border-b-2 border-indigo-600 text-indigo-700{else}text-gray-500 hover:text-gray-700{/if}">Show in Consignees</a>{/if}
+        <a href="{base_url}/admin/products?tab=box_mapping" data-tab-box-mapping
+           class="rounded-t px-4 py-2 text-sm font-semibold {if tab == 'box_mapping'}border-b-2 border-indigo-600 text-indigo-700{else}text-gray-500 hover:text-gray-700{/if}">Box Mapping</a>
     </nav>
 </div>
 
@@ -243,6 +245,103 @@
     <a href="{base_url}/admin/branches" class="btn btn-accent" onclick="return pickerLeaveAssignment(event, this.href)">Back to {if tab == 'assignment'}branches{else}consignees{/if}</a>
     <button type="button" class="btn btn-accent" id="picker-discard" onclick="discardPickerChanges()" disabled>Discard changes</button>
     <button type="button" class="btn btn-primary" id="picker-save" onclick="submitPicker()" disabled data-picker-save>Save changes</button>
+</div>
+{elseif tab == 'box_mapping'}
+<!--
+    Box Mapping — which box does each product consume when it sells?
+
+    Owner 2026-11-19: "at products, a new view for box mapping ... assigned to a product so that when
+    a qty shows how many were sold in a shift, the box mapped is also auto deducted at the branch."
+    Boxes belong to BRANCHES, so this mapping is the only link between a cake sale and box stock.
+
+    This tab records the mapping only. Nothing is deducted yet - the deduction lands inside the sales
+    recompute, and it is built against real mapping data rather than imagined data.
+-->
+<div class="card">
+    <!-- .card-header is a two-item flex row (title left, meta right) in this module's layout, so the
+         title is a <span> with the count beside it and the explanation lives in the body. Putting an
+         h2 and a paragraph in it split them across the row and wrapped the title onto two lines. -->
+    <div class="card-header">
+        <span>Box Mapping</span>
+        <span class="text-sm text-muted">{products | length} products</span>
+    </div>
+    <div class="card-body">
+        <p class="text-sm text-gray-500 mb-3">
+            Pick the box each product consumes. A product marked <strong>is a box</strong> becomes
+            selectable here — that replaces guessing packaging from the category and name.
+        </p>
+        <div id="box-map-status" class="hidden mb-4 rounded-lg px-4 py-3 text-sm" role="status" aria-live="polite" data-box-map-status></div>
+
+        <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end">
+            <div class="form-group mb-0">
+                <label class="form-label" for="box-map-search">Find a product</label>
+                <input type="search" class="form-input sm:w-80" id="box-map-search" placeholder="Name or SKU"
+                       oninput="boxMapFilter(this.value)" data-box-map-search>
+            </div>
+            <p class="text-sm text-gray-500 mb-2">
+                <span id="box-map-count">{products | length}</span> product(s) listed
+                · <span id="box-map-unsaved">0</span> unsaved change(s)
+            </p>
+        </div>
+
+        {if products | length == 0}
+        <p class="text-sm text-gray-500">No products match the current filter. Clear the filter above to see the full list.</p>
+        {else}
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm" data-box-map-table>
+                <thead>
+                    <tr class="text-left text-gray-500 border-b border-gray-200">
+                        <th class="py-2 pr-3">Product</th>
+                        <th class="py-2 pr-3 whitespace-nowrap">Is a box</th>
+                        <th class="py-2 pr-3">Box consumed</th>
+                        <th class="py-2 pr-3 whitespace-nowrap">Pieces per box</th>
+                        <th class="py-2 pr-3 whitespace-nowrap"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {foreach products as p}
+                    <tr class="border-b border-gray-100" data-box-row data-product-id="{p.id}"
+                        data-name="{p.name}" data-sku="{p.sku}">
+                        <td class="py-2 pr-3">
+                            <span class="font-medium text-gray-900">{p.name}</span>
+                            {if p.sku}<span class="text-xs text-gray-500 ml-2">{p.sku}</span>{/if}
+                            {if p.is_active != 1}<span class="text-xs text-red-600 ml-2">inactive</span>{/if}
+                        </td>
+                        <td class="py-2 pr-3">
+                            <input type="checkbox" class="rounded" {if p.is_box == 1}checked{/if}
+                                   onchange="boxMapChanged(this)" data-box-row-is-box
+                                   aria-label="Mark {p.name} as a box">
+                        </td>
+                        <td class="py-2 pr-3">
+                            <select class="form-input sm:w-72" onchange="boxMapChanged(this)" data-box-row-box
+                                    aria-label="Box consumed by {p.name}" {if p.is_box == 1}disabled{/if}>
+                                <option value="0" {if !p.box_product_id}selected{/if}>— no box —</option>
+                                {foreach box_products as bp}
+                                <option value="{bp.id}" {if p.box_product_id == bp.id}selected{/if}>{bp.name}</option>
+                                {/foreach}
+                            </select>
+                        </td>
+                        <td class="py-2 pr-3">
+                            <input type="number" min="1" step="1" class="form-input w-24"
+                                   value="{if p.units_per_box}{p.units_per_box}{else}1{/if}"
+                                   onchange="boxMapChanged(this)" data-box-row-units
+                                   aria-label="Pieces per box for {p.name}" {if !p.box_product_id}disabled{/if}>
+                        </td>
+                        <td class="py-2 pr-3">
+                            <button type="button" class="btn btn-primary btn-sm" onclick="boxMapSave(this)" data-box-row-save>Save</button>
+                        </td>
+                    </tr>
+                    {/foreach}
+                </tbody>
+            </table>
+        </div>
+        {/if}
+
+        <p class="text-xs text-gray-500 mt-4">
+            Pieces per box is never assumed to be 1 — some boxes hold a dozen. A short box never blocks
+            a sale; the box goes negative and the shortfall is named, exactly like a dispatch shortfall.
+        </p>
+    </div>
 </div>
 {else}
 <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
@@ -1224,5 +1323,102 @@
             e.target.classList.remove('show');
         }
     });
+
+    // ─── Box Mapping ───────────────────────────────────────────────────────────────
+    // Each row saves on its own Save button. There is deliberately no bulk "save all": a mapping
+    // attached to the wrong product deducts the wrong box for every sale afterwards, so each
+    // record completes on its own click, with its own confirmation.
+    var boxMapDirty = 0;
+
+    function boxMapRow(el) {
+        return el.closest('[data-box-row]');
+    }
+
+    function boxMapChanged(el) {
+        var row = boxMapRow(el);
+        if (!row) { return; }
+        var isBox = row.querySelector('[data-box-row-is-box]');
+        var boxSel = row.querySelector('[data-box-row-box]');
+        var units = row.querySelector('[data-box-row-units]');
+        // A box cannot consume a box, and a product with no box has no ratio to state.
+        if (isBox && isBox.checked) {
+            boxSel.value = '0';
+            boxSel.disabled = true;
+            units.value = '1';
+            units.disabled = true;
+        } else {
+            boxSel.disabled = false;
+            units.disabled = (boxSel.value === '0');
+        }
+        boxMapDirty++;
+        var counter = document.getElementById('box-map-unsaved');
+        if (counter) { counter.textContent = String(boxMapDirty); }
+    }
+
+    function boxMapStatus(kind, message) {
+        var el = document.querySelector('[data-box-map-status]');
+        if (!el) { return; }
+        el.className = 'mb-4 rounded-lg px-4 py-3 text-sm ' + (kind === 'ok'
+            ? 'border border-emerald-200 bg-emerald-50 text-emerald-900'
+            : 'border border-red-200 bg-red-50 text-red-900');
+        el.textContent = message;
+        el.classList.remove('hidden');
+    }
+
+    function boxMapSave(btn) {
+        var row = boxMapRow(btn);
+        if (!row) { return; }
+        var productId = row.getAttribute('data-product-id');
+        var payload = {
+            product_id: parseInt(productId, 10),
+            is_box: row.querySelector('[data-box-row-is-box]').checked ? 1 : 0,
+            box_product_id: parseInt(row.querySelector('[data-box-row-box]').value || '0', 10),
+            units_per_box: parseInt(row.querySelector('[data-box-row-units]').value || '1', 10)
+        };
+        btn.disabled = true;
+        fetch('{base_url}/api/v1/admin/products/box-mapping', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                // Same form the picker save uses above: interpolating the token inside a ternary
+                // expression emits `( ? ... : )` when the token is empty and kills the whole script
+                // block, which is exactly how this shipped broken on the first attempt.
+                'Authorization': window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : ''
+            },
+            body: JSON.stringify(payload)
+        }).then(function(r) { return r.json().then(function(j) { return { ok: r.ok, body: j }; }); })
+          .then(function(res) {
+            btn.disabled = false;
+            if (res.ok && res.body && res.body.ok) {
+                boxMapDirty = Math.max(0, boxMapDirty - 1);
+                var counter = document.getElementById('box-map-unsaved');
+                if (counter) { counter.textContent = String(boxMapDirty); }
+                boxMapStatus('ok', 'Saved. ' + row.getAttribute('data-name') +
+                    (res.body.box_product_id ? ' consumes the selected box.' : ' no longer consumes a box.'));
+                return;
+            }
+            var msg = (res.body && res.body.error) ? res.body.error : 'Could not save the box mapping.';
+            boxMapStatus('error', msg);
+        }).catch(function() {
+            btn.disabled = false;
+            boxMapStatus('error', 'Could not reach the server. The mapping was not saved.');
+        });
+    }
+
+    function boxMapFilter(value) {
+        var q = (value || '').toLowerCase().trim();
+        var rows = document.querySelectorAll('[data-box-row]');
+        var shown = 0;
+        rows.forEach(function(row) {
+            var name = (row.getAttribute('data-name') || '').toLowerCase();
+            var sku = (row.getAttribute('data-sku') || '').toLowerCase();
+            var match = q === '' || name.indexOf(q) !== -1 || sku.indexOf(q) !== -1;
+            row.style.display = match ? '' : 'none';
+            if (match) { shown++; }
+        });
+        var counter = document.getElementById('box-map-count');
+        if (counter) { counter.textContent = String(shown); }
+    }
 </script>
 {/block}

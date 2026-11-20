@@ -21076,6 +21076,221 @@ function apiSetBranchProductOwnProduction(array $params = []): void
     $ctx->json($result + ['product_id' => $productId, 'branch_id' => $branchId]);
 }
 
+/**
+ * The mapping rules, with no HTTP in them.
+ *
+ * Split out from the API the same way the picker's bulk save is (dl_bulkAssignBranchProductsCore),
+ * so the suite can drive every refusal directly instead of needing a logged-in HTTP session. Every
+ * refusal names a defect that would otherwise deduct the wrong box for every sale afterwards.
+ *
+ * @param array<string,mixed> $input product_id plus any of is_box, box_product_id, units_per_box
+ * @return array{ok:bool,status:int,code?:string,error?:string,product_id?:int,is_box?:int,box_product_id?:int|null,units_per_box?:int}
+ */
+function dl_saveProductBoxMappingCore($db, array $input, ?int $actorId = null): array
+{
+    $productId = (int)($input['product_id'] ?? 0);
+    if ($productId <= 0) {
+        return ['ok' => false, 'status' => 422, 'code' => 'PRODUCT_REQUIRED', 'error' => 'product_id is required.'];
+    }
+
+    $stmt = $db->prepare(
+        'SELECT id, name, is_active, is_box, box_product_id, units_per_box
+           FROM dl_products WHERE id = :id LIMIT 1'
+    );
+    $stmt->execute([':id' => $productId]);
+    $product = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$product) {
+        return ['ok' => false, 'status' => 404, 'code' => 'PRODUCT_NOT_FOUND', 'error' => 'Product not found.'];
+    }
+    // Refusing an inactive product is a guard, not a nicety: the whole reason the mapping exists is
+    // that a box attached to a SKU nobody sells silently deducts nothing.
+    if ((int)$product['is_active'] !== 1) {
+        return [
+            'ok' => false,
+            'status' => 409,
+            'code' => 'PRODUCT_INACTIVE',
+            'error' => 'Cannot map a box to an inactive product. Reactivate it, or map the product that is actually sold.',
+        ];
+    }
+
+    $before = [
+        'is_box' => (int)$product['is_box'],
+        'box_product_id' => $product['box_product_id'] === null ? null : (int)$product['box_product_id'],
+        'units_per_box' => (int)$product['units_per_box'],
+    ];
+    $isBox = $before['is_box'];
+    $boxProductId = $before['box_product_id'];
+    $unitsPerBox = $before['units_per_box'];
+
+    if (array_key_exists('is_box', $input)) {
+        $isBox = dl_settingToBool($input['is_box']) ? 1 : 0;
+        if ($isBox === 1 && $boxProductId !== null && $boxProductId > 0) {
+            return [
+                'ok' => false,
+                'status' => 409,
+                'code' => 'BOX_CANNOT_CONSUME_BOX',
+                'error' => 'This product consumes a box, so it cannot itself be a box. Remove its own box mapping first.',
+            ];
+        }
+    }
+
+    if (array_key_exists('box_product_id', $input)) {
+        $raw = $input['box_product_id'];
+        $requested = ($raw === null || $raw === '' || (int)$raw === 0) ? null : (int)$raw;
+        if ($requested !== null) {
+            if ($isBox === 1) {
+                return [
+                    'ok' => false,
+                    'status' => 409,
+                    'code' => 'BOX_CANNOT_CONSUME_BOX',
+                    'error' => 'A box cannot consume another box. Clear "is a box" first.',
+                ];
+            }
+            if ($requested === $productId) {
+                return [
+                    'ok' => false,
+                    'status' => 422,
+                    'code' => 'BOX_IS_SELF',
+                    'error' => 'A product cannot be its own box.',
+                ];
+            }
+            $boxStmt = $db->prepare('SELECT id, name, is_box, is_active, box_product_id FROM dl_products WHERE id = :id LIMIT 1');
+            $boxStmt->execute([':id' => $requested]);
+            $box = $boxStmt->fetch(PDO::FETCH_ASSOC);
+            if (!$box) {
+                return ['ok' => false, 'status' => 422, 'code' => 'TARGET_NOT_FOUND', 'error' => 'The selected box product does not exist.'];
+            }
+            if ((int)$box['is_box'] !== 1) {
+                return [
+                    'ok' => false,
+                    'status' => 409,
+                    'code' => 'TARGET_NOT_A_BOX',
+                    'error' => (string)$box['name'] . ' is not marked as a box. Mark it as a box on this tab first.',
+                ];
+            }
+            if ((int)$box['is_active'] !== 1) {
+                return [
+                    'ok' => false,
+                    'status' => 409,
+                    'code' => 'TARGET_INACTIVE',
+                    'error' => (string)$box['name'] . ' is inactive, so it cannot be used as a box.',
+                ];
+            }
+            // One level is enough: a box may not itself be boxed, so a chain cannot exist. This also
+            // closes the two-row cycle the other rule would otherwise allow.
+            if ($box['box_product_id'] !== null && (int)$box['box_product_id'] === $productId) {
+                return [
+                    'ok' => false,
+                    'status' => 409,
+                    'code' => 'BOX_CYCLE',
+                    'error' => (string)$box['name'] . ' already consumes this product, which would deduct both twice.',
+                ];
+            }
+        }
+        $boxProductId = $requested;
+    }
+
+    if (array_key_exists('units_per_box', $input)) {
+        $unitsPerBox = (int)($input['units_per_box'] ?? 1);
+        // Never assume how many pieces fit. Anything below 1 would invert the deduction or divide by
+        // zero later, so it is refused rather than clamped silently.
+        if ($unitsPerBox < 1) {
+            return [
+                'ok' => false,
+                'status' => 422,
+                'code' => 'UNITS_PER_BOX_INVALID',
+                'error' => 'Pieces per box must be at least 1.',
+            ];
+        }
+        if ($unitsPerBox > 10000) {
+            return [
+                'ok' => false,
+                'status' => 422,
+                'code' => 'UNITS_PER_BOX_INVALID',
+                'error' => 'Pieces per box looks wrong (over 10000). Check the value.',
+            ];
+        }
+    }
+    if ($boxProductId === null) {
+        // A product with no box consumes one "unit" of nothing; keeping the stored ratio at 1 avoids
+        // a leftover number that would apply the moment a box is attached later.
+        $unitsPerBox = 1;
+    }
+
+    $after = ['is_box' => $isBox, 'box_product_id' => $boxProductId, 'units_per_box' => $unitsPerBox];
+
+    $db->prepare(
+        'UPDATE dl_products
+            SET is_box = :is_box, box_product_id = :box_id, units_per_box = :units
+          WHERE id = :id'
+    )->execute([
+        ':is_box' => $isBox,
+        ':box_id' => $boxProductId,
+        ':units' => $unitsPerBox,
+        ':id' => $productId,
+    ]);
+
+    dl_auditLog(
+        'product_box_mapping',
+        null,
+        'dl_products',
+        (string)$productId,
+        $before,
+        $after + ['product' => (string)$product['name']]
+    );
+    app()->cache()->clearByTags('daily-ledger', ['dl_products']);
+
+    return [
+        'ok' => true,
+        'status' => 200,
+        'product_id' => $productId,
+        'is_box' => $isBox,
+        'box_product_id' => $boxProductId,
+        'units_per_box' => $unitsPerBox,
+    ];
+}
+
+/**
+ * POST /daily-ledger/api/v1/admin/products/box-mapping
+ *
+ * Box mapping — which box does this product consume when it sells?
+ *
+ * OWNER DIRECTION 2026-11-19: "at products, a new view for box mapping ... assigned to a product so
+ * that when a qty shows how many were sold in a shift, the box mapped is also auto deducted at the
+ * branch." Defaults agreed the same day: 1 cake = 1 box, one box per product, from sales only.
+ *
+ * This handler ONLY records the mapping. It does not deduct anything - the deduction belongs inside
+ * dl_computeSalesValue()'s motion, and shipping the mapping first means the deduction can be built
+ * and verified against real mapping data instead of imagined data. The rules live in
+ * dl_saveProductBoxMappingCore() so the suite can drive them without an HTTP session.
+ */
+function apiSaveProductBoxMapping(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) {
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => 'Module context unavailable']);
+        return;
+    }
+    $user = dlCurrentUser(['admin']);
+    $result = dl_saveProductBoxMappingCore($ctx->db(), $ctx->input(), dl_getActorUserId($user));
+    if (($result['ok'] ?? false) !== true) {
+        $payload = ['ok' => false, 'error' => (string)($result['error'] ?? 'Could not save the box mapping.')];
+        if (!empty($result['code'])) {
+            $payload['code'] = (string)$result['code'];
+        }
+        $ctx->json($payload, (int)($result['status'] ?? 422));
+        return;
+    }
+    $ctx->json([
+        'ok' => true,
+        'product_id' => (int)$result['product_id'],
+        'is_box' => (int)$result['is_box'],
+        'box_product_id' => $result['box_product_id'],
+        'units_per_box' => (int)$result['units_per_box'],
+    ]);
+}
+
 function apiToggleBranchProduct(array $params = []): void
 {
     $ctx = module();
@@ -21467,6 +21682,18 @@ function handleAdminProducts(array $params = []): void
         }
     }
 
+    // Box Mapping tab: the boxes a product can be mapped to. Only active products explicitly marked
+    // is_box = 1 are candidates - the flag replaces the old `category = 'other' AND name LIKE '%box%'`
+    // guess, because measured 2026-11-20 the category is unreliable (TOASTED BREAD @6/@9 are 'other'
+    // while @15 is 'bread' in the same family).
+    $boxProducts = [];
+    if ($tab === 'box_mapping') {
+        $boxStmt = $ctx->db()->query(
+            'SELECT id, name, sku FROM dl_products WHERE is_box = 1 AND is_active = 1 ORDER BY sort_order, name'
+        );
+        $boxProducts = $boxStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
     $role = (string)($user['role'] ?? '');
     $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
     echo dlRender('modules/daily-ledger/admin/products.disyl', [
@@ -21487,6 +21714,7 @@ function handleAdminProducts(array $params = []): void
         'category_id' => $categoryId,
         'today' => $today,
         'tab' => $tab,
+        'box_products' => $boxProducts,
         'branch_id' => $selectedBranchId,
         'consignee_id' => $selectedConsigneeId,
         'assignment_branch' => $assignmentBranch,

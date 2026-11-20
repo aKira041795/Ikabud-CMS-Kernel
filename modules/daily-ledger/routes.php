@@ -165,6 +165,7 @@ return [
         '/daily-ledger/api/v1/admin/products'            => 'daily-ledger:apiCreateProduct',
         '/daily-ledger/api/v1/admin/products/update'     => 'daily-ledger:apiUpdateProduct',
         '/daily-ledger/api/v1/admin/products/reprice'    => 'daily-ledger:apiRepriceProduct',
+        '/daily-ledger/api/v1/admin/products/box-mapping' => 'daily-ledger:apiSaveProductBoxMapping',
         '/daily-ledger/api/v1/admin/products/import-csv' => 'daily-ledger:apiProductsImportCsv',
         '/daily-ledger/api/v1/admin/product-categories' => 'daily-ledger:apiCreateProductCategory',
         '/daily-ledger/api/v1/admin/product-categories/update' => 'daily-ledger:apiUpdateProductCategory',
