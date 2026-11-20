@@ -185,11 +185,14 @@ function dlResolveFinalizedPendingFlags(DatabaseContract $db, int $limit = 500):
     $resolved = 0;
 
     try {
+        // No LIKE filter on the key. Both key SHAPES share this finding_type, and the first version of
+        // this sweep filtered on the shift prefix only - so the day-level findings were never even
+        // fetched. MEASURED 2026-11-20 on the live dump: 5 stale day-level findings sat in the table
+        // (zero missing endings) while the sweep reported "checked 2, closed 0" and looked clean.
         $stmt = $db->prepare(
             "SELECT n.aggregate_key, n.branch_id
                FROM dl_integrity_notifications n
               WHERE n.finding_type = 'closed_without_pm_finalize'
-                AND n.aggregate_key LIKE 'closed_without_pm_finalize-%'
               ORDER BY n.id
               LIMIT " . $limit
         );
@@ -199,16 +202,30 @@ function dlResolveFinalizedPendingFlags(DatabaseContract $db, int $limit = 500):
         return ['checked' => 0, 'resolved' => 0];
     }
 
-    // aggregate_key shape: closed_without_pm_finalize-<shift>-<branch>-<date>
+    // Two key SHAPES carry this finding type, raised by two different call sites:
+    //   closed_without_pm_finalize-<shift>-<branch>-<date>   (the commissary shift evaluator)
+    //   pending_endings-day-<branch>-<date>                  (the day-level auto-close deferral)
+    // The first version of this sweep matched only the shift shape, so MEASURED 2026-11-20 on the live
+    // dump: 5 day-level findings with zero missing endings survived a run that closed 629 others. Same
+    // defect, different key - which is exactly how a "fixed" resolver leaves a visible backlog behind.
     foreach ($rows as $row) {
         $key = (string)($row['aggregate_key'] ?? '');
-        if (preg_match('/^closed_without_pm_finalize-([a-z]+)-(\d+)-(\d{4}-\d{2}-\d{2})$/', $key, $m) !== 1) {
-            continue;
+
+        if (preg_match('/^closed_without_pm_finalize-([a-z]+)-(\d+)-(\d{4}-\d{2}-\d{2})$/', $key, $m) === 1) {
+            $shift = strtoupper($m[1]);
+            $branchId = (int)$m[2];
+            $date = $m[3];
+            $shiftsToClear = [$shift];
+        } elseif (preg_match('/^pending_endings-day-(\d+)-(\d{4}-\d{2}-\d{2})$/', $key, $m) === 1) {
+            // A DAY-level finding is settled when NO shift of that day still owes an ending.
+            $branchId = (int)$m[1];
+            $date = $m[2];
+            $shift = null;
+            $shiftsToClear = ['AM', 'PM'];
+        } else {
+            continue; // a shape this sweep does not own
         }
         $checked++;
-        $shift = strtoupper($m[1]);
-        $branchId = (int)$m[2];
-        $date = $m[3];
 
         // TWO ways a "shift not finalized" finding stops being true, and the second is the one the
         // operators are actually fixing:
@@ -223,33 +240,69 @@ function dlResolveFinalizedPendingFlags(DatabaseContract $db, int $limit = 500):
         // predicate the finding is raised with, so the two can never disagree about what "solved" means.
         $settled = false;
         try {
-            $statusStmt = $db->prepare(
-                'SELECT status FROM dl_ledger_shift_status WHERE branch_id = :b AND ledger_date = :d AND shift = :s LIMIT 1'
-            );
-            $statusStmt->execute([':b' => $branchId, ':d' => $date, ':s' => $shift]);
-            $status = (string)($statusStmt->fetchColumn() ?: '');
-            $settled = $status === 'finalized';
+            if ($shift === null) {
+                // Day-level: settled when the day itself is closed (nobody can owe an ending after that),
+                // OR when every shift of that day is finalized.
+                $dayStmt = $db->prepare('SELECT status FROM dl_ledger_day_status WHERE branch_id = :b AND ledger_date = :d LIMIT 1');
+                $dayStmt->execute([':b' => $branchId, ':d' => $date]);
+                if ((string)($dayStmt->fetchColumn() ?: '') === 'closed') {
+                    $settled = true;
+                } else {
+                    $openShifts = 0;
+                    $shiftStatusStmt = $db->prepare(
+                        'SELECT COUNT(*) FROM dl_ledger_shift_status
+                          WHERE branch_id = :b AND ledger_date = :d AND shift IN (\'AM\',\'PM\') AND status <> \'finalized\''
+                    );
+                    $shiftStatusStmt->execute([':b' => $branchId, ':d' => $date]);
+                    $openShifts = (int)$shiftStatusStmt->fetchColumn();
+                    $settled = $openShifts === 0;
+                }
+            } else {
+                $statusStmt = $db->prepare(
+                    'SELECT status FROM dl_ledger_shift_status WHERE branch_id = :b AND ledger_date = :d AND shift = :s LIMIT 1'
+                );
+                $statusStmt->execute([':b' => $branchId, ':d' => $date, ':s' => $shift]);
+                $settled = ((string)($statusStmt->fetchColumn() ?: '')) === 'finalized';
+            }
         } catch (\Throwable $e) {
             continue;
         }
 
         if (!$settled) {
             try {
-                $missingStmt = $db->prepare(
-                    'SELECT COUNT(*)
-                       FROM dl_products p
-                       INNER JOIN dl_branch_products bp ON bp.product_id = p.id AND bp.branch_id = :b1 AND bp.is_active = 1
-                       LEFT JOIN dl_commissary_product_ledger cpl
-                              ON cpl.product_id = p.id
-                             AND cpl.commissary_branch_id = :b2
-                             AND cpl.ledger_date = :d
-                             AND cpl.shift = :s
-                      WHERE p.is_active = 1
-                        AND cpl.id IS NOT NULL
-                        AND cpl.actual_end_qty IS NULL
-                        AND (cpl.beg_qty <> 0 OR cpl.produced_qty <> 0 OR cpl.dispatched_qty <> 0 OR cpl.wastage_qty <> 0)'
-                );
-                $missingStmt->execute([':b1' => $branchId, ':b2' => $branchId, ':d' => $date, ':s' => $shift]);
+                if ($shift === null) {
+                    // Day-level: NO shift of that day may still owe an ending.
+                    $missingStmt = $db->prepare(
+                        'SELECT COUNT(*)
+                           FROM dl_products p
+                           INNER JOIN dl_branch_products bp ON bp.product_id = p.id AND bp.branch_id = :b1 AND bp.is_active = 1
+                           LEFT JOIN dl_commissary_product_ledger cpl
+                                  ON cpl.product_id = p.id
+                                 AND cpl.commissary_branch_id = :b2
+                                 AND cpl.ledger_date = :d
+                          WHERE p.is_active = 1
+                            AND cpl.id IS NOT NULL
+                            AND cpl.actual_end_qty IS NULL
+                            AND (cpl.beg_qty <> 0 OR cpl.produced_qty <> 0 OR cpl.dispatched_qty <> 0 OR cpl.wastage_qty <> 0)'
+                    );
+                    $missingStmt->execute([':b1' => $branchId, ':b2' => $branchId, ':d' => $date]);
+                } else {
+                    $missingStmt = $db->prepare(
+                        'SELECT COUNT(*)
+                           FROM dl_products p
+                           INNER JOIN dl_branch_products bp ON bp.product_id = p.id AND bp.branch_id = :b1 AND bp.is_active = 1
+                           LEFT JOIN dl_commissary_product_ledger cpl
+                                  ON cpl.product_id = p.id
+                                 AND cpl.commissary_branch_id = :b2
+                                 AND cpl.ledger_date = :d
+                                 AND cpl.shift = :s
+                          WHERE p.is_active = 1
+                            AND cpl.id IS NOT NULL
+                            AND cpl.actual_end_qty IS NULL
+                            AND (cpl.beg_qty <> 0 OR cpl.produced_qty <> 0 OR cpl.dispatched_qty <> 0 OR cpl.wastage_qty <> 0)'
+                    );
+                    $missingStmt->execute([':b1' => $branchId, ':b2' => $branchId, ':d' => $date, ':s' => $shift]);
+                }
                 $settled = ((int)$missingStmt->fetchColumn()) === 0;
             } catch (\Throwable $e) {
                 continue;
