@@ -1,5 +1,25 @@
 {extends "modules/daily-ledger/layouts/app.disyl"}
 
+{block head}
+<style>
+    /* The switches table explains each column inside its own <th>. On a wide screen that reads well;
+       measured on a 360px phone the three explanations squeezed the columns until "NO PAPER DR (ADD
+       STOCK)" wrapped onto six lines and the branch names were clipped to a sliver.
+       On phones the explanatory sentences step aside (the same detail is one tap away in the
+       "What these switches mean" collapsible above) and the fixed 42% / 16rem column width is
+       released, so the labels and the records get the width instead of the prose.
+       Hidden hints, never hidden records: every branch row and every switch still renders. */
+    @media (max-width: 767px) {
+        /* !important is deliberate, not laziness: each hint carries Tailwind's `.block`
+           (equal specificity, injected later by the CDN) and the Own-production column carries an
+           inline width. Without !important both win and the phone layout silently reverts. */
+        .dl-switches-table .switch-hint { display: none !important; }
+        .dl-switches-table .switch-own-col { width: auto !important; min-width: 0 !important; }
+        .dl-switches-table th { vertical-align: bottom; }
+    }
+</style>
+{/block}
+
 {block content}
 <div class="flex items-center justify-between mb-6">
     <div>
@@ -244,25 +264,26 @@
                The theme's .table-responsive is overflow-x: visible, so the table used to move
                the whole modal instead. Wide screens fit without a scrollbar. *}
             <div class="table-responsive" style="overflow-x: auto;">
-                <table class="table">
+                <table class="table dl-switches-table">
                     <thead>
                         <tr>
                             <th>Branch</th>
                             <th class="whitespace-normal">
                                 No paper DR (add stock)
-                                <span class="block text-[11px] font-normal text-gray-500 whitespace-normal break-words normal-case">Stock already on hand that was never written down &mdash; missed or undercounted. Branch-wide. Does NOT grant Own production. unclick to hide</span>
+                                <span class="switch-hint block text-[11px] font-normal text-gray-500 whitespace-normal break-words normal-case">Stock already on hand that was never written down &mdash; missed or undercounted. Branch-wide. Does NOT grant Own production. unclick to hide</span>
                             </th>
                             <th class="whitespace-normal">
                                 Single cashier shift (whole day)
-                                <span class="block text-[11px] font-normal text-gray-500 whitespace-normal break-words normal-case">unclick to turn off</span>
+                                <span class="switch-hint block text-[11px] font-normal text-gray-500 whitespace-normal break-words normal-case">unclick to turn off</span>
                             </th>
                             {* whitespace-normal + break-words: the theme's .table th is nowrap, so
                                this sentence used to render as one 781px line and pushed the table
                                359px past the modal (owner report 2026-10-31: sideways scrolling).
-                               The text wraps inside a bounded column instead. *}
-                            <th class="whitespace-normal align-top" style="width: 42%; min-width: 16rem;">
+                               The text wraps inside a bounded column instead - and on a phone the
+                               hint is hidden entirely (see the head block). *}
+                            <th class="whitespace-normal align-top switch-own-col" style="width: 42%; min-width: 16rem;">
                                 Own production
-                                <span class="block text-[11px] font-normal text-gray-500 whitespace-normal break-words normal-case">This branch makes stock of its own. Per product: tick <em>Makes it</em> on each item it produces, so that item can be added as Own production. The item is the branch's own, so no supplier DR exists. Independent of No paper DR.</span>
+                                <span class="switch-hint block text-[11px] font-normal text-gray-500 whitespace-normal break-words normal-case">This branch makes stock of its own. Per product: tick <em>Makes it</em> on each item it produces, so that item can be added as Own production. The item is the branch's own, so no supplier DR exists. Independent of No paper DR.</span>
                             </th>
                         </tr>
                     </thead>
