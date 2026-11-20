@@ -24399,6 +24399,69 @@ function dl_applyBranchFlags(\Ikabud\Kernel\Contracts\ModuleDB $db, int $branchI
  * business date. Flipping mid-day orphans the carry-forward chain (PM bal_end -> next AM beg_bal).
  */
 /**
+ * The ONE writer for a branch's official data start.
+ *
+ * Owner 2026-11-20: "restore the per branch modal start field. my point is UX, whichever is viewed, the
+ * feature can be set, and emitted to the other view (admin to branch and vice-versa)."
+ *
+ * So there are deliberately TWO entry points - the Official Data Start table and the branch edit modal -
+ * but exactly ONE implementation. Both call this, so they cannot drift, and the audit event is written
+ * once no matter which screen made the change. Duplicating the *rules* was the earlier defect; sharing
+ * the *entry point* is the fix, because a user editing a branch should not have to know that a boundary
+ * lives on another screen.
+ *
+ * @return array{ok:bool,status:int,code?:string,error?:string,value?:?string,effective?:?string,branch?:string}
+ */
+function dl_setBranchOfficialStart($db, int $branchId, $rawValue, ?int $actorId = null): array
+{
+    if ($branchId <= 0) {
+        return ['ok' => false, 'status' => 422, 'code' => 'BRANCH_REQUIRED', 'error' => 'branch_id is required.'];
+    }
+    $raw = trim((string)$rawValue);
+    if ($raw !== '' && !dl_isRealDate($raw)) {
+        return [
+            'ok' => false,
+            'status' => 422,
+            'code' => 'OFFICIAL_START_INVALID',
+            'error' => 'Official data start must be a real date, or blank to inherit the site-wide one.',
+        ];
+    }
+
+    $stmt = $db->prepare('SELECT id, name, official_data_start FROM dl_branches WHERE id = :id LIMIT 1');
+    $stmt->execute([':id' => $branchId]);
+    $branch = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$branch) {
+        return ['ok' => false, 'status' => 404, 'code' => 'BRANCH_NOT_FOUND', 'error' => 'Branch not found.'];
+    }
+
+    $value = $raw === '' ? null : $raw;
+    $before = $branch['official_data_start'];
+    $db->prepare('UPDATE dl_branches SET official_data_start = :v WHERE id = :id')
+        ->execute([':v' => $value, ':id' => $branchId]);
+
+    // Only audit a real change, so a modal save that leaves the date alone does not add noise.
+    $beforeNorm = ($before === null || $before === '') ? null : (string)$before;
+    if ($beforeNorm !== $value) {
+        dl_auditLog('branch_official_start_changed', $branchId, 'dl_branches', (string)$branchId, [
+            'official_data_start' => $beforeNorm,
+        ], [
+            'official_data_start' => $value,
+            'branch' => (string)$branch['name'],
+            'inherits_global' => $value === null ? dl_officialDataStart() : null,
+            'actor_id' => $actorId,
+        ]);
+    }
+
+    return [
+        'ok' => true,
+        'status' => 200,
+        'value' => $value,
+        'effective' => $value ?? dl_officialDataStart(),
+        'branch' => (string)$branch['name'],
+    ];
+}
+
+/**
  * POST /daily-ledger/api/v1/admin/branches/official-start
  *
  * Set ONE branch's first official date, from the Official Data Start setting (owner 2026-11-20:
@@ -24406,8 +24469,7 @@ function dl_applyBranchFlags(\Ikabud\Kernel\Contracts\ModuleDB $db, int $branchI
  *
  * Kept separate from apiUpdateBranch on purpose: that endpoint requires name/address and rewrites the
  * whole branch record, which is far too much authority for changing a single date on a settings row.
- * Here exactly one column moves, the value is validated as a real date or blank (= inherit), and the
- * change is audited with before/after so "why is this branch's history shorter" is answerable.
+ * Both endpoints delegate to dl_setBranchOfficialStart(), so there is one set of rules either way.
  */
 function apiSaveBranchOfficialStart(array $params = []): void
 {
@@ -24430,42 +24492,21 @@ function apiSaveBranchOfficialStart(array $params = []): void
         $ctx->json(['ok' => false, 'error' => 'official_data_start is required (blank to inherit).'], 422);
         return;
     }
-    $raw = trim((string)($input['official_data_start'] ?? ''));
-    if ($raw !== '' && !dl_isRealDate($raw)) {
-        $ctx->json([
-            'ok' => false,
-            'code' => 'OFFICIAL_START_INVALID',
-            'error' => 'Official data start must be a real date, or blank to inherit the site-wide one.',
-        ], 422);
+    $result = dl_setBranchOfficialStart($db, $branchId, $input['official_data_start'], dl_getActorUserId($user));
+    if (($result['ok'] ?? false) !== true) {
+        $payload = ['ok' => false, 'error' => (string)($result['error'] ?? 'Could not save the branch date.')];
+        if (!empty($result['code'])) {
+            $payload['code'] = (string)$result['code'];
+        }
+        $ctx->json($payload, (int)($result['status'] ?? 422));
         return;
     }
-
-    $stmt = $db->prepare('SELECT id, name, official_data_start FROM dl_branches WHERE id = :id LIMIT 1');
-    $stmt->execute([':id' => $branchId]);
-    $branch = $stmt->fetch(PDO::FETCH_ASSOC);
-    if (!$branch) {
-        $ctx->json(['ok' => false, 'error' => 'Branch not found.'], 404);
-        return;
-    }
-
-    $before = $branch['official_data_start'];
-    $value = $raw === '' ? null : $raw;
-    $db->prepare('UPDATE dl_branches SET official_data_start = :v WHERE id = :id')
-        ->execute([':v' => $value, ':id' => $branchId]);
-
-    dl_auditLog('branch_official_start_changed', $branchId, 'dl_branches', (string)$branchId, [
-        'official_data_start' => $before,
-    ], [
-        'official_data_start' => $value,
-        'branch' => (string)$branch['name'],
-        'inherits_global' => $value === null ? dl_officialDataStart() : null,
-    ]);
 
     $ctx->json([
         'ok' => true,
         'branch_id' => $branchId,
-        'official_data_start' => $value,
-        'effective' => dl_branchOfficialStart($branchId),
+        'official_data_start' => $result['value'],
+        'effective' => $result['effective'],
     ]);
 }
 
@@ -24693,10 +24734,18 @@ function apiUpdateBranch(array $params = []): void
             $sets[] = 'price_group_id = :pg';
             $bind[':pg'] = $priceGroupId;
         }
-        // The per-branch official data start is deliberately NOT written here. It has exactly one writer,
-        // apiSaveBranchOfficialStart(), driven from the Official Data Start setting where the site-wide
-        // date lives (owner 2026-11-20: "whichever is designed"). Two write paths for one accounting
-        // boundary is how the two would eventually disagree - and only one of them is audited.
+        // The per-branch official data start is written by the ONE shared setter, not inline here.
+        // Owner 2026-11-20: "whichever is viewed, the feature can be set, and emitted to the other view" -
+        // so the branch modal may set it too, but through dl_setBranchOfficialStart() so the Settings
+        // table and this modal cannot drift apart and the audit event is written once either way.
+        if (array_key_exists('official_data_start', $input)) {
+            $startResult = dl_setBranchOfficialStart($ctx->db(), $branchId, $input['official_data_start'], dl_getActorUserId($user));
+            if (($startResult['ok'] ?? false) !== true) {
+                header('HX-Trigger: ' . json_encode(['showToast' => ['message' => (string)($startResult['error'] ?? 'Invalid official data start'), 'type' => 'error']]));
+                $ctx->json(['ok' => false, 'error' => (string)($startResult['error'] ?? 'Invalid official data start')], (int)($startResult['status'] ?? 422));
+                return;
+            }
+        }
         // All operating switches were applied above by dl_applyBranchFlags().
         $ctx->db()->prepare('UPDATE dl_branches SET ' . implode(', ', $sets) . ' WHERE id = :id')->execute($bind);
 

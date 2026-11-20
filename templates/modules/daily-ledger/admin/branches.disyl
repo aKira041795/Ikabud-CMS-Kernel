@@ -149,7 +149,7 @@
                     <td>
                         <div class="flex items-center gap-1">
                             <a class="btn btn-sm btn-accent" href="{base_url}/admin/products?tab=assignment&branch_id={b.id}" data-branch-products="{b.id}" title="Show products at this branch and mark which ones it makes (own produced = no DR needed)">Products &amp; own production</a>
-                            <button class="btn btn-sm btn-accent" onclick='openEditBranch({b.id}, {b.name | json}, {b.address | json}, {b.area_id | default:"null"}, {b.is_active}, {b.default_supply_mode | json}, {b.assigned_commissary_id | default:"null"}, {b.price_group_id | default:"null"}, {b.is_commissary}, {b.sort_order | default:0}, {b.paperless_dr_enabled | default:1}, {b.single_shift_mode | default:0}, {b.has_production | default:0})'>Edit</button>
+                            <button class="btn btn-sm btn-accent" onclick='openEditBranch({b.id}, {b.name | json}, {b.address | json}, {b.area_id | default:"null"}, {b.is_active}, {b.default_supply_mode | json}, {b.assigned_commissary_id | default:"null"}, {b.price_group_id | default:"null"}, {b.is_commissary}, {b.sort_order | default:0}, {b.paperless_dr_enabled | default:1}, {b.single_shift_mode | default:0}, {b.has_production | default:0}, {b.official_data_start | default:"" | json})'>Edit</button>
                         </div>
                     </td>
                 </tr>
@@ -367,6 +367,11 @@
                             Own production
                         </label>
                         <p class="mt-2 text-xs text-gray-500 whitespace-normal break-words">This branch makes stock of its own (not only a commissary). Cashiers get Add Stock (own production) for the Addt'l cell.</p>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="edit-official-start">First official date for this branch</label>
+                        <input type="date" id="edit-official-start" class="form-input">
+                        <p class="mt-2 text-xs text-gray-500 whitespace-normal break-words">Blank = inherit the site-wide Official Data Start (Admin → Settings). Either screen can set this; both show the same value.</p>
                     </div>
                 </div>
             </div>
@@ -651,8 +656,9 @@
         }).catch(function(e) { showToast(e.message || 'Failed'); btn.disabled = false; });
     }
 
-    function openEditBranch(id, name, address, areaId, active, supplyMode, commissaryId, priceGroupId, isCommissary, sortOrder, paperDrEnabled, singleShiftMode, hasProduction) {
+    function openEditBranch(id, name, address, areaId, active, supplyMode, commissaryId, priceGroupId, isCommissary, sortOrder, paperDrEnabled, singleShiftMode, hasProduction, officialStart) {
         document.getElementById('edit-id').value = id;
+        document.getElementById('edit-official-start').value = officialStart || '';
         document.getElementById('edit-name').value = name || '';
         document.getElementById('edit-address').value = address || '';
         document.getElementById('edit-area-id').value = areaId ? String(areaId) : '';
@@ -727,7 +733,8 @@
                 is_commissary: document.getElementById('edit-is-commissary').checked ? 1 : 0,
                 paperless_dr_enabled: document.getElementById('edit-paper-dr-enabled').checked,
                 single_shift_mode: document.getElementById('edit-single-shift-mode').checked,
-                has_production: document.getElementById('edit-has-production').checked
+                has_production: document.getElementById('edit-has-production').checked,
+                official_data_start: document.getElementById('edit-official-start').value || ''
             })
         })
         .then(function(r) { return r.json(); })
