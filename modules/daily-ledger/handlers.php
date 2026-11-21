@@ -5188,6 +5188,125 @@ function dl_commissaryOpeningPositionMissing($db, int $commissaryBranchId, int $
  * keeps the protection; nothing is weakened by omission.
  */
 
+/**
+ * Refuse a commissary sheet quantity that is wildly out of line with the item's own recent history.
+ *
+ * WHY (owner, 2026-11-21: "this is an issue that we can use to make commis daily sheets better")
+ * ----------------------------------------------------------------------------------------------
+ * Measured on the live dump: TOASTED MAMON @15 at RIZAL-COMMIS carried ~324 → 891 for days, then a
+ * single cell took it to 19,723 / 20,691 — twenty times its own scale — and nothing objected. The
+ * number then flowed into deliveries, receivings, three weeks of book balance, and two product
+ * variants before a human caught it. The sheet had no notion of "that is not what this item looks
+ * like".
+ *
+ * THE RULE
+ * --------
+ * Baseline = the largest value this item has held at this hub in that column over the trailing
+ * 30 days, EXCLUDING the date being written (so a repeat save of the same row cannot make itself
+ * the baseline). A value is refused when it exceeds BOTH ten times that baseline AND the baseline
+ * plus a floor, so small-number items are never blocked by their own scale.
+ *
+ * WHEN IT STAYS SILENT — deliberately, these are the cases where a guard would cost real work:
+ *   - no history yet (a new item, or a hub that just started): baseline is 0, nothing to compare;
+ *   - baseline below 10 units: too small to define any scale;
+ *   - the value did not change (a re-save, an idempotent replay);
+ *   - a value the row already holds or has held.
+ *
+ * PROCEEDING ANYWAY is not blocked, it is made deliberate: the caller may pass a written reason
+ * (`production.override` holders go through dl_changeProductionLedgerField, which already demands
+ * one). A 10x entry with a reason on file is a business decision; the same entry with nothing on
+ * file is the defect.
+ *
+ * @param array<string,int> $values column => absolute new value
+ * @throws \RuntimeException 422 when the value is implausible and no reason was given
+ */
+/**
+ * Does setting this BEGINNING need a written reason before it is stored?
+ *
+ * The beginning is the root of every later balance: `remaining_qty` omits it, every following row
+ * carries it, and a wrong opening is invisible from the day it is keyed. Measured on the live dump
+ * (2026-11-21): RIZAL-COMMIS wrote beg_qty = 15,075 for TOASTED MAMON @15 at 2026-10-09 00:56 with
+ * `"reason": null` and no actor, re-keyed it to 20,691 three more times over the next two days to
+ * keep it level with the counts, and three weeks of book balance inherited all of it.
+ *
+ * The rule is deliberately narrow so routine corrections stay frictionless:
+ *   - a small beginning on an item with no history (under 1,000) needs nothing;
+ *   - a beginning in line with the item's own trailing maximum needs nothing;
+ *   - a FIRST large opening, or one more than ten times what this item has ever carried here,
+ *     needs a sentence saying where the stock came from.
+ */
+function dl_commissaryBeginningNeedsReason($db, int $commissaryBranchId, int $productId, string $ledgerDate, int $begQty): bool
+{
+    if ($commissaryBranchId <= 0 || $productId <= 0 || $begQty <= 0) {
+        return false;
+    }
+    $stmt = $db->prepare(
+        'SELECT COALESCE(MAX(beg_qty), 0) FROM dl_commissary_product_ledger
+          WHERE commissary_branch_id = :cb AND product_id = :pid AND ledger_date < :d
+            AND ledger_date >= DATE_SUB(:d2, INTERVAL 30 DAY)'
+    );
+    $stmt->execute([':cb' => $commissaryBranchId, ':pid' => $productId, ':d' => $ledgerDate, ':d2' => $ledgerDate]);
+    $priorMax = (int)$stmt->fetchColumn();
+    if ($priorMax < 10) {
+        return $begQty >= 1000;
+    }
+    return $begQty > max($priorMax * 10, $priorMax + 1000);
+}
+
+function dl_commissaryQuantityPlausibilityGuard(    $db,
+    int $commissaryBranchId,
+    int $productId,
+    string $ledgerDate,
+    array $values,
+    ?string $overrideReason = null
+): void {
+    if ($commissaryBranchId <= 0 || $productId <= 0 || $ledgerDate === '') {
+        return;
+    }
+    if ($overrideReason !== null && trim($overrideReason) !== '') {
+        return;
+    }
+    $allowed = ['produced_qty', 'dispatched_qty', 'wastage_qty', 'actual_end_qty'];
+    $checked = [];
+    foreach ($values as $column => $value) {
+        if (in_array($column, $allowed, true) && (int)$value > 0) {
+            $checked[$column] = (int)$value;
+        }
+    }
+    if ($checked === []) {
+        return;
+    }
+
+    // Trailing 30 days, this hub, this item, same column — the item's own idea of "normal".
+    $stmt = $db->prepare(
+        'SELECT MAX(produced_qty) AS produced_qty, MAX(dispatched_qty) AS dispatched_qty,
+                MAX(wastage_qty) AS wastage_qty, MAX(actual_end_qty) AS actual_end_qty
+           FROM dl_commissary_product_ledger
+          WHERE commissary_branch_id = :cb AND product_id = :pid
+            AND ledger_date < :d AND ledger_date >= DATE_SUB(:d2, INTERVAL 30 DAY)'
+    );
+    $stmt->execute([':cb' => $commissaryBranchId, ':pid' => $productId, ':d' => $ledgerDate, ':d2' => $ledgerDate]);
+    $history = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+
+    foreach ($checked as $column => $value) {
+        $baseline = (int)($history[$column] ?? 0);
+        if ($baseline < 10) {
+            continue; // no scale to compare against
+        }
+        $ceiling = max($baseline * 10, $baseline + 1000);
+        if ($value <= $ceiling) {
+            continue;
+        }
+        $label = $column === 'produced_qty' ? 'additionals' : ($column === 'dispatched_qty' ? 'dispatched' : $column);
+        throw new \RuntimeException(
+            'That ' . $label . ' (' . $value . ') is ' . round($value / max(1, $baseline), 1) . 'x the highest this item has '
+            . 'reached at this hub in the last 30 days (' . $baseline . '), so it was not saved. '
+            . 'If it is right, re-enter it through the override with a short reason so the sheet records why it is out of scale.',
+            422
+        );
+    }
+}
+
 function dl_applyCommissaryProductLedgerDelta(
     \Ikabud\Kernel\Contracts\DatabaseContract $db,
     int $commissaryBranchId,
@@ -5199,7 +5318,8 @@ function dl_applyCommissaryProductLedgerDelta(
     int $wastageDelta = 0,
     bool $rejectNegativeBalance = false,
     ?string $shift = null,
-    bool $captureOfExistingDocument = false
+    bool $captureOfExistingDocument = false,
+    ?string $plausibilityOverrideReason = null
 ): array {
     $shift = $shift === null ? null : dl_normalizeShift($shift);
     if ($commissaryBranchId <= 0 || $productId <= 0 || $ledgerDate === '') {
@@ -5294,6 +5414,16 @@ function dl_applyCommissaryProductLedgerDelta(
     $newProduced = max(0, $currentProduced + $producedDelta);
     $newDispatched = max(0, $currentDispatched + $dispatchedDelta);
     $newWastage = max(0, $currentWastage + $wastageDelta);
+
+    // A 10x keystroke used to sail straight through: measured on the live dump (2026-11-21), the
+    // RIZAL-COMMIS mamon cell took 20,691 into a column that had never held more than ~800, and
+    // nothing anywhere objected. The figure then propagated into deliveries, receivings and three
+    // weeks of book balance before a human noticed. This is the choke point every writer funnels
+    // through, so the check lives here and cannot be bypassed by adding another caller.
+    dl_commissaryQuantityPlausibilityGuard($db, $commissaryBranchId, $productId, $ledgerDate, [
+        'produced_qty' => $newProduced,
+        'dispatched_qty' => $newDispatched,
+    ], $plausibilityOverrideReason);
 
     $db->prepare(
         'UPDATE dl_commissary_product_ledger
@@ -5889,6 +6019,19 @@ function dl_saveCommissaryActualEndQty(
     }
     if ($actualEndQty !== null && ($actualEndQty < 0 || $actualEndQty > 999999999)) {
         throw new \RuntimeException('Production count is out of bounds.');
+    }
+    // Same plausibility rule as the produced/dispatched columns: a count twenty times what this
+    // item has ever held is a keying accident until somebody says otherwise in writing. The
+    // deliberate path for a genuinely large correction is dl_changeProductionLedgerField(), which
+    // requires production.override AND a reason.
+    if ($actualEndQty !== null) {
+        dl_commissaryQuantityPlausibilityGuard(
+            $db,
+            $commissaryBranchId,
+            $productId,
+            $ledgerDate,
+            ['actual_end_qty' => $actualEndQty]
+        );
     }
 
     // The full D6 sheet includes dead-stock products with no movement row yet.
@@ -30845,6 +30988,16 @@ function apiSaveCommissaryMaterial(): void
             }
             $beforeRow = dl_readCommissaryProductLedgerRow($db, $commissaryBranchId, $productId, $date, $shift);
             $beforeBeg = array_key_exists('beg_qty', $beforeRow) ? (int)$beforeRow['beg_qty'] : null;
+            // An opening is the root of every later balance and can be keyed silently today; the
+            // 15,075 that started the mamon chain was stored with reason NULL. Out-of-scale or
+            // first-time-large openings must say where the stock came from.
+            if ($reason === '' && dl_commissaryBeginningNeedsReason($db, $commissaryBranchId, $productId, $date, (int)$begQty)) {
+                throw new \RuntimeException(
+                    'A beginning of ' . (int)$begQty . ' is far outside what this item has carried at this hub, '
+                    . 'and every later balance inherits it. Add a short reason (where the stock came from) to record it.',
+                    422
+                );
+            }
             $row = dl_saveCommissaryBeginningQty(
                 $db, $commissaryBranchId, $productId, $date, (int)$begQty, dl_getActorUserId($user), $shift
             );
