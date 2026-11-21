@@ -1,0 +1,12 @@
+{
+  "digest": "98ebd2c81318f452a3d951a37640bf990d1bfd0c20b1e8e277fa770c9072b246",
+  "event_id": "98ebd2c81318f452",
+  "lesson_id": "L-8b91ce495f",
+  "reasons": [
+    "fragment"
+  ],
+  "recorded_at": "2026-11-21T03:06:04.577149Z",
+  "retired_by": "harvest-filter",
+  "schema_version": 1,
+  "type": "retire"
+}
