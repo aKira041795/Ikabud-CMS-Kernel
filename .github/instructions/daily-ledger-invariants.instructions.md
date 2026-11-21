@@ -45,6 +45,28 @@ this in both directions.
 Never tell a commissary user to use "Send to Branch" — their control is "New Delivery (DR)", and it
 is the one that carries the DR.
 
+## The business start is a floor on INTERPRETATION, not a ban on storage
+
+Owner, 2026-11-21: *"our purpose is management of data to start and interpret."* `official_data_start`
+(default `2026-10-01`, overridable per branch through `dl_branches.official_data_start`) bounds what a
+screen **interprets**, never what the database **accepts**.
+
+| | Rule |
+|---|---|
+| Storage | Pre-start rows stay stored, readable, auditable. `dl_ledgerDateBeforeStartRefusal()`-style write bans do **not** exist and must not be added — a deliberate backdated entry is legitimate. |
+| Default view | A lane with **no typed date range** starts at the business start (`dl_laneDateFrom()`). A blank From is not an instruction to present the pre-business period as current trade. |
+| Explicit range | A range the operator types is **honoured as chosen**, and the lane discloses that it reaches before the start. Navigation into history stays readable. |
+| Disclosure | Every lane that shortens its list says what it is holding back ("130 earlier transfer(s) exist and stay stored"). A silently shorter list reads as lost work. |
+
+Why this is a rule and not a preference: the clamp helper `dl_clampFromForView()` only **raises** a
+from-date the caller already has, so lanes with no filter at all still reached back through every
+pre-business row. Measured before the fix: 11,645 ledger rows, 130 deliveries, 397 variance flags,
+1,246 withdrawals, 124 receivings and 225 day-status rows pre-dated the start, and the Receive Stock
+badge counted a 2026-09-01 delivery that the list it opens would never show.
+
+A lane added later inherits this: give it `dl_laneDateFrom()` (or, for row-carrying queries, compare
+per row with `dl_officialStartSqlExpr('b')`) and disclose the excluded count.
+
 ## Two traps that cost real time here
 
 - **A class the template does not define fails silently.** In `commissary.disyl` only `.btn`,
