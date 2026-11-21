@@ -110,7 +110,8 @@ function dl_accountabilityAuditGuard(
     string $action,
     string $entityType,
     string $entityId,
-    ?int $branchId = null
+    ?int $branchId = null,
+    bool $matchBranch = false
 ): void {
     try {
         // Existence, not cardinality: the guard asks whether the audit row LANDED, and COUNT forces
@@ -119,15 +120,20 @@ function dl_accountabilityAuditGuard(
         // 37,749 audit rows before the (module, action, entity_id) index, database/migrations/026).
         $stmt = $db->prepare(
             'SELECT 1 FROM audit_logs
-              WHERE module = :module AND action = :action AND entity_type = :entity_type AND entity_id = :entity_id
+              WHERE module = :module AND action = :action AND entity_type = :entity_type AND entity_id = :entity_id'
+            . ($matchBranch && $branchId !== null ? ' AND branch_id = :branch_id' : '') . '
               LIMIT 1'
         );
-        $stmt->execute([
+        $guardBind = [
             ':module' => 'daily-ledger',
             ':action' => $action,
             ':entity_type' => $entityType,
             ':entity_id' => $entityId,
-        ]);
+        ];
+        if ($matchBranch && $branchId !== null) {
+            $guardBind[':branch_id'] = $branchId;
+        }
+        $stmt->execute($guardBind);
         $found = $stmt->fetchColumn() !== false;
     } catch (\Throwable $e) {
         // A broken audit TRAIL must not break the stock write either: the read
@@ -13514,6 +13520,20 @@ function apiSaveCashierWithdrawals(array $params = []): void
             'liable_user_name' => $liableUserName,
             'lines' => $totals,
         ]);
+        // The trail has to be PROVEN, not assumed. dl_auditLog() swallows its own failures, and this
+        // action keys on "{date}-{shift}" - a string every branch shares - so the guard must match the
+        // branch or one branch's row would vouch for another's. Measured 2026-11-21 on the live dump:
+        // only 176 of 13,660 own_production / adjustment_add rows in 1-20 Nov have a withdrawal audit
+        // at all. That gap is why a branch can neither be proven wrong nor believed when it says
+        // "wala mi nag-entry". This makes the next failure visible at error level instead of silent.
+        dl_accountabilityAuditGuard(
+            $ctx->db(),
+            'withdrawal',
+            'dl_cashier_withdrawals',
+            "{$date}-{$shift}",
+            (int)$branchId,
+            true
+        );
         dl_recomputeVariancesForDay($branchId, $date);
 
         // Owner report 2026-11-14: a branch must never find its finished day quietly changed.
