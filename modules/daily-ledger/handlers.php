@@ -17980,21 +17980,75 @@ function handleAdminOverview(array $params = []): void
         $remittedBranches = (int)($remRow['branches'] ?? 0);
         $remittedFirst = (string)($remRow['first_day'] ?? '');
         $remittedLast = (string)($remRow['last_day'] ?? '');
-        if ($remittedFirst !== '' && $remittedLast !== '' && $remittedTotal > 0) {
-            $sameStmt = $db->prepare(
-                'SELECT COALESCE(SUM(CASE WHEN ' . $lifetimeProvisional . ' THEN 0 ELSE ' . $lifetimeAmount . ' END), 0) AS gross'
-                . ' FROM dl_daily_ledger dl'
-                . ' INNER JOIN dl_branches b ON b.id = dl.branch_id'
-                . ' LEFT JOIN dl_ledger_shift_status ss'
-                . ' ON ss.branch_id = dl.branch_id AND ss.ledger_date = dl.ledger_date'
-                . ' AND ss.shift = dl.shift COLLATE utf8mb4_unicode_ci'
-                . ' WHERE dl.branch_id IN (' . $remMarks . ') AND dl.ledger_date BETWEEN ? AND ?'
-                . dl_overviewPendingPredicate('dl')
-            );
-            $sameBind = array_merge($lifetimeIds, [$remittedFirst, $remittedLast]);
-            $sameStmt->execute($sameBind);
-            $remittedDerivedSameDays = (float)($sameStmt->fetchColumn() ?: 0);
+        // The ledger-derived figure for those same days is filled in by the per-branch-day cap
+        // query below, which already joins remittance to a branch-day. Comparing the remitted total
+        // against EVERY branch-day in the date range (the previous behaviour) mixed 25 remitting
+        // branches with the whole fleet and read as 53% of derived, while the branch-days that
+        // actually remitted sit at 97.6%: the same days means the same branch-days.
+    }
+
+    // ── The conservative gross: MIN(derived, remitted) per branch-day ────────────────────────────
+    // Owner, 2026-11-21: "wire it so gross sales is near honest until we have a stable cash
+    // remitted data that will actually show the accurate business health."
+    //
+    // The rule is per BRANCH-DAY, never a global multiplier. Measured why: the derived/remitted
+    // ratio runs 0.07x to 3.27x across 243 branch-days, so one factor would overstate half of them.
+    // Per branch it is stable and near 1.00 for the normal ones (branches 12/30/16/49 sit at
+    // 0.99-1.03, range 0.82-1.18); the 1.89x aggregate is produced by a handful of outliers
+    // (branches 8, 9 and 13 reaching 2.5-3.3x - branch 9 is where the mamon write-downs are).
+    //
+    // So: where a remittance EXISTS, no branch-day may claim more than the cash that arrived.
+    // Where none exists the derived figure stands, because inventing a cap would be a guess.
+    // This can only ever reduce the total, which is the direction the owner asked for.
+    $lifetimeGrossCapped = $lifetimeGross;
+    $cappedBranchDays = 0;
+    $capTrimmed = 0.0;
+    $remittedMatchedDays = 0;
+    // Every trim comes from a branch-day that HAS a remittance, so the whole pass can be bounded to
+    // the remittance window (measured: 20 days instead of the 274k-row lifetime, ~2.3s -> ~40ms).
+    // Branch-days outside it have no remittance and keep their derived figure, so trimming the total
+    // by the window's excess is identical to capping every branch-day individually.
+    if ($db !== null && $lifetimeIds !== [] && $lifetimeGross > 0
+        && $remittedFirst !== '' && $remittedLast !== '' && $remittedTotal > 0) {
+        $capMarks = implode(',', array_fill(0, count($lifetimeIds), '?'));
+        $capSql = 'SELECT COALESCE(SUM(CASE WHEN r.remitted IS NOT NULL AND r.remitted < d.derived'
+            . ' THEN d.derived - r.remitted ELSE 0 END), 0) AS trimmed_amount,'
+            . ' COALESCE(SUM(CASE WHEN r.remitted IS NOT NULL AND r.remitted < d.derived THEN 1 ELSE 0 END), 0) AS trimmed_days,'
+            . ' COALESCE(SUM(CASE WHEN r.remitted IS NOT NULL THEN d.derived ELSE 0 END), 0) AS matched_derived,'
+            . ' COALESCE(SUM(CASE WHEN r.remitted IS NOT NULL THEN 1 ELSE 0 END), 0) AS matched_days'
+            . ' FROM (SELECT dl.branch_id, dl.ledger_date,'
+            . ' SUM(CASE WHEN ' . $lifetimeProvisional . ' THEN 0 ELSE ' . $lifetimeAmount . ' END) AS derived'
+            . ' FROM dl_daily_ledger dl'
+            . ' INNER JOIN dl_branches b ON b.id = dl.branch_id'
+            . ' LEFT JOIN dl_ledger_shift_status ss'
+            . ' ON ss.branch_id = dl.branch_id AND ss.ledger_date = dl.ledger_date'
+            . ' AND ss.shift = dl.shift COLLATE utf8mb4_unicode_ci'
+            . ' WHERE dl.branch_id IN (' . $capMarks . ') AND dl.ledger_date BETWEEN ? AND ?';
+        $capBind = $lifetimeIds;
+        $capBind[] = $remittedFirst;
+        $capBind[] = $remittedLast;
+        $capStart = dl_effectiveStartForView($lifetimeIds, (int)($filters['branch_id'] ?? 0));
+        if ($capStart !== null) {
+            $capSql .= ' AND dl.ledger_date >= ?';
+            $capBind[] = $capStart;
         }
+        $capSql .= dl_overviewPendingPredicate('dl')
+            . ' GROUP BY dl.branch_id, dl.ledger_date) d'
+            . ' LEFT JOIN (SELECT branch_id, ledger_date, SUM(cash_remitted) AS remitted'
+            . ' FROM dl_shift_reconciliation WHERE branch_id IN (' . $capMarks . ')'
+            . ' GROUP BY branch_id, ledger_date) r'
+            . ' ON r.branch_id = d.branch_id AND r.ledger_date = d.ledger_date';
+        // The marks appear twice in the statement, so the branch ids are bound twice as well.
+        $capBind = array_merge($capBind, $lifetimeIds);
+        $capStmt = $db->prepare($capSql);
+        $capStmt->execute($capBind);
+        $capRow = $capStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+        $capTrimmed = (float)($capRow['trimmed_amount'] ?? 0);
+        $lifetimeGrossCapped = max(0.0, $lifetimeGross - $capTrimmed);
+        $cappedBranchDays = (int)($capRow['trimmed_days'] ?? 0);
+        // Same branch-days, both figures: this is the only apples-to-apples remittance comparison.
+        $remittedDerivedSameDays = (float)($capRow['matched_derived'] ?? 0);
+        $remittedMatchedDays = (int)($capRow['matched_days'] ?? 0);
     }
 
     echo dlRender('modules/daily-ledger/admin/overview.disyl', [
@@ -18065,18 +18119,25 @@ function handleAdminOverview(array $params = []): void
         // All-periods gross summary - the lifetime figure an owner wants first, with the pace it
         // implies. Denominators are days and months WITH recorded official sales, stated on the page.
         'lifetime_gross' => $lifetimeGross,
+        // What the card LEADS with: the same figure with every branch-day capped at the cash that
+        // actually arrived. Equal to lifetime_gross wherever no remittance exists.
+        'gross_capped' => $lifetimeGrossCapped,
+        'gross_capped_days' => $cappedBranchDays,
+        'gross_capped_trimmed' => $capTrimmed,
         // Independent money evidence: cash actually remitted/deposited per branch-day.
         // Owner, 2026-11-21: "amount remitted/deposited is within the branch's sales data, and I
         // will stick to that." Measured: 416 remittance rows cover 25 branches over 2026-11-01..20
-        // and total PHP 4,568,085.35, while the ledger DERIVES PHP 9,056,061.30 for the same days -
-        // the derived figure is ~2x the money that actually arrived. Remittance is money in hand,
-        // so it cannot be overstated; where it exists it is the figure to trust.
+        // and total PHP 4,568,085.35. On the 243 branch-days that reported remittance the ledger
+        // derives PHP 4,681,577.93 - the two agree to 97.6%, so remittance is a real floor and the
+        // cap below can only remove invented money. Remittance is money in hand, so where it exists
+        // it is the figure to trust.
         'remitted_total' => $remittedTotal,
         'remitted_days' => $remittedDays,
         'remitted_branches' => $remittedBranches,
         'remitted_first' => $remittedFirst,
         'remitted_last' => $remittedLast,
         'remitted_derived_same_days' => $remittedDerivedSameDays,
+        'remitted_matched_days' => $remittedMatchedDays,
         'lifetime_span_label' => $lifetimeSpanLabel,
         'lifetime_scope_label' => $lifetimeScopeLabel,
         'lifetime_first_date' => $lifetimeFirstDate,

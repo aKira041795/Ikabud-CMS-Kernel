@@ -325,10 +325,24 @@ class ModuleDB implements DatabaseContract
         // Capture additional comma-separated tables after FROM: FROM t1 [alias], t2 [alias], ...
         if (preg_match_all('/\bFROM\s+(.*?)(?:\bWHERE\b|\bORDER\b|\bGROUP\b|\bHAVING\b|\bLIMIT\b|\bUNION\b|\bJOIN\b|\bLEFT\b|\bRIGHT\b|\bINNER\b|\bOUTER\b|\bCROSS\b|\bON\b|$)/is', $clean, $fromClauses)) {
             foreach ($fromClauses[1] as $fromClause) {
+                $fromClause = trim($fromClause);
+                // A DERIVED table - FROM (SELECT a, b FROM t) x - carries a SELECT list, not a
+                // table list: splitting it on commas reported its columns/aliases as tables and
+                // denied a valid query for a table named after a column alias (measured: a daily
+                // ledger aggregate was rejected as "undeclared table 'dl'"). Its real tables are
+                // already captured by the FROM/JOIN pass above, so the clause is skipped whole.
+                if ($fromClause === '' || $fromClause[0] === '(') {
+                    continue;
+                }
                 // Split on commas and extract table names
-                $parts = preg_split('/\s*,\s*/', trim($fromClause));
+                $parts = preg_split('/\s*,\s*/', $fromClause);
                 foreach ($parts as $part) {
-                    if (preg_match('/^`?(\w+)`?/i', trim($part), $tm)) {
+                    $part = trim($part);
+                    // A derived table inside a mixed list (t1 a, (SELECT ...) b) is not a table.
+                    if ($part === '' || $part[0] === '(') {
+                        continue;
+                    }
+                    if (preg_match('/^`?(\w+)`?/i', $part, $tm)) {
                         $tables[] = $tm[1];
                     }
                 }

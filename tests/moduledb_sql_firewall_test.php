@@ -51,6 +51,12 @@ $allowed = [
     'UPDATE test_items SET name = "updated" WHERE id = 1',
     'DELETE FROM test_items WHERE id = 1',
     'SELECT id, name FROM users WHERE id = 1', // read-only table
+    // Derived table: the SELECT list is not a table list. Splitting it on commas used to report
+    // the column alias `dl` as an undeclared table and deny a valid statement.
+    'SELECT SUM(d.total) AS capped FROM (SELECT t.id, t.name, SUM(t.id) AS total'
+        . ' FROM test_items t GROUP BY t.id, t.name) d',
+    // Mixed comma list: the real table first, the derived table second.
+    'SELECT 1 FROM test_items t, (SELECT c.id FROM test_categories c) x WHERE t.id = x.id',
 ];
 
 foreach ($allowed as $i => $sql) {
@@ -58,7 +64,6 @@ foreach ($allowed as $i => $sql) {
     try {
         // Use reflection to call enforceAccess directly
         $ref = new \ReflectionMethod($db, 'enforceAccess');
-        $ref->setAccessible(true);
         $ref->invoke($db, $sql);
     } catch (\Throwable $e) {
         $ok = false;
@@ -81,7 +86,6 @@ foreach ($ddlBlocked as $sql) {
     $blocked = false;
     try {
         $ref = new \ReflectionMethod($db, 'enforceAccess');
-        $ref->setAccessible(true);
         $ref->invoke($db, $sql);
     } catch (\RuntimeException $e) {
         $blocked = true;
@@ -103,7 +107,6 @@ foreach ($schemaBlocked as $sql) {
     $blocked = false;
     try {
         $ref = new \ReflectionMethod($db, 'enforceAccess');
-        $ref->setAccessible(true);
         $ref->invoke($db, $sql);
     } catch (\RuntimeException $e) {
         $blocked = true;
@@ -124,7 +127,6 @@ foreach ($multiBlocked as $sql) {
     $blocked = false;
     try {
         $ref = new \ReflectionMethod($db, 'enforceAccess');
-        $ref->setAccessible(true);
         $ref->invoke($db, $sql);
     } catch (\RuntimeException $e) {
         $blocked = true;
@@ -141,13 +143,14 @@ $tableBlocked = [
     'INSERT INTO users (name) VALUES ("hack")',  // users is read-only
     'UPDATE users SET admin = 1 WHERE id = 1',   // users is read-only
     'DELETE FROM users WHERE id = 1',             // users is read-only
+    // Declared table outer, undeclared inner: skipping the derived clause must NOT hide it.
+    'SELECT * FROM (SELECT * FROM secret_data) d',
 ];
 
 foreach ($tableBlocked as $sql) {
     $blocked = false;
     try {
         $ref = new \ReflectionMethod($db, 'enforceAccess');
-        $ref->setAccessible(true);
         $ref->invoke($db, $sql);
     } catch (\RuntimeException $e) {
         $blocked = true;
@@ -168,7 +171,6 @@ foreach ($dclBlocked as $sql) {
     $blocked = false;
     try {
         $ref = new \ReflectionMethod($db, 'enforceAccess');
-        $ref->setAccessible(true);
         $ref->invoke($db, $sql);
     } catch (\RuntimeException $e) {
         $blocked = true;

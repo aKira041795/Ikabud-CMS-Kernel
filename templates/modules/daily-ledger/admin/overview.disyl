@@ -23,8 +23,14 @@
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div>
                 <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Gross sales to date</div>
-                <div class="mt-1 text-2xl font-semibold text-gray-900">PHP {lifetime_gross | number_format:2}</div>
-                <div class="text-xs text-gray-500">official finalized sales only</div>
+                <div class="mt-1 text-2xl font-semibold text-gray-900">PHP {gross_capped | number_format:2}</div>
+                <div class="text-xs text-gray-500">official finalized sales, capped at cash remitted where known</div>
+                {if gross_capped_trimmed > 0}
+                <div class="mt-1 text-xs text-gray-500"
+                     title="Per branch-day, sales may not exceed the cash that was actually remitted. The trim only ever removes money, never adds it, so this figure can read under the trade but never over it.">
+                    trimmed {gross_capped_days} branch-day(s) by PHP {gross_capped_trimmed | number_format:2}; ledger-derived before the cap: PHP {lifetime_gross | number_format:2}
+                </div>
+                {/if}
             </div>
             <div>
                 <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Average per month</div>
@@ -50,8 +56,10 @@
             <div class="text-xs text-gray-500">across {remitted_days} days and {remitted_branches} branches · {remitted_first} to {remitted_last}</div>
             {if remitted_derived_same_days > 0}
             <div class="mt-1 text-xs text-gray-600">
-                The ledger-derived figure for those same days is PHP {remitted_derived_same_days | number_format:2} —
-                the remitted amount is money that physically arrived, so <strong>that</strong> is the figure to trust where it exists.
+                Same branch-days, both figures: {remitted_matched_days} branch-days declared a remittance,
+                the ledger derives PHP {remitted_derived_same_days | number_format:2} against PHP {remitted_total | number_format:2} remitted.
+                Any branch-day above its own remittance is capped to it in the gross figure above; the remitted
+                amount is money that physically arrived, so <strong>that</strong> is the figure to trust where it exists.
             </div>
             {/if}
         </div>
