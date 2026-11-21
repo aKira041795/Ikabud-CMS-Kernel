@@ -12400,7 +12400,17 @@ function handleCashierLedger(array $params = []): void
     }
     // Pending incoming deliveries (count of distinct DR groups for this branch)
     // Includes both informal transfers (dl_cashier_withdrawals) and formal DRs (dl_deliveries)
+    //
+    // This is an OUTSTANDING-WORK queue, not today's arrivals: it has no date filter, because a
+    // delivery that was never received is still work regardless of how old it is. Measured
+    // 2026-11-21: the fleet carries 2,233 unreceived posted deliveries since 2026-09-01, and 2,019
+    // of them are from October - a month of backlog, not a morning's trucks. A bare "348 waiting"
+    // therefore reads as "348 arrived today" when it may mean "348 have never been confirmed".
+    // The counts below let the card say which it is instead of leaving the owner to guess.
     $incomingCount = 0;
+    $incomingOldest = '';
+    $incomingToday = 0;
+    $incomingBeforeStart = 0;
     if ($branchId) {
         $incStmt = $ctx->db()->prepare(
             "SELECT COUNT(DISTINCT COALESCE(dr_number, CONCAT('o:', branch_id, ':', ledger_date)))
@@ -12427,6 +12437,32 @@ function handleCashierLedger(array $params = []): void
             );
             $formalIncStmt->execute([':bid' => $branchId]);
             $incomingCount += (int)$formalIncStmt->fetchColumn();
+
+            // Age of the same population, so the badge can date itself.
+            $branchStart = dl_branchOfficialStart($branchId);
+            $ageStmt = $ctx->db()->prepare(
+                "SELECT MIN(d.delivery_date) AS oldest,
+                        SUM(CASE WHEN d.delivery_date = :today THEN 1 ELSE 0 END) AS today_count,
+                        SUM(CASE WHEN d.delivery_date < :start THEN 1 ELSE 0 END) AS before_start
+                 FROM dl_deliveries d
+                 WHERE d.destination_type = 'branch'
+                   AND d.destination_id = :bid
+                   AND d.status = 'posted'
+                   AND COALESCE(d.receipt_required, 1) = 1
+                   AND NOT EXISTS (
+                       SELECT 1 FROM dl_branch_receivings br
+                       WHERE br.delivery_id = d.id AND br.status <> 'voided'
+                   )"
+            );
+            $ageStmt->execute([
+                ':today' => dl_businessDate(),
+                ':start' => $branchStart ?? '9999-12-31',
+                ':bid' => $branchId,
+            ]);
+            $ageRow = $ageStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+            $incomingOldest = (string)($ageRow['oldest'] ?? '');
+            $incomingToday = (int)($ageRow['today_count'] ?? 0);
+            $incomingBeforeStart = (int)($ageRow['before_start'] ?? 0);
         }
     }
 
@@ -12587,6 +12623,13 @@ function handleCashierLedger(array $params = []): void
         'consignees' => $consignees,
         'consignee_enabled' => dl_isConsigneeEnabled(),
         'incoming_count' => $incomingCount,
+        // The waiting badge dates itself: how many arrived today, how old the oldest is, and how
+        // many predate official counting. Without these the number was silently a month of
+        // unconfirmed deliveries presented as if it were today's arrivals.
+        'incoming_today' => $incomingToday,
+        'incoming_oldest' => $incomingOldest,
+        'incoming_before_start' => $incomingBeforeStart,
+        'incoming_scan_from' => dl_branchOfficialStart($branchId) ?? '',
         'formal_delivery_enabled' => dl_isFormalDeliveryEnabled(),
         'paperless_dr_enabled' => dl_branchPaperlessDrEnabled($branchId),
         // The branch switch alone is no longer the answer to "may I skip the DR": since
