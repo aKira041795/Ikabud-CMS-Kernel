@@ -1398,6 +1398,9 @@ function dl_offlineUnsyncedDevices(array $user, int $limit = 20): array
  */
 function apiOfflineEnroll(array $params = []): void
 {
+    if (dl_offlineRefuseWhenDisabled()) {
+        return;
+    }
     $ctx = module();
     if (!$ctx) {
         dlJson(['ok' => false, 'error' => 'Module context unavailable'], 500);
@@ -1481,6 +1484,9 @@ function apiOfflineEnroll(array $params = []): void
  */
 function apiOfflineBootstrap(array $params = []): void
 {
+    if (dl_offlineRefuseWhenDisabled()) {
+        return;
+    }
     $ctx = module();
     if (!$ctx) {
         dlJson(['ok' => false, 'error' => 'Module context unavailable'], 500);
@@ -1524,6 +1530,9 @@ function apiOfflineBootstrap(array $params = []): void
  */
 function apiOfflineStatus(array $params = []): void
 {
+    if (dl_offlineRefuseWhenDisabled()) {
+        return;
+    }
     $ctx = module();
     if (!$ctx) {
         dlJson(['ok' => false, 'error' => 'Module context unavailable'], 500);
@@ -1583,6 +1592,9 @@ function apiOfflineStatus(array $params = []): void
  * "Remove offline access"). Pending work is NOT silently deleted — the
  * client is expected to surface a warning before calling this.
  */
+// Deliberately NOT gated on the offline switch: revoking is the admin's safety action, and it must
+// stay available after the feature is turned off so a device granted access yesterday can still be
+// cut off today. Only the paths that can WRITE (enroll, bootstrap, status refresh, reconcile) refuse.
 function apiOfflineRevoke(array $params = []): void
 {
     $ctx = module();
@@ -1641,6 +1653,9 @@ function apiOfflineRevoke(array $params = []): void
  */
 function apiOfflineReconcile(array $params = []): void
 {
+    if (dl_offlineRefuseWhenDisabled()) {
+        return;
+    }
     $ctx = module();
     if (!$ctx) {
         dlJson(['ok' => false, 'error' => 'Module context unavailable'], 500);

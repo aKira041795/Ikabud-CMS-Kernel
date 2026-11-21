@@ -949,6 +949,13 @@
       "description": "Allow authorized cashiers to record itemized POS sales. When off, only the manual stock ledger is available."
     },
     {
+      "key": "offline_access_enabled",
+      "type": "checkbox",
+      "label": "Enable Offline Access (device queue)",
+      "default": "1",
+      "description": "Lets an enrolled device save cashier entries while offline and replay them when it reconnects. When off, the offline controls are hidden from the cashier ledger and every offline endpoint refuses, including a queue left on a device - so a replayed entry cannot land on a date nobody at the branch chose."
+    },
+    {
       "key": "cash_paper_check_enabled",
       "type": "checkbox",
       "label": "Enable Cash & Paper Check",

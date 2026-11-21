@@ -215,8 +215,8 @@
         <span class="inline-flex max-w-2xl items-center rounded-lg px-3 py-1 text-xs font-semibold ring-1 ring-inset bg-emerald-50 text-emerald-700 ring-emerald-200"
               id="global-status" data-cashier-save-status role="status" aria-live="polite">All saved</span>
         <span id="held-actions"></span>
-        <span id="offline-ready-badge" class="hidden inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset bg-emerald-50 text-emerald-700 ring-emerald-200">Offline ready</span>
-        <button type="button" class="btn btn-accent" id="offline-access-btn" onclick="dlOpenOfflineAccess()">Enable offline access</button>
+        {if offline_enabled}<span id="offline-ready-badge" class="hidden inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset bg-emerald-50 text-emerald-700 ring-emerald-200">Offline ready</span>
+        <button type="button" class="btn btn-accent" id="offline-access-btn" onclick="dlOpenOfflineAccess()">Enable offline access</button>{/if}
         {if (shift == 'PM' || (single_shift_mode && shift == 'AM')) && day_status == 'open' && !reference_only}
         {if shift_status != 'finalized'}
         <button type="button" class="btn btn-primary" id="finalize-pm-btn" onclick="finalizePmShift()">{if single_shift_mode}Close Day-Ending Shift{else}Close PM Shift{/if}</button>
@@ -323,6 +323,7 @@
     <input type="text" class="form-input max-w-xs" id="ledger-search" placeholder="Search product..." oninput="filterLedgerRows(this.value)">
 </div>
 
+{if offline_enabled}
 <div id="offline-pending-sync" class="hidden mb-4 rounded-lg border border-indigo-300 bg-indigo-50 px-4 py-3 text-sm text-indigo-900" role="status" aria-live="polite">
     <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -339,6 +340,7 @@
     </div>
     <p id="offline-pin-msg" class="mt-1 text-xs text-rose-600 hidden"></p>
 </div>
+{/if}
 
 <div class="mb-4 grid gap-3 lg:grid-cols-3">
     <div class="rounded-xl border border-indigo-200 bg-indigo-50 p-4 shadow-sm">
@@ -460,12 +462,12 @@
 {include "modules/daily-ledger/cashier/dispatch_modal.disyl"}
 {include "modules/daily-ledger/cashier/receive_modal.disyl"}
 {include "modules/daily-ledger/cashier/edit_delivery_modal.disyl"}
-{include "modules/daily-ledger/cashier/offline_auth.disyl"}
+{if offline_enabled}{include "modules/daily-ledger/cashier/offline_auth.disyl"}{/if}
 {/block}
 
 {block scripts}
-<script src="/daily-ledger/assets/offline-vault.js"></script>
-{include "modules/daily-ledger/cashier/offline_reference.disyl"}
+{if offline_enabled}<script src="/daily-ledger/assets/offline-vault.js"></script>
+{include "modules/daily-ledger/cashier/offline_reference.disyl"}{/if}
 <script>
     var BASE = '{base_url}';
     var BRANCH_ID = '{branch_id}';

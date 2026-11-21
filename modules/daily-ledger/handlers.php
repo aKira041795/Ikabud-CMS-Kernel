@@ -690,6 +690,41 @@ function dl_isConsigneeEnabled(): bool
     return dl_normalizeConsigneeEnabled($settings['consignee_enabled'] ?? true);
 }
 
+/**
+ * Whether device offline access (the PWA queue) is allowed for this tenant.
+ *
+ * Off by admin switch only, ON by default so an upgrade changes no behaviour. Its whole point is
+ * the failure the branches reported: a queued entry replays against the date the DEVICE computed,
+ * which can be the next business date, so the branch opens its AM sheet and finds additions nobody
+ * at the branch keyed that morning. Turning this off hides the controls and makes every offline
+ * endpoint refuse the queue, so nothing can be replayed behind the branch's back.
+ */
+function dl_isOfflineAccessEnabled(): bool
+{
+    $settings = dlModuleSettings();
+    return dl_settingToBool($settings['offline_access_enabled'] ?? true);
+}
+
+/**
+ * JSON refusal shared by every offline endpoint when offline access is switched off.
+ * Returns true when the request was refused, so a caller reads as
+ * `if (dl_offlineRefuseWhenDisabled()) { return; }`.
+ */
+function dl_offlineRefuseWhenDisabled(): bool
+{
+    if (dl_isOfflineAccessEnabled()) {
+        return false;
+    }
+    http_response_code(403);
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode([
+        'ok' => false,
+        'code' => 'OFFLINE_DISABLED',
+        'error' => 'Offline access is disabled for this tenant. Entries must be saved while connected.',
+    ]);
+    return true;
+}
+
 function dl_normalizeConsigneeSalesMode(mixed $value): string
 {
     return in_array($value, ['consignment', 'order'], true) ? $value : 'consignment';
@@ -12249,6 +12284,9 @@ function handleCashierLedger(array $params = []): void
         'day_ending_shift' => $dayEndingShift,
         'day_ending_shift_status' => $dayEndingStatus,
         'closed_without_finalize' => $closedWithoutFinalize,
+        // Admin switch: when off, the cashier screen renders none of the offline controls, so a
+        // branch cannot open a queue that the server will refuse at replay time.
+        'offline_enabled' => dl_isOfflineAccessEnabled(),
         'feature_cash_paper_check' => $cashPaperCheckEnabled,
         'deposit' => $depositContext,
         'deposit_editable' => $depositEditable,
@@ -15690,6 +15728,13 @@ function apiCarryCashierBeginnings(): void
 
 function apiSaveLedgerBatch(array $params = []): void
 {
+    // Same switch as the offline endpoints. This route exists only for a device replaying a queue
+    // ("Cashier: batch save (offline sync)") - no online screen calls it - so with offline access
+    // off a queued batch must be refused rather than applied hours later against a date the branch
+    // did not choose.
+    if (dl_offlineRefuseWhenDisabled()) {
+        return;
+    }
     $ctx = module();
     if (!$ctx) {
         http_response_code(500);
