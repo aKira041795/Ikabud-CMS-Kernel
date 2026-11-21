@@ -2379,6 +2379,11 @@ function apiListDeliveries(array $params = []): void
     if ($dateFrom !== '' && $dateTo !== '' && $dateFrom > $dateTo) {
         [$dateFrom, $dateTo] = [$dateTo, $dateFrom];
     }
+    // A LIST WITH NO DATE FILTER STARTS AT THE BUSINESS START. Owner, 2026-11-21: "set the business
+    // start date for deliveries cutoff ... so that we don't have to inherit pre business date start
+    // data." A typed range is honoured as chosen; a blank one is not an instruction to present the
+    // pre-business period as current trade.
+    $dateFrom = dl_laneDateFrom($dateFrom, $accessibleBranchIds, $branchFilterId, $dateFrom !== '');
 
     $where = [];
     $bind = [];
@@ -4760,6 +4765,22 @@ function handleAdminDeliveries(array $params = []): void
     if ($dateFrom !== '' && $dateTo !== '' && $dateFrom > $dateTo) {
         [$dateFrom, $dateTo] = [$dateTo, $dateFrom];
     }
+    // The list itself defaults to the business start (apiListDeliveries applies the same floor), so
+    // the page states how many transfers the cutoff is holding back. Read-time only: nothing is
+    // deleted, and typing an earlier From brings them back.
+    $deliveryStartFloor = dl_effectiveStartForView($accessibleBranchIds, $branchFilterId);
+    $deliveriesBeforeStart = 0;
+    if ($deliveryStartFloor !== null && $deliveryStartFloor !== '') {
+        $beforePlaceholders = implode(',', array_fill(0, count($accessibleBranchIds), '?'));
+        $beforeStmt = $ctx->db()->prepare(
+            "SELECT COUNT(*) FROM dl_deliveries d
+              WHERE d.delivery_date < ?
+                AND ((d.origin_type IN ('branch', 'commissary') AND d.origin_id IN ({$beforePlaceholders}))
+                     OR (d.destination_type = 'branch' AND d.destination_id IN ({$beforePlaceholders})))"
+        );
+        $beforeStmt->execute(array_merge([$deliveryStartFloor], $accessibleBranchIds, $accessibleBranchIds));
+        $deliveriesBeforeStart = (int)$beforeStmt->fetchColumn();
+    }
 
     echo dlRender('modules/daily-ledger/admin/deliveries.disyl', array_merge(dl_layoutFlags(), [
         'page_title'   => 'Transfer Records',
@@ -4777,6 +4798,9 @@ function handleAdminDeliveries(array $params = []): void
         'delivery_filter_branch_id' => $branchFilterId,
         'delivery_filter_date_from' => $dateFrom,
         'delivery_filter_date_to' => $dateTo,
+        // The business start this lane now defaults to, and what it is holding back.
+        'delivery_start_floor' => (string)($deliveryStartFloor ?? ''),
+        'deliveries_before_start' => $deliveriesBeforeStart,
         'formal_delivery_enabled' => dl_isFormalDeliveryEnabled(),
         // production_in_charge creates the DRs that the receiving branch reconciles. handleAdminDeliveries()
         // already authorises the role (its dlCurrentUser list includes it), so excluding them here

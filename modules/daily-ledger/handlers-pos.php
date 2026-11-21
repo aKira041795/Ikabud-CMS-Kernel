@@ -2090,6 +2090,13 @@ function dl_pos_querySales($db, array $user, array $filters): array
             $bind[] = $value;
         }
     }
+    // No typed From means the business start, not the beginning of stored data (owner 2026-11-21:
+    // lanes must not inherit the period before the business started). Per branch, because the row
+    // carries dl_branches: a branch onboarded later must not see a floor it never traded under.
+    $posFloorGiven = trim((string)($filters['date_from'] ?? ''));
+    if ($posFloorGiven === '') {
+        $sql .= ' AND s.ledger_date >= ' . dl_officialStartSqlExpr('b');
+    }
     $cashierId = (int)($filters['cashier_id'] ?? 0);
     if ($cashierId > 0) {
         $sql .= ' AND s.cashier_id = ?';

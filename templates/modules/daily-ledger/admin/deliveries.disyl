@@ -10,8 +10,9 @@
                 {if !formal_delivery_enabled}
                 <span class="block mt-1 text-amber-700">Formal Delivery Workflow is currently disabled in Settings &rarr; Feature Activation. Posting will be blocked.</span>
                 {/if}
-            </p>
-        </div>
+            </p>            {if delivery_start_floor != ''}
+            <p class="mt-1 text-xs text-gray-500">Records start at the business start, <span class="font-semibold text-gray-700">{delivery_start_floor}</span>{if deliveries_before_start > 0}; <span class="font-semibold text-gray-700">{deliveries_before_start}</span> earlier transfer(s) exist and stay stored — type an earlier From date to review them{/if}. Nothing is deleted by this cutoff.</p>
+            {/if}        </div>
         {if can_review_delivery_provenance}
         <div class="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs text-indigo-800">
             Paper DR reviews stay here. Production In Charge may verify them; admin and supervisor may also mark a problem or reopen the review.

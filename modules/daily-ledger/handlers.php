@@ -3605,6 +3605,39 @@ function dl_clampFromForView(string $from, array $branchIds, int $selectedBranch
 }
 
 /**
+ * The business start date as the DEFAULT floor of an operational lane.
+ *
+ * `dl_clampFromForView()` only RAISES a from-date the caller already has, so a lane with no date
+ * filter at all (blank From, "show everything") still reached back through every pre-business row
+ * ever stored. Measured 2026-11-21 on the live dump: 130 deliveries, 397 variance flags, 1,246
+ * withdrawals, 124 receivings and 225 day-status rows pre-date the 2026-10-01 business start, and
+ * the Receive Stock badge was counting an unreceived delivery from 2026-09-01.
+ *
+ * Owner, 2026-11-21: "set the business start date for deliveries cutoff, variances, other lanes
+ * that rely on start date so that we don't have to inherit pre business date start data."
+ *
+ * So: a lane that has NO explicit range starts at the business start. A range the operator TYPED is
+ * honoured as chosen - deliberate navigation into history stays readable - and the lane discloses
+ * that it reaches before the start rather than silently presenting those rows as current.
+ *
+ * @param string $from            The from-date the lane resolved (may be '').
+ * @param array  $branchIds       Branches in scope, for the fleet-wide earliest start.
+ * @param int    $selectedBranchId A single selected branch's own start wins when set.
+ * @param bool   $explicit        True when the operator supplied $from themselves.
+ */
+function dl_laneDateFrom(string $from, array $branchIds, int $selectedBranchId = 0, bool $explicit = false): string
+{
+    if ($explicit && $from !== '') {
+        return $from;
+    }
+    $floor = dl_effectiveStartForView($branchIds, $selectedBranchId);
+    if ($floor === null || $floor === '') {
+        return $from;
+    }
+    return $from === '' || $from < $floor ? $floor : $from;
+}
+
+/**
  * Earliest effective start across a branch set, as a clamp for a fleet-wide window.
  *
  * The fleet-wide screens (dashboard, sales, variances, reconciliation) can be filtered to one branch or
@@ -12401,25 +12434,32 @@ function handleCashierLedger(array $params = []): void
     // Pending incoming deliveries (count of distinct DR groups for this branch)
     // Includes both informal transfers (dl_cashier_withdrawals) and formal DRs (dl_deliveries)
     //
-    // This is an OUTSTANDING-WORK queue, not today's arrivals: it has no date filter, because a
-    // delivery that was never received is still work regardless of how old it is. Measured
-    // 2026-11-21: the fleet carries 2,233 unreceived posted deliveries since 2026-09-01, and 2,019
-    // of them are from October - a month of backlog, not a morning's trucks. A bare "348 waiting"
-    // therefore reads as "348 arrived today" when it may mean "348 have never been confirmed".
-    // The counts below let the card say which it is instead of leaving the owner to guess.
+    // BOTH sides are now bounded by the BRANCH's business start, which is what apiGetIncomingDeliveries()
+    // already did: the badge and the list it opens must count the same population, or the operator is
+    // told there is one more DR than the screen will ever show. Measured 2026-11-21: branch 16 carried
+    // an unreceived delivery dated 2026-09-01 (DR 124) that the list excluded and the badge counted.
+    //
+    // This is still an outstanding-work queue, not today's arrivals - the dates below say how old it
+    // is - but it is no longer a queue that inherits the period before the business started.
     $incomingCount = 0;
     $incomingOldest = '';
     $incomingToday = 0;
     $incomingBeforeStart = 0;
     if ($branchId) {
+        $incomingStart = dl_branchOfficialStart($branchId);
         $incStmt = $ctx->db()->prepare(
             "SELECT COUNT(DISTINCT COALESCE(dr_number, CONCAT('o:', branch_id, ':', ledger_date)))
              FROM dl_cashier_withdrawals
              WHERE target_branch_id = :bid
                AND withdrawal_type = 'delivery'
                AND received_at IS NULL"
+            . ($incomingStart !== null ? ' AND ledger_date >= :start' : '')
         );
-        $incStmt->execute([':bid' => $branchId]);
+        $incBind = [':bid' => $branchId];
+        if ($incomingStart !== null) {
+            $incBind[':start'] = $incomingStart;
+        }
+        $incStmt->execute($incBind);
         $incomingCount = (int)$incStmt->fetchColumn();
 
         if (dl_isFormalDeliveryEnabled()) {
@@ -12434,16 +12474,22 @@ function handleCashierLedger(array $params = []): void
                        SELECT 1 FROM dl_branch_receivings br
                        WHERE br.delivery_id = d.id AND br.status <> 'voided'
                    )"
+                . ($incomingStart !== null ? ' AND d.delivery_date >= :start' : '')
             );
-            $formalIncStmt->execute([':bid' => $branchId]);
+            $formalIncBind = [':bid' => $branchId];
+            if ($incomingStart !== null) {
+                $formalIncBind[':start'] = $incomingStart;
+            }
+            $formalIncStmt->execute($formalIncBind);
             $incomingCount += (int)$formalIncStmt->fetchColumn();
 
-            // Age of the same population, so the badge can date itself.
-            $branchStart = dl_branchOfficialStart($branchId);
+            // Age of the SAME population the count and the modal use, so the badge can date itself
+            // without describing rows it no longer counts. The pre-start rows are counted by their
+            // own query below: inside this one they are already excluded by the floor, so summing
+            // "before start" here would always report zero.
             $ageStmt = $ctx->db()->prepare(
                 "SELECT MIN(d.delivery_date) AS oldest,
-                        SUM(CASE WHEN d.delivery_date = :today THEN 1 ELSE 0 END) AS today_count,
-                        SUM(CASE WHEN d.delivery_date < :start THEN 1 ELSE 0 END) AS before_start
+                        SUM(CASE WHEN d.delivery_date = :today THEN 1 ELSE 0 END) AS today_count
                  FROM dl_deliveries d
                  WHERE d.destination_type = 'branch'
                    AND d.destination_id = :bid
@@ -12453,16 +12499,36 @@ function handleCashierLedger(array $params = []): void
                        SELECT 1 FROM dl_branch_receivings br
                        WHERE br.delivery_id = d.id AND br.status <> 'voided'
                    )"
+                . ($incomingStart !== null ? ' AND d.delivery_date >= :start' : '')
             );
-            $ageStmt->execute([
-                ':today' => dl_businessDate(),
-                ':start' => $branchStart ?? '9999-12-31',
-                ':bid' => $branchId,
-            ]);
+            $ageBind = [':today' => dl_businessDate(), ':bid' => $branchId];
+            if ($incomingStart !== null) {
+                $ageBind[':start'] = $incomingStart;
+            }
+            $ageStmt->execute($ageBind);
             $ageRow = $ageStmt->fetch(PDO::FETCH_ASSOC) ?: [];
             $incomingOldest = (string)($ageRow['oldest'] ?? '');
             $incomingToday = (int)($ageRow['today_count'] ?? 0);
-            $incomingBeforeStart = (int)($ageRow['before_start'] ?? 0);
+
+            // Rows the business-start cutoff keeps OUT of the queue, counted separately so the
+            // shorter list explains itself instead of looking like lost work.
+            if ($incomingStart !== null) {
+                $preStmt = $ctx->db()->prepare(
+                    "SELECT COUNT(*)
+                     FROM dl_deliveries d
+                     WHERE d.destination_type = 'branch'
+                       AND d.destination_id = :bid
+                       AND d.status = 'posted'
+                       AND COALESCE(d.receipt_required, 1) = 1
+                       AND d.delivery_date < :start
+                       AND NOT EXISTS (
+                           SELECT 1 FROM dl_branch_receivings br
+                           WHERE br.delivery_id = d.id AND br.status <> 'voided'
+                       )"
+                );
+                $preStmt->execute([':bid' => $branchId, ':start' => $incomingStart]);
+                $incomingBeforeStart = (int)$preStmt->fetchColumn();
+            }
         }
     }
 
