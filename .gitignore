@@ -128,3 +128,7 @@ harpp-deploy-*.zip
 
 # Generated lane-harness packages (never commit build output)
 packages/lane-harness/dist/
+
+# Per-run injection records (which rules a lane was GIVEN). Machine-local evidence like `.ai/*`:
+# one new file per lane run, and `harpp-memory/events/` is already the tracked truth.
+harpp-memory/injected/

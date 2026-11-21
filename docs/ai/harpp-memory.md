@@ -90,6 +90,23 @@ A deterministic pass picks paragraphs that assert something durable — "measure
 "must never", "owner direction", "trap", "root cause" — and records `path:line` as evidence. Only
 those candidates are offered to a local model, so a 20 MB corpus never becomes a 20 MB prompt.
 
+It also refuses the shapes that are not rules: tables and code fences, list debris (`: - …`, `1. …`),
+and paragraphs that narrate the document or the session instead of the system (*"Session end state.
+Written so a new session can execute…"*). That last test is deliberately about **content, not
+document class**: a HANDOFF file is exactly where a measured zero gets written down, so excluding
+whole files would have thrown the best candidate away with the narrative beside it (measured
+2026-11-21).
+
+The same rules are applied retroactively, because a filter only stops future noise:
+
+```bash
+python3 tools/harpp-experience.py harvest --audit-existing          # what the rules would refuse
+python3 tools/harpp-experience.py harvest --audit-existing --apply  # retire them (reversible)
+```
+
+Measured 2026-11-21: 784 proposals against 66 approved. The audit refused 128 and left 656 — a
+queue that was unreviewable partly because it had been filled *before* these rules existed.
+
 Harvested lessons are stored at `status: proposed` and are **not injected**. They enter the prompt
 only after `lesson approve`, which is the same Class B boundary as everything else here: the machine
 proposes, a human takes ownership.

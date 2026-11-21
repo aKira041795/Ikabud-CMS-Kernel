@@ -24,6 +24,7 @@ class LaneAutonomyTest(unittest.TestCase):
         self.stub = self.temp / "stub.sh"
         self.work = self.temp / "work"
         self.ledger = self.temp / "ledger"
+        self.memory = self.temp / "harpp-memory"
 
     def tearDown(self) -> None:
         for path in RUNS.glob(f"{self.task}-a*"):
@@ -63,6 +64,13 @@ class LaneAutonomyTest(unittest.TestCase):
         ]
         env = dict(os.environ)
         env["AUTONOMY_FLAG"] = str(self.flag)
+        # The loop PROPOSES a lesson when a task exhausts its attempts. Without this isolation the
+        # suite writes into the repository's tracked memory store - measured 2026-11-21: one
+        # `autonomy-it-*` proposal landed in harpp-memory/events, where it would sit in the review
+        # queue forever as a rule about a stub. The queue had just been pruned; it must not regrow
+        # from tests.
+        env["HARPP_MEMORY_DIR"] = str(self.memory)
+        env["HARPP_EXPERIENCE_HINTS"] = str(self.memory / "hints.json")
         return subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, env=env, timeout=300)
 
     def _records(self) -> list[dict]:

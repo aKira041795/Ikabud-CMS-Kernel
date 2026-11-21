@@ -628,6 +628,92 @@ class HarppExperienceTest(unittest.TestCase):
         self.assertEqual(found.returncode, 0, found.stderr)
         self.assertTrue(json.loads(found.stdout), "a stored lesson was not found via its word form")
 
+    # ----------------------------------------------------------------- status
+    def _application_event(self, name: str, run_id: str, verified: bool) -> None:
+        events = Path(self.env["HARPP_MEMORY_DIR"]) / "events" / "2026-11"
+        events.mkdir(parents=True, exist_ok=True)
+        (events / f"{name}.json").write_text(json.dumps({
+            "schema_version": 1, "event_id": name, "recorded_at": "2026-11-18T14:31:00Z",
+            "type": "lesson_application", "lesson_id": f"L-{name}", "run_id": run_id,
+            "retrieved": True, "applied": True, "verified": verified,
+            "evidence": "tools/harpp-experience.py" if verified else "",
+        }), encoding="utf-8")
+
+    def test_status_does_not_sell_a_demo_application_as_use(self) -> None:
+        """A demo proves the recorder works, not that a rule changed an outcome.
+
+        Measured 2026-11-21: every `lesson_application` in the real store carried
+        `run_id: verify-demo`, and `status` reported them as "2 application(s) · 1 verified".
+        """
+        self._application_event("demo1", "verify-demo", verified=True)
+        self._application_event("real1", "20261117T163722-937618", verified=True)
+        out = _run([str(TOOL), "status"], env=self.env).stdout
+        self.assertIn("1 application(s)", out)
+        self.assertIn("1 verified by evidence", out)
+        self.assertIn("+1 demo/self-test, not counted", out)
+
+    def test_status_counts_a_self_test_harness_run_as_demo_behaviour(self) -> None:
+        self._application_event("it1", "autonomy-it-880658-1794897018-a2", verified=False)
+        out = _run([str(TOOL), "status"], env=self.env).stdout
+        self.assertIn("0 application(s)", out)
+        self.assertIn("+1 demo/self-test, not counted", out)
+
+    def test_status_prints_a_dark_use_side_instead_of_omitting_it(self) -> None:
+        """An absent line reads as health. Rules that went out with no outcome coming back is a
+        measured fact, not a blank."""
+        injected = Path(self.env["HARPP_MEMORY_DIR"]) / "injected"
+        injected.mkdir(parents=True, exist_ok=True)
+        (injected / "orphan-lane.json").write_text(json.dumps({
+            "tag": "orphan-lane", "lessons": ["L-937e43009e"], "block_chars": 400,
+        }), encoding="utf-8")
+        out = _run([str(TOOL), "status"], env=self.env).stdout
+        self.assertIn("0 rule(s) measured", out)
+        self.assertIn("1 injection(s)", out)
+        self.assertIn("1 with no outcome", out)
+
+    # --------------------------------------------------------------- proposal queue
+    def _propose(self, text: str) -> None:
+        result = _run([str(TOOL), "lesson", "propose", "--reason", "harvested", "--text", text],
+                      env=self.env)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def _lesson_id(self, needle: str, status: str = "proposed") -> str:
+        payload = json.loads(_run([str(TOOL), "lessons", "--status", status, "--json"],
+                                  env=self.env).stdout)
+        for row in payload:
+            if needle in str(row.get("text")):
+                return str(row.get("id"))
+        self.fail(f"no {status} lesson containing {needle!r}")
+
+    def test_audit_retires_a_session_narrative_but_keeps_a_measured_rule(self) -> None:
+        """The queue is pruned by a rule, not by hand - and the rule must not eat real experience.
+
+        A HANDOFF document is exactly where a measured zero gets written down, so rejecting whole
+        document classes would have thrown that away with the session narrative beside it.
+        """
+        self._propose("Session end state. Written so a new session can execute without re-deriving "
+                      "anything at all, and nothing in it is a durable rule about the system.")
+        self._propose("P2's silence on 06-02 is a measured zero because the branch reported that "
+                      "shift, so an absent figure is evidence and never a gap.")
+        result = _run([str(TOOL), "harvest", "--audit-existing", "--apply"], env=self.env)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("refused by the shape rules: 1", result.stdout)
+
+        retired = _run([str(TOOL), "lessons", "--status", "retired", "--json"], env=self.env).stdout
+        self.assertIn("Session end state", retired)
+        still = _run([str(TOOL), "lessons", "--status", "proposed", "--json"], env=self.env).stdout
+        self.assertIn("measured zero", still)
+
+    def test_a_filter_retirement_is_reversible_by_approval(self) -> None:
+        self._propose("Session end state. Written so a new session can execute without re-deriving "
+                      "anything at all, and nothing in it is a durable rule about the system.")
+        _run([str(TOOL), "harvest", "--audit-existing", "--apply"], env=self.env)
+        lesson_id = self._lesson_id("Session end state", status="retired")
+        approved = _run([str(TOOL), "lesson", "approve", lesson_id], env=self.env)
+        self.assertEqual(approved.returncode, 0, approved.stderr)
+        self.assertIn("Session end state", _run([str(TOOL), "lessons", "--status", "active", "--json"],
+                                                env=self.env).stdout)
+
 
 if __name__ == "__main__":
     unittest.main()

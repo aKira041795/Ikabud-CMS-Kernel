@@ -1409,6 +1409,31 @@ def _harvest_is_not_prose(body: str) -> bool:
     return bool(_HARVEST_NOT_PROSE.match(body)) or body.count("|") >= 3
 
 
+# A lesson must be about the SYSTEM, not about the document or the session that produced it.
+#
+# Rejecting whole document classes is the tempting fix and the wrong one: measured 2026-11-21, the
+# best candidate in a HANDOFF file was "P2's silence on 06-02 is a measured zero because the branch
+# reported that shift" - a durable fact recorded precisely in a session document. What is worthless
+# is the paragraph that DESCRIBES the document ("Session end state...", "the superseded plan (kept
+# for the record, do NOT implement as written)"). Distinguishing those is a content test, and this
+# is it.
+_HARVEST_META = re.compile(
+    r"(?:\bsession end state\b|\bwritten so a.{0,25}\bsession\b|\bthis (?:document|handoff|plan)\b"
+    r"|\bsuperseded plan\b|\bkept for the record\b|\bdo not implement as written\b"
+    r"|\bwhat changed\b|\bnext steps?\b|\bopen questions?\b)",
+    re.I)
+
+
+def _harvest_is_self_reference(body: str) -> bool:
+    """True when the paragraph narrates the document or the session rather than the system.
+
+    Measured 2026-11-21: 784 proposals had accumulated against 66 approved, and the review queue
+    was unreviewable not because of tables and code - those were already filtered - but because
+    plan and handoff prose sat in it beside real rules.
+    """
+    return bool(_HARVEST_META.search(body))
+
+
 _TEST_LABEL_RE = re.compile(
     r"(?:\$[A-Za-z_]+->)?(?:test|check|assert(?:_equal|_same|_true)?)\s*\(\s*"
     r"'((?:[^'\\]|\\.){40,300})'", re.S)
@@ -1525,6 +1550,8 @@ def _harvest_candidates(paths: list[Path], kind: str = "docs") -> list[dict]:
                     continue
                 if _harvest_is_fragment(body) or _harvest_is_not_prose(body):
                     continue
+                if _harvest_is_self_reference(body):
+                    continue
                 lowered = body.lower()
                 hits = [signal for signal in _HARVEST_STRONG if signal in lowered]
                 if not hits:
@@ -1569,8 +1596,62 @@ def _llm_refine(text: str, model: str, timeout: int = 60) -> str | None:
     return rule[:400] or None
 
 
+def _audit_proposed_lessons(apply: bool, show: int = 25) -> int:
+    """List, and optionally retire, proposals the shape rules would no longer accept.
+
+    Measured 2026-11-21: 784 proposed lessons against 66 approved. Reviewing that queue by hand is
+    not a task anyone finishes, so the deterministic baseline comes first - the SAME rejections a
+    fresh harvest applies, run against what is already stored. Retirement is append-only and an
+    approval reverses it, so this prunes the queue without destroying anything.
+    """
+    proposed = [row for row in load_lessons() if _lesson_status(row) == "proposed"]
+    rejects: list[tuple[dict, list[str]]] = []
+    for row in proposed:
+        text = _harvest_clean(str(row.get("text") or ""))
+        reasons = []
+        if not (_HARVEST_MIN_CHARS <= len(text) <= _HARVEST_MAX_CHARS):
+            reasons.append("length")
+        if _harvest_is_fragment(text):
+            reasons.append("fragment")
+        if _harvest_is_not_prose(text):
+            reasons.append("not-prose")
+        if _harvest_is_self_reference(text):
+            reasons.append("self-reference")
+        if reasons:
+            rejects.append((row, reasons))
+
+    counts: dict[str, int] = {}
+    for _, reasons in rejects:
+        for reason in reasons:
+            counts[reason] = counts.get(reason, 0) + 1
+    print(f"proposed: {len(proposed)} · refused by the shape rules: {len(rejects)} "
+          f"· keep: {len(proposed) - len(rejects)}")
+    if counts:
+        print("  by reason: " + " · ".join(f"{k} {v}" for k, v in sorted(counts.items(), key=lambda kv: -kv[1])))
+    for row, reasons in rejects[:show]:
+        print(f"  {row.get('id')}  [{','.join(reasons):<24}] {str(row.get('text'))[:88]}")
+    if len(rejects) > show:
+        print(f"  ... {len(rejects) - show} more")
+
+    if not apply:
+        print("nothing retired (dry run); re-run with --apply to retire the refused proposals")
+        return 0
+    retired = 0
+    for row, reasons in rejects:
+        lesson_id = str(row.get("id"))
+        path, created = write_memory_event("retire", lesson_id, {
+            "retired_by": "harvest-filter",
+            "reasons": reasons,
+        })
+        retired += 1 if created else 0
+    print(f"retired {retired} proposal(s) as harvest-filter; `lesson approve <id>` reverses any of them")
+    return 0
+
+
 def cmd_harvest(args) -> int:
     """Turn documented experience into PROPOSED lessons. Never injects; approval stays human."""
+    if getattr(args, "audit_existing", False):
+        return _audit_proposed_lessons(apply=bool(getattr(args, "apply", False)))
     targets = [Path(item) for item in (args.paths or ["docs"])]
     targets = [t if t.is_absolute() else ROOT / t for t in targets]
     missing = [str(t) for t in targets if not t.exists()]
@@ -1725,9 +1806,12 @@ def cmd_status(args) -> int:
     print("== HARPP status ==")
     print(f"  lessons:  {active} active · {proposed} proposed (NOT injected) · {retired} retired")
     applied_events = [e for e in memory_events() if str(e.get("type")) == "lesson_application"]
-    verified_events = [e for e in applied_events if e.get("verified")]
-    print(f"  used:     {len(_injection_files())} run(s) given rules · {len(applied_events)} application(s) "
-          f"· {len(verified_events)} verified by evidence")
+    real_applied = [e for e in applied_events if not _is_self_test_run(e)]
+    verified_events = [e for e in real_applied if e.get("verified")]
+    demo = len(applied_events) - len(real_applied)
+    demo_note = f" (+{demo} demo/self-test, not counted)" if demo else ""
+    print(f"  used:     {len(_injection_files())} run(s) given rules · {len(real_applied)} application(s) "
+          f"· {len(verified_events)} verified by evidence{demo_note}")
     effect = lesson_effect()
     if effect["attributed_runs"]:
         # The USE side. Capture counts alone say nothing about whether any rule works, which is how
@@ -1735,6 +1819,13 @@ def cmd_status(args) -> int:
         print(f"  scored:   {effect['scored']} rule(s) with >= {effect['min_n']} decided runs "
               f"· baseline {effect['baseline_pass_rate']:.0%} "
               f"· {len(effect['retire_candidates'])} retire candidate(s)")
+    else:
+        # Printed, never omitted. A missing line reads as "nothing to report"; the truth is that the
+        # use side is DARK - rules went out and no outcome came back. Measured 2026-11-21: 3
+        # injections, 0 attributed, every one a lane that never wrote a landing.
+        print(f"  scored:   0 rule(s) measured · {effect['injections']} injection(s) "
+              f"· {effect['attributed_runs']} attributed · "
+              f"{effect['unattributed_runs']} with no outcome")
     print(f"  ledger:   {stats['rows']} rows · pass rate {stats['pass_rate']} · cost ${stats['cost_usd']:.4f}")
     print(f"  waste:    {stats['wasted_cost_share']}")
     if signatures:
@@ -1941,6 +2032,20 @@ def _injection_files() -> list[Path]:
     """How many runs were actually GIVEN rules. Zero here means retrieval was never exercised."""
     directory = MEMORY_DIR / "injected"
     return sorted(directory.glob("*.json")) if directory.is_dir() else []
+
+
+_SELF_TEST_RUN = re.compile(r"^(?:verify-demo|selftest|self-test)$|(?:^|-)it-\d", re.IGNORECASE)
+
+
+def _is_self_test_run(event: dict) -> bool:
+    """A demo attempt proves the recorder works - never that a rule changed an outcome.
+
+    Measured 2026-11-21: the only two `lesson_application` events in the store carried
+    `run_id: verify-demo`, so `status` advertised "2 application(s) / 1 verified by evidence"
+    for runs that touched no product work. Counterfactual use is worse than no use: it is the
+    number a reader trusts when deciding whether the memory is worth keeping.
+    """
+    return bool(_SELF_TEST_RUN.search(str(event.get("run_id") or "")))
 
 
 def record_injection(tag: str, lessons: list[dict], block_chars: int) -> Path:
@@ -3313,6 +3418,10 @@ def _parser() -> argparse.ArgumentParser:
     harvest.add_argument("--kind", choices=["docs", "tests", "all"], default="docs",
                          help="docs = markdown prose, tests = assertion labels, all = both")
     harvest.add_argument("--dry-run", action="store_true", help="show candidates, write nothing")
+    harvest.add_argument("--audit-existing", action="store_true",
+                         help="judge the proposals already stored by the same shape rules")
+    harvest.add_argument("--apply", action="store_true",
+                         help="with --audit-existing: retire the refused proposals")
     harvest.set_defaults(func=cmd_harvest)
 
     llm = sub.add_parser("llm", help="build the repository's own model from approved memory")
