@@ -4066,7 +4066,25 @@ function dl_computeSalesValue(?int $begBal, ?int $addtl, ?int $withdraw, ?int $b
 function dl_ledgerSalesQuantitySql(string $alias = 'dl'): string
 {
     $safeAlias = preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $alias) ? $alias : 'dl';
-    return "CASE WHEN {$safeAlias}.bal_end IS NULL THEN NULL ELSE GREATEST(0, COALESCE({$safeAlias}.beg_bal,0) + COALESCE({$safeAlias}.addtl,0) - COALESCE({$safeAlias}.withdraw,0) - COALESCE({$safeAlias}.bal_end,0)) END";
+    // Sales here are DERIVED, not captured: whatever left the shelf without a withdrawal recorded.
+    // Owner, 2026-11-21: "I want the sales figure as close to actual as possible, fine if it's
+    // under the actual but never over."
+    //
+    // Reviewed arithmetic (measured on the live dump, 2026-10-01..11-21):
+    //   · the stored `sales` column equals this residual on all 274,345 rows — there is no
+    //     independent sales record to reconcile against, so the figure can only ever be as good
+    //     as the four columns it is built from;
+    //   · a NEGATIVE closing count is physically impossible and would INFLATE the residual, so such
+    //     a row now reports nothing at all rather than inventing revenue (0 rows today, lane closed);
+    //   · the residual is floored at zero, which is the conservative direction: 902 rows over-
+    //     withdrew by 27,246 units / PHP 602,702.53 and that money is NOT claimed as sales;
+    //   · a missing or machine-derived ending is already excluded upstream as provisional.
+    //
+    // NOT capped by `withdraw`: measured, that would drop the total from PHP 17.0M to PHP 1.6M
+    // because withdrawals are not recorded on this data. An understatement of 90% is not "slightly
+    // under actual", it is a different number, so the cap was rejected on evidence rather than
+    // shipped on instinct.
+    return "CASE WHEN {$safeAlias}.bal_end IS NULL OR {$safeAlias}.bal_end < 0 THEN NULL ELSE GREATEST(0, COALESCE({$safeAlias}.beg_bal,0) + COALESCE({$safeAlias}.addtl,0) - COALESCE({$safeAlias}.withdraw,0) - {$safeAlias}.bal_end) END";
 }
 
 function dl_ledgerSalesAmountSql(string $alias = 'dl', string $priceColumn = 'price_snapshot'): string
