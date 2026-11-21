@@ -1,0 +1,12 @@
+{
+  "digest": "5110161168e4c772782a2560c260e084387c7bd7933b48782bb303a3ce4beff0",
+  "event_id": "5110161168e4c772",
+  "lesson_id": "L-56711bc102",
+  "reasons": [
+    "not-prose"
+  ],
+  "recorded_at": "2026-11-21T03:06:01.767126Z",
+  "retired_by": "harvest-filter",
+  "schema_version": 1,
+  "type": "retire"
+}
