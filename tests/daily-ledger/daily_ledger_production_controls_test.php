@@ -998,6 +998,35 @@ try {
             json_encode(['result' => $verified, 'row' => $afterVerify])
         );
 
+        // A NEGATIVE derived ending is never certified: a physical count cannot be negative, and
+        // clearing end_source would launder a machine's impossible number into a human count that
+        // the next shift then carries. Measured on the live dump 2026-11-21: 203 RIZAL rows carry
+        // end_source NULL with a negative actual_end_qty and 162 of 400 derived rows are negative.
+        $db->prepare('UPDATE dl_commissary_product_ledger SET actual_end_qty = -5,
+                        end_source = "derived-from-movements", end_settled_at = NOW(),
+                        end_verified_by = NULL, end_verified_at = NULL
+                      WHERE commissary_branch_id = :b AND product_id = :p AND ledger_date = :d AND shift = "PM"')
+            ->execute([':b' => $branchId, ':p' => $productId, ':d' => $date]);
+        $negativeRefusal = dl_verifySettledEndingsForShift($db, $branchId, $date, 'PM', $admin, true);
+        $afterNegative = $readRow();
+        $h->test(
+            'a NEGATIVE derived ending is refused, stays provisional, and is reported',
+            (int)($negativeRefusal['verified'] ?? -1) === 0
+                && (int)($negativeRefusal['refused_negative'] ?? 0) === 1
+                && (string)($afterNegative['end_source'] ?? '') === 'derived-from-movements'
+                && (int)($afterNegative['actual_end_qty'] ?? 0) === -5
+                && ($afterNegative['end_verified_by'] ?? null) === null,
+            json_encode(['result' => $negativeRefusal, 'row' => $afterNegative])
+        );
+        // Restore the CERTIFIED state the following revert test depends on ("certified means
+        // certified"): leaving the row derived-and-negative here would silently turn that test
+        // into a test of the pending path.
+        $db->prepare('UPDATE dl_commissary_product_ledger
+                        SET actual_end_qty = 10, end_source = NULL, end_settled_at = NOW(),
+                            end_verified_by = :u, end_verified_at = NOW()
+                      WHERE commissary_branch_id = :b AND product_id = :p AND ledger_date = :d AND shift = "PM"')
+            ->execute([':u' => $adminUserId, ':b' => $branchId, ':p' => $productId, ':d' => $date]);
+
         // A certified count is a separate, deliberate thing - revert must NOT touch it.
         $revertVerified = dl_revertSettledEndingsForShift($db, $branchId, $date, 'PM', $admin, true);
         $afterRevertVerified = $readRow();

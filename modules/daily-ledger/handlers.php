@@ -4344,7 +4344,11 @@ function dl_settlePendingEndingsForShift($db, int $branchId, string $date, strin
  * The ENDING VALUE IS NOT CHANGED - a verify is a human certifying the number, not a
  * recomputation. Clearing end_source is what makes the row countable/official again.
  *
- * @return array{verified:int}
+ * EXCEPTION (2026-11-21): a NEGATIVE ending is never certified. It is left provisional and
+ * counted in `refused_negative`, because a physical count cannot be negative and clearing the
+ * source tag would launder a machine-derived deficit into a human count.
+ *
+ * @return array{verified:int,refused_negative:int}
  */
 function dl_verifySettledEndingsForShift($db, int $branchId, string $date, string $shift, array $actor, bool $production): array
 {
@@ -4362,6 +4366,7 @@ function dl_verifySettledEndingsForShift($db, int $branchId, string $date, strin
     $db->beginTransaction();
     try {
         $verified = 0;
+        $refusedNegative = 0;
         $select = $db->prepare(
             "SELECT id, product_id, {$config['end_col']} AS ending, end_source
                FROM {$config['table']}
@@ -4375,6 +4380,24 @@ function dl_verifySettledEndingsForShift($db, int $branchId, string $date, strin
         foreach ($select->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
             $ending = $row['ending'] === null ? null : (int)$row['ending'];
             $source = (string)($row['end_source'] ?? '');
+            // A physical count CANNOT be negative. Verifying one used to keep the value and only
+            // clear `end_source`, which re-tagged a machine's impossible number as a human count
+            // and handed it to the next shift as that shift's beginning - so the deficit certified
+            // itself, forever. Measured on the live dump (2026-11-21): 203 RIZAL-COMMIS rows carry
+            // end_source NULL with a negative actual_end_qty, and 162 of its 400 derived rows are
+            // negative. Refusing here leaves the row provisional (which is the truth) and says so.
+            if ($ending !== null && $ending < 0) {
+                $refusedNegative++;
+                dl_auditLog(
+                    'verify_derived_ending_refused',
+                    $branchId,
+                    $config['entity_type'],
+                    $branchId . '-' . $date . '-' . $shift . '-' . (int)$row['product_id'],
+                    ['ending' => $ending, 'end_source' => $source],
+                    ['reason' => 'negative-ending', 'rung' => $source]
+                );
+                continue;
+            }
             $update = $db->prepare(
                 "UPDATE {$config['table']}
                     SET end_source = NULL, end_verified_by = :uid, end_verified_at = NOW()
@@ -4396,7 +4419,7 @@ function dl_verifySettledEndingsForShift($db, int $branchId, string $date, strin
         }
 
         $db->commit();
-        return ['verified' => $verified];
+        return ['verified' => $verified, 'refused_negative' => $refusedNegative];
     } catch (\Throwable $e) {
         if ($db->inTransaction()) {
             $db->rollBack();

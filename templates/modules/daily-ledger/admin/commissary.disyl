@@ -1782,15 +1782,14 @@
     </div>
     <div class="card">
         <div class="card-body py-3">
-            <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Stock On Hand</div>
+            <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Book Balance</div>
             <div class="mt-1 text-2xl font-semibold text-gray-900">{totals.total_on_hand}</div>
-            {* This card used to read "Remaining Today" and print the sum of `remaining_qty`, which is
-               a FLOW (produced - dispatched - wastage) and ignores the balance the day opened with.
-               It therefore reads NEGATIVE on any healthy day that ships from opening stock — measured
-               2026-11-20 Pagadian: opened 9,090, made 3,535, shipped 3,808 -> net -280 while 8,810 was
-               still on hand. Owner, 2026-11-21: "odd that remaining shows negative count? like -280?"
-               The arithmetic was right and the LABEL was wrong; the flow stays visible under the stock
-               figure so nothing is hidden, and the real closing stock is what leads the card. *}
+            {if totals.total_on_hand < 0}
+            <div class="mt-1 text-xs text-rose-600"
+                 title="A physical count cannot be negative, so this number means the movements do not reconcile: more was recorded out than in. Two causes are measured at this hub — duplicate dispatch entries (a PM row that carried the AM's opening instead of its closing balance) and inflow this ledger never records (opening stock at go-live, bought-in resale goods). Do not read it as stock.">
+                Unreconciled: {totals.total_on_hand} more recorded out than in.
+            </div>
+            {/if}
             <div class="mt-1 text-xs text-gray-500"
                  title="Today's movement only: produced - dispatched - wastage. Negative means the day shipped more than it made, drawing on the balance it opened with.">
                 Net today: {totals.total_remaining}
