@@ -1,0 +1,16 @@
+{
+  "digest": "27bb057b8eaf5107598738954a2680d6f694254c685e53771d2b5570a3a85373",
+  "event_id": "27bb057b8eaf5107",
+  "evidence": [
+    "task=autonomy-it-1012300-1795230416 class=routine acceptance=FAIL"
+  ],
+  "lesson_id": "L-e9e0c57914",
+  "proposed_by": "lane-autonomy",
+  "reason": "captured mechanically: a criterion that resisted repair",
+  "recorded_at": "2026-11-21T03:07:05.094884Z",
+  "review_after": "2026-12-21",
+  "schema_version": 1,
+  "scope": "any",
+  "text": "Acceptance criterion for task 'autonomy-it-1012300-1795230416' failed after 2 attempt(s). Last failure: no acceptance output was captured",
+  "type": "propose"
+}
