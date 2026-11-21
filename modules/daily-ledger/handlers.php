@@ -17649,11 +17649,35 @@ function handleAdminOverview(array $params = []): void
         ];
     }
 
+    // ── The period gross obeys the SAME rule as the all-periods card ───────────────────────────
+    // Owner, 2026-11-21: "i want the sales figure as close to actual as possible, fine if it's
+    // under the actual but never over." Card 1 used to show the raw derived total while the
+    // all-periods card showed the capped one, so one page carried two different "gross sales"
+    // figures for the same books. Both now come from dl_overviewRemittanceCap(), and the branch
+    // cards below are capped with the same per-branch trims, so the cards always SUM to the
+    // headline instead of quietly disagreeing with it.
+    $periodCap = dl_overviewRemittanceCap($ctx->db(), $filters);
+    $grandCapped = max(0.0, $grandAmount - $periodCap['trimmed']);
+    $grandCapTrimmed = min($periodCap['trimmed'], $grandAmount);
+    $grandCapDays = $periodCap['trimmed_days'];
+    foreach ($cards as &$capCard) {
+        $capCardTrim = (float)($periodCap['by_branch'][(int)$capCard['branch_id']]['trimmed'] ?? 0.0);
+        $capCardTrim = min($capCardTrim, (float)$capCard['amount']);
+        $capCard['amount_derived'] = (float)$capCard['amount'];
+        $capCard['amount_capped_trim'] = $capCardTrim;
+        // The bar chart, the ranking and the shares all read `amount`, so they are reseated on the
+        // capped figure: a ranking built on money no branch can prove it earned would be a claim.
+        $capCard['amount'] = max(0.0, (float)$capCard['amount'] - $capCardTrim);
+    }
+    unset($capCard);
+
     // Configurable net sales deduction. 0% (or a non-numeric setting) is
     // reported as "not configured" rather than echoing gross as a net value.
     $settings = dlModuleSettings();
     $netSetting = (string)($settings['net_sales_deduction_percent'] ?? '0');
-    $netSales = dl_overviewNetSales($grandAmount, $netSetting);
+    // Net is taken from the CAPPED gross: a deduction applied to overstated sales is still
+    // overstated, and the pair has to belong to the same population.
+    $netSales = dl_overviewNetSales($grandCapped, $netSetting);
     foreach ($cards as &$card) {
         $card['net_amount'] = dl_overviewNetSales((float)$card['amount'], $netSetting)['net'];
         $card['net_configured'] = $netSales['configured'];
@@ -17707,6 +17731,12 @@ function handleAdminOverview(array $params = []): void
         $priorCompleteness['pending'] += $priorRow['pending'];
         $priorCompleteness['completed'] += $priorRow['completed'];
     }
+    // The previous period is capped by the same rule as the current one. A percentage computed
+    // against a differently-based baseline would compare a conservative number with an optimistic
+    // one and report the difference as growth or decline - which is a claim about the business, not
+    // an accounting artefact.
+    $priorCap = dl_overviewRemittanceCap($ctx->db(), $priorFilters);
+    $priorCapped = max(0.0, $priorAmount - $priorCap['trimmed']);
     // A comparison is honest only when BOTH periods are fully finalized and carry a
     // meaningful sales baseline. An empty baseline, a pending baseline, or any
     // pending rows in either period cannot support an authoritative percentage, so
@@ -17721,17 +17751,18 @@ function handleAdminOverview(array $params = []): void
         $trendState = 'no-baseline';
     } elseif ($priorCompleteness['pending'] > 0 || $priorCompleteness['completed'] === 0) {
         $trendState = 'pending-prior';
-    } elseif ($priorAmount <= 0.0) {
+    } elseif ($priorCapped <= 0.0) {
         $trendState = 'no-baseline';
     } else {
         $trendComparable = true;
         $trendState = 'comparable';
     }
+    // Both sides capped, never one of each: the comparison is between two conservative figures.
     $trendDirection = 'stable';
-    if ($trendComparable && $grandAmount > $priorAmount) { $trendDirection = 'improving'; }
-    elseif ($trendComparable && $grandAmount < $priorAmount) { $trendDirection = 'declining'; }
-    $trendPercent = $priorAmount > 0.0 ? (($grandAmount - $priorAmount) / $priorAmount) * 100 : 0.0;
-    $trendDelta = $grandAmount - $priorAmount;
+    if ($trendComparable && $grandCapped > $priorCapped) { $trendDirection = 'improving'; }
+    elseif ($trendComparable && $grandCapped < $priorCapped) { $trendDirection = 'declining'; }
+    $trendPercent = $priorCapped > 0.0 ? (($grandCapped - $priorCapped) / $priorCapped) * 100 : 0.0;
+    $trendDelta = $grandCapped - $priorCapped;
     // The visual indicator's direction is derived from the real comparison, never
     // hard-coded. Any non-comparable state carries no arrow, no green, and no zero
     // claim; the template renders the explicit state text instead of a percentage.
@@ -17773,8 +17804,8 @@ function handleAdminOverview(array $params = []): void
         : 0;
     // The comparable bar plots the current total against the taller of the two
     // periods, so the owner sees the size of the move, not just its sign.
-    $trendBarPct = max($grandAmount, $priorAmount) > 0.0
-        ? (int)round(100 * $grandAmount / max($grandAmount, $priorAmount))
+    $trendBarPct = max($grandCapped, $priorCapped) > 0.0
+        ? (int)round(100 * $grandCapped / max($grandCapped, $priorCapped))
         : 0;
 
     $workingCards = array_values(array_filter($cards, static fn(array $card): bool => $card['has_activity']));
@@ -18000,55 +18031,22 @@ function handleAdminOverview(array $params = []): void
     // So: where a remittance EXISTS, no branch-day may claim more than the cash that arrived.
     // Where none exists the derived figure stands, because inventing a cap would be a guess.
     // This can only ever reduce the total, which is the direction the owner asked for.
+    //
+    // ONE implementation, dl_overviewRemittanceCap(), serves both gross cards on this page. They
+    // used to disagree: the all-periods card showed the capped figure while card 1 (the period
+    // figure, plus its 10% net and its trend) still showed the raw derived total.
     $lifetimeGrossCapped = $lifetimeGross;
     $cappedBranchDays = 0;
     $capTrimmed = 0.0;
     $remittedMatchedDays = 0;
-    // Every trim comes from a branch-day that HAS a remittance, so the whole pass can be bounded to
-    // the remittance window (measured: 20 days instead of the 274k-row lifetime, ~2.3s -> ~40ms).
-    // Branch-days outside it have no remittance and keep their derived figure, so trimming the total
-    // by the window's excess is identical to capping every branch-day individually.
-    if ($db !== null && $lifetimeIds !== [] && $lifetimeGross > 0
-        && $remittedFirst !== '' && $remittedLast !== '' && $remittedTotal > 0) {
-        $capMarks = implode(',', array_fill(0, count($lifetimeIds), '?'));
-        $capSql = 'SELECT COALESCE(SUM(CASE WHEN r.remitted IS NOT NULL AND r.remitted < d.derived'
-            . ' THEN d.derived - r.remitted ELSE 0 END), 0) AS trimmed_amount,'
-            . ' COALESCE(SUM(CASE WHEN r.remitted IS NOT NULL AND r.remitted < d.derived THEN 1 ELSE 0 END), 0) AS trimmed_days,'
-            . ' COALESCE(SUM(CASE WHEN r.remitted IS NOT NULL THEN d.derived ELSE 0 END), 0) AS matched_derived,'
-            . ' COALESCE(SUM(CASE WHEN r.remitted IS NOT NULL THEN 1 ELSE 0 END), 0) AS matched_days'
-            . ' FROM (SELECT dl.branch_id, dl.ledger_date,'
-            . ' SUM(CASE WHEN ' . $lifetimeProvisional . ' THEN 0 ELSE ' . $lifetimeAmount . ' END) AS derived'
-            . ' FROM dl_daily_ledger dl'
-            . ' INNER JOIN dl_branches b ON b.id = dl.branch_id'
-            . ' LEFT JOIN dl_ledger_shift_status ss'
-            . ' ON ss.branch_id = dl.branch_id AND ss.ledger_date = dl.ledger_date'
-            . ' AND ss.shift = dl.shift COLLATE utf8mb4_unicode_ci'
-            . ' WHERE dl.branch_id IN (' . $capMarks . ') AND dl.ledger_date BETWEEN ? AND ?';
-        $capBind = $lifetimeIds;
-        $capBind[] = $remittedFirst;
-        $capBind[] = $remittedLast;
-        $capStart = dl_effectiveStartForView($lifetimeIds, (int)($filters['branch_id'] ?? 0));
-        if ($capStart !== null) {
-            $capSql .= ' AND dl.ledger_date >= ?';
-            $capBind[] = $capStart;
-        }
-        $capSql .= dl_overviewPendingPredicate('dl')
-            . ' GROUP BY dl.branch_id, dl.ledger_date) d'
-            . ' LEFT JOIN (SELECT branch_id, ledger_date, SUM(cash_remitted) AS remitted'
-            . ' FROM dl_shift_reconciliation WHERE branch_id IN (' . $capMarks . ')'
-            . ' GROUP BY branch_id, ledger_date) r'
-            . ' ON r.branch_id = d.branch_id AND r.ledger_date = d.ledger_date';
-        // The marks appear twice in the statement, so the branch ids are bound twice as well.
-        $capBind = array_merge($capBind, $lifetimeIds);
-        $capStmt = $db->prepare($capSql);
-        $capStmt->execute($capBind);
-        $capRow = $capStmt->fetch(PDO::FETCH_ASSOC) ?: [];
-        $capTrimmed = (float)($capRow['trimmed_amount'] ?? 0);
+    if ($db !== null && $lifetimeIds !== []) {
+        $lifetimeCap = dl_overviewRemittanceCap($db, $lifetimeFilters);
+        $capTrimmed = $lifetimeCap['trimmed'];
         $lifetimeGrossCapped = max(0.0, $lifetimeGross - $capTrimmed);
-        $cappedBranchDays = (int)($capRow['trimmed_days'] ?? 0);
+        $cappedBranchDays = $lifetimeCap['trimmed_days'];
         // Same branch-days, both figures: this is the only apples-to-apples remittance comparison.
-        $remittedDerivedSameDays = (float)($capRow['matched_derived'] ?? 0);
-        $remittedMatchedDays = (int)($capRow['matched_days'] ?? 0);
+        $remittedDerivedSameDays = $lifetimeCap['matched_derived'];
+        $remittedMatchedDays = $lifetimeCap['matched_days'];
     }
 
     echo dlRender('modules/daily-ledger/admin/overview.disyl', [
@@ -18097,6 +18095,12 @@ function handleAdminOverview(array $params = []): void
         // tables but never DISCLOSED the exclusion, so an owner could not tell how much was left out.
         'grand_excluded_units' => $grandExcludedUnits,
         'grand_amount' => $grandAmount,
+        // The period gross the card LEADS with: the same figure with every branch-day capped at
+        // the cash that actually arrived (dl_overviewRemittanceCap). Equal to grand_amount wherever
+        // no remittance exists, and never greater than it.
+        'grand_capped' => $grandCapped,
+        'grand_capped_trimmed' => $grandCapTrimmed,
+        'grand_capped_days' => $grandCapDays,
         'period_label' => $periodLabel,
         'forecast' => $forecast,
         'forecast_window' => $forecastWindow,
@@ -18106,7 +18110,9 @@ function handleAdminOverview(array $params = []): void
         'forecast_history_to' => $dateTo,
         'forecast_target_date' => $forecastTargetDate,
         'prior_period_label' => $priorFrom->format('Y-m-d') . ' to ' . $priorTo->format('Y-m-d'),
-        'prior_amount' => $priorAmount,
+        // Both periods on the capped basis, so the percentage compares like with like.
+        'prior_amount' => $priorCapped,
+        'prior_amount_derived' => $priorAmount,
         'trend_comparable' => $trendComparable,
         'trend_direction' => $trendDirection,
         'trend_percent' => $trendPercent,

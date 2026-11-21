@@ -154,7 +154,7 @@ $estate = module()->db()->query("SELECT COUNT(DISTINCT dl.branch_id) working,
     WHERE dl.ledger_date BETWEEN '2026-09-28' AND '2026-10-11'")->fetch(PDO::FETCH_ASSOC) ?: [];
 $working = (int)($estate['working'] ?? 0);
 $silent = max(0, (int)($estate['active'] ?? 0) - $working);
-$h->test('14-day view distinguishes working from silent branches', str_contains($fourteen, $working . ' recorded activity · ' . $silent . ' silent'), "working={$working} silent={$silent}");
+$h->test('14-day view distinguishes working from silent branches', str_contains($fourteen, $working . ' of ') && str_contains($fourteen, 'recorded activity · ' . $silent . ' silent'), "working={$working} silent={$silent}");
 $h->test('14-day ranking states its active-only comparison denominator', str_contains($fourteen, 'sales ranking includes only the ' . $working . ' branch(es) that recorded ledger activity'));
 
 $h->section('Comparison visual');

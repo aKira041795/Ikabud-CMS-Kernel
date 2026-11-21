@@ -2056,8 +2056,149 @@ function dl_overviewWindowAggregate(DatabaseContract $db, array $filters, bool $
 }
 
 /**
- * Per-branch activity, completeness, and unresolved variance signals for the
- * Business Health view. A missing map entry means no ledger activity, not zero
+ * How much of a window's official gross is above the cash that actually ARRIVED.
+ *
+ * Gross sales in this module is DERIVED (beg + addtl - withdraw - end) x price, not captured:
+ * the stored `sales` column equals that residual on all 274,345 rows, so there is no second
+ * record to check it against. Cash remitted is the only independent money reading on this data,
+ * so it is the floor. Owner, 2026-11-21: "i want the sales figure as close to actual as possible,
+ * fine if it's under the actual but never over."
+ *
+ * The rule is per BRANCH-DAY, never one global factor: the derived/remitted ratio runs 0.07x to
+ * 3.27x across 243 branch-days, so a single multiplier would overstate half of them. A branch-day
+ * that declared a remittance may not claim more than that remittance; a branch-day with no
+ * remittance keeps its derived figure, because capping it would be a guess rather than evidence.
+ *
+ * Returns the EXCESS only, so the caller subtracts it from the figure it already displays. That
+ * keeps the capped number equal to the shown gross minus a disclosed amount, and lets a caller
+ * refuse to trim more than it was given. Totals are also broken down per branch, so a per-branch
+ * card can show the same capped basis instead of summing to a different headline.
+ *
+ * The scan is bounded to the remittance window intersected with the requested window: every trim
+ * comes from a branch-day that has a remittance, so nothing outside it can be trimmed.
+ *
+ * @param array<string,mixed> $filters The same filter contract dl_overviewWindowAggregate() takes.
+ * @return array{trimmed:float,trimmed_days:int,matched_derived:float,matched_days:int,remitted:float,window_from:string,window_to:string,by_branch:array<int,array{trimmed:float,trimmed_days:int,matched_derived:float,matched_days:int}>}
+ */
+function dl_overviewRemittanceCap(DatabaseContract $db, array $filters): array
+{
+    $empty = [
+        'trimmed' => 0.0,
+        'trimmed_days' => 0,
+        'matched_derived' => 0.0,
+        'matched_days' => 0,
+        'remitted' => 0.0,
+        'window_from' => '',
+        'window_to' => '',
+        'by_branch' => [],
+    ];
+
+    $ids = array_values(array_filter(
+        array_map('intval', $filters['accessible_branch_ids'] ?? []),
+        static fn(int $id): bool => $id > 0
+    ));
+    if (($filters['branch_id'] ?? 0) > 0) {
+        $ids = in_array((int)$filters['branch_id'], $ids, true) ? [(int)$filters['branch_id']] : [];
+    }
+    if ($ids === []) {
+        return $empty;
+    }
+    $marks = implode(',', array_fill(0, count($ids), '?'));
+
+    // Remittance coverage first: it bounds the only branch-days that can be trimmed.
+    $winStmt = $db->prepare(
+        'SELECT MIN(ledger_date) AS first_day, MAX(ledger_date) AS last_day,'
+        . ' COALESCE(SUM(cash_remitted), 0) AS total'
+        . ' FROM dl_shift_reconciliation WHERE branch_id IN (' . $marks . ')'
+    );
+    $winStmt->execute($ids);
+    $win = $winStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+    $first = (string)($win['first_day'] ?? '');
+    $last = (string)($win['last_day'] ?? '');
+    if ($first === '' || $last === '') {
+        return $empty;
+    }
+    // Dates are canonical Y-m-d, so string comparison is date comparison here.
+    $from = max($first, (string)($filters['date_from'] ?? ''));
+    $to = min($last, (string)($filters['date_to'] ?? '9999-12-31'));
+    if ($from === '' || $to === '' || $from > $to) {
+        return $empty;
+    }
+
+    // Both gross cards on the Overview ask for a slightly different window, but after the
+    // intersection with the remittance coverage they are often the SAME window (measured: the
+    // all-periods card and the picked period both resolve to 2026-11-01..11-20). Keying the scan on
+    // the resolved window means the page pays for one bounded scan instead of one per card, and the
+    // key lives for this request only.
+    static $windowCache = [];
+    $cacheKey = md5(implode(',', $ids) . '|' . $from . '|' . $to);
+    if (isset($windowCache[$cacheKey])) {
+        return $windowCache[$cacheKey];
+    }
+
+    $qty = dl_ledgerSalesQuantitySql('dl');
+    $amount = dl_ledgerSalesAmountSql('dl');
+    // The same provisional rule dl_overviewWindowAggregate() applies, so the per-branch-day
+    // `derived` here sums to exactly the official_amount that aggregate reports.
+    $provisional = "(dl.end_source IN ('derived-from-movements','zero-forced')"
+        . ' OR dl.bal_end IS NULL'
+        . " OR (ss.status IS NULL AND (dl.shift = 'PM' OR (dl.shift = 'AM' AND b.single_shift_mode = 1)))"
+        . " OR (ss.status IS NOT NULL AND ss.status <> 'finalized'))";
+
+    $sql = 'SELECT d.branch_id,'
+        . ' COALESCE(SUM(CASE WHEN r.remitted IS NOT NULL AND r.remitted < d.derived THEN d.derived - r.remitted ELSE 0 END), 0) AS trimmed,'
+        . ' COALESCE(SUM(CASE WHEN r.remitted IS NOT NULL AND r.remitted < d.derived THEN 1 ELSE 0 END), 0) AS trimmed_days,'
+        . ' COALESCE(SUM(CASE WHEN r.remitted IS NOT NULL THEN d.derived ELSE 0 END), 0) AS matched_derived,'
+        . ' COALESCE(SUM(CASE WHEN r.remitted IS NOT NULL THEN 1 ELSE 0 END), 0) AS matched_days'
+        . ' FROM (SELECT dl.branch_id, dl.ledger_date,'
+        . ' SUM(CASE WHEN ' . $provisional . ' THEN 0 ELSE ' . $amount . ' END) AS derived'
+        . ' FROM dl_daily_ledger dl FORCE INDEX (idx_dl_branch_date)'
+        . ' INNER JOIN dl_branches b ON b.id = dl.branch_id'
+        . ' LEFT JOIN dl_ledger_shift_status ss'
+        . ' ON ss.branch_id = dl.branch_id AND ss.ledger_date = dl.ledger_date'
+        . ' AND ss.shift = dl.shift COLLATE utf8mb4_unicode_ci'
+        . " WHERE dl.ledger_date BETWEEN ? AND ? AND dl.branch_id IN ({$marks})"
+        . ' GROUP BY dl.branch_id, dl.ledger_date) d'
+        . ' LEFT JOIN (SELECT branch_id, ledger_date, SUM(cash_remitted) AS remitted'
+        . " FROM dl_shift_reconciliation WHERE branch_id IN ({$marks})"
+        . ' GROUP BY branch_id, ledger_date) r'
+        . ' ON r.branch_id = d.branch_id AND r.ledger_date = d.ledger_date'
+        . ' GROUP BY d.branch_id';
+    $stmt = $db->prepare($sql);
+    $stmt->execute(array_merge([$from, $to], $ids, $ids));
+
+    $result = [
+        'trimmed' => 0.0,
+        'trimmed_days' => 0,
+        'matched_derived' => 0.0,
+        'matched_days' => 0,
+        'remitted' => (float)($win['total'] ?? 0),
+        'window_from' => $from,
+        'window_to' => $to,
+        'by_branch' => [],
+    ];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+        $branchId = (int)$row['branch_id'];
+        $perBranch = [
+            'trimmed' => (float)$row['trimmed'],
+            'trimmed_days' => (int)$row['trimmed_days'],
+            'matched_derived' => (float)$row['matched_derived'],
+            'matched_days' => (int)$row['matched_days'],
+        ];
+        $result['by_branch'][$branchId] = $perBranch;
+        $result['trimmed'] += $perBranch['trimmed'];
+        $result['trimmed_days'] += $perBranch['trimmed_days'];
+        $result['matched_derived'] += $perBranch['matched_derived'];
+        $result['matched_days'] += $perBranch['matched_days'];
+    }
+
+    $windowCache[$cacheKey] = $result;
+
+    return $result;
+}
+
+/**
+ * Per-branch activity, completeness, and unresolved variance signals, in ONE pass for
  * performance. Delivery variances are included because the canonical
  * dl_variance_flags table records them with kind=delivery.
  *
