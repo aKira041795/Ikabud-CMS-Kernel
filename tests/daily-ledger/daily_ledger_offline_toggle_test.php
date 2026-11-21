@@ -109,6 +109,11 @@ $settingsTemplate = (string)file_get_contents($base . '/templates/modules/daily-
 $featureMap = dl_featureSettings();
 $h->test('dl_featureSettings() carries the switch (the page payload source)', array_key_exists('offline_access_enabled', $featureMap));
 $h->test('the page payload passes it to the template', str_contains($handlersSrc, "'offline_access_enabled' => \$offlineAccessEnabled,"));
+// Measured 2026-11-21: the GET render payload omitted this key, so the template's
+// {if offline_access_enabled} read nothing and the checkbox rendered UNCHECKED no matter what was
+// stored. An admin ticked it, saved, saw "Settings updated", and the box came back empty - "it does
+// not persist" - while the database was correct all along. Pin the render payload itself.
+$h->test('the GET render payload carries it', str_contains($handlersSrc, "'offline_access_enabled' => \$featureSettings['offline_access_enabled'],"));
 $h->test('the save handler reads it from the form', str_contains($handlersSrc, "'offline_access_enabled' => &\$offlineAccessEnabled,"));
 $h->test('the save handler persists it', str_contains($handlersSrc, "'offline_access_enabled' => \$offlineAccessEnabled ? '1' : '0',"));
 $h->test('the settings page renders the checkbox', str_contains($settingsTemplate, 'id="feature-offline-access"'));

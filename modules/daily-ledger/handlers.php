@@ -19239,6 +19239,10 @@ function handleAdminSettings(array $params = []): void
         'consignee_enabled' => $featureSettings['consignee_enabled'],
         'pos_enabled' => $featureSettings['pos_enabled'],
         'pos_sort_by_sales' => $featureSettings['pos_sort_by_sales'],
+        // The GET render payload. Without this key the template's {if offline_access_enabled} reads
+        // nothing, so the checkbox rendered UNCHECKED no matter what was stored - an admin who
+        // ticked it saw it come back unticked and concluded the save was broken.
+        'offline_access_enabled' => $featureSettings['offline_access_enabled'],
         'branch_product_self_management' => dl_branchProductSelfManagementEnabled(),
         'cash_paper_check_enabled' => $featureSettings['cash_paper_check_enabled'],
         'integrity_email_enabled' => $featureSettings['integrity_email_enabled'],
