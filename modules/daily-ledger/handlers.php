@@ -29233,9 +29233,15 @@ function handleAdminCommissary(): void
             'book_balance' => $begQty + $addtlQty - $total - $wastageQty,
             'wastage_qty' => $wastageQty,
             'actual_end_qty' => $actualEndQty,
-            // The DiSyL conditional `!== null` is unreliable, so the displayed
-            // value is resolved in PHP: the count when present, else the suggestion.
-            'actual_input_value' => $actualEndQty !== null ? $actualEndQty : ($begQty + $addtlQty - $total - $wastageQty),
+            // ACTUAL BAL is a COUNT column and must render EMPTY until somebody counts. It used to
+            // be pre-filled with the book balance, which two things went wrong: it displayed a
+            // computed figure as if it had been counted (owner's screenshot, 2026-11-21: TOTAL 5,
+            // ACTUAL BAL -5, VARIANCE blank), and pressing save without typing turned that
+            // suggestion into a "count" whose variance is zero - the same figure certified, the
+            // variance erased. The suggestion still travels as book_balance / data-suggestion and
+            // in the input's tooltip; it is no longer a value.
+            'actual_input_value' => $actualEndQty !== null ? $actualEndQty : '',
+            'actual_count_value' => $actualEndQty !== null ? (string)$actualEndQty : '',
             'calc_variance' => $actualEndQty === null || !array_key_exists('calc_variance', $ledgerRow)
                 ? null : (int)$ledgerRow['calc_variance'],
             // Explicit flag keeps interpreted and compiled DiSyL null checks identical.
@@ -29375,7 +29381,8 @@ function handleAdminCommissary(): void
                 'book_balance' => $begQty + $addtlQty - $departedTotal,
                 'wastage_qty' => 0,
                 'actual_end_qty' => null,
-                'actual_input_value' => $begQty + $addtlQty - $departedTotal,
+                'actual_input_value' => '',
+                'actual_count_value' => '',
                 'calc_variance' => null,
                 'calc_variance_present' => false,
             ];
