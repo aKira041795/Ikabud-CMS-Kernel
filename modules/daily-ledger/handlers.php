@@ -872,6 +872,9 @@ function dl_featureSettings(): array
         'consignee_enabled' => dl_normalizeConsigneeEnabled($settings['consignee_enabled'] ?? true),
         'pos_enabled' => dl_settingToBool($settings['pos_enabled'] ?? false),
         'pos_sort_by_sales' => dl_settingToBool($settings['pos_sort_by_sales'] ?? true),
+        // Device queue. Default ON so an upgrade changes no behaviour; off hides the controls and
+        // makes every offline endpoint refuse, including a queue already sitting on a device.
+        'offline_access_enabled' => dl_settingToBool($settings['offline_access_enabled'] ?? true),
         // Opt-in, default off (owner, 2026-10-09).
         'cash_paper_check_enabled' => dl_settingToBool($settings['cash_paper_check_enabled'] ?? false),
         // Integrity findings are always recorded in-app. This controls email only.
@@ -19645,6 +19648,7 @@ function apiSaveRolePermissions(array $params = []): void
     $consigneeEnabled = $featureSettings['consignee_enabled'];
     $posEnabled = $featureSettings['pos_enabled'];
     $posSortBySales = $featureSettings['pos_sort_by_sales'];
+    $offlineAccessEnabled = $featureSettings['offline_access_enabled'];
     $cashPaperCheckEnabled = $featureSettings['cash_paper_check_enabled'];
     $integrityEmailEnabled = $featureSettings['integrity_email_enabled'];
     $branchProductSelfManagement = dl_branchProductSelfManagementEnabled();
@@ -19672,6 +19676,7 @@ function apiSaveRolePermissions(array $params = []): void
         'consignee_enabled' => &$consigneeEnabled,
         'pos_enabled' => &$posEnabled,
         'pos_sort_by_sales' => &$posSortBySales,
+        'offline_access_enabled' => &$offlineAccessEnabled,
         'branch_product_self_management' => &$branchProductSelfManagement,
         'cash_paper_check_enabled' => &$cashPaperCheckEnabled,
         'integrity_email_enabled' => &$integrityEmailEnabled,
@@ -19761,6 +19766,7 @@ function apiSaveRolePermissions(array $params = []): void
         'consignee_enabled' => $consigneeEnabled ? '1' : '0',
         'pos_enabled' => $posEnabled ? '1' : '0',
         'pos_sort_by_sales' => $posSortBySales ? '1' : '0',
+        'offline_access_enabled' => $offlineAccessEnabled ? '1' : '0',
         'branch_product_self_management' => $branchProductSelfManagement ? '1' : '0',
         'cash_paper_check_enabled' => $cashPaperCheckEnabled ? '1' : '0',
         'integrity_email_enabled' => $integrityEmailEnabled ? '1' : '0',
@@ -19796,6 +19802,7 @@ function apiSaveRolePermissions(array $params = []): void
         'consignee_enabled' => $consigneeEnabled,
         'pos_enabled' => $posEnabled,
         'pos_sort_by_sales' => $posSortBySales,
+        'offline_access_enabled' => $offlineAccessEnabled,
         'branch_product_self_management' => $branchProductSelfManagement,
         'cash_paper_check_enabled' => $cashPaperCheckEnabled,
         'integrity_email_enabled' => $integrityEmailEnabled,
@@ -19831,6 +19838,7 @@ function apiSaveRolePermissions(array $params = []): void
         'consignee_enabled' => $consigneeEnabled,
         'pos_enabled' => $posEnabled,
         'pos_sort_by_sales' => $posSortBySales,
+        'offline_access_enabled' => $offlineAccessEnabled,
         'branch_product_self_management' => $branchProductSelfManagement,
         'consignee_sales_mode' => $consigneeSalesMode,
     ]);

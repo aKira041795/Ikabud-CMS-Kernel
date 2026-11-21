@@ -101,6 +101,29 @@ $h->test('persisting the switch ON succeeds', dlPersistModuleSettings(['offline_
 dlModuleSettings(true);
 $h->test('a stored 1 turns it back ON', dl_isOfflineAccessEnabled() === true);
 
+// ── 2b. The ADMIN SETTINGS surface ───────────────────────────────────
+// A setting that exists in the manifest but nowhere on the page is not a setting: the owner went
+// looking for this toggle and found nothing, because the settings page renders a HARDCODED list of
+// controls rather than looping over settings_fields. These assertions pin every link in that chain.
+$settingsTemplate = (string)file_get_contents($base . '/templates/modules/daily-ledger/admin/settings.disyl');
+$featureMap = dl_featureSettings();
+$h->test('dl_featureSettings() carries the switch (the page payload source)', array_key_exists('offline_access_enabled', $featureMap));
+$h->test('the page payload passes it to the template', str_contains($handlersSrc, "'offline_access_enabled' => \$offlineAccessEnabled,"));
+$h->test('the save handler reads it from the form', str_contains($handlersSrc, "'offline_access_enabled' => &\$offlineAccessEnabled,"));
+$h->test('the save handler persists it', str_contains($handlersSrc, "'offline_access_enabled' => \$offlineAccessEnabled ? '1' : '0',"));
+$h->test('the settings page renders the checkbox', str_contains($settingsTemplate, 'id="feature-offline-access"'));
+$h->test('the checkbox is admin-gated like its neighbours', str_contains($settingsTemplate, '<input type="checkbox" id="feature-offline-access" {if offline_access_enabled}checked{/if}>'));
+$h->test('a read-only role sees a state badge instead', str_contains($settingsTemplate, 'Offline Access is {if offline_access_enabled}Enabled{/if}'));
+$h->test('the checkbox posts its value with the other flags', str_contains($settingsTemplate, 'payload.offline_access_enabled = featureOfflineAccess.checked;'));
+
+dlPersistModuleSettings(['offline_access_enabled' => '0']);
+dlModuleSettings(true);
+$h->test('the page payload follows the stored value (OFF)', dl_featureSettings()['offline_access_enabled'] === false);
+dlPersistModuleSettings(['offline_access_enabled' => '1']);
+dlModuleSettings(true);
+$h->test('the page payload follows the stored value (ON)', dl_featureSettings()['offline_access_enabled'] === true);
+$h->test('the section explains the symptom, not just the feature', stripos($settingsTemplate, 'nobody there keyed') !== false);
+
 // ── 3. Every writing endpoint refuses ────────────────────────────────
 $h->test('the refusal helper exists', function_exists('dl_offlineRefuseWhenDisabled'));
 $h->test('the refusal names a code the client can branch on', str_contains($handlersSrc, "'OFFLINE_DISABLED'"));

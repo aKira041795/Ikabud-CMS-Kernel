@@ -564,6 +564,25 @@
             </div>
 
             <div>
+                <p class="text-sm text-gray-700 font-medium">Offline Access (device queue)</p>
+                <p class="mt-1 text-sm text-gray-500">Lets an enrolled device save cashier entries while offline and replay them when it reconnects. Turn OFF when a branch reports stock on its sheet that nobody there keyed: a queued entry replays against the date the DEVICE computed, which can be the next business date.</p>
+            </div>
+            <div>
+                {if can_manage_feature_activation}
+                <label class="inline-flex items-center gap-2 text-sm text-gray-700">
+                    <input type="checkbox" id="feature-offline-access" {if offline_access_enabled}checked{/if}>
+                    Enable Offline Access
+                </label>
+                <p class="mt-2 text-sm text-gray-500">When off, the offline controls disappear from the cashier ledger AND every offline endpoint refuses - including a queue already saved on a device - so nothing can be replayed behind the branch's back. Revoking a device stays available.</p>
+                {/if}
+                {if !can_manage_feature_activation}
+                <div class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset {if offline_access_enabled}bg-emerald-50 text-emerald-700 ring-emerald-200{/if}{if !offline_access_enabled}bg-gray-100 text-gray-700 ring-gray-300{/if}">
+                    Offline Access is {if offline_access_enabled}Enabled{/if}{if !offline_access_enabled}Disabled{/if}
+                </div>
+                {/if}
+            </div>
+
+            <div>
                 <p class="text-sm text-gray-700 font-medium">Email Integrity Alerts</p>
                 <p class="mt-1 text-sm text-gray-500">Email active admins and branch supervisors when an integrity finding is raised (for example an unresolved dispatch origin). The in-app notification is always recorded; this only controls email delivery.</p>
             </div>
@@ -1509,6 +1528,10 @@
         var featureCashPaperCheck = document.getElementById('feature-cash-paper-check');
         if (featureCashPaperCheck) {
             payload.cash_paper_check_enabled = featureCashPaperCheck.checked;
+        }
+        var featureOfflineAccess = document.getElementById('feature-offline-access');
+        if (featureOfflineAccess) {
+            payload.offline_access_enabled = featureOfflineAccess.checked;
         }
         var featureIntegrityEmail = document.getElementById('feature-integrity-email');
         if (featureIntegrityEmail) {
