@@ -174,6 +174,82 @@ try {
             'in_scale' => dl_commissaryBeginningNeedsReason($db, $branchId, $productId, $day3, 900),
         ])
     );
+
+    // AC8 — "allowable a negative/variance when total of deliveries is more than the declared
+    // stocks on hand": the dispatch is NOT refused, and it leaves a durable finding behind.
+    $db->prepare('DELETE FROM dl_commissary_product_ledger WHERE commissary_branch_id = :b AND product_id = :p')
+        ->execute([':b' => $branchId, ':p' => $productId]);
+    $db->prepare('DELETE FROM dl_integrity_notifications WHERE aggregate_key LIKE :k')
+        ->execute([':k' => 'commissary-over-dispatch-' . $branchId . '-%']);
+    $addRow($day1, 'AM', 5, 0, 0);   // holds 5
+
+    $refused = null;
+    try {
+        dl_applyCommissaryProductLedgerDelta($db, $branchId, $productId, $day1, 0, 50, 1, 0, false, 'AM');
+    } catch (\Throwable $e) {
+        $refused = $e->getMessage();
+    }
+    $afterDispatch = $db->prepare('SELECT dispatched_qty, (beg_qty + produced_qty - dispatched_qty - wastage_qty) AS bal
+                                     FROM dl_commissary_product_ledger
+                                    WHERE commissary_branch_id = :b AND product_id = :p AND ledger_date = :d AND shift = "AM"');
+    $afterDispatch->execute([':b' => $branchId, ':p' => $productId, ':d' => $day1]);
+    $state = $afterDispatch->fetch(PDO::FETCH_ASSOC) ?: [];
+    $h->test(
+        'a dispatch beyond stock is ALLOWED and the balance goes negative (a dispatch is a fact)',
+        $refused === null && (int)($state['dispatched_qty'] ?? 0) === 50 && (int)($state['bal'] ?? 0) === -45,
+        json_encode(['refused' => $refused, 'state' => $state])
+    );
+
+    $findingStmt = $db->prepare('SELECT finding_type, title, detail, finding_count FROM dl_integrity_notifications
+                                  WHERE aggregate_key = :k');
+    $findingStmt->execute([':k' => 'commissary-over-dispatch-' . $branchId . '-' . $productId . '-' . $day1]);
+    $finding = $findingStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+    $h->test(
+        'it leaves a durable finding naming both numbers, so the variance cannot go unseen',
+        ($finding['finding_type'] ?? '') === 'variance'
+            && str_contains((string)($finding['title'] ?? ''), 'dispatched 50')
+            && str_contains((string)($finding['title'] ?? ''), 'only 5 on hand')
+            && str_contains((string)($finding['detail'] ?? ''), 'a dispatch is a fact'),
+        json_encode($finding)
+    );
+
+    // A second over-dispatch on the same item/day collapses into the same finding and counts.
+    try {
+        dl_applyCommissaryProductLedgerDelta($db, $branchId, $productId, $day1, 0, 5, 1, 0, false, 'AM');
+    } catch (\Throwable $e) {
+        // already-negative balances are allowed too; nothing to assert on the throw
+    }
+    $findingStmt->execute([':k' => 'commissary-over-dispatch-' . $branchId . '-' . $productId . '-' . $day1]);
+    $finding2 = $findingStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+    $countStmt = $db->prepare('SELECT COUNT(*) FROM dl_integrity_notifications WHERE aggregate_key LIKE :k');
+    $countStmt->execute([':k' => 'commissary-over-dispatch-' . $branchId . '-' . $productId . '-%']);
+    $rowCount = (int)$countStmt->fetchColumn();
+    $h->test(
+        'a repeat over-dispatch increments the same finding instead of adding a row',
+        (int)($finding2['finding_count'] ?? 0) === 2 && $rowCount === 1,
+        json_encode(['finding_count' => $finding2['finding_count'] ?? null, 'rows' => $rowCount])
+    );
+
+    // AC9 — the per-row flag the sheet renders ("so daily sheets per row can capture that").
+    $cases = [
+        'shipped within stock' => [100, 50, 0, 120, false, 0],
+        'shipped exactly what it held' => [100, 50, 0, 150, false, 0],
+        'shipped past its stock' => [100, 50, 0, 170, true, 20],
+        'carried a deficit but shipped nothing' => [-3145, 0, 85, 0, false, 0],
+        'shipped anything while already short' => [-100, 0, 0, 5, true, 5],
+    ];
+    $wrong = [];
+    foreach ($cases as $label => [$beg, $addtl, $waste, $dispatched, $expectOver, $expectExcess]) {
+        $got = dl_sheetOverDispatch($beg, $addtl, $waste, $dispatched);
+        if ($got['over'] !== $expectOver || (int)$got['excess'] !== $expectExcess) {
+            $wrong[$label] = $got;
+        }
+    }
+    $h->test(
+        'the per-row over-dispatch flag is right in all five shapes, including "shipped nothing"',
+        $wrong === [],
+        json_encode($wrong)
+    );
 } finally {
     $cleanup();
 }

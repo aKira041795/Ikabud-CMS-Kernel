@@ -5253,6 +5253,32 @@ function dl_commissaryBeginningNeedsReason($db, int $commissaryBranchId, int $pr
     return $begQty > max($priorMax * 10, $priorMax + 1000);
 }
 
+/**
+ * Did this row dispatch more than it had, and by how much?
+ *
+ * Owner, 2026-11-21: "allowable a negative/variance when total of deliveries is more than the
+ * declared stocks on hand" … "so daily sheets per row can capture that". The dispatch is allowed —
+ * the goods left, the book is what is wrong — but the ROW has to say so, otherwise the operator
+ * reads a negative balance with no explanation of which number caused it.
+ *
+ *   available = beg + additionals - wastage   (what the shift could ship without going short)
+ *   excess    = dispatched - max(0, available) (reported only when a positive dispatch exceeds it)
+ */
+function dl_sheetOverDispatch(int $begQty, int $addtlQty, int $wastageQty, int $dispatchedQty): array
+{
+    $available = $begQty + $addtlQty - $wastageQty;
+    // A row that shipped NOTHING is never "over" — a negative beginning alone is a carried deficit,
+    // not an over-dispatch (measured: PANDESAL 2026-11-12 carried beg -3,145 with 0 dispatched).
+    // When the available balance is already negative, ANY positive dispatch is entirely unsupported,
+    // so it counts from zero rather than from the negative floor.
+    $excess = $dispatchedQty - max(0, $available);
+    return [
+        'available' => $available,
+        'over' => $dispatchedQty > 0 && $excess > 0,
+        'excess' => ($dispatchedQty > 0 && $excess > 0) ? $excess : 0,
+    ];
+}
+
 function dl_commissaryQuantityPlausibilityGuard(    $db,
     int $commissaryBranchId,
     int $productId,
@@ -5480,6 +5506,45 @@ function dl_applyCommissaryProductLedgerDelta(
                 'product_id' => $productId,
             ]
         );
+
+        // ── The ALLOWED variance, recorded where somebody will see it ──────────────────────
+        // Owner, 2026-11-21: "allowable a negative/variance when total of deliveries is more than
+        // the declared stocks on hand." A hub can physically ship more than its book says — the
+        // goods exist, the book is what is wrong — so this is NOT refused. What it must never be
+        // is invisible, and until now the only trace was an audit row nobody reads.
+        //
+        // Measured over all history before this: 543 dispatches at RIZAL-COMMIS and 153 at
+        // PAGADIAN shipped more than the hub held while it still held something, and every one of
+        // them left nothing behind but an audit line. A dispatch beyond stock is now a durable
+        // finding that counts its occurrences, appears on the integrity panel, and names the two
+        // numbers that disagree so it can be closed with a count or a receipt.
+        $excessUnits = $dispatchedDelta > 0 ? $dispatchedDelta - max(0, $oldRemaining) : 0;
+        if ($dispatchedDelta > 0 && $newRemaining < 0 && $newRemaining < $oldRemaining) {
+            $labelStmt = $db->prepare('SELECT name FROM dl_products WHERE id = :p LIMIT 1');
+            $labelStmt->execute([':p' => $productId]);
+            $productLabel = (string)($labelStmt->fetchColumn() ?: ('product #' . $productId));
+            // Two shapes, both of them a variance a human must settle:
+            //   the hub HAD stock and shipped past it  -> "dispatched 50 with only 5 on hand"
+            //   the hub was ALREADY short and shipped on -> "dispatched 5 while already 45 short"
+            $headline = $oldRemaining >= 0
+                ? $productLabel . ': dispatched ' . $dispatchedDelta . ' with only ' . $oldRemaining . ' on hand'
+                : $productLabel . ': dispatched ' . $dispatchedDelta . ' while already ' . $oldRemaining . ' short';
+            dl_raiseIntegrityNotification(
+                $db,
+                'commissary-over-dispatch-' . $commissaryBranchId . '-' . $productId . '-' . $ledgerDate,
+                'variance',
+                $commissaryBranchId,
+                'dl_commissary_product_ledger',
+                null,
+                $headline,
+                'On ' . $ledgerDate . ($shift !== null ? ' (' . $shift . ')' : '')
+                . ' this hub dispatched ' . $dispatchedDelta . ' units of ' . $productLabel
+                . ' while the ledger held ' . $oldRemaining
+                . ', so ' . $dispatchedDelta . ' left with no recorded stock behind it. The delivery stands — '
+                . 'a dispatch is a fact. Close this by counting the stock or recording the receipt/production '
+                . 'that the book is missing; the balance for this item is now ' . $newRemaining . '.'
+            );
+        }
     }
 
     return ['beg_qty' => (int)$row['beg_qty'], 'produced_qty' => $newProduced, 'dispatched_qty' => $newDispatched, 'wastage_qty' => $newWastage, 'remaining_qty' => $newRemaining, 'skipped' => false];
@@ -29137,8 +29202,15 @@ function handleAdminCommissary(): void
         $wastageQty = (int)($ledgerRow['wastage_qty'] ?? 0);
         $actualEndQty = array_key_exists('actual_end_qty', $ledgerRow) && $ledgerRow['actual_end_qty'] !== null
             ? (int)$ledgerRow['actual_end_qty'] : null;
+        // "total of deliveries is more than the declared stocks on hand" — computed per row so the
+        // sheet can name it on the row itself instead of leaving a bare negative balance.
+        $rowOverDispatch = dl_sheetOverDispatch($begQty, $addtlQty, $wastageQty, $total);
         $dailySheetRows[] = [
             'product_id' => $productId,
+            'over_dispatched' => $rowOverDispatch['over'],
+            'over_dispatched_qty' => (int)$rowOverDispatch['excess'],
+            'available_qty' => (int)$rowOverDispatch['available'],
+            'dispatched_vs_available' => (int)$total,
             'sheet_label' => dl_productionSheetLabel($product),
             'sku' => (string)($product['sku'] ?? ''),
             'beg_qty' => $begQty,

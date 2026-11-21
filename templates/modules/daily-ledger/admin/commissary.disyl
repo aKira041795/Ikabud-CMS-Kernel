@@ -2340,7 +2340,7 @@
                     {/if}
                     {foreach daily_sheet_rows as row}
                     <tr class="daily-sheet-product-row" data-product-id="{row.product_id}" data-produced="{row.addtl_qty}" data-sku="{row.sku}">
-                        <td class="font-medium dl-sheet-sticky-product">{row.sheet_label}</td>
+                        <td class="font-medium dl-sheet-sticky-product">{row.sheet_label}{if row.over_dispatched}<span class="ml-2 inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800" data-over-dispatch="{row.over_dispatched_qty}" title="Dispatched {row.dispatched_vs_available} against {row.available_qty} on hand (beg + additionals - wastage), so {row.over_dispatched_qty} left with no recorded stock. The delivery stands; count the stock or record the missing receipt/production.">over {row.over_dispatched_qty}</span>{/if}</td>
                         <td class="px-1 py-1 text-right dl-sheet-sticky-beg">
                             {* BEG is user-settable; the carry is the suggestion, never auto-persisted. *}
                             <input type="number" step="1" class="form-input w-20 ml-auto text-right production-beg-input"
