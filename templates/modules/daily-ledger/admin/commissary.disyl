@@ -861,6 +861,26 @@
         border-radius: 5px;
     }
     #tab-daily-sheet .dl-sheet-hscroll::-webkit-scrollbar-thumb:hover { background: #64748b; }
+    /* ONE horizontal scroller, not two (owner, 2026-11-21: "double horizontal scrollers").
+       When the table overflowed, the wrap's own horizontal track (bottom of the 70vh box) and
+       this pinned bar sat DIRECTLY on top of each other — measured 13px at y=541 and 10px at
+       y=544 — so the reader got two stacked bars for one table.
+       The pinned bar wins: it is the one that is reachable without scrolling away from the row
+       being read, which is the whole reason it exists. The wrap keeps `overflow-x: auto`, so
+       trackpad / shift-wheel / drag panning still work; only its redundant VISUAL track goes.
+       MEASURED, do not "improve" this to ::-webkit-scrollbar:horizontal — that selector is
+       quietly inert here (hBar stayed 13). `height` on the base pseudo-element governs the
+       HORIZONTAL bar's thickness and `width` governs the vertical one, so zeroing height alone
+       removes exactly one bar and leaves the vertical one at 14px. Zeroing `width` instead
+       would take both.
+       Engines without ::-webkit-scrollbar cannot express a per-axis hide, so there the native
+       bar stays and the mirror is retired: exactly one bar in every engine, never two. */
+    @supports selector(::-webkit-scrollbar) {
+        #tab-daily-sheet .dl-sheet-scroll::-webkit-scrollbar { height: 0; }
+    }
+    @supports not selector(::-webkit-scrollbar) {
+        #tab-daily-sheet .dl-sheet-hscroll { display: none; }
+    }
     /* Vertical: the destination header row (branch and consignee names) stays fixed while the
        product rows scroll under it, so the encoder never loses which column is which
        (owner, 2026-10-09).
@@ -1762,8 +1782,19 @@
     </div>
     <div class="card">
         <div class="card-body py-3">
-            <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Remaining Today</div>
-            <div class="mt-1 text-2xl font-semibold text-gray-900">{totals.total_remaining}</div>
+            <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Stock On Hand</div>
+            <div class="mt-1 text-2xl font-semibold text-gray-900">{totals.total_on_hand}</div>
+            {* This card used to read "Remaining Today" and print the sum of `remaining_qty`, which is
+               a FLOW (produced - dispatched - wastage) and ignores the balance the day opened with.
+               It therefore reads NEGATIVE on any healthy day that ships from opening stock — measured
+               2026-11-20 Pagadian: opened 9,090, made 3,535, shipped 3,808 -> net -280 while 8,810 was
+               still on hand. Owner, 2026-11-21: "odd that remaining shows negative count? like -280?"
+               The arithmetic was right and the LABEL was wrong; the flow stays visible under the stock
+               figure so nothing is hidden, and the real closing stock is what leads the card. *}
+            <div class="mt-1 text-xs text-gray-500"
+                 title="Today's movement only: produced - dispatched - wastage. Negative means the day shipped more than it made, drawing on the balance it opened with.">
+                Net today: {totals.total_remaining}
+            </div>
         </div>
     </div>
     <div class="card">
