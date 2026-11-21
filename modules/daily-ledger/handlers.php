@@ -14922,6 +14922,8 @@ function apiReceiveDelivery(array $params = []): void
             if ($existing) {
                 $newAddtl = (int)$existing['addtl'] + (int)$qty;
                 $stmtUpd->execute([':addtl' => $newAddtl, ':uid' => $userId, ':bid' => $branchId, ':pid' => $pid, ':d' => $receiveDate, ':shift' => $shift]);
+                $ledgerId = (int)$existing['id'];
+                $addtlBefore = (int)$existing['addtl'];
             } else {
                 $price = dl_resolveBranchProductPrice($branchId, (int)$pid, $receiveDate);
                 $stmtInit->execute([
@@ -14929,7 +14931,30 @@ function apiReceiveDelivery(array $params = []): void
                     ':prc' => $price, ':addtl' => (int)$qty,
                     ':uid_enc' => $userId, ':uid_upd' => $userId,
                 ]);
+                $ledgerId = (int)$ctx->db()->lastInsertId();
+                $addtlBefore = 0;
+                $newAddtl = (int)$qty;
             }
+
+            // WHY this row exists. This credit raises the branch's Addt'l cell, and until now it was
+            // the one stock movement in the receive flow with NO per-product record: the handler
+            // audits one `delivery_received` for the whole receipt, so "which product went up, by
+            // how much, on whose action" could not be answered afterwards. That is the question a
+            // branch asks when stock appears and it denies receiving - and the trail has to exist to
+            // answer it. Same shape as dl_applyLedgerDelta() so one query reads both paths.
+            dl_auditLog('ledger_delta_applied', $branchId, 'dl_daily_ledger', (string)$ledgerId, null, [
+                'branch_id' => $branchId,
+                'product_id' => (int)$pid,
+                'ledger_date' => $receiveDate,
+                'shift' => $shift,
+                'column' => 'addtl',
+                'delta' => (int)$qty,
+                'value_before' => $addtlBefore,
+                'value_after' => $newAddtl,
+                'actor_id' => $userId,
+                'source' => 'receive_delivery',
+            ]);
+            dl_accountabilityAuditGuard($ctx->db(), 'ledger_delta_applied', 'dl_daily_ledger', (string)$ledgerId, $branchId);
         }
 
         $receiptTimeStmt = $ctx->db()->prepare('SELECT received_at FROM dl_cashier_withdrawals WHERE id = :id');
