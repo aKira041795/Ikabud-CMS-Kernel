@@ -109,9 +109,32 @@ try {
     $db = $context->db();
 
     // ── Candidates: a row whose count proves its own dispatch never left ─────────────────────
+    // AND whose quantity can be shown to have been booked in TWO shift buckets on that date.
+    // The count predicate ALONE is not enough: a dispatch that genuinely left while the matching
+    // production was never keyed produces exactly the same arithmetic (beg 5, dispatch 50, count 5).
+    // Zeroing that row would hide missing production instead of removing a duplicate. Measured
+    // 2026-11-21: 162 rows match the count predicate at RIZAL-COMMIS, but 128 of them have no
+    // delivery to tie the quantity to at all — those are production gaps, and this tool refuses
+    // them rather than "fixing" a number by deleting evidence of a real outflow.
     $sql = "SELECT l.id, l.commissary_branch_id, l.product_id, l.ledger_date, l.shift,
                    l.beg_qty, l.produced_qty, l.dispatched_qty, l.wastage_qty, l.actual_end_qty,
-                   p.name AS product_name
+                   p.name AS product_name,
+                   (SELECT COUNT(*)
+                      FROM dl_deliveries d2
+                      INNER JOIN dl_delivery_items i2 ON i2.delivery_id = d2.id
+                     WHERE d2.status = 'posted'
+                       AND COALESCE(d2.resolved_origin_id, d2.origin_id) = l.commissary_branch_id
+                       AND d2.delivery_date = l.ledger_date
+                       AND i2.product_id = l.product_id
+                       AND i2.quantity = l.dispatched_qty) AS same_qty_deliveries,
+                   (SELECT COUNT(DISTINCT d3.production_shift)
+                      FROM dl_deliveries d3
+                      INNER JOIN dl_delivery_items i3 ON i3.delivery_id = d3.id
+                     WHERE d3.status = 'posted'
+                       AND COALESCE(d3.resolved_origin_id, d3.origin_id) = l.commissary_branch_id
+                       AND d3.delivery_date = l.ledger_date
+                       AND i3.product_id = l.product_id
+                       AND i3.quantity = l.dispatched_qty) AS distinct_shifts
               FROM dl_commissary_product_ledger l
               INNER JOIN dl_products p ON p.id = l.product_id
              WHERE l.actual_end_qty IS NOT NULL
@@ -130,10 +153,34 @@ try {
     $sql .= ' ORDER BY l.dispatched_qty DESC, l.ledger_date DESC LIMIT ' . $limit;
     $stmt = $db->prepare($sql);
     $stmt->execute($bind);
-    $candidates = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $found = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    // Split what the tool will touch from what it will only report.
+    $candidates = [];
+    $productionGaps = [];
+    foreach ($found as $candidate) {
+        if ((int)$candidate['distinct_shifts'] > 1) {
+            $candidates[] = $candidate;
+        } else {
+            $productionGaps[] = $candidate;
+        }
+    }
+
+    if ($productionGaps !== []) {
+        $gapUnits = 0;
+        foreach ($productionGaps as $gap) {
+            $gapUnits += (int)$gap['dispatched_qty'];
+        }
+        echo "\nNOT TOUCHED: " . count($productionGaps) . " row(s) / {$gapUnits} unit(s) match the count rule but show no second
+";
+        echo "booking of the same quantity — that arithmetic means MISSING PRODUCTION, not a duplicate dispatch.
+";
+        echo "Zeroing them would delete the evidence of a real outflow. Key the ADDTL for those rows instead.
+";
+    }
 
     if ($candidates === []) {
-        echo "Nothing to repair: no row's count contradicts its own dispatch in this scope.\n";
+        echo "\nNothing to repair: no duplicated dispatch in this scope.\n";
         modulePopContext();
         exit(0);
     }
@@ -154,7 +201,8 @@ try {
     );
 
     echo "\nCONTRADICTED DISPATCH REPAIR" . ($apply ? ' — APPLYING' : ' — DRY RUN (nothing is written)') . "\n";
-    echo "  rule: actual_end_qty = beg + produced - wastage  =>  the dispatch never left\n";
+    echo "  rule: the shift count proves the dispatch never left, AND that exact quantity is booked in\n";
+    echo "        two different shift buckets for the same item and date (a duplicate, not a gap)\n";
     echo "  until {$until}" . ($commissaryId > 0 ? ", hub #{$commissaryId}" : ', all hubs')
         . ($productFilter !== '' ? ", item ~ '{$productFilter}'" : '') . "\n\n";
 

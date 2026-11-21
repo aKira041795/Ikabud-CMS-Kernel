@@ -29239,6 +29239,32 @@ function handleAdminCommissary(): void
             $totals['total_on_hand'] += (int)$hubProduct['on_hand'];
         }
     }
+    // ── How much of that figure can never be right, by construction ────────────────────────    // This ledger's ONLY inflow is production (and the pullout returns credited to it). A product
+    // this hub has never produced — bought-in water, softdrinks, NUTRIBUN — therefore has no
+    // channel to be credited, so every unit shipped makes its balance negative and no correction
+    // an operator can key will fix it. Owner, 2026-11-21: "we can't have a 25K book balance."
+    // Measured at RIZAL-COMMIS to 2026-11-20: -25,983 total, of which -8,802 is exactly this.
+    // Splitting the two lets the fixable part be read on its own instead of hiding inside one
+    // number; it does NOT remove the bought-in figure from the total.
+    $totals['total_on_hand_resale'] = 0;
+    if ($onHandScopeIds !== []) {
+        $scopeIn = implode(',', array_map('intval', $onHandScopeIds));
+        $neverProducedStmt = $db->query(
+            "SELECT product_id
+               FROM dl_commissary_product_ledger
+              WHERE commissary_branch_id IN ({$scopeIn})
+              GROUP BY product_id
+             HAVING SUM(produced_qty) = 0"
+        );
+        foreach ($neverProducedStmt->fetchAll(PDO::FETCH_COLUMN) ?: [] as $neverProducedId) {
+            foreach ($onHandMatrix as $hubProducts) {
+                $neverProduced = (int)$neverProducedId;
+                if (isset($hubProducts[$neverProduced])) {
+                    $totals['total_on_hand_resale'] += (int)$hubProducts[$neverProduced]['on_hand'];
+                }
+            }
+        }
+    }
     foreach ($pulloutRows as $row) {
         // Wastage returns are physically moved but already counted as
         // wastage_qty; they are not saleable returned stock.
