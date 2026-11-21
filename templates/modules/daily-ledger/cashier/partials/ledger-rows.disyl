@@ -44,12 +44,12 @@
                 data-product="{row.product_id}"
                 onclick="dlAddStockDirect({row.product_id})"
                 title="Add stock — no paper DR needed. Records a missed or undercounted entry; charge a person only if stock was actually lost. Use Receive Stock for a DR-tracked delivery.">
-            <span class="addtl-value" data-field="addtl" data-product="{row.product_id}">{row.addtl}</span>
+            <span class="addtl-value" data-field="addtl" data-product="{row.product_id}"{if row.addtl_source} title="{row.addtl_source}"{/if}>{row.addtl}</span>
             <i class="fas fa-plus text-[10px]" aria-hidden="true"></i>
         </button>
         {else}
         <span class="ledger-chip"
-              data-field="addtl" data-product="{row.product_id}">{row.addtl}</span>
+              data-field="addtl" data-product="{row.product_id}"{if row.addtl_source} title="{row.addtl_source}"{/if}>{row.addtl}</span>
         {/if}
     </td>
     <td class="align-middle text-right">

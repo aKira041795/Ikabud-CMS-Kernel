@@ -11923,6 +11923,57 @@ function dl_autoCarryBeginnings(\Ikabud\Kernel\Contracts\ModuleDB $db, int $bran
 }
 
 /**
+ * One human sentence per product explaining why the Addt'l cell already holds stock.
+ *
+ * A branch reported opening its AM sheet and finding additions nobody there keyed. The values were
+ * real `own_production` / `adjustment_add` movements keyed the evening before, on the next business
+ * date, by a person sharing the same login - and the sheet rendered them exactly like a
+ * carried-forward beginning. This makes the difference visible on the cell itself.
+ *
+ * Read-only, one query per page (grouped in PHP so it never runs per row).
+ *
+ * @return array<int,string> product_id => "Added +748 by own production — Marife egas · 19 Nov 19:38"
+ */
+function dl_addtlProvenanceFor($db, int $branchId, string $ledgerDate, string $shift): array
+{
+    if ($branchId <= 0 || $ledgerDate === '') {
+        return [];
+    }
+    $stmt = $db->prepare(
+        "SELECT product_id, withdrawal_type, quantity, encoded_by_name_snapshot, created_at
+           FROM dl_cashier_withdrawals
+          WHERE branch_id = :b AND ledger_date = :d AND shift = :s
+            AND withdrawal_type IN ('own_production','adjustment_add')
+            AND quantity <> 0
+          ORDER BY created_at, id"
+    );
+    $stmt->execute([':b' => $branchId, ':d' => $ledgerDate, ':s' => $shift]);
+
+    $grouped = [];
+    foreach ($stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [] as $row) {
+        $pid = (int)$row['product_id'];
+        $grouped[$pid] ??= ['qty' => 0, 'types' => [], 'last_name' => '', 'last_at' => '', 'n' => 0];
+        $grouped[$pid]['qty'] += (int)$row['quantity'];
+        $kind = (string)$row['withdrawal_type'] === 'own_production' ? 'own production' : 'adjustment';
+        $grouped[$pid]['types'][$kind] = true;
+        $grouped[$pid]['last_name'] = trim((string)($row['encoded_by_name_snapshot'] ?? '')) ?: 'an unnamed user';
+        $grouped[$pid]['last_at'] = (string)$row['created_at'];
+        $grouped[$pid]['n']++;
+    }
+
+    $out = [];
+    foreach ($grouped as $pid => $entry) {
+        $when = $entry['last_at'] !== '' ? date('d M H:i', (int)strtotime($entry['last_at'])) : '';
+        $out[$pid] = 'Added ' . ($entry['qty'] >= 0 ? '+' : '') . $entry['qty']
+            . ' by ' . implode(' + ', array_keys($entry['types']))
+            . ' — ' . $entry['last_name']
+            . ($when !== '' ? ' · ' . $when : '')
+            . ($entry['n'] > 1 ? ' · ' . $entry['n'] . ' entries' : '');
+    }
+    return $out;
+}
+
+/**
  * @return array<int,array<string,mixed>>
  */
 function dl_fetchCashierLedgerRows(\Ikabud\Kernel\Contracts\ModuleDB $db, int $branchId, string $ledgerDate, string $shift): array
@@ -12175,6 +12226,25 @@ function handleCashierLedger(array $params = []): void
     }
 
     $ledgerRows = $branchId ? dl_fetchCashierLedgerRows($ctx->db(), (int)$branchId, $ledgerDate, $shift) : [];
+
+    // WHY the Addt'l column already holds a number before the shift starts.
+    //
+    // Owners' branches reported exactly this: "pag open nila sa ilang ledger kay naa namay nka
+    // additional daan" - stock already there, nobody there remembering keying it. A cell filled the
+    // evening before by another person on the same SHARED account renders identically to a
+    // carried-forward beginning, so the sheet has to say which one it is. Traced on the live dump:
+    // branch 25, PANDESAL, 748 pcs, own_production / self_production, encoded by user 45 on
+    // 2026-11-19 19:38 against ledger 2026-11-20 AM - a real movement with a real name on it, and a
+    // screen that looked like it came from nowhere.
+    if ($branchId && $ledgerRows !== []) {
+        $provenance = dl_addtlProvenanceFor($ctx->db(), (int)$branchId, (string)$ledgerDate, (string)$shift);
+        foreach ($ledgerRows as $idx => $provTarget) {
+            $pid = (int)($provTarget['product_id'] ?? 0);
+            if (isset($provenance[$pid])) {
+                $ledgerRows[$idx]['addtl_source'] = $provenance[$pid];
+            }
+        }
+    }
     $settledSummary = dl_settledEndingSummary($ctx->db(), (int)$branchId, (string)$ledgerDate, (string)$shift, $role, false);
 
     // Concern #2 (owner 2026-11-16): the branch records its deposit per shift and
