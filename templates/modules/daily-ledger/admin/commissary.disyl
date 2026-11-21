@@ -1790,10 +1790,10 @@
                 Unreconciled: {totals.total_on_hand} more recorded out than in.
             </div>
             {/if}
-            {if totals.total_on_hand_resale != 0}
+            {if totals.total_on_hand_excluded != 0}
             <div class="mt-1 text-xs text-gray-500"
-                 title="These items have no production recorded at this hub at all, and production is this ledger's only inflow. Every unit of them that ships makes their balance negative, and no production entry can be keyed to correct it. Either their output was never encoded, or they are bought in and need a purchase/opening inflow.">
-                of which never produced here: {totals.total_on_hand_resale}
+                 title="These items have no production recorded at this hub, and production is this ledger's only inflow - so they have no stock figure here at all and are left out of the number above. Either their output was never encoded, or they are bought in and belong in a purchase/opening record, not this one.">
+                not counted - {totals.total_on_hand_excluded_items} items never produced here ({totals.total_on_hand_excluded})
             </div>
             {/if}
             <div class="mt-1 text-xs text-gray-500"

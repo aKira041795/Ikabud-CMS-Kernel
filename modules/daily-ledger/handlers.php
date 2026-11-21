@@ -28672,6 +28672,33 @@ function handleAdminCommissary(): void
     // "on hand" - RIZAL-COMMIS · B.FOREST @430 showed 6 with 4 in stock.
     $onHandScopeIds = $selectedCommissaryId > 0 ? [$selectedCommissaryId] : $availableCommissaryIds;
     $onHandMatrix = dl_commissaryOnHandByProduct($db, $onHandScopeIds, $rawDate);
+    // ── Only the hub's ACTIVE assortment may reach the stat cards ─────────────────────────────
+    // Owner, 2026-11-21: "TOASTED MAMON … it's off/unchecked therefore check wiring of stats card so
+    // that it filters products that are to shown/hidden by branch." Measured: TOASTED MAMON @15
+    // (129) and Toasted Mamon by PCS@10 (224) are both is_active = 0 at RIZAL-COMMIS, yet their
+    // ledger history was still being summed into Produced/Dispatched/Wastage and into the Book
+    // Balance the owner was reading. History is not deleted by un-assigning an item — the rows stay
+    // and the reconciliation tool still sees them — but a card about what THIS HUB handles must not
+    // count products this hub has switched off.
+    $assignedProductIds = [];
+    if ($onHandScopeIds !== []) {
+        $assignedScopeIn = implode(',', array_map('intval', $onHandScopeIds));
+        // TWO flags decide whether a product belongs on this hub's cards, and both must be on:
+        //   dl_branch_products.is_active — the item is switched ON for this branch/hub;
+        //   dl_products.is_active       — the item itself is still a live product.
+        // Owner, 2026-11-21: "this will also mean active/inactive products to be filtered."
+        // A product retired from the catalogue but left assigned would otherwise keep feeding
+        // Produced/Dispatched/Wastage and the book balance for a hub that no longer handles it.
+        $assignedStmt = $db->query(
+            "SELECT DISTINCT bp.product_id
+               FROM dl_branch_products bp
+               INNER JOIN dl_products p ON p.id = bp.product_id AND p.is_active = 1
+              WHERE bp.branch_id IN ({$assignedScopeIn}) AND bp.is_active = 1"
+        );
+        foreach ($assignedStmt->fetchAll(PDO::FETCH_COLUMN) ?: [] as $assignedProductId) {
+            $assignedProductIds[(int)$assignedProductId] = true;
+        }
+    }
     foreach ($inventoryRows as &$inventoryRow) {
         $inventoryRow['on_hand'] = (int)($onHandMatrix[(int)$inventoryRow['commissary_branch_id']][(int)$inventoryRow['product_id']]['on_hand'] ?? 0);
     }
@@ -29363,10 +29390,17 @@ function handleAdminCommissary(): void
         'total_returned' => 0,
         'total_remaining' => 0,
         'total_on_hand' => 0,
+        'total_on_hand_excluded' => 0,
+        'total_on_hand_excluded_items' => 0,
         'total_deliveries' => count($deliveryRows),
         'total_pullouts' => count($pulloutRows),
     ];
     foreach ($inventoryRows as $row) {
+        // `continue` and not `unset`: the row still renders on the sheet (it is real recorded
+        // history), it simply does not add to a card about the hub's current assortment.
+        if ($assignedProductIds !== [] && !isset($assignedProductIds[(int)$row['product_id']])) {
+            continue;
+        }
         $totals['total_produced'] += (int)($row['produced_qty'] ?? 0);
         $totals['total_dispatched'] += (int)($row['dispatched_qty'] ?? 0);
         $totals['total_wastage'] += (int)($row['wastage_qty'] ?? 0);
@@ -29375,21 +29409,16 @@ function handleAdminCommissary(): void
         // this card sits beside (Produced/Dispatched/Wastage today) — it is NOT stock.
         $totals['total_remaining'] += (int)($row['remaining_qty'] ?? 0);
     }
-    // Stock on hand, counted ONCE per (hub, product): $inventoryRows carries one row per shift,
-    // so summing their on-hand would count the same stock twice.
-    foreach ($onHandMatrix as $hubProducts) {
-        foreach ($hubProducts as $hubProduct) {
-            $totals['total_on_hand'] += (int)$hubProduct['on_hand'];
-        }
-    }
-    // ── How much of that figure can never be right, by construction ────────────────────────    // This ledger's ONLY inflow is production (and the pullout returns credited to it). A product
-    // this hub has never produced — bought-in water, softdrinks, NUTRIBUN — therefore has no
-    // channel to be credited, so every unit shipped makes its balance negative and no correction
-    // an operator can key will fix it. Owner, 2026-11-21: "we can't have a 25K book balance."
-    // Measured at RIZAL-COMMIS to 2026-11-20: -25,983 total, of which -8,802 is exactly this.
-    // Splitting the two lets the fixable part be read on its own instead of hiding inside one
-    // number; it does NOT remove the bought-in figure from the total.
-    $totals['total_on_hand_resale'] = 0;
+    // ── Which products can even HAVE a stock figure at this hub ────────────────────────────
+    // Production (and the returns credited to it) is this ledger's ONLY inflow, so a product the
+    // hub has never produced has no channel by which it could ever be credited. Owner,
+    // 2026-11-21: "if it's not produced in a commis, then it's not an available stock figure."
+    // Measured at RIZAL-COMMIS to 2026-11-20: 43 such items carried -12,435 of book balance that
+    // no operator entry could ever correct, and they are what made the hub's stock read negative.
+    // They are EXCLUDED from the stock total and reported on their own line below — not silently
+    // dropped (that would hide a real gap in the purchase/inflow story), and never mixed in with
+    // the stock of things the hub actually makes.
+    $neverProducedHere = [];
     if ($onHandScopeIds !== []) {
         $scopeIn = implode(',', array_map('intval', $onHandScopeIds));
         $neverProducedStmt = $db->query(
@@ -29400,12 +29429,24 @@ function handleAdminCommissary(): void
              HAVING SUM(produced_qty) = 0"
         );
         foreach ($neverProducedStmt->fetchAll(PDO::FETCH_COLUMN) ?: [] as $neverProducedId) {
-            foreach ($onHandMatrix as $hubProducts) {
-                $neverProduced = (int)$neverProducedId;
-                if (isset($hubProducts[$neverProduced])) {
-                    $totals['total_on_hand_resale'] += (int)$hubProducts[$neverProduced]['on_hand'];
-                }
+            $neverProducedHere[(int)$neverProducedId] = true;
+        }
+    }
+
+    // Stock on hand: counted ONCE per (hub, product) — $onHandMatrix is keyed [commissary][product]
+    // — for the hub's active assortment, and only for products this hub actually produces.
+    foreach ($onHandMatrix as $hubProducts) {
+        foreach ($hubProducts as $hubProductId => $hubProduct) {
+            if ($assignedProductIds !== [] && !isset($assignedProductIds[(int)$hubProductId])) {
+                continue;
             }
+            $hubOnHand = (int)$hubProduct['on_hand'];
+            if (isset($neverProducedHere[(int)$hubProductId])) {
+                $totals['total_on_hand_excluded'] += $hubOnHand;
+                $totals['total_on_hand_excluded_items']++;
+                continue;
+            }
+            $totals['total_on_hand'] += $hubOnHand;
         }
     }
     foreach ($pulloutRows as $row) {
